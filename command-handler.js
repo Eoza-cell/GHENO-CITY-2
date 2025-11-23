@@ -1,4 +1,4 @@
-const { Player } = require('./database');
+const { Player, Vehicle, PlayerVehicle } = require('./database');
 
 const commands = new Map();
 
@@ -99,8 +99,185 @@ commands.set('help', async (sock, message) => {
                      "/start - Commence ou reprends ton aventure.\n" +
                      "/quests - Affiche tes quêtes actuelles.\n" +
                      "/profile - Affiche ton profil de gangster.\n" +
+                     "/goto [lieu] - Te déplace vers un lieu.\n" +
+                     "/shop - Affiche les articles d'une boutique.\n" +
+                     "/buy [article] - Achète un article.\n" +
+                     "/garage - Affiche tes véhicules.\n" +
+                     "/drive [id] - Monte dans un véhicule.\n" +
+                     "/park - Descends du véhicule.\n" +
+                     "/accelerate - Accélère.\n" +
                      "/help - Affiche cette aide.";
     await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+commands.set('accelerate', async (sock, message) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (!player.drivingVehicleId) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois être au volant pour accélérer." });
+    return;
+  }
+
+  const playerVehicle = await PlayerVehicle.findByPk(player.drivingVehicleId, { include: Vehicle });
+  if (!playerVehicle) {
+    // This should not happen if the database is consistent
+    await sock.sendMessage(message.key.remoteJid, { text: "Erreur: véhicule introuvable." });
+    return;
+  }
+
+  const vehicle = playerVehicle.Vehicle;
+  let newSpeed = playerVehicle.currentSpeed + vehicle.acceleration;
+  if (newSpeed > vehicle.topSpeed) {
+    newSpeed = vehicle.topSpeed;
+  }
+
+  await playerVehicle.update({ currentSpeed: newSpeed });
+
+  await sock.sendMessage(message.key.remoteJid, { text: `Tu accélères... Vitesse actuelle : ${newSpeed.toFixed(0)} km/h.` });
+});
+
+commands.set('garage', async (sock, message) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  const playerVehicles = await PlayerVehicle.findAll({
+    where: { PlayerWhatsappId: player.whatsappId },
+    include: Vehicle,
+  });
+
+  if (!playerVehicles.length) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu n'as pas de véhicule." });
+    return;
+  }
+
+  let garageText = "Ton garage:\n\n";
+  playerVehicles.forEach(pv => {
+    garageText += `- ID: ${pv.id} | ${pv.Vehicle.name} | Dégâts: ${pv.damage}%\n`;
+  });
+
+  await sock.sendMessage(message.key.remoteJid, { text: garageText });
+});
+
+commands.set('drive', async (sock, message, args) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.drivingVehicleId) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu es déjà au volant." });
+    return;
+  }
+
+  const playerVehicleId = args[0];
+  if (!playerVehicleId) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Indique l'ID du véhicule que tu veux conduire." });
+    return;
+  }
+
+  const playerVehicle = await PlayerVehicle.findOne({
+    where: { id: playerVehicleId, PlayerWhatsappId: player.whatsappId },
+    include: Vehicle,
+  });
+
+  if (!playerVehicle) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Ce n'est pas ton véhicule." });
+    return;
+  }
+
+  await player.update({ drivingVehicleId: playerVehicle.id });
+  await sock.sendMessage(message.key.remoteJid, { text: `Tu es maintenant au volant de ta ${playerVehicle.Vehicle.name}.` });
+});
+
+commands.set('park', async (sock, message) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (!player.drivingVehicleId) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu n'es pas au volant." });
+    return;
+  }
+
+  const playerVehicle = await PlayerVehicle.findByPk(player.drivingVehicleId, { include: Vehicle });
+  await player.update({ drivingVehicleId: null });
+  await playerVehicle.update({ currentSpeed: 0 }); // Reset speed when parking
+
+  await sock.sendMessage(message.key.remoteJid, { text: `Tu as garé la ${playerVehicle.Vehicle.name}.` });
+});
+
+// Location data
+const locations = {
+  'Little Sicily': {
+    description: "Ton quartier natal. Un peu miteux, mais c'est chez toi.",
+    connections: ['dealership'],
+  },
+  'dealership': {
+    description: "Une concession de voitures d'occasion. L'odeur de l'essence et des rêves brisés flotte dans l'air.",
+    connections: ['Little Sicily'],
+  },
+};
+
+// Command to move between locations
+commands.set('goto', async (sock, message, args) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (!player) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const destination = args[0];
+  if (!destination || !locations[destination]) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Destination inconnue." });
+    return;
+  }
+
+  const currentConnections = locations[player.location]?.connections;
+  if (!currentConnections || !currentConnections.includes(destination)) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu ne peux pas y aller depuis ta position actuelle." });
+    return;
+  }
+
+  await player.update({ location: destination });
+  await sock.sendMessage(message.key.remoteJid, { text: `Tu es maintenant à ${destination}.\n\n${locations[destination].description}` });
+});
+
+// Command to view items in a shop
+commands.set('shop', async (sock, message) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.location !== 'dealership') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Il n'y a pas de boutique ici." });
+    return;
+  }
+
+  const vehicles = await Vehicle.findAll();
+  let shopText = "Véhicules à vendre:\n\n";
+  vehicles.forEach(v => {
+    shopText += `- ${v.name} | ${v.price}$\n`;
+  });
+  shopText += "\nUtilise /buy [nom] pour acheter.";
+
+  await sock.sendMessage(message.key.remoteJid, { text: shopText });
+});
+
+// Command to buy an item
+commands.set('buy', async (sock, message, args) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.location !== 'dealership') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois être chez le concessionnaire pour acheter une voiture." });
+    return;
+  }
+
+  const vehicleName = args.join(' ');
+  const vehicle = await Vehicle.findOne({ where: { name: vehicleName } });
+
+  if (!vehicle) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Ce véhicule n'est pas à vendre." });
+    return;
+  }
+
+  if (player.money < vehicle.price) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu n'as pas assez d'argent." });
+    return;
+  }
+
+  await player.update({ money: player.money - vehicle.price });
+  await PlayerVehicle.create({
+    PlayerWhatsappId: player.whatsappId,
+    VehicleId: vehicle.id,
+  });
+
+  await sock.sendMessage(message.key.remoteJid, { text: `Félicitations ! Tu as acheté une ${vehicle.name}.` });
 });
 
 async function handleCommand(sock, message) {
