@@ -66,6 +66,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     allowNull: true,
   },
+  mode: {
+    type: DataTypes.STRING,
+    defaultValue: 'normal', // Can be 'normal' or 'action'
+  },
 });
 
 const Vehicle = sequelize.define('Vehicle', {

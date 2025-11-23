@@ -29,6 +29,11 @@ commands.set('quests', async (sock, message) => {
     return;
   }
 
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
+
   let questText = "Quêtes Actuelles:\n\n";
   if (player.chapter === 1 && player.quest === 1) {
     questText += "Chapitre 1: Les Racines de Little Sicily\n" +
@@ -49,11 +54,17 @@ commands.set('stealcar', async (sock, message) => {
     return;
   }
 
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
+
   if (player.chapter === 1 && player.quest === 1) {
     await player.update({ quest: 2, money: player.money + 500, xp: player.xp + 100 });
-    const successText = "Tu as réussi à voler une voiture ! Tu as gagné 500$ et 100 XP.\n\n" +
-                        "La nouvelle s'est répandue dans Little Sicily. Le caïd local, a entendu parler de toi et veut te voir. " +
-                        "Utilise /quests pour voir ton prochain objectif.";
+    const successText = "Avec des mains tremblantes mais déterminées, tu parviens à forcer la serrure et à faire démarrer le moteur. La voiture rugit à la vie, une bête de métal prête à t'obéir. Tu as réussi.\n\n" +
+                        "Récompense : 500$ et 100 XP.\n\n" +
+                        "La nouvelle s'est répandue dans Little Sicily. Le caïd local a entendu parler de toi et veut te voir.\n" +
+                        "[POLLINATION PROMPT: Scène de rue nocturne, un gangster fait démarrer une voiture volée, phares allumés, tension palpable, style cinématique, hyperréalisme]";
     await sock.sendMessage(message.key.remoteJid, { text: successText });
   } else {
     await sock.sendMessage(message.key.remoteJid, { text: "Tu ne peux pas faire ça maintenant." });
@@ -84,6 +95,11 @@ commands.set('grab', async (sock, message) => {
     return;
   }
 
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
+
   if (player.hasMoneyBag) {
     const amount = Math.floor(Math.random() * 500) + 250;
     await player.update({ money: player.money + amount, hasMoneyBag: false });
@@ -106,12 +122,30 @@ commands.set('help', async (sock, message) => {
                      "/drive [id] - Monte dans un véhicule.\n" +
                      "/park - Descends du véhicule.\n" +
                      "/accelerate - Accélère.\n" +
+                     "/action - Passe en mode action (RP).\n" +
+                     "/menu - Retourne au mode normal.\n" +
                      "/help - Affiche cette aide.";
     await sock.sendMessage(message.key.remoteJid, { text: helpText });
 });
 
+commands.set('action', async (sock, message) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  await player.update({ mode: 'action' });
+  await sock.sendMessage(message.key.remoteJid, { text: "Tu es maintenant en mode action. Tes prochaines commandes seront interprétées comme des actions RP." });
+});
+
+commands.set('menu', async (sock, message) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  await player.update({ mode: 'normal' });
+  await sock.sendMessage(message.key.remoteJid, { text: "Tu es de retour en mode normal." });
+});
+
 commands.set('accelerate', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
   if (!player.drivingVehicleId) {
     await sock.sendMessage(message.key.remoteJid, { text: "Tu dois être au volant pour accélérer." });
     return;
@@ -157,6 +191,10 @@ commands.set('garage', async (sock, message) => {
 
 commands.set('drive', async (sock, message, args) => {
   const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
   if (player.drivingVehicleId) {
     await sock.sendMessage(message.key.remoteJid, { text: "Tu es déjà au volant." });
     return;
@@ -179,11 +217,17 @@ commands.set('drive', async (sock, message, args) => {
   }
 
   await player.update({ drivingVehicleId: playerVehicle.id });
-  await sock.sendMessage(message.key.remoteJid, { text: `Tu es maintenant au volant de ta ${playerVehicle.Vehicle.name}.` });
+  const responseText = `Tu te glisses derrière le volant de ta ${playerVehicle.Vehicle.name}. L'odeur du cuir usé et de l'essence remplit tes narines.\n` +
+                       `[POLLINATION PROMPT: Vue à la première personne depuis l'intérieur d'une voiture, mains sur le volant, regardant à travers le pare-brise une rue de la ville la nuit, reflets des néons, cinématique, réaliste]`;
+  await sock.sendMessage(message.key.remoteJid, { text: responseText });
 });
 
 commands.set('park', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
   if (!player.drivingVehicleId) {
     await sock.sendMessage(message.key.remoteJid, { text: "Tu n'es pas au volant." });
     return;
@@ -229,12 +273,21 @@ commands.set('goto', async (sock, message, args) => {
   }
 
   await player.update({ location: destination });
-  await sock.sendMessage(message.key.remoteJid, { text: `Tu es maintenant à ${destination}.\n\n${locations[destination].description}` });
+  const location = locations[destination];
+  let responseText = `Tu es maintenant à ${destination}.\n\n${location.description}`;
+  if (location.prompt) {
+    responseText += `\n[POLLINATION PROMPT: ${location.prompt}]`;
+  }
+  await sock.sendMessage(message.key.remoteJid, { text: responseText });
 });
 
 // Command to view items in a shop
 commands.set('shop', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
   if (player.location !== 'dealership') {
     await sock.sendMessage(message.key.remoteJid, { text: "Il n'y a pas de boutique ici." });
     return;
@@ -253,6 +306,10 @@ commands.set('shop', async (sock, message) => {
 // Command to buy an item
 commands.set('buy', async (sock, message, args) => {
   const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
   if (player.location !== 'dealership') {
     await sock.sendMessage(message.key.remoteJid, { text: "Tu dois être chez le concessionnaire pour acheter une voiture." });
     return;
@@ -277,7 +334,9 @@ commands.set('buy', async (sock, message, args) => {
     VehicleId: vehicle.id,
   });
 
-  await sock.sendMessage(message.key.remoteJid, { text: `Félicitations ! Tu as acheté une ${vehicle.name}.` });
+  const responseText = `Tu serres la main du vendeur et prends les clés. La ${vehicle.name} est à toi.\n` +
+                       `[POLLINATION PROMPT: Clés de voiture tombant dans la paume d'une main, en gros plan, intérieur d'un concessionnaire automobile miteux en arrière-plan, éclairage dramatique, cinématique]`;
+  await sock.sendMessage(message.key.remoteJid, { text: responseText });
 });
 
 async function handleCommand(sock, message) {
