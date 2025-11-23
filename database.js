@@ -85,9 +85,13 @@ const Vehicle = sequelize.define('Vehicle', {
     type: DataTypes.INTEGER,
     defaultValue: 100,
   },
-  handling: { // Represents inertia, lower is better
+  inertia: { // Higher is worse
     type: DataTypes.FLOAT,
     defaultValue: 1.0,
+  },
+  brakePower: {
+    type: DataTypes.FLOAT,
+    defaultValue: 5,
   },
   price: {
     type: DataTypes.INTEGER,
@@ -99,6 +103,10 @@ const PlayerVehicle = sequelize.define('PlayerVehicle', {
   damage: {
     type: DataTypes.FLOAT,
     defaultValue: 0,
+  },
+  engineHealth: { // 100 is perfect, 0 is destroyed
+    type: DataTypes.FLOAT,
+    defaultValue: 100,
   },
   currentSpeed: {
     type: DataTypes.INTEGER,
@@ -124,9 +132,9 @@ async function setupDatabase() {
     const vehicleCount = await Vehicle.count();
     if (vehicleCount === 0) {
       await Vehicle.bulkCreate([
-        { name: 'Old Sedan', acceleration: 8, topSpeed: 120, handling: 1.2, price: 5000 },
-        { name: 'Sports Coupe', acceleration: 15, topSpeed: 200, handling: 0.8, price: 25000 },
-        { name: 'Heavy Truck', acceleration: 4, topSpeed: 90, handling: 1.8, price: 15000 },
+        { name: 'Old Sedan', acceleration: 8, topSpeed: 120, inertia: 1.5, brakePower: 5, price: 5000 },
+        { name: 'Sports Coupe', acceleration: 15, topSpeed: 200, inertia: 1.0, brakePower: 8, price: 25000 },
+        { name: 'Heavy Truck', acceleration: 4, topSpeed: 90, inertia: 2.2, brakePower: 3, price: 15000 },
       ]);
       console.log('Vehicle database seeded.');
     }

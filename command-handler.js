@@ -1,4 +1,5 @@
 const { Player, Vehicle, PlayerVehicle } = require('./database');
+const { isDay } = require('./gheno-city');
 
 const commands = new Map();
 
@@ -153,20 +154,58 @@ commands.set('accelerate', async (sock, message) => {
 
   const playerVehicle = await PlayerVehicle.findByPk(player.drivingVehicleId, { include: Vehicle });
   if (!playerVehicle) {
-    // This should not happen if the database is consistent
     await sock.sendMessage(message.key.remoteJid, { text: "Erreur: véhicule introuvable." });
     return;
   }
 
   const vehicle = playerVehicle.Vehicle;
-  let newSpeed = playerVehicle.currentSpeed + vehicle.acceleration;
-  if (newSpeed > vehicle.topSpeed) {
-    newSpeed = vehicle.topSpeed;
+  const engineModifier = playerVehicle.engineHealth / 100;
+  let acceleration = vehicle.acceleration * engineModifier;
+
+  let responseText = "";
+
+  if (playerVehicle.currentSpeed < 20 && acceleration > 10) {
+    responseText += "Tu appuies trop fort sur l'accélérateur, les pneus patinent ! ";
+    acceleration *= 0.5; // Patinage
+  }
+
+  let newSpeed = playerVehicle.currentSpeed + acceleration;
+  if (newSpeed > vehicle.topSpeed * engineModifier) {
+    newSpeed = vehicle.topSpeed * engineModifier;
   }
 
   await playerVehicle.update({ currentSpeed: newSpeed });
 
-  await sock.sendMessage(message.key.remoteJid, { text: `Tu accélères... Vitesse actuelle : ${newSpeed.toFixed(0)} km/h.` });
+  responseText += `Tu accélères... Vitesse actuelle : ${newSpeed.toFixed(0)} km/h.`;
+  await sock.sendMessage(message.key.remoteJid, { text: responseText });
+});
+
+commands.set('brake', async (sock, message) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
+  if (!player.drivingVehicleId) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois être au volant pour freiner." });
+    return;
+  }
+
+  const playerVehicle = await PlayerVehicle.findByPk(player.drivingVehicleId, { include: Vehicle });
+  if (!playerVehicle) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Erreur: véhicule introuvable." });
+    return;
+  }
+
+  const vehicle = playerVehicle.Vehicle;
+  let newSpeed = playerVehicle.currentSpeed - vehicle.brakePower;
+  if (newSpeed < 0) {
+    newSpeed = 0;
+  }
+
+  await playerVehicle.update({ currentSpeed: newSpeed });
+
+  await sock.sendMessage(message.key.remoteJid, { text: `Tu freines... Vitesse actuelle : ${newSpeed.toFixed(0)} km/h.` });
 });
 
 commands.set('garage', async (sock, message) => {
@@ -293,6 +332,11 @@ commands.set('shop', async (sock, message) => {
     return;
   }
 
+  if (!isDay()) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Le concessionnaire est fermé pour la nuit." });
+    return;
+  }
+
   const vehicles = await Vehicle.findAll();
   let shopText = "Véhicules à vendre:\n\n";
   vehicles.forEach(v => {
@@ -312,6 +356,11 @@ commands.set('buy', async (sock, message, args) => {
   }
   if (player.location !== 'dealership') {
     await sock.sendMessage(message.key.remoteJid, { text: "Tu dois être chez le concessionnaire pour acheter une voiture." });
+    return;
+  }
+
+  if (!isDay()) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Le concessionnaire est fermé pour la nuit." });
     return;
   }
 
