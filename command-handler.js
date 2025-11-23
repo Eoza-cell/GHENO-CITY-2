@@ -169,6 +169,7 @@ commands.set('accelerate', async (sock, message) => {
 
   if (playerVehicle.currentSpeed < WHEEL_SPIN_SPEED_THRESHOLD && acceleration > WHEEL_SPIN_ACCELERATION_THRESHOLD) {
     responseText += "Tu appuies trop fort sur l'accélérateur, les pneus patinent ! ";
+    responseText += "\n[POLLINATION PROMPT: Vue arrière d'une voiture de sport, fumée s'échappant des pneus crissants sur l'asphalte, action intense, style cinématique]";
     acceleration *= 0.5; // Patinage
   }
 
@@ -201,14 +202,19 @@ commands.set('brake', async (sock, message) => {
   }
 
   const vehicle = playerVehicle.Vehicle;
-  let newSpeed = playerVehicle.currentSpeed - (vehicle.brakePower / vehicle.inertia);
+  const deceleration = vehicle.brakePower / vehicle.inertia;
+  let newSpeed = playerVehicle.currentSpeed - deceleration;
   if (newSpeed < 0) {
     newSpeed = 0;
   }
 
   await playerVehicle.update({ currentSpeed: newSpeed });
 
-  await sock.sendMessage(message.key.remoteJid, { text: `Tu freines... Vitesse actuelle : ${newSpeed.toFixed(0)} km/h.` });
+  let responseText = `Tu freines... Vitesse actuelle : ${newSpeed.toFixed(0)} km/h.`;
+  if (deceleration > 15) { // Seuil pour un freinage brusque
+    responseText += "\n[POLLINATION PROMPT: Pneu de voiture bloqué crissant sur l'asphalte, laissant une trace de gomme noire, en gros plan, action intense, photoréalisme]";
+  }
+  await sock.sendMessage(message.key.remoteJid, { text: responseText });
 });
 
 commands.set('garage', async (sock, message) => {
@@ -316,10 +322,8 @@ commands.set('goto', async (sock, message, args) => {
 
   await player.update({ location: destination });
   const location = locations[destination];
-  let responseText = `Tu es maintenant à ${destination}.\n\n${location.description}`;
-  if (location.prompt) {
-    responseText += `\n[POLLINATION PROMPT: ${location.prompt}]`;
-  }
+  const responseText = `Tu es maintenant à ${destination}.\n\n${location.description}\n` +
+                       `[POLLINATION PROMPT: Vue depuis une voiture roulant sur une autoroute de la ville, gratte-ciels flous en arrière-plan, fin de journée, couleurs chaudes, style cinématique]`;
   await sock.sendMessage(message.key.remoteJid, { text: responseText });
 });
 

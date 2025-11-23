@@ -49,11 +49,23 @@ async function connectToWhatsApp() {
     }
   });
 
+  // Logique pour le code de pairage par numéro de téléphone
+  if (!sock.user && process.env.PHONE_NUMBER) {
+    try {
+      const phoneNumber = process.env.PHONE_NUMBER;
+      console.log(`Demande du code de pairage pour le numéro : ${phoneNumber}`);
+      setTimeout(async () => {
+        const code = await sock.requestPairingCode(phoneNumber);
+        console.log(`✅ Votre code de pairage Gheno City 2 est : ${code}`);
+        console.log('--> Veuillez le saisir sur votre téléphone dans "Appareils liés" > "Lier un appareil".');
+      }, 3000); // Ajout d'un délai pour éviter les conditions de course
+    } catch (error) {
+      console.error('❌ Impossible de demander le code de pairage :', error);
+    }
+  }
+
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
-    if (qr) {
-      console.log('QR code:', qr);
-    }
     if (connection === 'close') {
       const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
       console.log('Connection closed. Reconnecting:', shouldReconnect);
