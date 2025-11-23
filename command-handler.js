@@ -3,6 +3,9 @@ const { isDay } = require('./gheno-city');
 
 const commands = new Map();
 
+const WHEEL_SPIN_SPEED_THRESHOLD = 20;
+const WHEEL_SPIN_ACCELERATION_THRESHOLD = 10;
+
 // The /start command
 commands.set('start', async (sock, message) => {
   const [player, created] = await Player.findOrCreate({
@@ -160,11 +163,11 @@ commands.set('accelerate', async (sock, message) => {
 
   const vehicle = playerVehicle.Vehicle;
   const engineModifier = playerVehicle.engineHealth / 100;
-  let acceleration = vehicle.acceleration * engineModifier;
+  let acceleration = (vehicle.acceleration * engineModifier) / vehicle.inertia;
 
   let responseText = "";
 
-  if (playerVehicle.currentSpeed < 20 && acceleration > 10) {
+  if (playerVehicle.currentSpeed < WHEEL_SPIN_SPEED_THRESHOLD && acceleration > WHEEL_SPIN_ACCELERATION_THRESHOLD) {
     responseText += "Tu appuies trop fort sur l'accélérateur, les pneus patinent ! ";
     acceleration *= 0.5; // Patinage
   }
@@ -198,7 +201,7 @@ commands.set('brake', async (sock, message) => {
   }
 
   const vehicle = playerVehicle.Vehicle;
-  let newSpeed = playerVehicle.currentSpeed - vehicle.brakePower;
+  let newSpeed = playerVehicle.currentSpeed - (vehicle.brakePower / vehicle.inertia);
   if (newSpeed < 0) {
     newSpeed = 0;
   }
