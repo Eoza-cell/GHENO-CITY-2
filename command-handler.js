@@ -1,5 +1,6 @@
 const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
+const { handleFreeAction } = require('./ai-handler');
 
 const commands = new Map();
 
@@ -119,9 +120,6 @@ commands.set('help', async (sock, message) => {
                      "/start - Commence ou reprends ton aventure.\n" +
                      "/quests - Affiche tes quêtes actuelles.\n" +
                      "/profile - Affiche ton profil de gangster.\n" +
-                     "/goto [lieu] - Te déplace vers un lieu.\n" +
-                     "/shop - Affiche les articles d'une boutique.\n" +
-                     "/buy [article] - Achète un article.\n" +
                      "/garage - Affiche tes véhicules.\n" +
                      "/drive [id] - Monte dans un véhicule.\n" +
                      "/park - Descends du véhicule.\n" +
@@ -288,117 +286,35 @@ commands.set('park', async (sock, message) => {
   await sock.sendMessage(message.key.remoteJid, { text: `Tu as garé la ${playerVehicle.Vehicle.name}.` });
 });
 
-// Location data
-const locations = {
-  'Little Sicily': {
-    description: "Ton quartier natal. Un peu miteux, mais c'est chez toi.",
-    connections: ['dealership'],
-  },
-  'dealership': {
-    description: "Une concession de voitures d'occasion. L'odeur de l'essence et des rêves brisés flotte dans l'air.",
-    connections: ['Little Sicily'],
-  },
-};
 
-// Command to move between locations
-commands.set('goto', async (sock, message, args) => {
-  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
-  if (!player) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
-
-  const destination = args[0];
-  if (!destination || !locations[destination]) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Destination inconnue." });
-    return;
-  }
-
-  const currentConnections = locations[player.location]?.connections;
-  if (!currentConnections || !currentConnections.includes(destination)) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Tu ne peux pas y aller depuis ta position actuelle." });
-    return;
-  }
-
-  await player.update({ location: destination });
-  const location = locations[destination];
-  const responseText = `Tu es maintenant à ${destination}.\n\n${location.description}\n` +
-                       `[POLLINATION PROMPT: Vue depuis une voiture roulant sur une autoroute de la ville, gratte-ciels flous en arrière-plan, fin de journée, couleurs chaudes, style cinématique]`;
-  await sock.sendMessage(message.key.remoteJid, { text: responseText });
-});
-
-// Command to view items in a shop
-commands.set('shop', async (sock, message) => {
-  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
-  if (player.mode !== 'action') {
-    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-  if (player.location !== 'dealership') {
-    await sock.sendMessage(message.key.remoteJid, { text: "Il n'y a pas de boutique ici." });
-    return;
-  }
-
-  if (!isDay()) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Le concessionnaire est fermé pour la nuit." });
-    return;
-  }
-
-  const vehicles = await Vehicle.findAll();
-  let shopText = "Véhicules à vendre:\n\n";
-  vehicles.forEach(v => {
-    shopText += `- ${v.name} | ${v.price}$\n`;
-  });
-  shopText += "\nUtilise /buy [nom] pour acheter.";
-
-  await sock.sendMessage(message.key.remoteJid, { text: shopText });
-});
-
-// Command to buy an item
-commands.set('buy', async (sock, message, args) => {
-  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
-  if (player.mode !== 'action') {
-    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-  if (player.location !== 'dealership') {
-    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois être chez le concessionnaire pour acheter une voiture." });
-    return;
-  }
-
-  if (!isDay()) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Le concessionnaire est fermé pour la nuit." });
-    return;
-  }
-
-  const vehicleName = args.join(' ');
-  const vehicle = await Vehicle.findOne({ where: { name: vehicleName } });
-
-  if (!vehicle) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Ce véhicule n'est pas à vendre." });
-    return;
-  }
-
-  if (player.money < vehicle.price) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Tu n'as pas assez d'argent." });
-    return;
-  }
-
-  await player.update({ money: player.money - vehicle.price });
-  await PlayerVehicle.create({
-    PlayerWhatsappId: player.whatsappId,
-    VehicleId: vehicle.id,
-  });
-
-  const responseText = `Tu serres la main du vendeur et prends les clés. La ${vehicle.name} est à toi.\n` +
-                       `[POLLINATION PROMPT: Clés de voiture tombant dans la paume d'une main, en gros plan, intérieur d'un concessionnaire automobile miteux en arrière-plan, éclairage dramatique, cinématique]`;
-  await sock.sendMessage(message.key.remoteJid, { text: responseText });
-});
 
 async function handleCommand(sock, message) {
   const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
-  if (!messageText || !messageText.startsWith('/')) {
+  if (!messageText) {
     return;
+  }
+
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (!player && !messageText.startsWith('/start')) {
+     await sock.sendMessage(message.key.remoteJid, { text: "Bienvenue ! Utilise /start pour commencer ton aventure à Gheno City." });
+     return;
+  }
+
+  // Si le joueur est en mode action et que le message n'est pas une commande, on le traite comme une action libre.
+  if (player && player.mode === 'action' && !messageText.startsWith('/')) {
+    try {
+      await handleFreeAction(sock, message, player, messageText);
+      await Player.update({ lastActivity: new Date() }, { where: { whatsappId: message.key.remoteJid } });
+    } catch (error) {
+      console.error('Error executing free action:', error);
+      await sock.sendMessage(message.key.remoteJid, { text: "Une erreur est survenue lors de l'interprétation de ton action." });
+    }
+    return; // On arrête le traitement ici pour ne pas chercher de commande.
+  }
+
+  // Logique pour les commandes qui commencent par /
+  if (!messageText.startsWith('/')) {
+    return; // Ignore les messages normaux si pas en mode action
   }
 
   const args = messageText.slice(1).trim().split(/ +/);
