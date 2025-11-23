@@ -63,6 +63,7 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       console.log('Connected to WhatsApp');
       startInactivePlayerHandler(sock);
+      // Start the game loop only after a successful connection
       setInterval(() => gameLoop(sock), GAME_TICK_RATE);
     }
   });
