@@ -1,6 +1,7 @@
 const Groq = require('groq-sdk');
 const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
+const { sendWithImage } = require('./command-handler'); // Import the new function
 
 // IMPORTANT: La clé API de l'utilisateur doit être définie comme variable d'environnement `GROQ_API_KEY`
 // sur la plateforme de déploiement.
@@ -21,6 +22,7 @@ const locations = {
 };
 
 async function handleFreeAction(sock, message, player, actionText) {
+  const jid = message.key.remoteJid;
   // 1. Construire le contexte pour l'IA
   const playerState = `
     - Nom: ${player.name}
@@ -48,6 +50,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     2.  **Immuabilité du monde**: Tu ne peux pas changer les règles du jeu, les prix des objets, ou l'état du monde qui ne dépend pas du joueur.
     3.  **Respecte le contexte**: Base tes réponses UNIQUEMENT sur l'état du joueur et le contexte que je te fournis.
     4.  **Format de réponse**: Tu DOIS répondre avec un objet JSON valide, et rien d'autre. L'objet doit avoir la structure suivante: \`{"action": "type_action", "parameters": {...}, "narrative": "texte_pour_le_joueur"}\`
+    5.  **Créativité Narrative**: Tu peux ajouter des prompts pour la génération d'images dans tes narratives en utilisant le format \`[POLLINATION PROMPT: description de l'image]\`.
 
     TYPES D'ACTIONS POSSIBLES DANS LE JSON:
     - \`"action": "move"\`: Pour déplacer le joueur.
@@ -76,7 +79,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: actionText },
       ],
-      model: 'llama3-70b-8192', // Utilisation d'un modèle puissant pour un meilleur raisonnement
+      model: 'llama3-70b-8192',
       temperature: 0.7,
       response_format: { type: 'json_object' },
     });
@@ -89,10 +92,9 @@ async function handleFreeAction(sock, message, player, actionText) {
         const destination = aiResponse.parameters.destination;
         if (locations[destination] && locations[player.location].connections.includes(destination)) {
           await player.update({ location: destination });
-          const narrativeWithPrompt = aiResponse.narrative + "\n[POLLINATION PROMPT: Vue depuis une voiture roulant sur une autoroute de la ville, gratte-ciels flous en arrière-plan, fin de journée, couleurs chaudes, style cinématique]";
-          await sock.sendMessage(message.key.remoteJid, { text: narrativeWithPrompt });
+          await sendWithImage(sock, jid, aiResponse.narrative);
         } else {
-          await sock.sendMessage(message.key.remoteJid, { text: `L'IA a essayé de te déplacer vers un lieu invalide (${destination}). Réessaye.` });
+          await sock.sendMessage(jid, { text: `L'IA a essayé de te déplacer vers un lieu invalide (${destination}). Réessaye.` });
         }
         break;
 
@@ -100,7 +102,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         const vehicleName = aiResponse.parameters.vehicleName;
         const vehicle = await Vehicle.findOne({ where: { name: vehicleName } });
         if (player.location !== 'dealership' || !isDay()) {
-             await sock.sendMessage(message.key.remoteJid, { text: "L'IA a compris que tu voulais acheter, mais le concessionnaire est fermé ou tu n'es pas au bon endroit." });
+             await sock.sendMessage(jid, { text: "L'IA a compris que tu voulais acheter, mais le concessionnaire est fermé ou tu n'es pas au bon endroit." });
              break;
         }
         if (vehicle && player.money >= vehicle.price) {
@@ -109,30 +111,29 @@ async function handleFreeAction(sock, message, player, actionText) {
             PlayerWhatsappId: player.whatsappId,
             VehicleId: vehicle.id,
           });
-          const narrativeWithPrompt = aiResponse.narrative + "\n[POLLINATION PROMPT: Clés de voiture tombant dans la paume d'une main, en gros plan, intérieur d'un concessionnaire automobile miteux en arrière-plan, éclairage dramatique, cinématique]";
-          await sock.sendMessage(message.key.remoteJid, { text: narrativeWithPrompt });
+          await sendWithImage(sock, jid, aiResponse.narrative);
         } else if (vehicle) {
-           await sock.sendMessage(message.key.remoteJid, { text: `L'IA a compris que tu voulais acheter une "${vehicleName}", mais tu n'as pas assez d'argent.` });
+           await sock.sendMessage(jid, { text: `L'IA a compris que tu voulais acheter une "${vehicleName}", mais tu n'as pas assez d'argent.` });
         } else {
-           await sock.sendMessage(message.key.remoteJid, { text: `L'IA a tenté de te vendre un véhicule qui n'existe pas ("${vehicleName}").` });
+           await sock.sendMessage(jid, { text: `L'IA a tenté de te vendre un véhicule qui n'existe pas ("${vehicleName}").` });
         }
         break;
 
       case 'narrate':
-        await sock.sendMessage(message.key.remoteJid, { text: aiResponse.narrative });
+        await sendWithImage(sock, jid, aiResponse.narrative);
         break;
 
       case 'error':
         const errorNarrative = aiResponse.narrative || aiResponse.parameters.reason;
-        await sock.sendMessage(message.key.remoteJid, { text: errorNarrative });
+        await sendWithImage(sock, jid, errorNarrative);
         break;
 
       default:
-        await sock.sendMessage(message.key.remoteJid, { text: "L'IA a renvoyé une action inconnue. Réessaye." });
+        await sock.sendMessage(jid, { text: "L'IA a renvoyé une action inconnue. Réessaye." });
     }
   } catch (error) {
     console.error('Erreur de communication avec l\'API Groq:', error);
-    await sock.sendMessage(message.key.remoteJid, { text: "Le cerveau de la ville est en surchauffe... Une erreur est survenue avec l'IA. Réessaye ton action." });
+    await sock.sendMessage(jid, { text: "Le cerveau de la ville est en surchauffe... Une erreur est survenue avec l'IA. Réessaye ton action." });
   }
 }
 

@@ -6,6 +6,16 @@ const sequelize = new Sequelize({
   logging: false,
 });
 
+const Creds = sequelize.define('Creds', {
+  key: {
+    type: DataTypes.STRING,
+    primaryKey: true,
+  },
+  value: {
+    type: DataTypes.TEXT,
+  },
+});
+
 const Player = sequelize.define('Player', {
   whatsappId: {
     type: DataTypes.STRING,
@@ -247,5 +257,6 @@ module.exports = {
   Player,
   Vehicle,
   PlayerVehicle,
+  Creds,
   setupDatabase,
 };
