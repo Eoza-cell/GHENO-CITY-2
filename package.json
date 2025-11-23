@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node gheno-city.js",
-    "test": "echo \"No tests specified\""
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {
     "type": "git",
