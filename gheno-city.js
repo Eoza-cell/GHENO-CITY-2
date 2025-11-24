@@ -2,7 +2,7 @@ const { default: makeWASocket } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const { Sequelize } = require('sequelize');
 const { setupDatabase, Player, PlayerVehicle } = require('./database');
-const { useDatabaseAuthState } = require('./database-auth');
+const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand } = require('./command-handler');
 const { startInactivePlayerHandler } = require('./inactive-handler');
 
@@ -37,7 +37,7 @@ async function gameLoop(sock) {
 async function connectToWhatsApp() {
   await setupDatabase();
 
-  const { state, saveCreds } = await useDatabaseAuthState();
+  const { state, saveCreds } = await useDatabaseAuth();
 
   const sock = makeWASocket({
     auth: state,
