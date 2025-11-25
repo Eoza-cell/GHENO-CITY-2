@@ -29,7 +29,7 @@ const useDatabaseAuth = async () => {
     const writeData = async (key, data) => {
         try {
             const value = JSON.stringify(data, BufferJSON.replacer);
-            await Creds.replace({ key, value });
+            await Creds.upsert({ key, value });
         } catch (error) {
             console.error(`Failed to write key "${key}" to database`, error);
         }
