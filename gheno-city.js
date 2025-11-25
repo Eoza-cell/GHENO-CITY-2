@@ -1,4 +1,4 @@
-const { default: makeWASocket } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, delay } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const { Sequelize } = require('sequelize');
 const { setupDatabase, Player, PlayerVehicle } = require('./database');
@@ -41,28 +41,52 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true, // Let's use QR for simplicity now
+    printQRInTerminal: false, // QR code is no longer needed
     browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
     version: [2, 3000, 1025190524],
+    logger: pino({ level: 'silent' }), // Suppress verbose logging
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return { conversation: '🔄 Réessaye d\'envoyer ton message' };
     }
   });
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update;
-    if (qr) {
-      console.log('QR code received, scan it with your phone.');
+  // Handle pairing code logic
+  if (!sock.authState.creds.registered) {
+    const phoneNumber = process.env.PHONE_NUMBER;
+    if (!phoneNumber) {
+      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+      console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
+      console.error('!!! Définissez la variable d\'environnement PHONE_NUMBER.   !!!');
+      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+      process.exit(1);
     }
+
+    await delay(1500); // Small delay to ensure the socket is ready
+    console.log('Demande du code de pairage...');
+    try {
+      const code = await sock.requestPairingCode(phoneNumber);
+      console.log('==============================================================');
+      console.log('Votre code de pairage Gheno City 2 :');
+      console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
+      console.log('==============================================================');
+      console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
+    } catch (error) {
+      console.error('Impossible de demander le code de pairage :', error);
+      process.exit(1);
+    }
+  }
+
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect } = update;
     if (connection === 'close') {
       const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection closed. Reconnecting:', shouldReconnect);
+      console.log('Connection fermée. Reconnexion:', shouldReconnect);
       if (shouldReconnect) {
         connectToWhatsApp();
       }
     } else if (connection === 'open') {
-      console.log('Connected to WhatsApp');
+      console.log('Connecté à WhatsApp');
       startInactivePlayerHandler(sock);
       // Start the game loop only after a successful connection
       setInterval(() => gameLoop(sock), GAME_TICK_RATE);
