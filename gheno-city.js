@@ -1,3 +1,16 @@
+// Charger les variables d'environnement au tout début
+require('dotenv').config();
+
+// Vérification de la clé API Groq
+if (!process.env.GROQ_API_KEY) {
+  console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  console.error('!!! ERREUR : La clé API Groq est manquante.                  !!!');
+  console.error('!!! Assurez-vous de créer un fichier .env et d\'y ajouter   !!!');
+  console.error('!!! votre GROQ_API_KEY. Voir .env.example pour référence.    !!!');
+  console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  process.exit(1);
+}
+
 const { default: makeWASocket, delay } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const { Sequelize } = require('sequelize');
@@ -81,7 +94,7 @@ async function connectToWhatsApp() {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
       const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection fermée. Reconnexion:', shouldReconnect);
+      console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
       if (shouldReconnect) {
         connectToWhatsApp();
       }
