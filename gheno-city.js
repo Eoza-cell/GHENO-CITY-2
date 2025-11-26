@@ -11,7 +11,7 @@ if (!process.env.GROQ_API_KEY) {
   process.exit(1);
 }
 
-const { default: makeWASocket, delay } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, delay, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const { Sequelize } = require('sequelize');
 const { setupDatabase, Player, PlayerVehicle } = require('./database');
@@ -111,7 +111,7 @@ async function connectToWhatsApp() {
   sock.ev.on('messages.upsert', async (m) => {
     m.messages.forEach(async (message) => {
       if (!message.message) return;
-      handleCommand(sock, message);
+      handleCommand(sock, message, downloadMediaMessage);
     });
   });
 }

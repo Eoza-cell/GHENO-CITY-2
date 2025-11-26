@@ -107,6 +107,10 @@ const Vehicle = sequelize.define('Vehicle', {
     type: DataTypes.INTEGER,
     defaultValue: 10000,
   },
+    profilePicPath: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
 });
 
 const PlayerVehicle = sequelize.define('PlayerVehicle', {

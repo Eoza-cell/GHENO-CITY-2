@@ -1,10 +1,13 @@
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
 const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
 const { handleFreeAction } = require('./ai-handler');
 const { generateImageFromPrompt } = require('./image-generator');
 
 const commands = new Map();
-const registrationState = new Map(); // whatsappId -> 'awaiting_name'
+const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_profile_pic'
 
 const WHEEL_SPIN_SPEED_THRESHOLD = 20;
 const WHEEL_SPIN_ACCELERATION_THRESHOLD = 10;
@@ -107,7 +110,39 @@ commands.set('stealcar', async (sock, message) => {
   }
 });
 
-// The /profile command
+async function generateIdCard(player) {
+  const templatePath = './assets/id_card_template.png';
+  const profilePicPath = player.profilePicPath;
+
+  const textSvg = `
+    <svg width="450" height="300">
+      <style>
+        .label { fill: #bbb; font-size: 30px; font-family: Arial, sans-serif; }
+        .info { fill: #fff; font-size: 35px; font-family: Arial, sans-serif; }
+      </style>
+      <text x="0" y="40" class="label">NOM:</text>
+      <text x="0" y="80" class="info">${player.name}</text>
+      <text x="0" y="140" class="label">NIVEAU:</text>
+      <text x="0" y="180" class="info">${player.level}</text>
+      <text x="0" y="240" class="label">ARGENT:</text>
+      <text x="0" y="280" class="info">${player.money}$</text>
+    </svg>
+  `;
+
+  const resizedProfilePic = await sharp(profilePicPath)
+    .resize(250, 250)
+    .toBuffer();
+
+  return sharp(templatePath)
+    .composite([
+      { input: resizedProfilePic, top: 125, left: 50 },
+      { input: Buffer.from(textSvg), top: 125, left: 350 },
+    ])
+    .png()
+    .toBuffer();
+}
+
+commands.set('profil', commands.get('profile')); // Alias
 commands.set('profile', async (sock, message) => {
   const jid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
@@ -116,12 +151,22 @@ commands.set('profile', async (sock, message) => {
     return;
   }
 
-  const profileText = `Profil de Gangster:\n\n` +
-                      `👤 Nom: ${player.name}\n` +
-                      `📈 Niveau: ${player.level}\n` +
-                      `✨ XP: ${player.xp}\n` +
-                      `💰 Argent: ${player.money}$`;
-  await sock.sendMessage(jid, { text: profileText });
+  if (!player.profilePicPath) {
+    registrationState.set(jid, 'awaiting_profile_pic');
+    await sock.sendMessage(jid, { text: "Ta carte d'identité n'est pas encore créée. Envoie une photo de profil pour la générer." });
+    return;
+  }
+
+  try {
+    const idCardBuffer = await generateIdCard(player);
+    await sock.sendMessage(jid, {
+      image: idCardBuffer,
+      caption: `Voici ta carte d'identité, ${player.name}.`
+    });
+  } catch (error) {
+    console.error("Erreur lors de la génération de la carte d'identité:", error);
+    await sock.sendMessage(jid, { text: "Désolé, une erreur est survenue lors de la création de ta carte d'identité." });
+  }
 });
 
 // The /grab command
@@ -173,8 +218,29 @@ commands.set('action', async (sock, message) => {
 commands.set('menu', async (sock, message) => {
   const jid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
-  await player.update({ mode: 'normal' });
-  await sock.sendMessage(jid, { text: "Tu es de retour en mode normal." });
+  if (player) {
+    await player.update({ mode: 'normal' });
+  }
+
+  const menuText = "Bienvenue à Gheno City 2.\n\n" +
+                   "Les rues sont à toi. Que veux-tu faire ?\n\n" +
+                   "🎮 `/action` - Passer en mode immersif (RP).\n" +
+                   "👤 `/profil` - Voir ta carte d'identité.\n" +
+                   "📋 `/quests` - Consulter tes objectifs.\n" +
+                   "🚗 `/garage` - Accéder à tes véhicules.\n" +
+                   "❓ `/help` - Obtenir la liste complète des commandes.";
+
+  try {
+    const imageBuffer = fs.readFileSync('./menu_image.jpg');
+    await sock.sendMessage(jid, {
+      image: imageBuffer,
+      caption: menuText
+    });
+  } catch (error) {
+    console.error("Impossible d'envoyer l'image du menu:", error);
+    // Fallback to text message if image fails
+    await sock.sendMessage(jid, { text: menuText });
+  }
 });
 
 commands.set('accelerate', async (sock, message) => {
@@ -326,13 +392,48 @@ commands.set('park', async (sock, message) => {
   await sock.sendMessage(jid, { text: `Tu as garé la ${playerVehicle.Vehicle.name}.` });
 });
 
-async function handleCommand(sock, message) {
+async function handleCommand(sock, message, downloadMediaMessage) {
+  // Ignore messages sent by the bot itself to prevent spam loops
+  if (message.key.fromMe) {
+    return;
+  }
+
   const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
   if (!messageText) {
     return;
   }
 
   const jid = message.key.remoteJid;
+
+  // Handle profile picture submission
+  if (registrationState.get(jid) === 'awaiting_profile_pic') {
+    const imageMessage = message.message.imageMessage;
+    if (imageMessage) {
+      try {
+        const buffer = await downloadMediaMessage(message, 'buffer', {});
+        const filePath = path.join('./assets/profile_pics', `${jid}.png`);
+
+        await sharp(buffer).resize(250, 250).toFile(filePath);
+
+        const player = await Player.findOne({ where: { whatsappId: jid } });
+        await player.update({ profilePicPath: filePath });
+
+        registrationState.delete(jid);
+        await sock.sendMessage(jid, { text: "Photo de profil enregistrée ! Ta carte d'identité est prête. Utilise /profil pour la voir." });
+
+        // Trigger profile command to show the new ID card immediately
+        await commands.get('profile')(sock, message);
+
+      } catch (error) {
+        console.error("Erreur lors de la sauvegarde de la photo de profil:", error);
+        await sock.sendMessage(jid, { text: "Désolé, une erreur est survenue lors de la sauvegarde de ta photo. Réessaie." });
+      }
+      return;
+    } else {
+      await sock.sendMessage(jid, { text: "Ce n'est pas une image. Envoie une photo pour ton profil." });
+      return;
+    }
+  }
 
   // Player registration flow
   if (registrationState.get(jid) === 'awaiting_name') {
