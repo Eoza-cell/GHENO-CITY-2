@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node gheno-city.js",
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {
     "type": "git",
@@ -20,8 +21,11 @@
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "dotenv": "^17.2.3",
+    "groq-sdk": "^0.36.0",
     "pino": "^10.1.0",
     "sequelize": "^6.37.7",
+    "sharp": "^0.34.5",
     "sqlite3": "^5.1.7"
   }
 }
