@@ -159,9 +159,14 @@ commands.set('profile', async (sock, message) => {
 
   try {
     const idCardBuffer = await generateIdCard(player);
+    const profileText = `*Profil de ${player.name}*\n\n` +
+                        `*Niveau:* ${player.level}\n` +
+                        `*XP:* ${player.xp}\n` +
+                        `*Argent:* ${player.money}$`;
+
     await sock.sendMessage(jid, {
       image: idCardBuffer,
-      caption: `Voici ta carte d'identité, ${player.name}.`
+      caption: profileText
     });
   } catch (error) {
     console.error("Erreur lors de la génération de la carte d'identité:", error);
