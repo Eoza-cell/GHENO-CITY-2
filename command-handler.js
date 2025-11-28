@@ -5,6 +5,7 @@ const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
 const { handleFreeAction } = require('./ai-handler');
 const { generateImageFromPrompt } = require('./image-generator');
+const { locations } = require('./data');
 
 const commands = new Map();
 const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_profile_pic'
@@ -204,8 +205,33 @@ commands.set('help', async (sock, message) => {
                      "/accelerate - Accélère.\n" +
                      "/action - Passe en mode action (RP).\n" +
                      "/menu - Retourne au mode normal.\n" +
+                     "/map - Affiche la carte de la ville.\n" +
                      "/help - Affiche cette aide.";
     await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+commands.set('map', async (sock, message) => {
+  const jid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) {
+    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const playerLocation = locations[player.location];
+  if (!playerLocation) {
+    await sock.sendMessage(jid, { text: "Erreur : lieu actuel inconnu." });
+    return;
+  }
+
+  let mapText = `📍 *Tu es ici : ${playerLocation.name}*\n`;
+  mapText += `_${playerLocation.description}_\n\n`;
+  mapText += "🗺️ *Destinations possibles :*\n";
+  playerLocation.connections.forEach(conn => {
+    mapText += `- ${locations[conn].name}\n`;
+  });
+
+  await sock.sendMessage(jid, { text: mapText });
 });
 
 commands.set('action', async (sock, message) => {
