@@ -1,15 +1,7 @@
 // Charger les variables d'environnement au tout début
 require('dotenv').config();
 
-// Vérification de la clé API Groq
-if (!process.env.GROQ_API_KEY) {
-  console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-  console.error('!!! ERREUR : La clé API Groq est manquante.                  !!!');
-  console.error('!!! Assurez-vous de créer un fichier .env et d\'y ajouter   !!!');
-  console.error('!!! votre GROQ_API_KEY. Voir .env.example pour référence.    !!!');
-  console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-  process.exit(1);
-}
+// Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const { default: makeWASocket, delay, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const pino = require('pino');

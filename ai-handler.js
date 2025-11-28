@@ -1,13 +1,8 @@
-const Groq = require('groq-sdk');
+const axios = require('axios'); // Remplacer https par axios
 const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
-const { sendWithImage } = require('./command-handler'); // Import the new function
-
-// IMPORTANT: La clé API de l'utilisateur doit être définie comme variable d'environnement `GROQ_API_KEY`
-// sur la plateforme de déploiement.
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+const { sendWithImage } = require('./command-handler');
+const { getMission } = require('./missions');
 
 // Données de localisation - cela fera partie du contexte donné à l'IA
 const locations = {
@@ -49,18 +44,20 @@ async function handleFreeAction(sock, message, player, actionText) {
     1.  **Réalisme absolu**: Rien n'est magique. Les actions doivent être logiques. Un joueur ne peut pas se téléporter ou faire apparaître des objets.
     2.  **Immuabilité du monde**: Tu ne peux pas changer les règles du jeu, les prix des objets, ou l'état du monde qui ne dépend pas du joueur.
     3.  **Respecte le contexte**: Base tes réponses UNIQUEMENT sur l'état du joueur et le contexte que je te fournis.
-    4.  **Format de réponse**: Tu DOIS répondre avec un objet JSON valide, et rien d'autre. L'objet doit avoir la structure suivante: \`{"action": "type_action", "parameters": {...}, "narrative": "texte_pour_le_joueur"}\`
-    5.  **Créativité Narrative**: Tu peux ajouter des prompts pour la génération d'images dans tes narratives en utilisant le format \`[POLLINATION PROMPT: description de l'image]\`.
+    4.  **Format de réponse**: Tu DOIS répondre avec un objet JSON valide, et rien d'autre. L'objet doit avoir la structure suivante: {"action": "type_action", "parameters": {...}, "narrative": "texte_pour_le_joueur"}
+    5.  **Créativité Narrative**: Tu peux ajouter des prompts pour la génération d'images dans tes narratives en utilisant le format [POLLINATION PROMPT: description de l'image].
 
     TYPES D'ACTIONS POSSIBLES DANS LE JSON:
-    - \`"action": "move"\`: Pour déplacer le joueur.
-      - \`"parameters": {"destination": "nom_du_lieu"}\`
-    - \`"action": "buy"\`: Pour acheter un véhicule.
-      - \`"parameters": {"vehicleName": "nom_du_vehicule"}\`
-    - \`"action": "narrate"\`: Pour toute action qui ne change pas l'état du jeu (regarder autour, parler à un PNJ, etc.).
-      - \`"parameters": {}\`
-    - \`"action": "error"\`: Si l'action du joueur est impossible ou illogique.
-      - \`"parameters": {"reason": "description_de_l_erreur"}\`
+    - "action": "move": Pour déplacer le joueur.
+      - "parameters": {"destination": "nom_du_lieu"}
+    - "action": "buy": Pour acheter un véhicule.
+      - "parameters": {"vehicleName": "nom_du_vehicule"}
+    - "action": "narrate": Pour toute action qui ne change pas l'état du jeu (regarder autour, parler à un PNJ, etc.).
+      - "parameters": {}
+    - "action": "error": Si l'action du joueur est impossible ou illogique.
+      - "parameters": {"reason": "description_de_l_erreur"}
+    - "action": "complete_quest": Quand le joueur a rempli l'objectif de sa mission actuelle.
+      - "parameters": {}
 
     CONTEXTE ACTUEL:
     ---
@@ -72,19 +69,31 @@ async function handleFreeAction(sock, message, player, actionText) {
     ---
   `;
 
-  // 2. Envoyer la requête à Groq
+  // 2. Envoyer la requête à Pollination avec axios
   try {
-    const chatCompletion = await groq.chat.completions.create({
+    const postData = {
+      // Utiliser le modèle "openai" comme recommandé dans la documentation pour les requêtes avancées
+      model: "openai",
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: actionText },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: actionText }
       ],
-      model: 'llama3-70b-8192',
-      temperature: 0.7,
-      response_format: { type: 'json_object' },
+      stream: false,
+    };
+
+    const url = 'https://text.pollinations.ai/openai';
+
+    console.log("Envoi de la requête à l'API de texte de Pollination...");
+    const aiApiResponse = await axios.post(url, postData, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 45000, // 45 secondes de timeout
     });
 
-    const aiResponse = JSON.parse(chatCompletion.choices[0].message.content);
+    console.log("Réponse brute de l'API Pollination reçue.");
+
+    // La réponse de l'IA est imbriquée, nous devons l'extraire et la parser.
+    const aiResponseContent = aiApiResponse.data.choices[0].message.content;
+    const aiResponse = JSON.parse(aiResponseContent);
 
     // 3. Traiter la décision de l'IA
     switch (aiResponse.action) {
@@ -128,11 +137,32 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sendWithImage(sock, jid, errorNarrative);
         break;
 
+      case 'complete_quest':
+        const currentMission = getMission(player.chapter, player.quest);
+        if (currentMission) {
+            player.money += currentMission.reward.money || 0;
+            player.xp += currentMission.reward.xp || 0;
+            if (currentMission.nextQuest) {
+                player.quest = currentMission.nextQuest;
+            } else {
+                // Handle chapter completion if necessary
+                player.quest = 0; // 0 can signify no active quest
+            }
+            await player.save();
+        }
+        await sendWithImage(sock, jid, aiResponse.narrative);
+        break;
+
       default:
         await sock.sendMessage(jid, { text: "L'IA a renvoyé une action inconnue. Réessaye." });
     }
   } catch (error) {
-    console.error('Erreur de communication avec l\'API Groq:', error);
+    console.error('Erreur détaillée de communication avec l\'API Pollination:', {
+        message: error.message,
+        url: 'https://text.pollinations.ai/openai',
+        responseStatus: error.response ? error.response.status : 'N/A',
+        responseData: error.response ? JSON.stringify(error.response.data).slice(0, 300) + '...' : 'N/A'
+    });
     await sock.sendMessage(jid, { text: "Le cerveau de la ville est en surchauffe... Une erreur est survenue avec l'IA. Réessaye ton action." });
   }
 }
