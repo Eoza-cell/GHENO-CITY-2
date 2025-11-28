@@ -5,6 +5,7 @@ const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
 const { handleFreeAction } = require('./ai-handler');
 const { generateImageFromPrompt } = require('./image-generator');
+const { locations } = require('./data');
 
 const commands = new Map();
 const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_profile_pic'
@@ -37,9 +38,18 @@ async function sendWithImage(sock, jid, text) {
       const imageBuffer = await generateImageFromPrompt(prompt);
       await sock.sendMessage(jid, { image: imageBuffer });
     } catch (error) {
-      console.error('Error generating image from prompt:', error);
-      // Send the prompt as text if image generation fails
-      await sock.sendMessage(jid, { text: `[Image generation failed for prompt: ${prompt}]` });
+      // Log the detailed error for debugging
+      console.error(`Échec de la génération d'image pour le prompt "${prompt}":`, error.message);
+
+      // Inform the user with a more thematic message
+      let userMessage = `[L'œil de l'esprit n'arrive pas à visualiser : "${prompt}"]`;
+      if (error.message.includes('code de statut: 404')) {
+          userMessage = `[L'inspiration pour "${prompt}" est introuvable dans l'éther...]`;
+      } else if (error.message.includes('Erreur réseau')) {
+          userMessage = `[Une tempête cosmique perturbe la connexion pour visualiser : "${prompt}"]`;
+      }
+
+      await sock.sendMessage(jid, { text: userMessage });
     }
   }
 }
@@ -204,8 +214,33 @@ commands.set('help', async (sock, message) => {
                      "/accelerate - Accélère.\n" +
                      "/action - Passe en mode action (RP).\n" +
                      "/menu - Retourne au mode normal.\n" +
+                     "/map - Affiche la carte et tes destinations possibles.\n" + // Updated description
                      "/help - Affiche cette aide.";
     await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+commands.set('map', async (sock, message) => {
+  const jid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) {
+    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const playerLocation = locations[player.location];
+  if (!playerLocation) {
+    await sock.sendMessage(jid, { text: "Erreur : lieu actuel inconnu." });
+    return;
+  }
+
+  let mapText = `📍 *Tu es ici : ${playerLocation.name}*\n`;
+  mapText += `_${playerLocation.description}_\n\n`;
+  mapText += "🗺️ *Destinations possibles :*\n";
+  playerLocation.connections.forEach(conn => {
+    mapText += `- ${locations[conn].name}\n`;
+  });
+
+  await sock.sendMessage(jid, { text: mapText });
 });
 
 commands.set('action', async (sock, message) => {
