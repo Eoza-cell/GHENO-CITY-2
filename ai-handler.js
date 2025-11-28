@@ -1,25 +1,14 @@
 const Groq = require('groq-sdk');
 const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
-const { sendWithImage } = require('./command-handler'); // Import the new function
+const { sendWithImage } = require('./command-handler');
+const { locations, vehicles, weapons } = require('./data'); // Importer les données centralisées
 
 // IMPORTANT: La clé API de l'utilisateur doit être définie comme variable d'environnement `GROQ_API_KEY`
 // sur la plateforme de déploiement.
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
-
-// Données de localisation - cela fera partie du contexte donné à l'IA
-const locations = {
-  'Little Sicily': {
-    description: "Ton quartier natal. Un peu miteux, mais c'est chez toi. C'est un quartier résidentiel avec des petites rues et des immeubles en briques.",
-    connections: ['dealership'],
-  },
-  'dealership': {
-    description: "Une concession de voitures d'occasion. L'odeur de l'essence et des rêves brisés flotte dans l'air. Des voitures sont alignées sous des néons clignotants.",
-    connections: ['Little Sicily'],
-  },
-};
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -84,7 +73,16 @@ async function handleFreeAction(sock, message, player, actionText) {
       response_format: { type: 'json_object' },
     });
 
-    const aiResponse = JSON.parse(chatCompletion.choices[0].message.content);
+    let aiResponse;
+    try {
+      aiResponse = JSON.parse(chatCompletion.choices[0].message.content);
+    } catch (parseError) {
+      console.error("Erreur de parsing JSON de la réponse de l'IA:", parseError);
+      console.error("Réponse brute reçue:", chatCompletion.choices[0].message.content);
+      await sock.sendMessage(jid, { text: "Le cerveau de la ville a parlé dans une langue inconnue. L'IA a peut-être renvoyé une réponse mal formée." });
+      return; // Arrêter le traitement si le JSON est invalide
+    }
+
 
     // 3. Traiter la décision de l'IA
     switch (aiResponse.action) {
@@ -132,9 +130,26 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sock.sendMessage(jid, { text: "L'IA a renvoyé une action inconnue. Réessaye." });
     }
   } catch (error) {
-    console.error('Erreur de communication avec l\'API Groq:', error);
-    await sock.sendMessage(jid, { text: "Le cerveau de la ville est en surchauffe... Une erreur est survenue avec l'IA. Réessaye ton action." });
+    console.error('Erreur détaillée de l\'API Groq ou du traitement:', error);
+
+    let userMessage = "Le cerveau de la ville est en surchauffe... Une erreur est survenue avec l'IA. Réessaye ton action.";
+
+    if (error instanceof Groq.APIError) {
+      console.error('Status Code:', error.status);
+      console.error('Error Type:', error.error?.type);
+      console.error('Error Message:', error.error?.message);
+
+      if (error.status === 401) {
+        userMessage = "Erreur de connexion avec le cerveau de la ville. Le gardien des clés ne répond pas. (Problème d'authentification - As-tu bien configuré la GROQ_API_KEY ?)";
+      } else if (error.status >= 500) {
+        userMessage = "Le cerveau de la ville subit une défaillance majeure. Les ingénieurs ont été alertés. (Erreur Serveur IA)";
+      } else {
+        userMessage = `Le cerveau de la ville a rencontré un obstacle inattendu. (Erreur API: ${error.status})`;
+      }
+    }
+
+    await sock.sendMessage(jid, { text: userMessage });
   }
 }
 
-module.exports = { handleFreeAction, locations };
+module.exports = { handleFreeAction };
