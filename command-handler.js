@@ -5,6 +5,7 @@ const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
 const { handleFreeAction } = require('./ai-handler');
 const { generateImageFromPrompt } = require('./image-generator');
+const { getMission } = require('./missions');
 
 const commands = new Map();
 const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_profile_pic'
@@ -37,9 +38,9 @@ async function sendWithImage(sock, jid, text) {
       const imageBuffer = await generateImageFromPrompt(prompt);
       await sock.sendMessage(jid, { image: imageBuffer });
     } catch (error) {
-      console.error('Error generating image from prompt:', error);
-      // Send the prompt as text if image generation fails
-      await sock.sendMessage(jid, { text: `[Image generation failed for prompt: ${prompt}]` });
+      console.error('Erreur lors de la génération de l\'image:', error.message);
+      const userFriendlyError = `🌆 Impossible de peindre la scène pour : "${prompt}". Le service d'imagerie rencontre peut-être des difficultés. L'histoire continue...`;
+      await sock.sendMessage(jid, { text: userFriendlyError });
     }
   }
 }
@@ -58,56 +59,24 @@ commands.set('start', async (sock, message) => {
   }
 });
 
-// The /quests command
-commands.set('quests', async (sock, message) => {
-  const jid = message.key.remoteJid;
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
+// The /mission command
+commands.set('mission', async (sock, message) => {
+    const jid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) {
+        await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
 
-  if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-
-  let questText = "Quêtes Actuelles:\n\n";
-  if (player.chapter === 1 && player.quest === 1) {
-    questText += "Chapitre 1: Les Racines de Little Sicily\n" +
-                 "Objectif: Vole une voiture pour te faire un nom.\n" +
-                 "Commande: /stealcar";
-  } else {
-    questText += "Tu n'as pas de quête active pour le moment.";
-  }
-
-  await sock.sendMessage(jid, { text: questText });
-});
-
-// The /stealcar command
-commands.set('stealcar', async (sock, message) => {
-  const jid = message.key.remoteJid;
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
-
-  if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-
-  if (player.chapter === 1 && player.quest === 1) {
-    await player.update({ quest: 2, money: player.money + 500, xp: player.xp + 100 });
-    const successText = "Avec des mains tremblantes mais déterminées, tu parviens à forcer la serrure et à faire démarrer le moteur. La voiture rugit à la vie, une bête de métal prête à t'obéir. Tu as réussi.\n\n" +
-                        "Récompense : 500$ et 100 XP.\n\n" +
-                        "La nouvelle s'est répandue dans Little Sicily. Le caïd local a entendu parler de toi et veut te voir.\n" +
-                        "[POLLINATION PROMPT: Scène de rue nocturne, un gangster fait démarrer une voiture volée, phares allumés, tension palpable, style cinématique, hyperréalisme]";
-    await sendWithImage(sock, jid, successText);
-  } else {
-    await sock.sendMessage(jid, { text: "Tu ne peux pas faire ça maintenant." });
-  }
+    const mission = getMission(player.chapter, player.quest);
+    if (mission) {
+        const missionText = `📜 *Mission Actuelle*\n\n` +
+                            `*Titre:* ${mission.title}\n` +
+                            `*Objectif:* ${mission.objective}`;
+        await sock.sendMessage(jid, { text: missionText });
+    } else {
+        await sock.sendMessage(jid, { text: "Tu n'as pas de mission active pour le moment." });
+    }
 });
 
 async function generateIdCard(player) {
@@ -196,7 +165,7 @@ commands.set('grab', async (sock, message) => {
 commands.set('help', async (sock, message) => {
     const helpText = "Voici les commandes disponibles :\n" +
                      "/start - Commence ou reprends ton aventure.\n" +
-                     "/quests - Affiche tes quêtes actuelles.\n" +
+                     "/mission - Affiche ta mission actuelle.\n" +
                      "/profile - Affiche ton profil de gangster.\n" +
                      "/garage - Affiche tes véhicules.\n" +
                      "/drive [id] - Monte dans un véhicule.\n" +
@@ -226,7 +195,7 @@ commands.set('menu', async (sock, message) => {
                    "Les rues sont à toi. Que veux-tu faire ?\n\n" +
                    "🎮 `/action` - Passer en mode immersif (RP).\n" +
                    "👤 `/profil` - Voir ta carte d'identité.\n" +
-                   "📋 `/quests` - Consulter tes objectifs.\n" +
+                   "📋 `/mission` - Consulter tes objectifs.\n" +
                    "🚗 `/garage` - Accéder à tes véhicules.\n" +
                    "❓ `/help` - Obtenir la liste complète des commandes.";
 
@@ -449,7 +418,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
         const welcomeText = `Bienvenue à Gheno City 2, ${player.name} ! 🚗💥\n\n` +
                             "Les rues sont impitoyables, mais pleines d'opportunités. Ton voyage pour venger la mort de ton père commence maintenant. " +
                             "Pour commencer, tu dois te faire un nom dans ton quartier natal, Little Sicily. Trouve un moyen de voler une voiture pour attirer l'attention. " +
-                            "Utilise la commande /quests pour voir tes objectifs.";
+                            "Utilise la commande /mission pour voir tes objectifs.";
         await sock.sendMessage(jid, { text: welcomeText });
       } else {
         registrationState.delete(jid);

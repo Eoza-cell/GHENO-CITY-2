@@ -1,13 +1,8 @@
-const Groq = require('groq-sdk');
+const https = require('https');
 const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
-const { sendWithImage } = require('./command-handler'); // Import the new function
-
-// IMPORTANT: La clé API de l'utilisateur doit être définie comme variable d'environnement `GROQ_API_KEY`
-// sur la plateforme de déploiement.
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+const { sendWithImage } = require('./command-handler');
+const { getMission } = require('./missions');
 
 // Données de localisation - cela fera partie du contexte donné à l'IA
 const locations = {
@@ -61,6 +56,8 @@ async function handleFreeAction(sock, message, player, actionText) {
       - \`"parameters": {}\`
     - \`"action": "error"\`: Si l'action du joueur est impossible ou illogique.
       - \`"parameters": {"reason": "description_de_l_erreur"}\`
+    - `"action": "complete_quest"`: Quand le joueur a rempli l'objectif de sa mission actuelle.
+      - `"parameters": {}`
 
     CONTEXTE ACTUEL:
     ---
@@ -72,19 +69,32 @@ async function handleFreeAction(sock, message, player, actionText) {
     ---
   `;
 
-  // 2. Envoyer la requête à Groq
+  // 2. Envoyer la requête à Pollination
   try {
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: actionText },
-      ],
-      model: 'llama3-70b-8192',
-      temperature: 0.7,
-      response_format: { type: 'json_object' },
+    const fullPrompt = `${systemPrompt}\n\nACTION DU JOUEUR:\n---\n${actionText}\n---\nTA RÉPONSE JSON:\n`;
+    const encodedPrompt = encodeURIComponent(fullPrompt);
+    const url = `https://text.pollinations.ai/${encodedPrompt}`;
+
+    const aiResponseText = await new Promise((resolve, reject) => {
+      https.get(url, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`La requête à Pollination a échoué avec le code: ${response.statusCode}`));
+          return;
+        }
+        let data = '';
+        response.on('data', (chunk) => (data += chunk));
+        response.on('end', () => resolve(data));
+      }).on('error', (err) => reject(err));
     });
 
-    const aiResponse = JSON.parse(chatCompletion.choices[0].message.content);
+    // Nettoyer la réponse de Pollination pour extraire le JSON valide
+    // L'API peut parfois renvoyer du texte avant ou après le JSON.
+    const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+        throw new Error("La réponse de l'IA ne contenait pas de JSON valide.");
+    }
+
+    const aiResponse = JSON.parse(jsonMatch[0]);
 
     // 3. Traiter la décision de l'IA
     switch (aiResponse.action) {
@@ -128,11 +138,27 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sendWithImage(sock, jid, errorNarrative);
         break;
 
+      case 'complete_quest':
+        const currentMission = getMission(player.chapter, player.quest);
+        if (currentMission) {
+            player.money += currentMission.reward.money || 0;
+            player.xp += currentMission.reward.xp || 0;
+            if (currentMission.nextQuest) {
+                player.quest = currentMission.nextQuest;
+            } else {
+                // Handle chapter completion if necessary
+                player.quest = 0; // 0 can signify no active quest
+            }
+            await player.save();
+        }
+        await sendWithImage(sock, jid, aiResponse.narrative);
+        break;
+
       default:
         await sock.sendMessage(jid, { text: "L'IA a renvoyé une action inconnue. Réessaye." });
     }
   } catch (error) {
-    console.error('Erreur de communication avec l\'API Groq:', error);
+    console.error('Erreur de communication avec l\'API Pollination:', error);
     await sock.sendMessage(jid, { text: "Le cerveau de la ville est en surchauffe... Une erreur est survenue avec l'IA. Réessaye ton action." });
   }
 }
