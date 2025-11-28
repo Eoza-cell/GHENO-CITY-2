@@ -1,13 +1,13 @@
 const fs = require('fs');
 const path = require('path');
-const sharp = require('sharp');
 const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./gheno-city');
 const { handleFreeAction } = require('./ai-handler');
 const { generateImageFromPrompt } = require('./image-generator');
+const { getMission } = require('./missions');
 
 const commands = new Map();
-const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_profile_pic'
+const registrationState = new Map(); // whatsappId -> 'awaiting_name'
 
 const WHEEL_SPIN_SPEED_THRESHOLD = 20;
 const WHEEL_SPIN_ACCELERATION_THRESHOLD = 10;
@@ -37,9 +37,9 @@ async function sendWithImage(sock, jid, text) {
       const imageBuffer = await generateImageFromPrompt(prompt);
       await sock.sendMessage(jid, { image: imageBuffer });
     } catch (error) {
-      console.error('Error generating image from prompt:', error);
-      // Send the prompt as text if image generation fails
-      await sock.sendMessage(jid, { text: `[Image generation failed for prompt: ${prompt}]` });
+      console.error('Erreur lors de la génération de l\'image:', error.message);
+      const userFriendlyError = `🌆 Impossible de peindre la scène pour : "${prompt}". Le service d'imagerie rencontre peut-être des difficultés. L'histoire continue...`;
+      await sock.sendMessage(jid, { text: userFriendlyError });
     }
   }
 }
@@ -58,115 +58,52 @@ commands.set('start', async (sock, message) => {
   }
 });
 
-// The /quests command
-commands.set('quests', async (sock, message) => {
-  const jid = message.key.remoteJid;
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
+// The /mission command
+commands.set('mission', async (sock, message) => {
+    const jid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) {
+        await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
 
-  if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-
-  let questText = "Quêtes Actuelles:\n\n";
-  if (player.chapter === 1 && player.quest === 1) {
-    questText += "Chapitre 1: Les Racines de Little Sicily\n" +
-                 "Objectif: Vole une voiture pour te faire un nom.\n" +
-                 "Commande: /stealcar";
-  } else {
-    questText += "Tu n'as pas de quête active pour le moment.";
-  }
-
-  await sock.sendMessage(jid, { text: questText });
+    const mission = getMission(player.chapter, player.quest);
+    if (mission) {
+        const missionText = `📜 *Mission Actuelle*\n\n` +
+                            `*Titre:* ${mission.title}\n` +
+                            `*Objectif:* ${mission.objective}`;
+        await sock.sendMessage(jid, { text: missionText });
+    } else {
+        await sock.sendMessage(jid, { text: "Tu n'as pas de mission active pour le moment." });
+    }
 });
 
-// The /stealcar command
-commands.set('stealcar', async (sock, message) => {
-  const jid = message.key.remoteJid;
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
-
-  if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-
-  if (player.chapter === 1 && player.quest === 1) {
-    await player.update({ quest: 2, money: player.money + 500, xp: player.xp + 100 });
-    const successText = "Avec des mains tremblantes mais déterminées, tu parviens à forcer la serrure et à faire démarrer le moteur. La voiture rugit à la vie, une bête de métal prête à t'obéir. Tu as réussi.\n\n" +
-                        "Récompense : 500$ et 100 XP.\n\n" +
-                        "La nouvelle s'est répandue dans Little Sicily. Le caïd local a entendu parler de toi et veut te voir.\n" +
-                        "[POLLINATION PROMPT: Scène de rue nocturne, un gangster fait démarrer une voiture volée, phares allumés, tension palpable, style cinématique, hyperréalisme]";
-    await sendWithImage(sock, jid, successText);
-  } else {
-    await sock.sendMessage(jid, { text: "Tu ne peux pas faire ça maintenant." });
-  }
-});
-
-async function generateIdCard(player) {
-  const templatePath = './assets/id_card_template.png';
-  const profilePicPath = player.profilePicPath;
-
-  const textSvg = `
-    <svg width="450" height="300">
-      <style>
-        .label { fill: #bbb; font-size: 30px; font-family: Arial, sans-serif; }
-        .info { fill: #fff; font-size: 35px; font-family: Arial, sans-serif; }
-      </style>
-      <text x="0" y="40" class="label">NOM:</text>
-      <text x="0" y="80" class="info">${player.name}</text>
-      <text x="0" y="140" class="label">NIVEAU:</text>
-      <text x="0" y="180" class="info">${player.level}</text>
-      <text x="0" y="240" class="label">ARGENT:</text>
-      <text x="0" y="280" class="info">${player.money}$</text>
-    </svg>
-  `;
-
-  const resizedProfilePic = await sharp(profilePicPath)
-    .resize(250, 250)
-    .toBuffer();
-
-  return sharp(templatePath)
-    .composite([
-      { input: resizedProfilePic, top: 125, left: 50 },
-      { input: Buffer.from(textSvg), top: 125, left: 350 },
-    ])
-    .png()
-    .toBuffer();
+function createProgressBar(value, maxValue, length = 10) {
+    const percentage = value / maxValue;
+    const filledLength = Math.round(percentage * length);
+    const emptyLength = length - filledLength;
+    return '▰'.repeat(filledLength) + '▱'.repeat(emptyLength);
 }
 
 commands.set('profil', commands.get('profile')); // Alias
 commands.set('profile', async (sock, message) => {
-  const jid = message.key.remoteJid;
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
+    const jid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) {
+        await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
 
-  if (!player.profilePicPath) {
-    registrationState.set(jid, 'awaiting_profile_pic');
-    await sock.sendMessage(jid, { text: "Ta carte d'identité n'est pas encore créée. Envoie une photo de profil pour la générer." });
-    return;
-  }
+    const healthBar = createProgressBar(player.health, 100);
+    const xpBar = createProgressBar(player.xp, player.level * 100); // Assuming xp to next level is level * 100
 
-  try {
-    const idCardBuffer = await generateIdCard(player);
-    await sock.sendMessage(jid, {
-      image: idCardBuffer,
-      caption: `Voici ta carte d'identité, ${player.name}.`
-    });
-  } catch (error) {
-    console.error("Erreur lors de la génération de la carte d'identité:", error);
-    await sock.sendMessage(jid, { text: "Désolé, une erreur est survenue lors de la création de ta carte d'identité." });
-  }
+    const profileText = `*Profil de ${player.name}*\n\n` +
+                        `*Niveau:* ${player.level}\n` +
+                        `*Argent:* ${player.money}$\n\n` +
+                        `*Santé:* [${healthBar}] ${player.health}%\n` +
+                        `*XP:*    [${xpBar}] ${player.xp}/${player.level * 100}`;
+
+    await sock.sendMessage(jid, { text: profileText });
 });
 
 // The /grab command
@@ -196,7 +133,7 @@ commands.set('grab', async (sock, message) => {
 commands.set('help', async (sock, message) => {
     const helpText = "Voici les commandes disponibles :\n" +
                      "/start - Commence ou reprends ton aventure.\n" +
-                     "/quests - Affiche tes quêtes actuelles.\n" +
+                     "/mission - Affiche ta mission actuelle.\n" +
                      "/profile - Affiche ton profil de gangster.\n" +
                      "/garage - Affiche tes véhicules.\n" +
                      "/drive [id] - Monte dans un véhicule.\n" +
@@ -226,7 +163,7 @@ commands.set('menu', async (sock, message) => {
                    "Les rues sont à toi. Que veux-tu faire ?\n\n" +
                    "🎮 `/action` - Passer en mode immersif (RP).\n" +
                    "👤 `/profil` - Voir ta carte d'identité.\n" +
-                   "📋 `/quests` - Consulter tes objectifs.\n" +
+                   "📋 `/mission` - Consulter tes objectifs.\n" +
                    "🚗 `/garage` - Accéder à tes véhicules.\n" +
                    "❓ `/help` - Obtenir la liste complète des commandes.";
 
@@ -405,36 +342,6 @@ async function handleCommand(sock, message, downloadMediaMessage) {
 
   const jid = message.key.remoteJid;
 
-  // Handle profile picture submission
-  if (registrationState.get(jid) === 'awaiting_profile_pic') {
-    const imageMessage = message.message.imageMessage;
-    if (imageMessage) {
-      try {
-        const buffer = await downloadMediaMessage(message, 'buffer', {});
-        const filePath = path.join('./assets/profile_pics', `${jid}.png`);
-
-        await sharp(buffer).resize(250, 250).toFile(filePath);
-
-        const player = await Player.findOne({ where: { whatsappId: jid } });
-        await player.update({ profilePicPath: filePath });
-
-        registrationState.delete(jid);
-        await sock.sendMessage(jid, { text: "Photo de profil enregistrée ! Ta carte d'identité est prête. Utilise /profil pour la voir." });
-
-        // Trigger profile command to show the new ID card immediately
-        await commands.get('profile')(sock, message);
-
-      } catch (error) {
-        console.error("Erreur lors de la sauvegarde de la photo de profil:", error);
-        await sock.sendMessage(jid, { text: "Désolé, une erreur est survenue lors de la sauvegarde de ta photo. Réessaie." });
-      }
-      return;
-    } else {
-      await sock.sendMessage(jid, { text: "Ce n'est pas une image. Envoie une photo pour ton profil." });
-      return;
-    }
-  }
-
   // Player registration flow
   if (registrationState.get(jid) === 'awaiting_name') {
     const playerName = messageText.trim();
@@ -449,7 +356,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
         const welcomeText = `Bienvenue à Gheno City 2, ${player.name} ! 🚗💥\n\n` +
                             "Les rues sont impitoyables, mais pleines d'opportunités. Ton voyage pour venger la mort de ton père commence maintenant. " +
                             "Pour commencer, tu dois te faire un nom dans ton quartier natal, Little Sicily. Trouve un moyen de voler une voiture pour attirer l'attention. " +
-                            "Utilise la commande /quests pour voir tes objectifs.";
+                            "Utilise la commande /mission pour voir tes objectifs.";
         await sock.sendMessage(jid, { text: welcomeText });
       } else {
         registrationState.delete(jid);
