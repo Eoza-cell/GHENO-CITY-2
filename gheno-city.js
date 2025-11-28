@@ -18,23 +18,13 @@ const { setupDatabase, Player, PlayerVehicle } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand } = require('./command-handler');
 const { startInactivePlayerHandler } = require('./inactive-handler');
+const { updateGameTime } = require('./game-state');
 
 const GAME_TICK_RATE = 5000; // 5 seconds
-const DAY_DURATION_MS = 30 * 60 * 1000; // 30 minutes
-
-let gameTime = 0; // In-game time in milliseconds
-
-function isDay() {
-  const cyclePosition = gameTime / DAY_DURATION_MS;
-  return cyclePosition % 1 < 0.5; // Day is the first half of the cycle
-}
 
 async function gameLoop(sock) {
   // Update game time
-  gameTime += GAME_TICK_RATE;
-  if (gameTime >= DAY_DURATION_MS) {
-    gameTime = 0; // Reset after a full day
-  }
+  updateGameTime(GAME_TICK_RATE);
 
   // Friction
   const drivingPlayers = await Player.findAll({ where: { drivingVehicleId: { [Sequelize.Op.ne]: null } } });
@@ -117,5 +107,3 @@ async function connectToWhatsApp() {
 }
 
 connectToWhatsApp();
-
-module.exports = { isDay };
