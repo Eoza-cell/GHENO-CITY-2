@@ -1,16 +1,9 @@
 // Charger les variables d'environnement au tout début
 require('dotenv').config();
 
-// Vérification de la clé API Groq
-if (!process.env.GROQ_API_KEY) {
-  console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-  console.error('!!! ERREUR : La clé API Groq est manquante.                  !!!');
-  console.error('!!! Assurez-vous de créer un fichier .env et d\'y ajouter   !!!');
-  console.error('!!! votre GROQ_API_KEY. Voir .env.example pour référence.    !!!');
-  console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-  process.exit(1);
-}
+// Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
+const http = require('http');
 const { default: makeWASocket, delay, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const { Sequelize } = require('sequelize');
@@ -18,24 +11,19 @@ const { setupDatabase, Player, PlayerVehicle } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand } = require('./command-handler');
 const { startInactivePlayerHandler } = require('./inactive-handler');
+const { startDayNightCycle } = require('./game-state');
+
+// Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is running');
+});
+const PORT = process.env.PORT || 3000;
+let serverStarted = false;
 
 const GAME_TICK_RATE = 5000; // 5 seconds
-const DAY_DURATION_MS = 30 * 60 * 1000; // 30 minutes
-
-let gameTime = 0; // In-game time in milliseconds
-
-function isDay() {
-  const cyclePosition = gameTime / DAY_DURATION_MS;
-  return cyclePosition % 1 < 0.5; // Day is the first half of the cycle
-}
 
 async function gameLoop(sock) {
-  // Update game time
-  gameTime += GAME_TICK_RATE;
-  if (gameTime >= DAY_DURATION_MS) {
-    gameTime = 0; // Reset after a full day
-  }
-
   // Friction
   const drivingPlayers = await Player.findAll({ where: { drivingVehicleId: { [Sequelize.Op.ne]: null } } });
   for (const player of drivingPlayers) {
@@ -101,8 +89,17 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       startInactivePlayerHandler(sock);
+      startDayNightCycle();
       // Start the game loop only after a successful connection
       setInterval(() => gameLoop(sock), GAME_TICK_RATE);
+
+      // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
+      if (!serverStarted) {
+          server.listen(PORT, () => {
+              console.log(`Server listening on port ${PORT} for Render health checks.`);
+              serverStarted = true;
+          });
+      }
     }
   });
 
@@ -117,5 +114,3 @@ async function connectToWhatsApp() {
 }
 
 connectToWhatsApp();
-
-module.exports = { isDay };
