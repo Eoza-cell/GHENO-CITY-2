@@ -1,8 +1,9 @@
-const axios = require('axios'); // Remplacer https par axios
+const axios = require('axios');
 const { Player, Vehicle, PlayerVehicle } = require('./database');
 const { isDay } = require('./game-state');
 const { sendWithImage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
+const { addToQueue } = require('./rate-limiter');
 
 // Données de localisation - cela fera partie du contexte donné à l'IA
 const locations = {
@@ -78,7 +79,6 @@ async function handleFreeAction(sock, message, player, actionText) {
   // 2. Envoyer la requête à Pollination avec axios
   try {
     const postData = {
-      // Utiliser le modèle "openai" comme recommandé dans la documentation pour les requêtes avancées
       model: "openai",
       messages: [
         { role: "system", content: systemPrompt },
@@ -87,16 +87,20 @@ async function handleFreeAction(sock, message, player, actionText) {
       stream: false,
     };
 
-    console.log("Envoi de la requête à l'API de texte de Pollination...");
-    const aiApiResponse = await axios.post(url, postData, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 45000, // 45 secondes de timeout
-    });
+    console.log("Ajout de la requête à la file d'attente de l'API de texte...");
 
-    console.log("Réponse brute de l'API Pollination reçue.");
+    const apiCall = async () => {
+        const response = await axios.post(url, postData, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 45000,
+        });
+        // p-retry needs the promise to resolve with the data
+        return response.data;
+    };
 
-    // L'API de Pollination renvoie directement le JSON attendu.
-    const aiResponse = aiApiResponse.data;
+    const aiResponse = await addToQueue(apiCall);
+
+    console.log("Réponse de l'API Pollination reçue via la file d'attente.");
 
     // 3. Traiter la décision de l'IA
     switch (aiResponse.action) {
