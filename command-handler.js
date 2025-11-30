@@ -2,9 +2,28 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 const { Player, Vehicle, PlayerVehicle } = require('./database');
-const { isDay } = require('./gheno-city');
+const { isDay } = require('./game-state');
 const { handleFreeAction } = require('./ai-handler');
 const { generateImageFromPrompt } = require('./image-generator');
+const { sendWithImage } = require('./message-handler');
+const { getMission, checkMissionCompletion } = require('./missions');
+
+/**
+ * Determines the correct JID (Jabber ID) for the sender of a message.
+ * In a private chat, this is the remote Jid.
+ * In a group chat, this is the participant's Jid.
+ * @param {object} message The Baileys message object.
+ * @returns {string} The JID of the message sender.
+ */
+function getJid(message) {
+  if (message.key.remoteJid.endsWith('@g.us')) {
+    // It's a group message, the sender is in 'participant'
+    return message.key.participant;
+  }
+  // It's a private message
+  return message.key.remoteJid;
+}
+
 
 const commands = new Map();
 const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_profile_pic'
@@ -12,101 +31,38 @@ const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaitin
 const WHEEL_SPIN_SPEED_THRESHOLD = 20;
 const WHEEL_SPIN_ACCELERATION_THRESHOLD = 10;
 
-// Helper function to send messages with potential image prompts
-async function sendWithImage(sock, jid, text) {
-  const promptRegex = /\[POLLINATION PROMPT: (.*?)\]/g;
-  const matches = text.match(promptRegex);
-
-  if (!matches) {
-    await sock.sendMessage(jid, { text });
-    return;
-  }
-
-  // Remove prompts from the original text
-  const caption = text.replace(promptRegex, '').trim();
-
-  // Send the text part first
-  if (caption) {
-    await sock.sendMessage(jid, { text: caption });
-  }
-
-  // Generate and send images for each prompt
-  for (const match of matches) {
-    const prompt = match.replace('[POLLINATION PROMPT: ', '').replace(']', '');
-    try {
-      const imageBuffer = await generateImageFromPrompt(prompt);
-      await sock.sendMessage(jid, { image: imageBuffer });
-    } catch (error) {
-      console.error('Error generating image from prompt:', error);
-      // Send the prompt as text if image generation fails
-      await sock.sendMessage(jid, { text: `[Image generation failed for prompt: ${prompt}]` });
-    }
-  }
-}
-
 // The /start command
 commands.set('start', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
   const player = await Player.findOne({ where: { whatsappId: jid } });
+  const replyJid = message.key.remoteJid; // Always reply to the original chat
 
   if (!player) {
     registrationState.set(jid, 'awaiting_name');
-    await sock.sendMessage(jid, { text: "Bienvenue à Gheno City 2 ! 🚗💥\n\nPour commencer, comment t'appelles-tu ?" });
+    await sock.sendMessage(replyJid, { text: "Bienvenue à Gheno City 2 ! 🚗💥\n\nPour commencer, comment t'appelles-tu ?" });
   } else {
     const text = `Content de te revoir, ${player.name} ! Les rues de Gheno City t'attendaient. Utilise /quests pour continuer ta progression.`;
-    await sock.sendMessage(jid, { text });
+    await sock.sendMessage(replyJid, { text });
   }
 });
 
 // The /quests command
 commands.set('quests', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
   const player = await Player.findOne({ where: { whatsappId: jid } });
+  const replyJid = message.key.remoteJid;
+
   if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
     return;
   }
 
-  if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-
-  let questText = "Quêtes Actuelles:\n\n";
-  if (player.chapter === 1 && player.quest === 1) {
-    questText += "Chapitre 1: Les Racines de Little Sicily\n" +
-                 "Objectif: Vole une voiture pour te faire un nom.\n" +
-                 "Commande: /stealcar";
+  const mission = getMission(player.chapter, player.quest);
+  if (mission) {
+    const questText = `*Objectif actuel:*\n${mission.objective}`;
+    await sock.sendMessage(replyJid, { text: questText });
   } else {
-    questText += "Tu n'as pas de quête active pour le moment.";
-  }
-
-  await sock.sendMessage(jid, { text: questText });
-});
-
-// The /stealcar command
-commands.set('stealcar', async (sock, message) => {
-  const jid = message.key.remoteJid;
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
-
-  if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-
-  if (player.chapter === 1 && player.quest === 1) {
-    await player.update({ quest: 2, money: player.money + 500, xp: player.xp + 100 });
-    const successText = "Avec des mains tremblantes mais déterminées, tu parviens à forcer la serrure et à faire démarrer le moteur. La voiture rugit à la vie, une bête de métal prête à t'obéir. Tu as réussi.\n\n" +
-                        "Récompense : 500$ et 100 XP.\n\n" +
-                        "La nouvelle s'est répandue dans Little Sicily. Le caïd local a entendu parler de toi et veut te voir.\n" +
-                        "[POLLINATION PROMPT: Scène de rue nocturne, un gangster fait démarrer une voiture volée, phares allumés, tension palpable, style cinématique, hyperréalisme]";
-    await sendWithImage(sock, jid, successText);
-  } else {
-    await sock.sendMessage(jid, { text: "Tu ne peux pas faire ça maintenant." });
+    await sock.sendMessage(replyJid, { text: "Tu n'as pas de quête active pour le moment." });
   }
 });
 
@@ -144,51 +100,60 @@ async function generateIdCard(player) {
 
 commands.set('profil', commands.get('profile')); // Alias
 commands.set('profile', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
   const player = await Player.findOne({ where: { whatsappId: jid } });
+  const replyJid = message.key.remoteJid;
+
   if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
     return;
   }
 
   if (!player.profilePicPath) {
     registrationState.set(jid, 'awaiting_profile_pic');
-    await sock.sendMessage(jid, { text: "Ta carte d'identité n'est pas encore créée. Envoie une photo de profil pour la générer." });
+    await sock.sendMessage(replyJid, { text: "Ta carte d'identité n'est pas encore créée. Envoie une photo de profil pour la générer." });
     return;
   }
 
   try {
     const idCardBuffer = await generateIdCard(player);
-    await sock.sendMessage(jid, {
+    const profileText = `*Profil de ${player.name}*\n\n` +
+                        `*Niveau:* ${player.level}\n` +
+                        `*XP:* ${player.xp}\n` +
+                        `*Argent:* ${player.money}$`;
+
+    await sock.sendMessage(replyJid, {
       image: idCardBuffer,
-      caption: `Voici ta carte d'identité, ${player.name}.`
+      caption: profileText
     });
   } catch (error) {
     console.error("Erreur lors de la génération de la carte d'identité:", error);
-    await sock.sendMessage(jid, { text: "Désolé, une erreur est survenue lors de la création de ta carte d'identité." });
+    await sock.sendMessage(replyJid, { text: "Désolé, une erreur est survenue lors de la création de ta carte d'identité." });
   }
 });
 
 // The /grab command
 commands.set('grab', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
   const player = await Player.findOne({ where: { whatsappId: jid } });
+  const replyJid = message.key.remoteJid;
+
   if (!player) {
-    await sock.sendMessage(jid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
     return;
   }
 
   if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    await sock.sendMessage(replyJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
     return;
   }
 
   if (player.hasMoneyBag) {
     const amount = Math.floor(Math.random() * 500) + 250;
     await player.update({ money: player.money + amount, hasMoneyBag: false });
-    await sock.sendMessage(jid, { text: `Tu as ramassé le sac et trouvé ${amount}$ !` });
+    await sock.sendMessage(replyJid, { text: `Tu as ramassé le sac et trouvé ${amount}$ !` });
   } else {
-    await sock.sendMessage(jid, { text: "Il n'y a rien à ramasser." });
+    await sock.sendMessage(replyJid, { text: "Il n'y a rien à ramasser." });
   }
 });
 
@@ -205,18 +170,20 @@ commands.set('help', async (sock, message) => {
                      "/action - Passe en mode action (RP).\n" +
                      "/menu - Retourne au mode normal.\n" +
                      "/help - Affiche cette aide.";
+    // Help command replies to the group or user directly
     await sock.sendMessage(message.key.remoteJid, { text: helpText });
 });
 
 commands.set('action', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
   const player = await Player.findOne({ where: { whatsappId: jid } });
   await player.update({ mode: 'action' });
-  await sock.sendMessage(jid, { text: "Tu es maintenant en mode action. Tes prochaines commandes seront interprétées comme des actions RP." });
+  await sock.sendMessage(message.key.remoteJid, { text: "Tu es maintenant en mode action. Tes prochaines commandes seront interprétées comme des actions RP." });
 });
 
 commands.set('menu', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player) {
     await player.update({ mode: 'normal' });
@@ -232,32 +199,33 @@ commands.set('menu', async (sock, message) => {
 
   try {
     const imageBuffer = fs.readFileSync('./menu_image.jpg');
-    await sock.sendMessage(jid, {
+    await sock.sendMessage(replyJid, {
       image: imageBuffer,
       caption: menuText
     });
   } catch (error) {
     console.error("Impossible d'envoyer l'image du menu:", error);
     // Fallback to text message if image fails
-    await sock.sendMessage(jid, { text: menuText });
+    await sock.sendMessage(replyJid, { text: menuText });
   }
 });
 
 commands.set('accelerate', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    await sock.sendMessage(replyJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
     return;
   }
   if (!player.drivingVehicleId) {
-    await sock.sendMessage(jid, { text: "Tu dois être au volant pour accélérer." });
+    await sock.sendMessage(replyJid, { text: "Tu dois être au volant pour accélérer." });
     return;
   }
 
   const playerVehicle = await PlayerVehicle.findByPk(player.drivingVehicleId, { include: Vehicle });
   if (!playerVehicle) {
-    await sock.sendMessage(jid, { text: "Erreur: véhicule introuvable." });
+    await sock.sendMessage(replyJid, { text: "Erreur: véhicule introuvable." });
     return;
   }
 
@@ -281,24 +249,25 @@ commands.set('accelerate', async (sock, message) => {
   await playerVehicle.update({ currentSpeed: newSpeed });
 
   responseText += `Tu accélères... Vitesse actuelle : ${newSpeed.toFixed(0)} km/h.`;
-  await sendWithImage(sock, jid, responseText);
+  await sendWithImage(sock, replyJid, responseText);
 });
 
 commands.set('brake', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    await sock.sendMessage(replyJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
     return;
   }
   if (!player.drivingVehicleId) {
-    await sock.sendMessage(jid, { text: "Tu dois être au volant pour freiner." });
+    await sock.sendMessage(replyJid, { text: "Tu dois être au volant pour freiner." });
     return;
   }
 
   const playerVehicle = await PlayerVehicle.findByPk(player.drivingVehicleId, { include: Vehicle });
   if (!playerVehicle) {
-    await sock.sendMessage(jid, { text: "Erreur: véhicule introuvable." });
+    await sock.sendMessage(replyJid, { text: "Erreur: véhicule introuvable." });
     return;
   }
 
@@ -315,11 +284,12 @@ commands.set('brake', async (sock, message) => {
   if (deceleration > 15) { // Seuil pour un freinage brusque
     responseText += "\n[POLLINATION PROMPT: Pneu de voiture bloqué crissant sur l'asphalte, laissant une trace de gomme noire, en gros plan, action intense, photoréalisme]";
   }
-  await sendWithImage(sock, jid, responseText);
+  await sendWithImage(sock, replyJid, responseText);
 });
 
 commands.set('garage', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
   const playerVehicles = await PlayerVehicle.findAll({
     where: { PlayerWhatsappId: player.whatsappId },
@@ -327,7 +297,7 @@ commands.set('garage', async (sock, message) => {
   });
 
   if (!playerVehicles.length) {
-    await sock.sendMessage(jid, { text: "Tu n'as pas de véhicule." });
+    await sock.sendMessage(replyJid, { text: "Tu n'as pas de véhicule." });
     return;
   }
 
@@ -336,24 +306,25 @@ commands.set('garage', async (sock, message) => {
     garageText += `- ID: ${pv.id} | ${pv.Vehicle.name} | Dégâts: ${pv.damage}%\n`;
   });
 
-  await sock.sendMessage(jid, { text: garageText });
+  await sock.sendMessage(replyJid, { text: garageText });
 });
 
 commands.set('drive', async (sock, message, args) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    await sock.sendMessage(replyJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
     return;
   }
   if (player.drivingVehicleId) {
-    await sock.sendMessage(jid, { text: "Tu es déjà au volant." });
+    await sock.sendMessage(replyJid, { text: "Tu es déjà au volant." });
     return;
   }
 
   const playerVehicleId = args[0];
   if (!playerVehicleId) {
-    await sock.sendMessage(jid, { text: "Indique l'ID du véhicule que tu veux conduire." });
+    await sock.sendMessage(replyJid, { text: "Indique l'ID du véhicule que tu veux conduire." });
     return;
   }
 
@@ -363,25 +334,26 @@ commands.set('drive', async (sock, message, args) => {
   });
 
   if (!playerVehicle) {
-    await sock.sendMessage(jid, { text: "Ce n'est pas ton véhicule." });
+    await sock.sendMessage(replyJid, { text: "Ce n'est pas ton véhicule." });
     return;
   }
 
   await player.update({ drivingVehicleId: playerVehicle.id });
   const responseText = `Tu te glisses derrière le volant de ta ${playerVehicle.Vehicle.name}. L'odeur du cuir usé et de l'essence remplit tes narines.\n` +
                        `[POLLINATION PROMPT: Vue à la première personne depuis l'intérieur d'une voiture, mains sur le volant, regardant à travers le pare-brise une rue de la ville la nuit, reflets des néons, cinématique, réaliste]`;
-  await sendWithImage(sock, jid, responseText);
+  await sendWithImage(sock, replyJid, responseText);
 });
 
 commands.set('park', async (sock, message) => {
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player.mode !== 'action') {
-    await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    await sock.sendMessage(replyJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
     return;
   }
   if (!player.drivingVehicleId) {
-    await sock.sendMessage(jid, { text: "Tu n'es pas au volant." });
+    await sock.sendMessage(replyJid, { text: "Tu n'es pas au volant." });
     return;
   }
 
@@ -389,7 +361,7 @@ commands.set('park', async (sock, message) => {
   await player.update({ drivingVehicleId: null });
   await playerVehicle.update({ currentSpeed: 0 }); // Reset speed when parking
 
-  await sock.sendMessage(jid, { text: `Tu as garé la ${playerVehicle.Vehicle.name}.` });
+  await sock.sendMessage(replyJid, { text: `Tu as garé la ${playerVehicle.Vehicle.name}.` });
 });
 
 async function handleCommand(sock, message, downloadMediaMessage) {
@@ -403,7 +375,12 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     return;
   }
 
-  const jid = message.key.remoteJid;
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  // Get the sender's name for logging, fallback to JID if not available
+  const senderName = message.pushName || jid;
+  console.log(`[DEBUG] Received message from "${senderName}" (${jid}) in chat (${replyJid}). Content: "${messageText}"`);
 
   // Handle profile picture submission
   if (registrationState.get(jid) === 'awaiting_profile_pic') {
@@ -419,18 +396,18 @@ async function handleCommand(sock, message, downloadMediaMessage) {
         await player.update({ profilePicPath: filePath });
 
         registrationState.delete(jid);
-        await sock.sendMessage(jid, { text: "Photo de profil enregistrée ! Ta carte d'identité est prête. Utilise /profil pour la voir." });
+        await sock.sendMessage(replyJid, { text: "Photo de profil enregistrée ! Ta carte d'identité est prête. Utilise /profil pour la voir." });
 
         // Trigger profile command to show the new ID card immediately
         await commands.get('profile')(sock, message);
 
       } catch (error) {
         console.error("Erreur lors de la sauvegarde de la photo de profil:", error);
-        await sock.sendMessage(jid, { text: "Désolé, une erreur est survenue lors de la sauvegarde de ta photo. Réessaie." });
+        await sock.sendMessage(replyJid, { text: "Désolé, une erreur est survenue lors de la sauvegarde de ta photo. Réessaie." });
       }
       return;
     } else {
-      await sock.sendMessage(jid, { text: "Ce n'est pas une image. Envoie une photo pour ton profil." });
+      await sock.sendMessage(replyJid, { text: "Ce n'est pas une image. Envoie une photo pour ton profil." });
       return;
     }
   }
@@ -446,34 +423,35 @@ async function handleCommand(sock, message, downloadMediaMessage) {
 
       if (created) {
         registrationState.delete(jid);
+        const firstMission = getMission(player.chapter, player.quest);
         const welcomeText = `Bienvenue à Gheno City 2, ${player.name} ! 🚗💥\n\n` +
-                            "Les rues sont impitoyables, mais pleines d'opportunités. Ton voyage pour venger la mort de ton père commence maintenant. " +
-                            "Pour commencer, tu dois te faire un nom dans ton quartier natal, Little Sicily. Trouve un moyen de voler une voiture pour attirer l'attention. " +
-                            "Utilise la commande /quests pour voir tes objectifs.";
-        await sock.sendMessage(jid, { text: welcomeText });
+                            "Les rues sont impitoyables, mais pleines d'opportunités. Ton voyage pour venger la mort de ton père commence maintenant.\n\n" +
+                            `*Ton premier objectif:*\n${firstMission.objective}`;
+        await sock.sendMessage(replyJid, { text: welcomeText });
       } else {
         registrationState.delete(jid);
-        await sock.sendMessage(jid, { text: `Content de te revoir, ${player.name}!` });
+        await sock.sendMessage(replyJid, { text: `Content de te revoir, ${player.name}!` });
       }
     } else {
-      await sock.sendMessage(jid, { text: "Nom invalide. Veuillez choisir un nom entre 1 et 15 caractères, sans commencer par '/'." });
+      await sock.sendMessage(replyJid, { text: "Nom invalide. Veuillez choisir un nom entre 1 et 15 caractères, sans commencer par '/'." });
     }
     return;
   }
 
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (!player && !messageText.startsWith('/start')) {
-    await sock.sendMessage(jid, { text: "Bienvenue ! Utilise /start pour commencer ton aventure à Gheno City." });
+    await sock.sendMessage(replyJid, { text: "Bienvenue ! Utilise /start pour commencer ton aventure à Gheno City." });
     return;
   }
 
   if (player && player.mode === 'action' && !messageText.startsWith('/')) {
     try {
+      console.log(`[DEBUG] JID ${jid} entering free action mode with player ${player.name}.`);
       await handleFreeAction(sock, message, player, messageText);
       await Player.update({ lastActivity: new Date() }, { where: { whatsappId: jid } });
     } catch (error) {
       console.error('Error executing free action:', error);
-      await sock.sendMessage(jid, { text: "Une erreur est survenue lors de l'interprétation de ton action." });
+      await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de l'interprétation de ton action." });
     }
     return;
   }
@@ -488,15 +466,23 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   const command = commands.get(commandName);
   if (command) {
     try {
+      console.log(`[DEBUG] JID ${jid} executing command /${commandName} with player ${player?.name || 'Unknown'}.`);
       await command(sock, message, args);
       await Player.update({ lastActivity: new Date() }, { where: { whatsappId: jid } });
+
+      // Après chaque commande, vérifier si une mission a été accomplie
+      const updatedPlayer = await Player.findOne({ where: { whatsappId: jid } });
+      if (updatedPlayer) {
+          await checkMissionCompletion(sock, updatedPlayer);
+      }
+
     } catch (error) {
       console.error(`Error executing command ${commandName}:`, error);
-      await sock.sendMessage(jid, { text: "Une erreur est survenue lors de l'exécution de la commande." });
+      await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de l'exécution de la commande." });
     }
   } else {
-    await sock.sendMessage(jid, { text: "Commande inconnue. Tapez /help pour voir la liste des commandes." });
+    await sock.sendMessage(replyJid, { text: "Commande inconnue. Tapez /help pour voir la liste des commandes." });
   }
 }
 
-module.exports = { handleCommand, sendWithImage };
+module.exports = { handleCommand };
