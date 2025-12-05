@@ -80,6 +80,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'normal', // Can be 'normal' or 'action'
   },
+    characterDescription: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 });
 
 const Vehicle = sequelize.define('Vehicle', {
