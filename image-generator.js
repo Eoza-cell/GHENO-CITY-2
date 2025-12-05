@@ -1,33 +1,34 @@
 const axios = require('axios');
+const { addToQueue } = require('./rate-limiter');
 
 async function generateImageFromPrompt(prompt) {
   const encodedPrompt = encodeURIComponent(prompt);
-  // Utiliser le paramètre `model=flux` comme recommandé pour une meilleure qualité et `nologo=true` pour enlever le filigrane
   const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&seed=42&model=flux&nologo=true`;
 
   try {
-    console.log(`Envoi de la requête de génération d'image à : ${url}`);
+    console.log(`Ajout de la requête de génération d'image à la file d'attente pour : ${url}`);
 
-    // Utiliser axios pour effectuer la requête GET
-    // Définir responseType à 'arraybuffer' pour gérer correctement les données d'image
-    const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      timeout: 60000 // Ajouter un timeout de 60 secondes pour être sûr
-    });
+    const apiCall = async () => {
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: 60000,
+        });
 
-    // Vérifier que la réponse est valide
-    if (response.status !== 200) {
-      throw new Error(`Échec de la récupération de l'image, code de statut: ${response.status}`);
-    }
+        if (response.status !== 200) {
+            throw new Error(`Échec de la récupération de l'image, code de statut: ${response.status}`);
+        }
 
-    // Vérifier le type de contenu pour s'assurer qu'il s'agit d'une image
-    const contentType = response.headers['content-type'];
-    if (!contentType || !contentType.startsWith('image/')) {
-      throw new Error(`Réponse inattendue du serveur, type de contenu: ${contentType}`);
-    }
+        const contentType = response.headers['content-type'];
+        if (!contentType || !contentType.startsWith('image/')) {
+            throw new Error(`Réponse inattendue du serveur, type de contenu: ${contentType}`);
+        }
 
-    // Retourner les données de l'image sous forme de Buffer
-    return Buffer.from(response.data);
+        // p-retry expects the promise to resolve with the data
+        return response.data;
+    };
+
+    const imageData = await addToQueue(apiCall);
+    return Buffer.from(imageData);
 
   } catch (error) {
     // Améliorer le logging d'erreur pour inclure les détails de la requête

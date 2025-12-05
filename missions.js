@@ -7,7 +7,7 @@ const missions = {
     quests: {
       1: {
         title: "Un nouveau départ",
-        objective: "Ton voyage commence ici, à Little Sicily. Pour te déplacer en ville et commencer à te faire un nom, tu as besoin de roues. Rends-toi chez le concessionnaire et trouve un moyen d'acquérir ton premier véhicule.",
+        objective: "Ton voyage commence ici, à Little Sicily. Pour te faire un nom, tu as besoin de roues, mais tu n'as pas un sou. Vole une voiture pour commencer à te déplacer.",
         reward: {
           xp: 100,
         },
@@ -16,7 +16,7 @@ const missions = {
           const vehicleCount = await PlayerVehicle.count({ where: { PlayerWhatsappId: player.whatsappId } });
           return vehicleCount > 0;
         },
-        narrativeOnComplete: "Félicitations, tu as tes premières roues. La ville s'ouvre à toi, mais les dangers aussi. Ton nom commence à circuler dans le quartier. Le caïd local a entendu parler de ton arrivée et veut te rencontrer. Va voir ce qu'il te veut.",
+        narrativeOnComplete: "Félicitations, tu as tes premières roues. La ville s'ouvre à toi, mais les dangers aussi. Ce vol a attiré l'attention du caïd local, qui a entendu parler de ton arrivée et veut te rencontrer. Va voir ce qu'il te veut.",
         nextQuest: 2,
       },
       2: {
