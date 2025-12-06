@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const { setupDatabase } = require('./database');
 const { handleCommand } = require('./command-handler');
@@ -13,8 +13,7 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
-    version: [2, 3000, 1025190524],
+    browser: ["WhatsApp", "Desktop", "1.0.0"],
     logger: pino({ level: 'silent' }),
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);

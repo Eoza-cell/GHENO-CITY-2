@@ -29,7 +29,6 @@ commands.set('quests', async (sock, message) => {
     await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
     return;
   }
-
   if (player.mode !== 'action') {
     await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
     return;
