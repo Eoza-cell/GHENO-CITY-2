@@ -1,5 +1,6 @@
-const { PlayerVehicle } = require('./database');
+const { PlayerVehicle, Vehicle } = require('./database');
 const { sendWithImage } = require('./message-handler');
+const { startDriving } = require('./driving-handler');
 
 const missions = {
   1: { // Chapter 1
@@ -77,6 +78,23 @@ async function checkMissionCompletion(sock, player) {
 
         // Notify the player
         await sendWithImage(sock, player.whatsappId, currentMission.narrativeOnComplete);
+
+        // --- START DRIVING MINIGAME ---
+        // If this is the car theft quest, automatically start the driving game
+        if (player.chapter === 1 && player.quest === 2) { // The quest has been advanced to 2
+            const playerVehicle = await PlayerVehicle.findOne({
+                where: { PlayerWhatsappId: player.whatsappId },
+                include: [{ model: Vehicle }]
+            });
+
+            if (playerVehicle) {
+                console.log(`[DEBUG] Démarrage automatique du mini-jeu de conduite pour ${player.name}.`);
+                await player.update({ mode: 'driving' });
+                startDriving(sock, player, playerVehicle);
+                return; // Stop further processing to avoid sending the next objective immediately
+            }
+        }
+        // --- END DRIVING MINIGAME ---
 
         // Display the new objective
         const newMission = getMission(player.chapter, player.quest);
