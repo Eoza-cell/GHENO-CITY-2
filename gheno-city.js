@@ -1,4 +1,5 @@
-const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+require('dotenv').config();
+const { default: makeWASocket, useMultiFileAuthState, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const { setupDatabase } = require('./database');
 const { handleCommand } = require('./command-handler');
@@ -11,14 +12,29 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     auth: state,
+    printQRInTerminal: false,
+    browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
+    version: [2, 3000, 1025190524],
     logger: pino({ level: 'silent' }),
+    getMessage: async key => {
+        console.log('⚠️ Message non déchiffré, retry demandé:', key);
+        return { conversation: '🔄 Réessaye d\'envoyer ton message' };
+    }
   });
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update;
-    if (qr) {
-      console.log('QR code:', qr);
+  if (!sock.authState.creds.registered) {
+    const phoneNumber = process.env.PHONE_NUMBER;
+    if (!phoneNumber) {
+      console.error('Numéro de téléphone non configuré. Veuillez définir la variable d\'environnement PHONE_NUMBER.');
+      process.exit(1);
     }
+    const code = await sock.requestPairingCode(phoneNumber);
+    console.log(`\nVotre code d'appairage : ${code}\n`);
+  }
+
+
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect } = update;
     if (connection === 'close') {
       const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
       console.log('Connection closed. Reconnecting:', shouldReconnect);
