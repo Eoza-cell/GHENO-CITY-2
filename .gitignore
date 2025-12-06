@@ -7,3 +7,4 @@ gheno-city.sqlite
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.env
