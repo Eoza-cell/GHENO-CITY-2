@@ -293,7 +293,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sock.sendMessage(jid, { text: `Action inconnue de l'IA: ${action}` });
     }
 
-    await checkMissionCompletion(sock, player);
+    await checkMissionCompletion(sock, player, message);
 
   } catch (error) {
     console.error('Erreur communication API Pollination:', {

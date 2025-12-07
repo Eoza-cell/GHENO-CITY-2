@@ -45,8 +45,8 @@ function getMission(chapter, questId) {
   return null;
 }
 
-async function checkMissionCompletion(sock, player) {
-    if (!player || !player.chapter || !player.quest) {
+async function checkMissionCompletion(sock, player, message) {
+    if (!player || !player.chapter || !player.quest || !message) { // Ensure message is present
         return;
     }
 
@@ -90,7 +90,7 @@ async function checkMissionCompletion(sock, player) {
             if (playerVehicle) {
                 console.log(`[DEBUG] Démarrage automatique du mini-jeu de conduite pour ${player.name}.`);
                 await player.update({ mode: 'driving' });
-                startDriving(sock, player, playerVehicle);
+                startDriving(sock, message, player, playerVehicle);
                 return; // Stop further processing to avoid sending the next objective immediately
             }
         }

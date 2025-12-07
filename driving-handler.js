@@ -1,20 +1,21 @@
 const { Player, PlayerVehicle } = require('./database');
 
-const activeDrivers = new Map(); // jid -> { interval, player, vehicle, sock }
+const activeDrivers = new Map(); // remoteJid -> { interval, player, vehicle, sock }
 
 /**
  * Starts the driving minigame for a player.
  * @param {object} sock The WebSocket connection object.
+ * @param {object} message The message object from Baileys to get the chat JID.
  * @param {object} player The player object from the database.
  * @param {object} playerVehicle The player's vehicle object.
  */
-function startDriving(sock, player, playerVehicle) {
-    const jid = player.whatsappId;
-    const replyJid = player.whatsappId; // In driving mode, we can assume direct message.
+function startDriving(sock, message, player, playerVehicle) {
+    const playerJid = player.whatsappId;
+    const chatJid = message.key.remoteJid;
 
-    // If already driving, stop the old session first
-    if (activeDrivers.has(jid)) {
-        stopDriving(jid);
+    // Use chatJid as the key to keep the game session scoped to the chat
+    if (activeDrivers.has(chatJid)) {
+        stopDriving(chatJid);
     }
 
     const gameState = {
@@ -27,22 +28,22 @@ function startDriving(sock, player, playerVehicle) {
         interval: null,
     };
 
-    sock.sendMessage(replyJid, { text: `Vous montez dans votre ${playerVehicle.Vehicle.name}. Moteur allumé.\n\nEnvoyez des commandes simples comme "accélérer", "freiner", "gauche", "droite" pour conduire.` });
+    sock.sendMessage(chatJid, { text: `Vous montez dans votre ${playerVehicle.Vehicle.name}. Moteur allumé.\n\nEnvoyez des commandes simples comme "accélérer", "freiner", "gauche", "droite" pour conduire.` });
 
-    gameState.interval = setInterval(() => gameLoop(jid), 15000); // 15 seconds
-    activeDrivers.set(jid, gameState);
+    gameState.interval = setInterval(() => gameLoop(chatJid), 15000);
+    activeDrivers.set(chatJid, gameState);
 }
+
 
 /**
  * The main game loop for the driving minigame.
- * @param {string} jid The JID of the player.
+ * @param {string} chatJid The JID of the chat where the game is running.
  */
-function gameLoop(jid) {
-    const gameState = activeDrivers.get(jid);
+function gameLoop(chatJid) {
+    const gameState = activeDrivers.get(chatJid);
     if (!gameState) return;
 
-    const { sock, player, vehicle } = gameState;
-    const replyJid = player.whatsappId;
+    const { sock } = gameState;
 
     // Simulate some basic physics/events
     gameState.distance += gameState.speed / 10;
@@ -63,7 +64,7 @@ function gameLoop(jid) {
         eventMessage += "\n\nLa route est libre. Continuez de conduire.";
     }
 
-    sock.sendMessage(replyJid, { text: eventMessage });
+    sock.sendMessage(chatJid, { text: eventMessage });
 }
 
 /**
@@ -74,13 +75,16 @@ function gameLoop(jid) {
  * @param {string} text The text from the message.
  */
 async function handleDrivingAction(sock, message, player, text) {
-    const jid = player.whatsappId;
-    const replyJid = message.key.remoteJid;
-    const gameState = activeDrivers.get(jid);
+    const chatJid = message.key.remoteJid;
+    const gameState = activeDrivers.get(chatJid);
 
     if (!gameState) {
-        await sock.sendMessage(replyJid, { text: "Vous n'êtes pas en train de conduire." });
-        await player.update({ mode: 'normal' });
+        await sock.sendMessage(chatJid, { text: "Personne ne conduit dans ce chat." });
+        // Find the player who sent the message and reset their mode if they are stuck
+        const stuckPlayer = await Player.findOne({ where: { whatsappId: player.whatsappId }});
+        if (stuckPlayer && stuckPlayer.mode === 'driving') {
+             await stuckPlayer.update({ mode: 'normal' });
+        }
         return;
     }
 
@@ -103,7 +107,7 @@ async function handleDrivingAction(sock, message, player, text) {
             gameState.lastEvent = null;
 
             if (gameState.vehicle.damage >= 100) {
-                stopDriving(jid, "Votre véhicule est hors d'usage !");
+                stopDriving(chatJid, "Votre véhicule est hors d'usage !");
                 return;
             }
         }
@@ -111,6 +115,7 @@ async function handleDrivingAction(sock, message, player, text) {
         // Handle general driving actions
         switch (action) {
             case 'accélérer':
+            case 'accelerer':
                 gameState.speed += 10;
                 responseText = `Vous accélérez. Vitesse: ${gameState.speed.toFixed(1)} km/h`;
                 break;
@@ -119,33 +124,34 @@ async function handleDrivingAction(sock, message, player, text) {
                 responseText = `Vous freinez. Vitesse: ${gameState.speed.toFixed(1)} km/h`;
                 break;
             case 'arrêter':
-                stopDriving(jid, 'Vous vous garez sur le côté de la route.');
+            case 'arreter':
+                stopDriving(chatJid, 'Vous vous garez sur le côté de la route.');
                 return;
             default:
                 responseText = 'Commande de conduite non reconnue. (accélérer, freiner, gauche, droite, arrêter)';
         }
     }
 
-    await sock.sendMessage(replyJid, { text: responseText });
+    await sock.sendMessage(chatJid, { text: responseText });
 }
 
 
 /**
  * Stops the driving minigame for a player.
- * @param {string} jid The JID of the player.
+ * @param {string} chatJid The JID of the chat where the game is running.
  * @param {string} [reason] An optional message to send when stopping.
  */
-async function stopDriving(jid, reason) {
-    const gameState = activeDrivers.get(jid);
+async function stopDriving(chatJid, reason) {
+    const gameState = activeDrivers.get(chatJid);
     if (gameState) {
         clearInterval(gameState.interval);
-        activeDrivers.delete(jid);
+        activeDrivers.delete(chatJid);
         await gameState.player.update({ mode: 'normal' });
         if (reason) {
-            await gameState.sock.sendMessage(jid, { text: reason });
+            await gameState.sock.sendMessage(chatJid, { text: reason });
         }
-        console.log(`[Driving] Session arrêtée pour ${jid}.`);
+        console.log(`[Driving] Session arrêtée pour le chat ${chatJid}.`);
     }
 }
 
-module.exports = { startDriving, stopDriving, handleDrivingAction };
+module.exports = { startDriving, stopDriving, handleDrivingAction, activeDrivers };

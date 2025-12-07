@@ -5,7 +5,7 @@ const { Player, PlayerVehicle, Shop, Item, ShopItem } = require('./database');
 const { handleFreeAction } = require('./ai-handler');
 const { sendWithImage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
-const { startDriving, handleDrivingAction } = require('./driving-handler');
+const { startDriving, handleDrivingAction, activeDrivers } = require('./driving-handler');
 const { Op } = require('sequelize');
 
 /**
@@ -189,7 +189,7 @@ commands.set('conduire', async (sock, message, args) => {
     }
 
     await player.update({ mode: 'driving' });
-    startDriving(sock, player, playerVehicle);
+    startDriving(sock, message, player, playerVehicle);
 });
 
 
@@ -333,6 +333,16 @@ async function handleCommand(sock, message, downloadMediaMessage) {
 
   console.log(`[DEBUG] Message de "${senderName}" (${jid}) dans ${replyJid}: "${messageText}"`);
 
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  // --- Driving Mode Check ---
+  // Give driving priority. If a driving session is active in this chat, all non-command messages are driving actions.
+  if (activeDrivers.has(replyJid) && !messageText.startsWith('/')) {
+      const drivingPlayer = activeDrivers.get(replyJid).player;
+      await handleDrivingAction(sock, message, drivingPlayer, messageText);
+      return;
+  }
+
   // Handle registration flow
   const registrationStep = registrationState.get(jid);
   if (registrationStep) {
@@ -376,19 +386,12 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       return;
   }
 
-  const player = await Player.findOne({ where: { whatsappId: jid } });
   if (!player && !messageText.startsWith('/start')) {
     await sock.sendMessage(replyJid, { text: "Utilise /start pour commencer." });
     return;
   }
 
-  // Handle driving mode
-  if (player?.mode === 'driving' && !messageText.startsWith('/')) {
-    await handleDrivingAction(sock, message, player, messageText);
-    return;
-  }
-
-  // Handle free action mode
+  // Handle free action mode (if not driving)
   if (player?.mode === 'action' && !messageText.startsWith('/')) {
     try {
       await handleFreeAction(sock, message, player, messageText);
@@ -414,7 +417,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       await command(sock, message, args);
       if (player) {
           await player.update({ lastActivity: new Date() });
-          await checkMissionCompletion(sock, player);
+          await checkMissionCompletion(sock, player, message);
       }
     } catch (error) {
       console.error(`Erreur commande ${commandName}:`, error);
