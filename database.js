@@ -37,6 +37,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 100,
   },
+  health: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100,
+  },
+  energy: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100,
+  },
   chapter: {
     type: DataTypes.INTEGER,
     defaultValue: 1,
@@ -189,16 +197,25 @@ async function setupDatabase() {
         console.log('Seeding shops and items...');
         const ammunation = await Shop.create({ name: 'Ammu-Nation', location: 'Downtown' });
         const hardwareStore = await Shop.create({ name: 'Hardware Store', location: 'Little Sicily' });
+        const clothingStore = await Shop.create({ name: 'Vêtements & Co.', location: 'Downtown' });
 
         const pistol = await Item.create({ name: 'Pistolet', description: 'Un pistolet semi-automatique fiable.', price: 500 });
         const ammo = await Item.create({ name: 'Munitions', description: 'Boîte de 50 munitions 9mm.', price: 50 });
         const lockpick = await Item.create({ name: 'Kit de crochetage', description: 'Pour les portes qui ne devraient pas s\'ouvrir.', price: 150 });
         const baseballBat = await Item.create({ name: 'Batte de baseball', description: 'Pour le sport... ou autre chose.', price: 75 });
+        const leatherJacket = await Item.create({ name: 'Veste en cuir', description: 'Une veste en cuir noir, classique et résistante.', price: 250 });
+        const fadedJeans = await Item.create({ name: 'Jean délavé', description: 'Un jean qui a du vécu.', price: 120 });
+        const boots = await Item.create({ name: 'Bottes', description: 'Bottes de travail robustes.', price: 180 });
+
 
         await ammunation.addItem(pistol, { through: { quantity: 10 } });
         await ammunation.addItem(ammo, { through: { quantity: -1 } }); // Infini
         await hardwareStore.addItem(lockpick, { through: { quantity: 20 } });
         await hardwareStore.addItem(baseballBat, { through: { quantity: 15 } });
+        await clothingStore.addItem(leatherJacket, { through: { quantity: 10 } });
+        await clothingStore.addItem(fadedJeans, { through: { quantity: 15 } });
+        await clothingStore.addItem(boots, { through: { quantity: 12 } });
+
         console.log('Shops and items seeded.');
     }
 

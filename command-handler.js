@@ -47,32 +47,12 @@ commands.set('quests', async (sock, message) => {
   await sock.sendMessage(replyJid, { text: mission ? `*Objectif actuel:*\n${mission.objective}` : "Tu n'as pas de quête active." });
 });
 
-// Helper function to generate ID card
-async function generateIdCard(player) {
-    // SVG is a better choice for text on images as it scales well.
-    const textSvg = `
-    <svg width="450" height="300">
-      <style>
-        .label { fill: #bbb; font-size: 30px; font-family: Arial, sans-serif; }
-        .info { fill: #fff; font-size: 35px; font-family: Arial, sans-serif; }
-      </style>
-      <text x="0" y="40" class="label">NOM:</text>
-      <text x="0" y="80" class="info">${player.name}</text>
-      <text x="0" y="140" class="label">NIVEAU:</text>
-      <text x="0" y="180" class="info">${player.level}</text>
-      <text x="0" y="240" class="label">ARGENT:</text>
-      <text x="0" y="280" class="info">${player.money}$</text>
-    </svg>`;
-
-    const resizedProfilePic = await sharp(player.profilePicPath).resize(250, 250).toBuffer();
-
-    return sharp('./assets/id_card_template.png')
-        .composite([
-            { input: resizedProfilePic, top: 125, left: 50 },
-            { input: Buffer.from(textSvg), top: 125, left: 350 },
-        ])
-        .png()
-        .toBuffer();
+// Helper function to create a status bar
+function createStatusBar(current, max, filledChar = '▰', emptyChar = '▱', length = 10) {
+    const percentage = current / max;
+    const filledCount = Math.round(percentage * length);
+    const emptyCount = length - filledCount;
+    return filledChar.repeat(filledCount) + emptyChar.repeat(emptyCount);
 }
 
 
@@ -86,23 +66,20 @@ const profileCommand = async (sock, message) => {
     await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
     return;
   }
-  if (!player.profilePicPath) {
-    registrationState.set(jid, 'awaiting_profile_pic');
-    await sock.sendMessage(replyJid, { text: "Envoie une photo de profil pour générer ta carte d'identité." });
-    return;
-  }
 
-  try {
-    const idCardBuffer = await generateIdCard(player);
-    const profileText = `*Profil de ${player.name}*\n\n` +
-                        `*Niveau:* ${player.level}\n` +
-                        `*XP:* ${player.xp}\n` +
-                        `*Argent:* ${player.money}$`;
-    await sock.sendMessage(replyJid, { image: idCardBuffer, caption: profileText });
-  } catch (error) {
-    console.error("Erreur lors de la génération de la carte d'identité:", error);
-    await sock.sendMessage(replyJid, { text: "Erreur lors de la création de ta carte d'identité." });
-  }
+  // No ID card generation for now, just text profile with status bars
+  const healthBar = createStatusBar(player.health, 100);
+  const energyBar = createStatusBar(player.energy, 100);
+  const xpBar = createStatusBar(player.xp, player.level * 100);
+
+  const profileText = `*Profil de ${player.name}*\n\n` +
+                      `*Niveau:* ${player.level}\n` +
+                      `*Argent:* ${player.money}$\n\n` +
+                      `*Vie:* ${healthBar} ${player.health}%\n` +
+                      `*Énergie:* ${energyBar} ${player.energy}%\n` +
+                      `*XP:* ${xpBar} ${player.xp}/${player.level * 100}`;
+
+  await sock.sendMessage(replyJid, { text: profileText });
 };
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
@@ -117,7 +94,6 @@ commands.set('help', async (sock, message) => {
                    "/garage - Lister tes véhicules.\n" +
                    "/conduire [ID] - Démarrer la conduite d'un véhicule.\n" +
                    "/shop - Voir les articles du magasin local.\n" +
-                   "/buy [article] [quantité] - Acheter un article.\n" +
                    "/interagir [nom] donner [article] [quantité] - Donner un objet à un joueur.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
@@ -241,76 +217,7 @@ commands.set('shop', async (sock, message) => {
         return `- ${item.name} | Prix: ${item.price}$ | Stock: ${quantity}`;
     }).join('\n');
 
-    await sock.sendMessage(replyJid, { text: `*${shop.name}*\n\n${shopText}\n\nUtilise /buy [article] [quantité] pour acheter.` });
-});
-
-
-// Command: /buy
-commands.set('buy', async (sock, message, args) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const replyJid = message.key.remoteJid;
-
-    if (args.length < 1) {
-        await sock.sendMessage(replyJid, { text: "Utilisation: /buy [nom de l'article] [quantité]" });
-        return;
-    }
-
-    const shop = await Shop.findOne({ where: { location: player.location } });
-    if (!shop) {
-        await sock.sendMessage(replyJid, { text: "Il n'y a pas de magasin ici." });
-        return;
-    }
-
-    const itemName = args[0];
-    const quantity = args.length > 1 ? parseInt(args[1], 10) : 1;
-
-    if (isNaN(quantity) || quantity <= 0) {
-        await sock.sendMessage(replyJid, { text: "La quantité doit être un nombre positif." });
-        return;
-    }
-
-    const itemToBuy = await Item.findOne({ where: { name: { [Op.like]: itemName } } });
-    if (!itemToBuy) {
-        await sock.sendMessage(replyJid, { text: `Article "${itemName}" non trouvé.` });
-        return;
-    }
-
-    const shopItem = await ShopItem.findOne({ where: { ShopId: shop.id, ItemId: itemToBuy.id } });
-    if (!shopItem) {
-        await sock.sendMessage(replyJid, { text: `Cet article n'est pas vendu ici.` });
-        return;
-    }
-
-    if (shopItem.quantity !== -1 && shopItem.quantity < quantity) {
-        await sock.sendMessage(replyJid, { text: `Stock insuffisant. Il ne reste que ${shopItem.quantity}.` });
-        return;
-    }
-
-    const totalPrice = itemToBuy.price * quantity;
-    if (player.money < totalPrice) {
-        await sock.sendMessage(replyJid, { text: `Tu n'as pas assez d'argent. Il te faut ${totalPrice}$, tu n'as que ${player.money}$.` });
-        return;
-    }
-
-    // Mettre à jour le joueur et le stock
-    player.money -= totalPrice;
-    const playerInventory = player.inventory;
-    const existingItem = playerInventory.find(i => i.name === itemToBuy.name);
-    if (existingItem) {
-        existingItem.quantity += quantity;
-    } else {
-        playerInventory.push({ name: itemToBuy.name, quantity: quantity });
-    }
-    player.inventory = playerInventory; // Déclenche le setter pour la sérialisation
-    await player.save();
-
-    if (shopItem.quantity !== -1) {
-        shopItem.quantity -= quantity;
-        await shopItem.save();
-    }
-
-    await sock.sendMessage(replyJid, { text: `Achat réussi ! Tu as obtenu ${quantity}x ${itemToBuy.name} pour ${totalPrice}$.` });
+    await sock.sendMessage(replyJid, { text: `*${shop.name}*\n\n${shopText}\n\nPour acheter, passe en mode /action et décris ton achat.` });
 });
 
 // Command: /interagir
