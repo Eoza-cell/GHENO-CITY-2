@@ -13,7 +13,7 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    browser: ["WhatsApp", "Desktop", "1.0.0"],
+    browser: ["Ubuntu", "Chrome", "20.0.04"],
     logger: pino({ level: 'silent' }),
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
