@@ -1,11 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const { Player, PlayerVehicle } = require('./database');
+const { Player, PlayerVehicle, Shop, Item, ShopItem } = require('./database');
 const { handleFreeAction } = require('./ai-handler');
 const { sendWithImage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
 const { startDriving, handleDrivingAction } = require('./driving-handler');
+const { Op } = require('sequelize');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -115,6 +116,9 @@ commands.set('help', async (sock, message) => {
                    "/profil - Afficher ta carte d'identité.\n" +
                    "/garage - Lister tes véhicules.\n" +
                    "/conduire [ID] - Démarrer la conduite d'un véhicule.\n" +
+                   "/shop - Voir les articles du magasin local.\n" +
+                   "/buy [article] [quantité] - Acheter un article.\n" +
+                   "/interagir [nom] donner [article] [quantité] - Donner un objet à un joueur.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
                    "/tagall - Mentionner tous les membres du groupe.\n" +
@@ -143,6 +147,7 @@ commands.set('menu', async (sock, message) => {
                    "👤 `/profil` - Voir ta carte d'identité.\n" +
                    "📋 `/quests` - Consulter tes objectifs.\n" +
                    "🚗 `/garage` - Accéder à tes véhicules.\n" +
+                   "🛒 `/shop` - Voir les articles du magasin.\n" +
                    "❓ `/help` - Liste des commandes.";
   try {
     await sock.sendMessage(message.key.remoteJid, {
@@ -212,9 +217,174 @@ commands.set('conduire', async (sock, message, args) => {
 });
 
 
-commands.set('grab', async (sock, message) => {
-  await sock.sendMessage(message.key.remoteJid, { text: 'Action de prendre effectuée.' });
+// Command: /shop
+commands.set('shop', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    const shop = await Shop.findOne({ where: { location: player.location } });
+
+    if (!shop) {
+        await sock.sendMessage(replyJid, { text: "Il n'y a pas de magasin ici." });
+        return;
+    }
+
+    const items = await shop.getItems();
+    if (!items.length) {
+        await sock.sendMessage(replyJid, { text: `Le magasin "${shop.name}" est vide.` });
+        return;
+    }
+
+    const shopText = items.map(item => {
+        const quantity = item.ShopItem.quantity === -1 ? '∞' : item.ShopItem.quantity;
+        return `- ${item.name} | Prix: ${item.price}$ | Stock: ${quantity}`;
+    }).join('\n');
+
+    await sock.sendMessage(replyJid, { text: `*${shop.name}*\n\n${shopText}\n\nUtilise /buy [article] [quantité] pour acheter.` });
 });
+
+
+// Command: /buy
+commands.set('buy', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (args.length < 1) {
+        await sock.sendMessage(replyJid, { text: "Utilisation: /buy [nom de l'article] [quantité]" });
+        return;
+    }
+
+    const shop = await Shop.findOne({ where: { location: player.location } });
+    if (!shop) {
+        await sock.sendMessage(replyJid, { text: "Il n'y a pas de magasin ici." });
+        return;
+    }
+
+    const itemName = args[0];
+    const quantity = args.length > 1 ? parseInt(args[1], 10) : 1;
+
+    if (isNaN(quantity) || quantity <= 0) {
+        await sock.sendMessage(replyJid, { text: "La quantité doit être un nombre positif." });
+        return;
+    }
+
+    const itemToBuy = await Item.findOne({ where: { name: { [Op.like]: itemName } } });
+    if (!itemToBuy) {
+        await sock.sendMessage(replyJid, { text: `Article "${itemName}" non trouvé.` });
+        return;
+    }
+
+    const shopItem = await ShopItem.findOne({ where: { ShopId: shop.id, ItemId: itemToBuy.id } });
+    if (!shopItem) {
+        await sock.sendMessage(replyJid, { text: `Cet article n'est pas vendu ici.` });
+        return;
+    }
+
+    if (shopItem.quantity !== -1 && shopItem.quantity < quantity) {
+        await sock.sendMessage(replyJid, { text: `Stock insuffisant. Il ne reste que ${shopItem.quantity}.` });
+        return;
+    }
+
+    const totalPrice = itemToBuy.price * quantity;
+    if (player.money < totalPrice) {
+        await sock.sendMessage(replyJid, { text: `Tu n'as pas assez d'argent. Il te faut ${totalPrice}$, tu n'as que ${player.money}$.` });
+        return;
+    }
+
+    // Mettre à jour le joueur et le stock
+    player.money -= totalPrice;
+    const playerInventory = player.inventory;
+    const existingItem = playerInventory.find(i => i.name === itemToBuy.name);
+    if (existingItem) {
+        existingItem.quantity += quantity;
+    } else {
+        playerInventory.push({ name: itemToBuy.name, quantity: quantity });
+    }
+    player.inventory = playerInventory; // Déclenche le setter pour la sérialisation
+    await player.save();
+
+    if (shopItem.quantity !== -1) {
+        shopItem.quantity -= quantity;
+        await shopItem.save();
+    }
+
+    await sock.sendMessage(replyJid, { text: `Achat réussi ! Tu as obtenu ${quantity}x ${itemToBuy.name} pour ${totalPrice}$.` });
+});
+
+// Command: /interagir
+commands.set('interagir', async (sock, message, args) => {
+    const jid = getJid(message);
+    const sourcePlayer = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (args.length < 3) {
+        await sock.sendMessage(replyJid, { text: "Utilisation: /interagir [nom_joueur] donner [objet] [quantité?]" });
+        return;
+    }
+
+    const targetPlayerName = args[0];
+    const action = args[1].toLowerCase();
+
+    if (targetPlayerName.toLowerCase() === sourcePlayer.name.toLowerCase()) {
+        await sock.sendMessage(replyJid, { text: "Tu ne peux pas interagir avec toi-même." });
+        return;
+    }
+
+    const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: targetPlayerName } } });
+    if (!targetPlayer) {
+        await sock.sendMessage(replyJid, { text: `Joueur "${targetPlayerName}" non trouvé.` });
+        return;
+    }
+
+    if (action === 'donner') {
+        const itemName = args[2];
+        const quantity = args.length > 3 ? parseInt(args[3], 10) : 1;
+
+        if (isNaN(quantity) || quantity <= 0) {
+            await sock.sendMessage(replyJid, { text: "La quantité doit être un nombre positif." });
+            return;
+        }
+
+        const sourceInventory = sourcePlayer.inventory;
+        const itemInInventory = sourceInventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
+
+        if (!itemInInventory || itemInInventory.quantity < quantity) {
+            await sock.sendMessage(replyJid, { text: `Tu n'as pas assez de "${itemName}" (tu as ${itemInInventory ? itemInInventory.quantity : 0}).` });
+            return;
+        }
+
+        // Retirer de l'inventaire source
+        itemInInventory.quantity -= quantity;
+        if (itemInInventory.quantity === 0) {
+            sourcePlayer.inventory = sourceInventory.filter(i => i.name.toLowerCase() !== itemName.toLowerCase());
+        } else {
+            sourcePlayer.inventory = sourceInventory;
+        }
+        await sourcePlayer.save();
+
+        // Ajouter à l'inventaire cible
+        const targetInventory = targetPlayer.inventory;
+        const targetItem = targetInventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
+        if (targetItem) {
+            targetItem.quantity += quantity;
+        } else {
+            targetInventory.push({ name: itemInInventory.name, quantity: quantity });
+        }
+        targetPlayer.inventory = targetInventory;
+        await targetPlayer.save();
+
+        await sock.sendMessage(replyJid, { text: `Tu as donné ${quantity}x ${itemInInventory.name} à ${targetPlayer.name}.` });
+
+        // Envoyer une notification au joueur cible (nécessite d'être dans le même groupe/chat)
+        await sock.sendMessage(targetPlayer.whatsappId.endsWith('@g.us') ? targetPlayer.whatsappId : message.key.remoteJid, { text: `${sourcePlayer.name} t'a donné ${quantity}x ${itemInInventory.name}.` });
+
+    } else {
+        await sock.sendMessage(replyJid, { text: `Action "${action}" non reconnue.` });
+    }
+});
+
 
 // Command: /tagall
 commands.set('tagall', async (sock, message) => {
