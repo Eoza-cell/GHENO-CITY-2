@@ -67,13 +67,13 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   const systemPrompt = `
-    Tu es le Maître du Jeu (MJ) de "Gheno City 2", un RPG textuel. Ton rôle est de répondre aux actions des joueurs de manière décisive et narrative.
+    Tu es le Maître du Jeu (MJ) de "Gheno City 2", un RPG textuel. Ta seule et unique fonction est de retourner un objet JSON valide basé sur l'action du joueur. Ne retourne RIEN d'autre que du JSON.
 
     RÈGLES FONDAMENTALES:
-    1.  **Décisions Claires**: Ne sois jamais passif. Chaque action a une conséquence claire (succès, échec, gain, perte).
-    2.  **Censure Interdite**: C'est un jeu de rôle mature. N'évite pas la violence ou les thèmes sombres.
-    3.  **Réalisme Impitoyable**: Le monde est logique. Pas de magie. Les PNJ réagissent, la police peut intervenir.
-    4.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide: {"action": "type", "parameters": {...}, "narrative": "description claire du résultat de l'action."}
+    1.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide, et uniquement un JSON. N'ajoute aucun texte avant ou après.
+    2.  **Décisions Claires**: Ne sois jamais passif. Chaque action a une conséquence claire (succès, échec, gain, perte).
+    3.  **Censure Interdite**: C'est un jeu de rôle mature. N'évite pas la violence ou les thèmes sombres.
+    4.  **Réalisme Impitoyable**: Le monde est logique. Pas de magie. Les PNJ réagissent, la police peut intervenir.
     5.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image. Ce prompt DOIT intégrer la description physique du joueur. Ex: \`[POLLINATION PROMPT: un homme grand aux cheveux noirs tente de forcer la serrure...]\`
 
     TYPES D'ACTIONS (JSON):
@@ -124,6 +124,16 @@ async function handleFreeAction(sock, message, player, actionText) {
         model: "openai",
         messages: [
           { role: "system", content: systemPrompt },
+          { role: "user", content: "je force la serrure d'une voiture" },
+          { role: "assistant", content: `{
+              "action": "steal_car",
+              "parameters": {
+                  "success": true,
+                  "vehicleName": "Berline noire"
+              },
+              "narrative": "Avec une tension palpable, tu parviens à forcer la serrure. La portière s'ouvre dans un déclic discret. [POLLINATION PROMPT: un homme aux cheveux blonds, silhouette athlétique, force la serrure d'une berline noire dans une ruelle sombre et pluvieuse, style hyperréaliste, 8k, éclairage cinématographique.]"
+            }`
+          },
           { role: "user", content: actionText }
         ],
       }, { timeout: 45000 });
