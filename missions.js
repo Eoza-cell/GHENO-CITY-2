@@ -12,7 +12,6 @@ const missions = {
         reward: {
           xp: 100,
         },
-        // Condition: Le joueur doit posséder au moins un véhicule.
         completionCondition: async (player) => {
           const vehicleCount = await PlayerVehicle.count({ where: { PlayerWhatsappId: player.whatsappId } });
           return vehicleCount > 0;
@@ -27,12 +26,37 @@ const missions = {
           xp: 50,
           money: 1000,
         },
-        // Condition: Le joueur doit être à l'emplacement 'hideout'.
-        completionCondition: (player) => {
-            return player.location === 'hideout';
-        },
+        completionCondition: (player) => player.location === 'hideout',
         narrativeOnComplete: "Le caïd te jauge du regard. 'J'aime ton ambition,' dit-il. 'J'ai un petit boulot pour toi. Fais ça bien, et il y en aura d'autres.' Il te tend une liasse de billets.",
-        nextQuest: null, // End of chapter for now
+        nextQuest: 3,
+      },
+      3: {
+        title: "Le sale boulot",
+        objective: "Le caïd veut que tu sois équipé. Va à l'Ammu-Nation à Downtown et achète un pistolet.",
+        reward: {
+            xp: 75,
+        },
+        completionCondition: (player) => {
+            const inventory = player.inventory;
+            return inventory.some(item => item.name === 'Pistolet');
+        },
+        narrativeOnComplete: "Le poids de l'arme dans ta main est une sensation nouvelle. Tu es maintenant prêt pour le vrai travail.",
+        nextQuest: 4,
+      },
+      4: {
+        title: "Intimidation",
+        objective: "Retourne à Little Sicily. Le caïd veut que tu 'rappelles' à un certain commerçant qui commande ici. Fais-lui peur.",
+        reward: {
+            xp: 100,
+            money: 500,
+        },
+        completionCondition: (player) => {
+            // Pour l'instant, la condition est simplement de retourner à Little Sicily.
+            // Une future version pourrait impliquer une action de l'IA.
+            return player.location === 'Little Sicily';
+        },
+        narrativeOnComplete: "Le commerçant a compris le message. Tu as prouvé ta loyauté et ta capacité à faire le sale boulot. Le caïd sera satisfait.",
+        nextQuest: null, // Fin du chapitre pour l'instant
       },
     },
   },
@@ -49,8 +73,6 @@ async function checkMissionCompletion(sock, player, message) {
     if (!player || !player.chapter || !player.quest || !message) { // Ensure message is present
         return;
     }
-
-    console.log(`[DEBUG] Checking mission completion for JID ${player.whatsappId} (Player: ${player.name}).`);
 
     const currentMission = getMission(player.chapter, player.quest);
     if (!currentMission || !currentMission.completionCondition) {
@@ -79,8 +101,6 @@ async function checkMissionCompletion(sock, player, message) {
         // Notify the player
         await sendWithImage(sock, player.whatsappId, currentMission.narrativeOnComplete);
 
-        // --- START DRIVING MINIGAME ---
-        // If this is the car theft quest, automatically start the driving game
         if (player.chapter === 1 && player.quest === 2) { // The quest has been advanced to 2
             const playerVehicle = await PlayerVehicle.findOne({
                 where: { PlayerWhatsappId: player.whatsappId },
@@ -91,12 +111,10 @@ async function checkMissionCompletion(sock, player, message) {
                 console.log(`[DEBUG] Démarrage automatique du mini-jeu de conduite pour ${player.name}.`);
                 await player.update({ mode: 'driving' });
                 startDriving(sock, message, player, playerVehicle);
-                return; // Stop further processing to avoid sending the next objective immediately
+                return;
             }
         }
-        // --- END DRIVING MINIGAME ---
 
-        // Display the new objective
         const newMission = getMission(player.chapter, player.quest);
         if (newMission) {
             const newObjectiveText = `*Nouvel objectif:*\n${newMission.objective}`;

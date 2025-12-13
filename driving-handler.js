@@ -133,6 +133,9 @@ async function handleDrivingAction(sock, message, player, text) {
     }
 
     await sock.sendMessage(chatJid, { text: responseText });
+
+    // Update player's last activity timestamp
+    await gameState.player.update({ lastActivity: new Date() });
 }
 
 
