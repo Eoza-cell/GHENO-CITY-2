@@ -137,6 +137,41 @@ commands.set('menu', async (sock, message) => {
   await sock.sendMessage(message.key.remoteJid, { text: "Tu es de retour en mode normal." });
 });
 
+commands.set('donjon', async (sock, message) => {
+  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
+  if (!player) {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  if (player.mode !== 'action') {
+    await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
+    return;
+  }
+
+  if (player.chapter === 1 && player.quest === 2) {
+    // Simulate a boss fight
+    const playerPower = player.strength + player.defense + player.agility + player.intelligence;
+    const bossPower = 150; // Adjust as needed
+
+    if (playerPower >= bossPower) {
+      await player.update({ chapter: 2, quest: 1, money: player.money + 500, xp: player.xp + 200 });
+      const successText = "Tu as vaincu le boss du donjon ! Tu as gagné de l'expérience et une belle récompense.\n\n" +
+                          "Récompense : 500$ et 200 XP.\n\n" +
+                          "Tu es maintenant prêt pour le prochain chapitre de ton aventure.\n" +
+                          "[POLLINATION PROMPT: un guerrier de style anime se tenant victorieux au-dessus d'un monstre boss vaincu dans un donjon faiblement éclairé, avec des trésors qui brillent en arrière-plan]";
+      await sock.sendMessage(message.key.remoteJid, { text: successText });
+    } else {
+      await player.update({ health: player.health - 50 });
+      const failureText = "Le boss du donjon est trop fort pour toi. Tu as été gravement blessé et a dû battre en retraite.\n\n" +
+                          "Tu as perdu 50 points de vie. Entraîne-toi et reviens plus fort.";
+      await sock.sendMessage(message.key.remoteJid, { text: failureText });
+    }
+  } else {
+    await sock.sendMessage(message.key.remoteJid, { text: "Tu ne peux pas faire ça maintenant." });
+  }
+});
+
 commands.set('inventory', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
   if (!player) {
