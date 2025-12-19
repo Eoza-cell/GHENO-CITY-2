@@ -74,10 +74,6 @@ const Player = sequelize.define('Player', {
     type: DataTypes.DATE,
     allowNull: true,
   },
-  location: {
-    type: DataTypes.STRING,
-    defaultValue: 'Plaines de départ',
-  },
   mode: {
     type: DataTypes.STRING,
     defaultValue: 'normal', // Can be 'normal' or 'action'

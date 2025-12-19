@@ -39,6 +39,10 @@ commands.set('quests', async (sock, message) => {
     questText += "Chapitre 1: Le Commencement\n" +
                  "Objectif: Apprends les bases du combat en chassant un sanglier.\n" +
                  "Commande: /tutoriel";
+  } else if (player.chapter === 1 && player.quest === 2) {
+    questText += "Chapitre 1: Le Commencement\n" +
+                 "Objectif: Entre dans le premier donjon et bats le boss.\n" +
+                 "Commande: /donjon";
   } else {
     questText += "Tu n'as pas de quête active pour le moment.";
   }
@@ -112,7 +116,6 @@ commands.set('help', async (sock, message) => {
                      "/profile - Affiche ton profil de joueur.\n" +
                      "/stats - Affiche tes statistiques.\n" +
                      "/tutoriel - Lance le tutoriel.\n" +
-                     "/goto [lieu] - Te déplace vers un lieu.\n" +
                      "/shop - Affiche les articles d'une boutique.\n" +
                      "/buy [article] - Achète un article.\n" +
                      "/inventory - Affiche ton inventaire.\n" +
@@ -159,54 +162,6 @@ commands.set('inventory', async (sock, message) => {
   await sock.sendMessage(message.key.remoteJid, { text: inventoryText });
 });
 
-// Location data
-const locations = {
-  'Plaines de départ': {
-    description: "Une vaste plaine où les nouveaux joueurs commencent leur aventure.",
-    connections: ['Forêt des Murmures', 'Village de Liria'],
-  },
-  'Forêt des Murmures': {
-    description: "Une forêt dense et mystérieuse, pleine de créatures étranges.",
-    connections: ['Plaines de départ'],
-  },
-  'Village de Liria': {
-    description: "Un village paisible où les joueurs peuvent se reposer et acheter de l'équipement.",
-    connections: ['Plaines de départ', 'Armurerie'],
-  },
-  'Armurerie': {
-    description: "Une boutique où l'on vend des armes et des armures.",
-    connections: ['Village de Liria'],
-  },
-};
-
-// Command to move between locations
-commands.set('goto', async (sock, message, args) => {
-  const player = await Player.findOne({ where: { whatsappId: message.key.remoteJid } });
-  if (!player) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
-
-  const destination = args.join(' ');
-  if (!destination || !locations[destination]) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Destination inconnue." });
-    return;
-  }
-
-  const currentConnections = locations[player.location]?.connections;
-  if (!currentConnections || !currentConnections.includes(destination)) {
-    await sock.sendMessage(message.key.remoteJid, { text: "Tu ne peux pas y aller depuis ta position actuelle." });
-    return;
-  }
-
-  await player.update({ location: destination });
-  const location = locations[destination];
-  let responseText = `Tu es maintenant à ${destination}.\n\n${location.description}`;
-  if (location.prompt) {
-    responseText += `\n[POLLINATION PROMPT: ${location.prompt}]`;
-  }
-  await sock.sendMessage(message.key.remoteJid, { text: responseText });
-});
 
 // Command to view items in a shop
 commands.set('shop', async (sock, message) => {
@@ -218,10 +173,6 @@ commands.set('shop', async (sock, message) => {
 
   if (player.mode !== 'action') {
     await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-  if (player.location !== 'Armurerie') {
-    await sock.sendMessage(message.key.remoteJid, { text: "Il n'y a pas de boutique ici." });
     return;
   }
 
@@ -245,10 +196,6 @@ commands.set('buy', async (sock, message, args) => {
 
   if (player.mode !== 'action') {
     await sock.sendMessage(message.key.remoteJid, { text: "Cette commande ne peut être utilisée qu'en mode /action." });
-    return;
-  }
-  if (player.location !== 'Armurerie') {
-    await sock.sendMessage(message.key.remoteJid, { text: "Tu dois être à l'armurerie pour acheter un article." });
     return;
   }
 
