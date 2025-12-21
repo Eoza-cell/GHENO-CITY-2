@@ -1,6 +1,8 @@
 require('dotenv').config();
-const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const http = require('http');
+const axios = require('axios');
 const { setupDatabase } = require('./database');
 const { handleCommand } = require('./command-handler');
 const { startInactivePlayerHandler } = require('./inactive-handler');
@@ -9,12 +11,14 @@ async function connectToWhatsApp() {
   await setupDatabase();
 
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(`using WA v${version.join('.')}, isLatest: ${isLatest}`);
 
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
     browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
-    version: [2, 3000, 1027934701],
+    version,
     logger: pino({ level: 'silent' }),
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
@@ -58,3 +62,14 @@ async function connectToWhatsApp() {
 }
 
 connectToWhatsApp();
+
+// Create a simple HTTP server to keep the Render service alive
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('WhatsApp Bot is running.\\n');
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
