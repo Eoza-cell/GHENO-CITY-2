@@ -44,18 +44,29 @@ const missions = {
         nextQuest: 4,
       },
       4: {
-        title: "Intimidation",
-        objective: "Retourne à Little Sicily. Le caïd veut que tu 'rappelles' à un certain commerçant qui commande ici. Fais-lui peur.",
+        title: "Livraison Spéciale",
+        objective: "Apporte le pistolet que tu as acheté à la planque du caïd. C'est un test de confiance.",
         reward: {
-            xp: 100,
-            money: 500,
+            xp: 150,
         },
         completionCondition: (player) => {
-            // Pour l'instant, la condition est simplement de retourner à Little Sicily.
-            // Une future version pourrait impliquer une action de l'IA.
-            return player.location === 'Little Sicily';
+            const hasPistol = player.inventory.some(item => item.name === 'Pistolet');
+            const atHideout = player.location === 'hideout';
+            return hasPistol && atHideout;
         },
-        narrativeOnComplete: "Le commerçant a compris le message. Tu as prouvé ta loyauté et ta capacité à faire le sale boulot. Le caïd sera satisfait.",
+        narrativeOnComplete: "Le caïd prend le pistolet et l'inspecte. 'Bien,' dit-il simplement. 'Tu es fiable. Maintenant, montre-moi que tu sais faire de l'argent.'",
+        nextQuest: 5,
+      },
+      5: {
+        title: "Le Droit d'Entrée",
+        objective: "Le respect se gagne, mais il s'achète aussi. Prouve ta valeur en accumulant 2000$.",
+        reward: {
+            xp: 200,
+        },
+        completionCondition: (player) => {
+            return player.money >= 2000;
+        },
+        narrativeOnComplete: "Tu as l'argent. Tu as prouvé que tu savais te débrouiller en ville. Tu as officiellement ta place dans l'organisation.",
         nextQuest: null, // Fin du chapitre pour l'instant
       },
     },
@@ -88,6 +99,12 @@ async function checkMissionCompletion(sock, player, message) {
         player.money += currentMission.reward.money || 0;
         player.xp += currentMission.reward.xp || 0;
 
+        // Special case for the delivery quest: remove the pistol from inventory
+        if (player.chapter === 1 && player.quest === 4) {
+            player.inventory = player.inventory.filter(item => item.name !== 'Pistolet');
+        }
+
+
         // Advance to the next quest
         if (currentMission.nextQuest) {
             player.quest = currentMission.nextQuest;
@@ -101,7 +118,7 @@ async function checkMissionCompletion(sock, player, message) {
         // Notify the player
         await sendWithImage(sock, player.whatsappId, currentMission.narrativeOnComplete);
 
-        if (player.chapter === 1 && player.quest === 2) { // The quest has been advanced to 2
+        if (player.chapter === 1 && player.quest === 2) {
             const playerVehicle = await PlayerVehicle.findOne({
                 where: { PlayerWhatsappId: player.whatsappId },
                 include: [{ model: Vehicle }]

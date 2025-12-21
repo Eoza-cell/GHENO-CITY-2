@@ -2,16 +2,20 @@ const axios = require('axios');
 const { addToQueue } = require('./rate-limiter');
 
 async function generateImageFromPrompt(prompt) {
-  const encodedPrompt = encodeURIComponent(prompt);
-  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&seed=42&model=flux&nologo=true`;
+  const url = `https://api.4oimageapi.workers.dev/`;
+  const payload = {
+    prompt: prompt,
+    width: 512,
+    height: 512,
+  };
 
   try {
-    console.log(`Ajout de la requête de génération d'image à la file d'attente pour : ${url}`);
+    console.log(`Ajout de la requête de génération d'image à la file d'attente pour : ${prompt}`);
 
     const apiCall = async () => {
-        const response = await axios.get(url, {
+        const response = await axios.post(url, payload, {
             responseType: 'arraybuffer',
-            timeout: 60000,
+            timeout: 60000, // 60 seconds timeout
         });
 
         if (response.status !== 200) {
@@ -23,7 +27,6 @@ async function generateImageFromPrompt(prompt) {
             throw new Error(`Réponse inattendue du serveur, type de contenu: ${contentType}`);
         }
 
-        // p-retry expects the promise to resolve with the data
         return response.data;
     };
 
@@ -31,14 +34,13 @@ async function generateImageFromPrompt(prompt) {
     return Buffer.from(imageData);
 
   } catch (error) {
-    // Améliorer le logging d'erreur pour inclure les détails de la requête
     console.error('Erreur détaillée lors de la génération de l\'image:', {
         message: error.message,
         url: url,
+        prompt: prompt,
         responseStatus: error.response ? error.response.status : 'N/A',
         responseData: error.response ? error.response.data.toString().slice(0, 200) + '...' : 'N/A'
     });
-    // Renvoyer l'erreur pour que l'appelant puisse la gérer
     throw error;
   }
 }
