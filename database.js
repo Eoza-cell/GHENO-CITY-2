@@ -116,9 +116,10 @@ async function setupDatabase() {
     const itemCount = await Item.count();
     if (itemCount === 0) {
       await Item.bulkCreate([
-        { name: 'Épée en fer', price: 100 },
-        { name: 'Armure de cuir', price: 150 },
+        { name: 'Anneau de Vent', price: 100 },
+        { name: 'Epée basique', price: 150 },
         { name: 'Potion de soin', price: 50 },
+		{ name: 'Cristal de téléportation', price: 200 },
       ]);
       console.log('Item database seeded.');
     }

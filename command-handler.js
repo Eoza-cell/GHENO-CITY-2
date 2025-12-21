@@ -10,13 +10,13 @@ commands.set('start', async (sock, message) => {
 
   let text;
   if (created) {
-    text = `*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\n` +
-           `*Hélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.*\n\n` +
-           `*Le temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énémis... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...*\n\n` +
-           `                   *...3_2_1...*\n\n` +
-           `                    *START!!*`;
+    text = `*Bienvenue dans Sword Art Online, joueur.*\n\n` +
+           `Dans ce monde, la seule chose qui compte est votre détermination. Vous êtes piégé ici, et la seule façon de vous échapper est de conquérir les 100 étages de l'Aincrad. Mais attention... si vous mourez dans le jeu, vous mourez dans la vraie vie.\n\n` +
+           `Je suis le Game Master, votre guide dans ce monde. Je ne peux pas vous aider directement, mais je peux vous donner des conseils. Pour commencer, je vous suggère de vous entraîner sur des créatures de bas niveau pour monter en niveau et gagner de l'équipement.\n\n` +
+           `Votre première quête : survivre. Prouvez-moi que vous avez ce qu'il faut pour survivre dans ce monde en chassant un sanglier. Utilisez la commande /tutoriel pour commencer.\n\n` +
+           `Bonne chance, joueur. Vous en aurez besoin.`;
   } else {
-    text = `Content de te revoir, ${player.name} ! Le monde de Skype t'attendait. Utilise /quests pour continuer ta progression.`;
+    text = `Content de te revoir, ${player.name} ! L'Aincrad t'attendait. Utilise /quests pour continuer ta progression.`;
   }
 
   await sock.sendMessage(message.key.remoteJid, { text });
@@ -66,7 +66,7 @@ commands.set('tutoriel', async (sock, message) => {
   if (player.chapter === 1 && player.quest === 1) {
     await player.update({ quest: 2, money: player.money + 100, xp: player.xp + 50 });
     const successText = "Tu as chassé un sanglier et gagné de l'expérience.\n\n" +
-                        "Récompense : 100$ et 50 XP.\n\n" +
+                        "Récompense : 100 Col et 50 XP.\n\n" +
                         "Tu es maintenant prêt à affronter les dangers de ce monde.\n" +
                         "[POLLINATION PROMPT: un personnage de jeu vidéo dans une forêt, debout au-dessus d'un sanglier vaincu, tenant une épée, avec des particules de lumière qui flottent autour, style anime fantastique]";
     await sock.sendMessage(message.key.remoteJid, { text: successText });
@@ -87,7 +87,7 @@ commands.set('profile', async (sock, message) => {
                       `👤 Nom: ${player.name}\n` +
                       `📈 Niveau: ${player.level}\n` +
                       `✨ XP: ${player.xp}\n` +
-                      `💰 Argent: ${player.money}$`;
+                      `💰 Col: ${player.money}$`;
   await sock.sendMessage(message.key.remoteJid, { text: profileText });
 });
 
@@ -111,16 +111,16 @@ commands.set('stats', async (sock, message) => {
 // The /help command
 commands.set('help', async (sock, message) => {
     const helpText = "Voici les commandes disponibles :\n" +
-                     "/start - Commence ou reprends ton aventure.\n" +
+                     "/start - Commence ou reprends ton aventure dans l'Aincrad.\n" +
                      "/quests - Affiche tes quêtes actuelles.\n" +
                      "/profile - Affiche ton profil de joueur.\n" +
-                     "/stats - Affiche tes statistiques.\n" +
-                     "/tutoriel - Lance le tutoriel.\n" +
-                     "/shop - Affiche les articles d'une boutique.\n" +
-                     "/buy [article] - Achète un article.\n" +
+                     "/stats - Affiche tes statistiques de combat.\n" +
+                     "/tutoriel - Lance le tutoriel pour apprendre les bases.\n" +
+                     "/shop - Affiche les articles disponibles dans la boutique.\n" +
+                     "/buy [article] - Achète un article de la boutique.\n" +
                      "/inventory - Affiche ton inventaire.\n" +
-                     "/action - Passe en mode action (RP).\n" +
-                     "/menu - Retourne au mode normal.\n" +
+                     "/action - Passe en mode action pour interagir avec le monde.\n" +
+                     "/menu - Retourne au menu principal.\n" +
                      "/help - Affiche cette aide.";
     await sock.sendMessage(message.key.remoteJid, { text: helpText });
 });
@@ -152,18 +152,18 @@ commands.set('donjon', async (sock, message) => {
   if (player.chapter === 1 && player.quest === 2) {
     // Simulate a boss fight
     const playerPower = player.strength + player.defense + player.agility + player.intelligence;
-    const bossPower = 150; // Adjust as needed
+    const bossPower = 50; // Adjust as needed
 
     if (playerPower >= bossPower) {
       await player.update({ chapter: 2, quest: 1, money: player.money + 500, xp: player.xp + 200 });
-      const successText = "Tu as vaincu le boss du donjon ! Tu as gagné de l'expérience et une belle récompense.\n\n" +
-                          "Récompense : 500$ et 200 XP.\n\n" +
-                          "Tu es maintenant prêt pour le prochain chapitre de ton aventure.\n" +
-                          "[POLLINATION PROMPT: un guerrier de style anime se tenant victorieux au-dessus d'un monstre boss vaincu dans un donjon faiblement éclairé, avec des trésors qui brillent en arrière-plan]";
+      const successText = "Après un combat acharné, tu as vaincu Illfang the Kobold Lord, le boss du premier étage ! Tu as gagné de l'expérience et une belle récompense.\n\n" +
+                          "Récompense : 500 Col et 200 XP.\n\n" +
+                          "La voie vers le deuxième étage est maintenant ouverte. Continue ton ascension, joueur.\n" +
+                          "[POLLINATION PROMPT: un guerrier de style anime se tenant victorieux au-dessus d'un grand monstre kobold vaincu dans une salle du trône de donjon, avec des trésors qui brillent en arrière-plan]";
       await sock.sendMessage(message.key.remoteJid, { text: successText });
     } else {
       await player.update({ health: player.health - 50 });
-      const failureText = "Le boss du donjon est trop fort pour toi. Tu as été gravement blessé et a dû battre en retraite.\n\n" +
+      const failureText = "Illfang the Kobold Lord est trop fort pour toi. Tu as été gravement blessé et a dû battre en retraite en utilisant un cristal de téléportation.\n\n" +
                           "Tu as perdu 50 points de vie. Entraîne-toi et reviens plus fort.";
       await sock.sendMessage(message.key.remoteJid, { text: failureText });
     }
@@ -214,7 +214,7 @@ commands.set('shop', async (sock, message) => {
   const items = await Item.findAll();
   let shopText = "Articles à vendre:\n\n";
   items.forEach(item => {
-    shopText += `- ${item.name} | ${item.price}$\n`;
+    shopText += `- ${item.name} | ${item.price} Col\n`;
   });
   shopText += "\nUtilise /buy [nom] pour acheter.";
 
