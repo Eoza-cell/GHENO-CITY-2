@@ -19,8 +19,7 @@
   },
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
-    "@whiskeysockets/baileys": "7.0.0-rc.6",
-    "dotenv": "^17.2.3",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "pino": "^10.1.0",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
