@@ -10,7 +10,7 @@ const { Sequelize } = require('sequelize');
 const { setupDatabase, Player, PlayerVehicle } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand } = require('./command-handler');
-const { startInactivePlayerHandler } = require('./inactive-handler');
+const { startInactivePlayerCheck } = require('./inactive-handler');
 const { startDayNightCycle } = require('./game-state');
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
@@ -44,7 +44,7 @@ async function connectToWhatsApp() {
     auth: state,
     printQRInTerminal: false, // QR code is no longer needed
     browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
-    version: [2, 3000, 1025190524],
+    version: [2, 3000, 1027934701],
     logger: pino({ level: 'silent' }), // Suppress verbose logging
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
@@ -88,7 +88,7 @@ async function connectToWhatsApp() {
       }
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
-      startInactivePlayerHandler(sock);
+      startInactivePlayerCheck(sock);
       startDayNightCycle();
       // Start the game loop only after a successful connection
       setInterval(() => gameLoop(sock), GAME_TICK_RATE);
