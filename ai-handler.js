@@ -1,9 +1,7 @@
-const axios = require('axios');
 const { Player, Vehicle, PlayerVehicle, Shop, Item, ShopItem, sequelize } = require('./database');
 const { isDay } = require('./game-state');
 const { sendWithImage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
-const { addToQueue } = require('./rate-limiter');
 const {
   accelerateVehicle,
   brakeVehicle,
@@ -11,7 +9,7 @@ const {
   parkVehicle,
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
-
+const { Puter } = require('@heyputer/puter.js');
 
 // Location data for AI context
 const locations = {
@@ -35,6 +33,7 @@ const locations = {
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
+  const puter = new Puter();
 
   // 1. Build the context for the AI
   const playerState = `
@@ -63,66 +62,42 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Véhicules dans ton garage:\n" + playerVehicles.map(pv => `- ID ${pv.id}: ${pv.Vehicle.name}`).join('\n')
     : "Ton garage est vide.";
 
-  // Shop context - Now dynamic
+  // Shop context
   let shopInventory = "Aucun magasin ici.";
   const currentShop = await Shop.findOne({ where: { location: player.location } });
-
   if (currentShop) {
       const items = await currentShop.getItems();
       if (items.length > 0) {
           shopInventory = `Articles à vendre chez "${currentShop.name}":\n` +
-          items.map(item => {
-              const quantity = item.ShopItem.quantity === -1 ? 'illimité' : item.ShopItem.quantity;
-              return `- ${item.name}: ${item.price}$ (Stock: ${quantity})`;
-          }).join('\n');
-      } else {
-          shopInventory = `Le magasin "${currentShop.name}" est vide.`;
+          items.map(item => `- ${item.name}: ${item.price}$`).join('\n');
       }
-  } else if (player.location === 'dealership' && isDay()) { // Keep old dealership logic as fallback
-    const vehicles = await Vehicle.findAll({ attributes: ['name', 'price'] });
-    shopInventory = "Véhicules à vendre:\n" + vehicles.map(v => `- ${v.name}: ${v.price}$`).join('\n');
-  } else if (player.location === 'dealership') {
-    shopInventory = "Le concessionnaire est fermé la nuit.";
   }
-
 
   const systemPrompt = `
     Tu es le Maître du Jeu (MJ) de "Gheno City 2", un RPG textuel. Ta seule et unique fonction est de retourner un objet JSON valide basé sur l'action du joueur. Ne retourne RIEN d'autre que du JSON.
 
     RÈGLES FONDAMENTALES:
     1.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide.
-    2.  **Décisions Claires**: Chaque action a une conséquence claire.
-    3.  **Censure Interdite**: C'est un jeu mature.
-    4.  **Réalisme Impitoyable**: Le monde est logique. Les actions physiquement impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error" avec une explication. Un joueur ne peut pas acheter quelque chose s'il n'est pas dans le bon magasin.
-    5.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image intégrant la description physique du joueur.
+    2.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
+    3.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image avec la description du joueur. Ex: \`[POLLINATION PROMPT: un homme grand aux cheveux noirs...]\`
 
     TYPES D'ACTIONS (JSON):
-    - "action": "update_player": Modifier les stats du joueur.
-      - "parameters": {"money_change": montant, "xp_gain": montant}
-    - "action": "steal_car": Tenter de voler un véhicule. La catégorie est OBLIGATOIRE.
-      - "parameters": {"success": true_ou_false, "category": "Compacte" | "Berline" | "Sportive"}
-    - "action": "move": Changer de lieu.
-      - "parameters": {"destination": "nom_du_lieu"}
-    - "action": "buy_item": Acheter un article dans un magasin.
-      - "parameters": {"itemName": "nom_de_l_article", "quantity": nombre}
-    - "action": "drive": Monter dans un véhicule du garage.
-      - "parameters": {"vehicleId": id_du_vehicule}
-    - "action": "park": Descendre du véhicule actuel.
-      - "parameters": {}
-    - "action": "accelerate": Accélérer.
-      - "parameters": {}
-    - "action": "brake": Freiner.
-      - "parameters": {}
-    - "action": "narrate": Pour les actions sans impact mécanique.
-      - "parameters": {}
-    - "action": "error": Si l'action est illogique, impossible ou viole les règles de réalisme.
-      - "parameters": {"reason": "explication claire de l'échec"}
+    - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant}
+    - "action": "steal_car", "parameters": {"success": true_ou_false, "category": "Compacte" | "Berline" | "Sportive"}
+    - "action": "move", "parameters": {"destination": "nom_du_lieu"}
+    - "action": "buy_item", "parameters": {"itemName": "nom_de_l_article", "quantity": nombre}
+    - "action": "drive", "parameters": {"vehicleId": id_du_vehicule}
+    - "action": "park"
+    - "action": "accelerate"
+    - "action": "brake"
+    - "action": "narrate"
+    - "action": "error", "parameters": {"reason": "explication"}
 
-    CONTEXTE DE LA SCÈNE:
+    CONTEXTE:
     ---
     ${playerState}
     ---
-    ÉTAT DU VÉHICULE:
+    VEHICULE:
     ---
     ${playerVehicleState}
     ---
@@ -134,34 +109,17 @@ async function handleFreeAction(sock, message, player, actionText) {
     ---
     ${shopInventory}
     ---
+    ACTION DU JOUEUR: ${actionText}
   `;
 
   try {
-    const apiCall = async () => {
-      const { data } = await axios.post('https://text.pollinations.ai/', {
-        model: "openai",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: "je saute sur le toit de l'immeuble d'en face" },
-          { role: "assistant", content: `{
-              "action": "error",
-              "parameters": {
-                  "reason": "L'écart est trop grand, tu ne peux pas sauter si loin."
-              },
-              "narrative": "Tu prends ton élan, mais en t'approchant du bord, tu réalises que le saut est impossible. Une chute pareille serait fatale. [POLLINATION PROMPT: un homme grand aux cheveux noirs se tient au bord d'un toit, regardant le vide avec une expression de doute, style cinématographique, nuit.]"
-            }`
-          },
-          { role: "user", content: actionText }
-        ],
-      }, { timeout: 45000 });
-      return data;
-    };
-
-    const rawResponse = await addToQueue(apiCall);
+    const fullPrompt = `${systemPrompt}\n\nACTION DU JOUEUR: ${actionText}`;
+    const response = await puter.ai.chat(fullPrompt, { model: "gpt-4" });
+    const rawResponse = response.text;
 
     let aiResponse;
     try {
-      aiResponse = typeof rawResponse === 'string' ? JSON.parse(rawResponse) : rawResponse;
+      aiResponse = JSON.parse(rawResponse);
     } catch (parseError) {
       console.error('Erreur de parsing JSON de la réponse IA:', { rawResponse, error: parseError.message });
       await sock.sendMessage(jid, { text: "L'IA a renvoyé une réponse malformée. Réessayez." });
@@ -185,7 +143,6 @@ async function handleFreeAction(sock, message, player, actionText) {
             let priceRange;
             if (vehicleCategory === 'Compacte') priceRange = [5000, 20000];
             else if (vehicleCategory === 'Berline') priceRange = [40000, 80000];
-            else if (vehicleCategory === 'Sportive') priceRange = [80000, 200000];
             else priceRange = [0, 1000000]; // Fallback
 
             const vehicleToSteal = await Vehicle.findOne({
@@ -196,7 +153,6 @@ async function handleFreeAction(sock, message, player, actionText) {
             if (vehicleToSteal) {
                 await PlayerVehicle.create({ PlayerWhatsappId: player.whatsappId, VehicleId: vehicleToSteal.id });
                 await player.increment('xp', { by: 50 });
-                // La mission se terminera via checkMissionCompletion
                 await sendWithImage(sock, jid, aiResponse.narrative + ` Tu as volé une ${vehicleToSteal.name} !`);
             } else {
                 await sock.sendMessage(jid, { text: `Aucune voiture de catégorie "${vehicleCategory}" n'a été trouvée à voler.` });
@@ -212,7 +168,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           await player.update({ location: destination });
           await sendWithImage(sock, jid, aiResponse.narrative);
         } else {
-          await sock.sendMessage(jid, { text: `L'IA a tenté un déplacement invalide vers '${destination}'.` });
+          await sock.sendMessage(jid, { text: `Déplacement invalide vers '${destination}'.` });
         }
         break;
 
@@ -221,30 +177,19 @@ async function handleFreeAction(sock, message, player, actionText) {
         const shop = await Shop.findOne({ where: { location: player.location } });
 
         if (!shop) {
-            await sock.sendMessage(jid, { text: "Il n'y a pas de magasin ici pour acheter ça." });
+            await sock.sendMessage(jid, { text: "Il n'y a pas de magasin ici." });
             break;
         }
 
         const itemToBuy = await Item.findOne({ where: { name: { [Op.like]: itemName } } });
         if (!itemToBuy) {
-            await sock.sendMessage(jid, { text: `L'IA a essayé de te faire acheter un article qui n'existe pas : "${itemName}".` });
-            break;
-        }
-
-        const shopItem = await ShopItem.findOne({ where: { ShopId: shop.id, ItemId: itemToBuy.id } });
-        if (!shopItem) {
-            await sock.sendMessage(jid, { text: `"${itemToBuy.name}" n'est pas vendu ici.` });
-            break;
-        }
-
-        if (shopItem.quantity !== -1 && shopItem.quantity < quantity) {
-            await sock.sendMessage(jid, { text: `Stock insuffisant pour "${itemToBuy.name}".` });
+            await sock.sendMessage(jid, { text: `Article "${itemName}" non trouvé.` });
             break;
         }
 
         const totalPrice = itemToBuy.price * quantity;
         if (player.money < totalPrice) {
-            await sock.sendMessage(jid, { text: `Tu n'as pas assez d'argent. Il te manque ${totalPrice - player.money}$.` });
+            await sock.sendMessage(jid, { text: `Tu n'as pas assez d'argent.` });
             break;
         }
 
@@ -259,28 +204,11 @@ async function handleFreeAction(sock, message, player, actionText) {
         player.inventory = playerInventory;
         await player.save();
 
-        if (shopItem.quantity !== -1) {
-            shopItem.quantity -= quantity;
-            await shopItem.save();
-        }
-
         await sendWithImage(sock, jid, aiResponse.narrative);
-        break;
-
-      case 'accelerate':
-        await sendWithImage(sock, jid, (await accelerateVehicle(player)).narrative);
-        break;
-
-      case 'brake':
-        await sendWithImage(sock, jid, (await brakeVehicle(player)).narrative);
         break;
 
       case 'drive':
         await sendWithImage(sock, jid, (await driveVehicle(player, aiResponse.parameters.vehicleId)).narrative);
-        break;
-
-      case 'park':
-        await sendWithImage(sock, jid, (await parkVehicle(player)).narrative);
         break;
 
       case 'narrate':
@@ -289,17 +217,14 @@ async function handleFreeAction(sock, message, player, actionText) {
         break;
 
       default:
-        console.error("Action IA non reconnue ou manquante:", { response: aiResponse });
+        console.error("Action IA non reconnue:", { response: aiResponse });
         await sock.sendMessage(jid, { text: `Action inconnue de l'IA: ${action}` });
     }
 
     await checkMissionCompletion(sock, player, message);
 
   } catch (error) {
-    console.error('Erreur communication API Pollination:', {
-        message: error.message,
-        response: error.response ? JSON.stringify(error.response.data) : 'N/A'
-    });
+    console.error('Erreur avec Puter.js AI:', { message: error.message });
     await sock.sendMessage(jid, { text: "Erreur de l'IA. Réessaye ton action." });
   }
 }

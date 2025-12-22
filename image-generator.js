@@ -1,45 +1,35 @@
-const axios = require('axios');
-const { addToQueue } = require('./rate-limiter');
+const { Puter } = require('@heyputer/puter.js');
 
 async function generateImageFromPrompt(prompt) {
-  const url = `https://api.4oimageapi.workers.dev/`;
-  const payload = {
-    prompt: prompt,
-    width: 512,
-    height: 512,
-  };
-
   try {
-    console.log(`Ajout de la requête de génération d'image à la file d'attente pour : ${prompt}`);
+    console.log(`[Puter.js] Demande de génération d'image pour : ${prompt}`);
 
-    const apiCall = async () => {
-        const response = await axios.post(url, payload, {
-            responseType: 'arraybuffer',
-            timeout: 60000, // 60 seconds timeout
-        });
+    // Initialise Puter.js
+    const puter = new Puter();
 
-        if (response.status !== 200) {
-            throw new Error(`Échec de la récupération de l'image, code de statut: ${response.status}`);
-        }
+    // Génère l'image en utilisant Puter.js
+    // La fonction txt2img renvoie un élément <img> HTMLImageElement
+    const imageElement = await puter.ai.txt2img(prompt);
 
-        const contentType = response.headers['content-type'];
-        if (!contentType || !contentType.startsWith('image/')) {
-            throw new Error(`Réponse inattendue du serveur, type de contenu: ${contentType}`);
-        }
+    // Pour obtenir les données brutes de l'image, nous devons extraire le contenu de l'attribut `src`,
+    // qui est une URL de données (data URL) encodée en Base64.
+    const src = imageElement.src;
+    if (!src.startsWith('data:image/')) {
+        throw new Error('La source de l\'image renvoyée par Puter.js n\'est pas une URL de données valide.');
+    }
 
-        return response.data;
-    };
+    // Sépare le préfixe de l'URL de données pour obtenir uniquement les données Base64
+    const base64Data = src.split(',')[1];
 
-    const imageData = await addToQueue(apiCall);
-    return Buffer.from(imageData);
+    // Convertit la chaîne Base64 en un Buffer
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+
+    return imageBuffer;
 
   } catch (error) {
-    console.error('Erreur détaillée lors de la génération de l\'image:', {
+    console.error('Erreur détaillée lors de la génération de l\'image avec Puter.js:', {
         message: error.message,
-        url: url,
         prompt: prompt,
-        responseStatus: error.response ? error.response.status : 'N/A',
-        responseData: error.response ? error.response.data.toString().slice(0, 200) + '...' : 'N/A'
     });
     throw error;
   }
