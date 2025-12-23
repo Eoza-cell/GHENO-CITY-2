@@ -68,7 +68,7 @@ async function connectToWhatsApp() {
     try {
       const code = await sock.requestPairingCode(phoneNumber);
       console.log('==============================================================');
-      console.log('Votre code de pairage Gheno City 2 :');
+      console.log('Votre code de pairage Skype :');
       console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
       console.log('==============================================================');
       console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
