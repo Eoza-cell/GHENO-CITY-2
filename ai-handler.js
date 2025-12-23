@@ -76,7 +76,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
-    const response = await puter.ai.chat(systemPrompt, { model: "gpt-4" });
+    const response = await puter.ai.chat(systemPrompt, { model: "pollination/flan-t5-xxl" });
     const rawResponse = response.text;
 
     let aiResponse;
