@@ -41,8 +41,8 @@ async function connectToWhatsApp() {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
         const statusCode = lastDisconnect.error?.output?.statusCode;
-        if (statusCode === 401) {
-            console.error('Erreur d\'authentification (401). Suppression des identifiants et redémarrage...');
+        if (statusCode === 401 || statusCode === 428) {
+            console.error(`Erreur de connexion fatale (${statusCode}). Suppression des identifiants et redémarrage...`);
             // Supprimer le dossier d'authentification pour forcer une nouvelle session
             fs.rmdirSync('./auth_info_baileys', { recursive: true });
             // Quitter le processus pour permettre à Render de redémarrer l'application
