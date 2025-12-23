@@ -50,6 +50,7 @@ async function connectToWhatsApp() {
     }
 
     await delay(1500); // Small delay to ensure the socket is ready
+    console.log(`Tentative de connexion avec le numéro de téléphone : ${phoneNumber}`);
     console.log('Demande du code de pairage...');
     try {
       const code = await sock.requestPairingCode(phoneNumber);
