@@ -191,6 +191,23 @@ async function handleFreeAction(sock, message, player, actionText) {
           }
           break;
 
+      case 'interact':
+          const { targetPlayerName, interactionText } = aiResponse.parameters;
+          const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: targetPlayerName } } });
+
+          if (targetPlayer && targetPlayer.whatsappId !== player.whatsappId) {
+              const targetJid = targetPlayer.whatsappId;
+              const notificationText = `*Interaction de ${player.name}*\n\n> ${interactionText}`;
+              // Send a notification to the target player in the same channel (group)
+              await sock.sendMessage(jid, {
+                  text: notificationText,
+                  mentions: [targetJid]
+              });
+          }
+          // Send the general narrative to the channel
+          await sendWithImage(sock, jid, narrative);
+          break;
+
 
       case 'narrate':
       case 'error':

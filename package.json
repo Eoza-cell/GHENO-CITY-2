@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node gheno-city.js",
+    "start": "node skype-bot.js",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {

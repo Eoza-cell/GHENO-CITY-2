@@ -21,20 +21,6 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
 
-const GAME_TICK_RATE = 5000; // 5 seconds
-
-async function gameLoop(sock) {
-  // Friction
-  const drivingPlayers = await Player.findAll({ where: { drivingVehicleId: { [Sequelize.Op.ne]: null } } });
-  for (const player of drivingPlayers) {
-    const playerVehicle = await PlayerVehicle.findByPk(player.drivingVehicleId);
-    if (playerVehicle && playerVehicle.currentSpeed > 0) {
-      const newSpeed = playerVehicle.currentSpeed - 1; // Simple friction
-      await playerVehicle.update({ currentSpeed: newSpeed < 0 ? 0 : newSpeed });
-    }
-  }
-}
-
 async function connectToWhatsApp() {
   await setupDatabase();
 
@@ -90,8 +76,6 @@ async function connectToWhatsApp() {
       console.log('Connecté à WhatsApp');
       startInactivePlayerCheck(sock);
       startDayNightCycle();
-      // Start the game loop only after a successful connection
-      setInterval(() => gameLoop(sock), GAME_TICK_RATE);
 
       // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
       if (!serverStarted) {
