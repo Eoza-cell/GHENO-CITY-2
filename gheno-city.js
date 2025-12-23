@@ -2,6 +2,7 @@ require('dotenv').config();
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const http = require('http');
+const fs = require('fs');
 const { setupDatabase } = require('./database');
 const { handleCommand } = require('./command-handler');
 const { startInactivePlayerHandler } = require('./inactive-handler');
@@ -39,16 +40,22 @@ async function connectToWhatsApp() {
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection closed due to ', lastDisconnect.error, ', reconnecting ', shouldReconnect);
-      if (shouldReconnect) {
-        connectToWhatsApp();
-      }
+        const statusCode = lastDisconnect.error?.output?.statusCode;
+        if (statusCode === 401) {
+            console.error('Erreur d\'authentification (401). Suppression des identifiants et redémarrage...');
+            // Supprimer le dossier d'authentification pour forcer une nouvelle session
+            fs.rmdirSync('./auth_info_baileys', { recursive: true });
+            // Quitter le processus pour permettre à Render de redémarrer l'application
+            process.exit(1);
+        } else {
+            console.log('Connection closed, reconnecting...', lastDisconnect.error);
+            connectToWhatsApp();
+        }
     } else if (connection === 'open') {
-      console.log('Connected to WhatsApp');
-      startInactivePlayerHandler(sock);
+        console.log('Connecté à WhatsApp');
+        startInactivePlayerHandler(sock);
     }
-  });
+});
 
   sock.ev.on('creds.update', saveCreds);
 
