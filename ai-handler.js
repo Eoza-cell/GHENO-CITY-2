@@ -5,7 +5,7 @@ const { Puter } = require('@heyputer/puter.js');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const puter = new Puter();
+  const puter = new Puter(process.env.PUTER_API_KEY);
 
   // 1. Build the context for the AI
   const playerState = `

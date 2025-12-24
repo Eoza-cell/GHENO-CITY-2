@@ -17,7 +17,7 @@ function dataUrlToBuffer(dataUrl) {
  * @param {object} aiResponse The JSON response from the AI handler.
  */
 async function sendWithImage(sock, jid, aiResponse) {
-    const puter = new Puter();
+    const puter = new Puter(process.env.PUTER_API_KEY);
     const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
     const imagePrompt = aiResponse.imagePrompt;
 
