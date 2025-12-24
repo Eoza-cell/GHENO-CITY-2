@@ -1,38 +1,43 @@
-const { Puter } = require('@heyputer/puter.js');
+const axios = require('axios');
+const FormData = require('form-data');
 
-async function generateImageFromPrompt(prompt) {
-  try {
-    console.log(`[Puter.js] Demande de génération d'image pour : ${prompt}`);
+/**
+ * Generates an image using the ImagineArt API.
+ * @param {string} prompt - The text prompt to generate the image from.
+ * @returns {Promise<Buffer|null>} - A promise that resolves to the image buffer, or null if an error occurs.
+ */
+async function generateImage(prompt) {
+    const apiKey = process.env.IMAGINE_ART_API_KEY;
 
-    // Initialise Puter.js
-    const puter = new Puter();
-
-    // Génère l'image en utilisant Puter.js
-    // La fonction txt2img renvoie un élément <img> HTMLImageElement
-    const imageElement = await puter.ai.txt2img(prompt);
-
-    // Pour obtenir les données brutes de l'image, nous devons extraire le contenu de l'attribut `src`,
-    // qui est une URL de données (data URL) encodée en Base64.
-    const src = imageElement.src;
-    if (!src.startsWith('data:image/')) {
-        throw new Error('La source de l\'image renvoyée par Puter.js n\'est pas une URL de données valide.');
+    if (!apiKey) {
+        console.error("IMAGINE_ART_API_KEY is not set in the environment variables.");
+        return null;
     }
 
-    // Sépare le préfixe de l'URL de données pour obtenir uniquement les données Base64
-    const base64Data = src.split(',')[1];
+    try {
+        const formData = new FormData();
+        formData.append("prompt", prompt);
+        formData.append("style", "photorealistic"); // Using a style that fits the fantasy theme
+        formData.append("aspect_ratio", "1:1");
 
-    // Convertit la chaîne Base64 en un Buffer
-    const imageBuffer = Buffer.from(base64Data, 'base64');
+        const response = await axios.post("https://api.vyro.ai/v2/image/generations", formData, {
+            headers: {
+                ...formData.getHeaders(),
+                "Authorization": `Bearer ${apiKey}`,
+            },
+            responseType: 'arraybuffer', // Important to get the image data as a buffer
+        });
 
-    return imageBuffer;
+        return Buffer.from(response.data, 'binary');
 
-  } catch (error) {
-    console.error('Erreur détaillée lors de la génération de l\'image avec Puter.js:', {
-        message: error.message,
-        prompt: prompt,
-    });
-    throw error;
-  }
+    } catch (error) {
+        console.error("Error generating image with ImagineArt API:", {
+            message: error.message,
+            status: error.response ? error.response.status : 'N/A',
+            data: error.response ? error.response.data.toString() : 'N/A' // Convert buffer to string for logging
+        });
+        return null;
+    }
 }
 
-module.exports = { generateImageFromPrompt };
+module.exports = { generateImage };

@@ -1,49 +1,40 @@
-const { generateImageFromPrompt } = require('./image-generator');
+const { generateImage } = require('./image-generator');
 
 /**
- * Sends a message, checking for image generation prompts.
- * If prompts like [POLLINATION PROMPT: ...] are found, it generates and sends the images with a caption.
+ * Sends a message with an optional AI-generated image.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
- * @param {string} text The text to send, possibly containing image prompts.
+ * @param {object} aiResponse The JSON response from the AI handler.
  */
-async function sendWithImage(sock, jid, text) {
-  const promptRegex = /\[POLLINATION PROMPT:\s*(.*?)\s*\]/gi;
-  // Use matchAll to get all prompts and map them to an array.
-  const prompts = [...text.matchAll(promptRegex)].map(match => match[1]);
-  // The caption is the original text with all prompt tags removed.
-  const caption = text.replace(promptRegex, '').trim();
+async function sendWithImage(sock, jid, aiResponse) {
+    const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
+    const imagePrompt = aiResponse.imagePrompt;
 
-  // If there are no prompts, just send the text if it's not empty.
-  if (prompts.length === 0) {
-    if (caption) {
-      await sock.sendMessage(jid, { text: caption });
+    // If there is an image prompt, attempt to generate and send the image
+    if (imagePrompt) {
+        try {
+            console.log(`Génération d'image pour le prompt : "${imagePrompt}"`);
+            const imageBuffer = await generateImage(imagePrompt);
+
+            if (imageBuffer) {
+                await sock.sendMessage(jid, {
+                    image: imageBuffer,
+                    caption: narrative
+                });
+                return; // Exit after successful send
+            } else {
+                console.error("La génération d'image a échoué (buffer vide). Envoi du texte seul.");
+            }
+        } catch (error) {
+            console.error(`Erreur lors de la génération de l'image pour le prompt: "${imagePrompt}"`, error);
+            // Fall through to send text only if image generation fails
+        }
     }
-    return;
-  }
 
-  // Generate and send images for each prompt.
-  for (const [index, prompt] of prompts.entries()) {
-    try {
-      console.log(`Génération d'image pour le prompt: "${prompt}"`);
-      const imageBuffer = await generateImageFromPrompt(prompt);
-
-      // The caption is only sent with the first image to avoid repetition.
-      const messageOptions = {
-        image: imageBuffer,
-      };
-      if (index === 0 && caption) {
-        messageOptions.caption = caption;
-      }
-
-      await sock.sendMessage(jid, messageOptions);
-
-    } catch (error) {
-      console.error(`Échec de la génération ou de l'envoi de l'image pour le prompt: "${prompt}"`, error);
-      // Inform the user about the failure in a clear message.
-      await sock.sendMessage(jid, { text: `[La génération d'image a échoué pour le prompt: "${prompt}"]` });
+    // Fallback: If there's no image prompt or if generation failed, send the narrative as a plain text message.
+    if (narrative) {
+        await sock.sendMessage(jid, { text: narrative });
     }
-  }
 }
 
 module.exports = { sendWithImage };

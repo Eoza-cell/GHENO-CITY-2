@@ -43,10 +43,12 @@ async function handleFreeAction(sock, message, player, actionText) {
     EXEMPLE DE RÉPONSE JSON VALIDE:
     {
       "action": "narrate",
-      "narrative": "Vous entrez dans la forêt sombre. Le vent souffle à travers les arbres, créant une atmosphère sinistre. Vous sentez que quelque chose vous observe."
+      "narrative": "Vous entrez dans la forêt sombre. Le vent souffle à travers les arbres, créant une atmosphère sinistre. Vous sentez que quelque chose vous observe.",
+      "imagePrompt": "A dark and eerie forest with twisted, ancient trees under a pale moonlight, mist covering the ground, cinematic, hyperrealistic, 8k."
     }
     2.  **Narration Immersive**: Décris les résultats des actions de manière vivante et détaillée. Le joueur doit se sentir dans le monde.
-    3.  **Logique du Monde**: Le monde a ses propres règles. Les actions impossibles ou irréalistes (voler, tuer des PNJ sans raison) doivent être gérées avec une narration appropriée et l'action "error".
+    3.  **Génération d'Image**: Pour chaque narration, tu DOIS inclure un champ "imagePrompt". Ce champ doit contenir une description artistique et détaillée EN ANGLAIS (pour l'IA de génération d'image) de la scène décrite.
+    4.  **Logique du Monde**: Le monde a ses propres règles. Les actions impossibles ou irréalistes (voler, tuer des PNJ sans raison) doivent être gérées avec une narration appropriée et l'action "error".
     4.  **Gestion des Combats**: Les combats sont basés sur le niveau, l'équipement et la stratégie. Un joueur de bas niveau ne peut pas vaincre un boss de haut rang.
     5.  **Interaction entre Joueurs**: Si un joueur écrit une action envers un autre joueur (présent dans le même groupe WhatsApp), tu dois créer une action "interact" pour notifier l'autre joueur.
 
@@ -97,7 +99,11 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
 
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
-    const narrative = aiResponse.narrative || "Il ne se passe rien de spécial.";
+
+    // Ensure narrative is mutable if we need to add to it.
+    if (!aiResponse.narrative) {
+        aiResponse.narrative = "Il ne se passe rien de spécial.";
+    }
 
     switch (action) {
       case 'update_player':
@@ -114,10 +120,10 @@ async function handleFreeAction(sock, message, player, actionText) {
               await player.increment('level', { by: 1 });
               await player.increment('xp', { by: -xpNeeded });
               await player.increment('skillPoints', { by: 5 });
-              narrative += `\n\n**Félicitations, vous êtes passé au niveau ${player.level} !** Vous avez gagné 5 points de compétence.`;
+              aiResponse.narrative += `\n\n**Félicitations, vous êtes passé au niveau ${player.level} !** Vous avez gagné 5 points de compétence.`;
           }
         }
-        await sendWithImage(sock, jid, narrative);
+        await sendWithImage(sock, jid, aiResponse);
         break;
 
       case 'add_item':
@@ -131,7 +137,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         }
         player.inventory = inventoryAdd;
         await player.save();
-        await sendWithImage(sock, jid, narrative);
+        await sendWithImage(sock, jid, aiResponse);
         break;
 
       case 'remove_item':
@@ -146,14 +152,14 @@ async function handleFreeAction(sock, message, player, actionText) {
             player.inventory = inventoryRemove;
             await player.save();
         }
-        await sendWithImage(sock, jid, narrative);
+        await sendWithImage(sock, jid, aiResponse);
         break;
 
       case 'enter_dungeon':
           const dungeon = await Dungeon.findOne({ where: { name: { [Op.like]: aiResponse.parameters.dungeonName } } });
           if (dungeon) {
               await player.update({ location: dungeon.name, currentDungeonId: dungeon.id });
-              await sendWithImage(sock, jid, narrative);
+              await sendWithImage(sock, jid, aiResponse);
           } else {
               await sock.sendMessage(jid, { text: `Donjon "${aiResponse.parameters.dungeonName}" non trouvé.` });
           }
@@ -167,10 +173,10 @@ async function handleFreeAction(sock, message, player, actionText) {
                   await playerQuest.update({ status: 'completed' });
                   await player.increment('col', { by: quest.reward_col });
                   await player.increment('xp', { by: quest.reward_xp });
-                  narrative += `\n\n*Quête terminée: ${quest.title}*\n*Récompenses:* ${quest.reward_col} Col, ${quest.reward_xp} XP.`;
+                  aiResponse.narrative += `\n\n*Quête terminée: ${quest.title}*\n*Récompenses:* ${quest.reward_col} Col, ${quest.reward_xp} XP.`;
               }
           }
-          await sendWithImage(sock, jid, narrative);
+          await sendWithImage(sock, jid, aiResponse);
           break;
 
       case 'bank_deposit':
@@ -179,7 +185,7 @@ async function handleFreeAction(sock, message, player, actionText) {
               const bank = await Bank.findOne({ where: { PlayerWhatsappId: player.whatsappId }});
               await player.decrement('col', { by: amountToDeposit });
               await bank.increment('balance', { by: amountToDeposit });
-              await sendWithImage(sock, jid, narrative);
+              await sendWithImage(sock, jid, aiResponse);
           } else {
               await sock.sendMessage(jid, { text: "Montant invalide ou fonds insuffisants." });
           }
@@ -191,7 +197,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           if (!isNaN(amountToWithdraw) && amountToWithdraw > 0 && bank.balance >= amountToWithdraw) {
               await bank.decrement('balance', { by: amountToWithdraw });
               await player.increment('col', { by: amountToWithdraw });
-              await sendWithImage(sock, jid, narrative);
+              await sendWithImage(sock, jid, aiResponse);
           } else {
               await sock.sendMessage(jid, { text: "Montant invalide ou fonds insuffisants." });
           }
@@ -211,13 +217,13 @@ async function handleFreeAction(sock, message, player, actionText) {
               });
           }
           // Send the general narrative to the channel
-          await sendWithImage(sock, jid, narrative);
+          await sendWithImage(sock, jid, aiResponse);
           break;
 
 
       case 'narrate':
       case 'error':
-        await sendWithImage(sock, jid, narrative || aiResponse.parameters.reason);
+        await sendWithImage(sock, jid, aiResponse);
         break;
 
       default:
