@@ -112,6 +112,124 @@ commands.set('fiche', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: ficheTemplate });
 });
 
+// Command: /guide
+commands.set('guide', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const guideDir = 'assets/guides';
+
+    try {
+        const imageFiles = fs.readdirSync(guideDir).filter(file => file.endsWith('.jpg'));
+
+        if (imageFiles.length === 0) {
+            await sock.sendMessage(replyJid, { text: "Le guide n'est pas disponible pour le moment." });
+            return;
+        }
+
+        await sock.sendMessage(replyJid, { text: "Voici le guide de création de personnage :" });
+
+        for (const file of imageFiles) {
+            const imagePath = path.join(guideDir, file);
+            await sock.sendMessage(replyJid, {
+                image: fs.readFileSync(imagePath),
+            });
+        }
+    } catch (error) {
+        console.error("Erreur lors de l'envoi du guide :", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue en tentant d'envoyer le guide." });
+    }
+});
+
+// Command: /give <@player> <amount>
+commands.set('give', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur peut utiliser cette commande." });
+        return;
+    }
+
+    const mentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur. Usage: `/give @joueur <montant>`" });
+        return;
+    }
+
+    const amount = parseInt(args[1], 10);
+    if (isNaN(amount) || amount <= 0) {
+        await sock.sendMessage(replyJid, { text: "Montant invalide. Usage: `/give @joueur <montant>`" });
+        return;
+    }
+
+    const player = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'a pas de fiche." });
+        return;
+    }
+
+    await player.increment('argent', { by: amount });
+    await sock.sendMessage(replyJid, { text: `${amount} argent(s) ont été donné(s) à ${player.prenom}.` });
+});
+
+// Command: /set <@player> <stat> <value>
+commands.set('set', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur peut utiliser cette commande." });
+        return;
+    }
+
+    const mentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const statName = args[1];
+    const value = parseInt(args[2], 10);
+
+    if (!mentionedJid || !statName || isNaN(value)) {
+        await sock.sendMessage(replyJid, { text: "Usage incorrect. `/set @joueur <stat> <valeur>`" });
+        return;
+    }
+
+    const player = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'a pas de fiche." });
+        return;
+    }
+
+    const validStats = [
+        'maitreDArmes', 'puissanceDeTension', 'puissanceDeJet', 'bouclier',
+        'athletisme', 'equitation', 'archerieMontee', 'pistage', 'reperage',
+        'ingenierie', 'commandement', 'soinsDesBlessures', 'age', 'argent'
+    ];
+
+    // For user-friendliness, we allow common names
+    const statAlias = {
+        "maitredarmes": "maitreDArmes", "tension": "puissanceDeTension", "jet": "puissanceDeJet",
+    };
+
+    const normalizedStatName = statName.toLowerCase().replace(/\s/g, '');
+    const dbStatName = statAlias[normalizedStatName] || normalizedStatName;
+
+    if (!validStats.includes(dbStatName)) {
+        await sock.sendMessage(replyJid, { text: `Statistique "${statName}" invalide.` });
+        return;
+    }
+
+    try {
+        await player.update({ [dbStatName]: value });
+        await sock.sendMessage(replyJid, { text: `La statistique *${statName}* de ${player.prenom} a été mise à jour à ${value}.` });
+    } catch (error) {
+        console.error("Erreur lors de la mise à jour de la stat:", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la mise à jour." });
+    }
+});
+
 
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {

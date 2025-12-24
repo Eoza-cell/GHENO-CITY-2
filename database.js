@@ -118,6 +118,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
+  argent: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
   items: {
     type: DataTypes.TEXT,
     defaultValue: '[]',
