@@ -38,7 +38,13 @@ async function handleFreeAction(sock, message, player, actionText) {
     Tu es le Maître du Jeu (MJ) de "Skype", un RPG textuel inspiré de Sword Art Online et Solo Leveling. Ta seule et unique fonction est de retourner un objet JSON valide basé sur l'action du joueur. Ne retourne RIEN d'autre que du JSON.
 
     RÈGLES FONDAMENTALES:
-    1.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide.
+    1.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide. Commence ta réponse par `{` et finis par `}`.
+
+    EXEMPLE DE RÉPONSE JSON VALIDE:
+    {
+      "action": "narrate",
+      "narrative": "Vous entrez dans la forêt sombre. Le vent souffle à travers les arbres, créant une atmosphère sinistre. Vous sentez que quelque chose vous observe."
+    }
     2.  **Narration Immersive**: Décris les résultats des actions de manière vivante et détaillée. Le joueur doit se sentir dans le monde.
     3.  **Logique du Monde**: Le monde a ses propres règles. Les actions impossibles ou irréalistes (voler, tuer des PNJ sans raison) doivent être gérées avec une narration appropriée et l'action "error".
     4.  **Gestion des Combats**: Les combats sont basés sur le niveau, l'équipement et la stratégie. Un joueur de bas niveau ne peut pas vaincre un boss de haut rang.
@@ -108,7 +114,7 @@ async function handleFreeAction(sock, message, player, actionText) {
               await player.increment('level', { by: 1 });
               await player.increment('xp', { by: -xpNeeded });
               await player.increment('skillPoints', { by: 5 });
-              narrative += `\n\n**Félicitations, vous êtes passé au niveau ${player.level + 1} !** Vous avez gagné 5 points de compétence.`;
+              narrative += `\n\n**Félicitations, vous êtes passé au niveau ${player.level} !** Vous avez gagné 5 points de compétence.`;
           }
         }
         await sendWithImage(sock, jid, narrative);
