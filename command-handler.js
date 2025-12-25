@@ -230,6 +230,106 @@ commands.set('set', async (sock, message, args) => {
     }
 });
 
+// Command: /valider <@player>
+commands.set('valider', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur peut utiliser cette commande." });
+        return;
+    }
+
+    const mentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur. Usage: `/valider @joueur`" });
+        return;
+    }
+
+    const player = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'a pas de fiche." });
+        return;
+    }
+
+    await player.update({ validated: true });
+    await sock.sendMessage(replyJid, { text: `La fiche de ${player.prenom} a été validée.` });
+});
+
+
+// Command: /retirer <@player> <amount>
+commands.set('retirer', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur peut utiliser cette commande." });
+        return;
+    }
+
+    const mentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur. Usage: `/retirer @joueur <montant>`" });
+        return;
+    }
+
+    const amount = parseInt(args[1], 10);
+    if (isNaN(amount) || amount <= 0) {
+        await sock.sendMessage(replyJid, { text: "Montant invalide. Usage: `/retirer @joueur <montant>`" });
+        return;
+    }
+
+    const player = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'a pas de fiche." });
+        return;
+    }
+
+    if (player.argent < amount) {
+        await sock.sendMessage(replyJid, { text: `${player.prenom} n'a pas assez d'argent. Son solde est de ${player.argent}.` });
+        return;
+    }
+
+    await player.decrement('argent', { by: amount });
+    await sock.sendMessage(replyJid, { text: `${amount} argent(s) ont été retiré(s) à ${player.prenom}.` });
+});
+
+// Command: /fiches
+commands.set('fiches', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+
+    try {
+        const players = await Player.findAll();
+
+        if (players.length === 0) {
+            await sock.sendMessage(replyJid, { text: "Il n'y a encore aucune fiche de personnage enregistrée." });
+            return;
+        }
+
+        let fichesList = "📜 *Liste de toutes les fiches de personnage*\n\n";
+
+        players.forEach(player => {
+            const validationStatus = player.validated ? '✅ Validée' : '❌ En attente';
+            fichesList += `*${player.prenom} ${player.nom}*\n`;
+            fichesList += `> *Titre:* ${player.titreNoblesse}\n`;
+            fichesList += `> *Rang:* ${player.rang}\n`;
+            fichesList += `> *Statut:* ${validationStatus}\n\n`;
+        });
+
+        await sock.sendMessage(replyJid, { text: fichesList });
+
+    } catch (error) {
+        console.error("Erreur lors de la récupération des fiches:", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue en tentant de récupérer la liste des fiches." });
+    }
+});
+
 
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {

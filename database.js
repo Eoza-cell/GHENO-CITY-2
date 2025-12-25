@@ -122,6 +122,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
+  validated: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
   items: {
     type: DataTypes.TEXT,
     defaultValue: '[]',
