@@ -330,6 +330,68 @@ commands.set('fiches', async (sock, message) => {
     }
 });
 
+// Command: /profil
+commands.set('profil', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas encore de fiche de personnage. Utilise `/fiche` pour en créer une." });
+        return;
+    }
+
+    const validationStatus = player.validated ? '✅ Validée' : '❌ En attente de validation';
+
+    const profilText = `
+╔═══════════════════╗
+║   𝕸𝖔𝖚𝖓𝖙 𝖆𝖓𝖉 𝕭𝖑𝖆𝖉𝖊 : 𝕮𝖍𝖎𝖛𝖆𝖑𝖊𝖗𝖞   ║
+╚═══════════════════╝
+
+*Nom :* ${player.nom}
+*Prénom :* ${player.prenom}
+*Surnom :* ${player.surnom}
+*Titre de Noblesse :* ${player.titreNoblesse}
+*Ville/Région actuel :* ${player.villeActuelle}
+*Ville/Région d'Origine :* ${player.villeOrigine}
+
+*Âge :* ${player.age} ans
+*Taille :* ${player.taille}
+*Rôliste :* ${player.roliste}
+
+╔═══════◇
+║ *Rang :* ${player.rang}
+║ *Serment :* ${player.serment}
+║ *Allégeance :* ${player.allegeance}
+║ *Région/Fief :* ${player.regionFief}
+╚═════════════════╝
+╔═════════════════╗
+> Maître d'Armes              : ${String(player.maitreDArmes).padStart(2, '0')}
+> Puissance de Tension  : ${String(player.puissanceDeTension).padStart(2, '0')}
+> Puissance de Jet           : ${String(player.puissanceDeJet).padStart(2, '0')}
+> Bouclier                           : ${String(player.bouclier).padStart(2, '0')}
+> Athlétisme                      : ${String(player.athletisme).padStart(2, '0')}
+> Équitation                       : ${String(player.equitation).padStart(2, '0')}
+> Archerie Montée            : ${String(player.archerieMontee).padStart(2, '0')}
+> Pistage                            : ${String(player.pistage).padStart(2, '0')}
+> Repérage                         : ${String(player.reperage).padStart(2, '0')}
+> Ingénierie                        : ${String(player.ingenierie).padStart(2, '0')}
+> Commandement            : ${String(player.commandement).padStart(2, '0')}
+> Soins des blessures      : ${String(player.soinsDesBlessures).padStart(2, '0')}
+╚═════════════════╝
+╔═════════════════╗
+> *Argent:* ${player.argent} 💰
+> *Statut:* ${validationStatus}
+╚═════════════════╝
+╔═════════════════╗
+▪️ Inventaire: ${player.items.length > 0 ? player.items.map(i => i.name).join(', ') : 'Aucun objet'}
+╚═════════════════╝
+`;
+
+    await sock.sendMessage(replyJid, { text: profilText });
+});
+
 
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {
