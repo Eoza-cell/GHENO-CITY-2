@@ -2,7 +2,7 @@ const { Sequelize, DataTypes } = require('sequelize');
 
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: 'gheno-city.sqlite',
+  storage: 'chivalern.sqlite',
   logging: false,
 });
 
@@ -21,142 +21,130 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     primaryKey: true,
   },
-  name: {
+  nom: {
     type: DataTypes.STRING,
-    defaultValue: 'Bêta testeur',
   },
-  rank: {
+  prenom: {
     type: DataTypes.STRING,
-    defaultValue: 'E',
   },
-  class: {
+  surnom: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucun',
+  },
+  titreNoblesse: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucun',
+  },
+  villeActuelle: {
+    type: DataTypes.STRING,
+    defaultValue: 'Praven',
+  },
+  villeOrigine: {
+    type: DataTypes.STRING,
+    defaultValue: 'Praven',
+  },
+  age: {
+    type: DataTypes.INTEGER,
+    defaultValue: 18,
+  },
+  taille: {
+    type: DataTypes.STRING,
+    defaultValue: '1m70',
+  },
+  roliste: {
+    type: DataTypes.STRING,
+  },
+  rang: {
+    type: DataTypes.STRING,
+    defaultValue: 'Civil/Paysan',
+  },
+  serment: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucun',
+  },
+  allegeance: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucun',
+  },
+  regionFief: {
     type: DataTypes.STRING,
     defaultValue: 'Aucune',
   },
-  skillPoints: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-  },
-  level: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1,
-  },
-  xp: {
+  maitreDArmes: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
-  col: { // Changed from money
+  puissanceDeTension: {
     type: DataTypes.INTEGER,
-    defaultValue: 100,
+    defaultValue: 0,
   },
-  health: {
+  puissanceDeJet: {
     type: DataTypes.INTEGER,
-    defaultValue: 100,
+    defaultValue: 0,
   },
-  mana: { // Changed from energy
+  bouclier: {
     type: DataTypes.INTEGER,
-    defaultValue: 100,
+    defaultValue: 0,
   },
-  inventory: {
+  athletisme: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  equitation: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  archerieMontee: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  pistage: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  reperage: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  ingenierie: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  commandement: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  soinsDesBlessures: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  argent: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  validated: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  items: {
     type: DataTypes.TEXT,
     defaultValue: '[]',
     get() {
-      const rawValue = this.getDataValue('inventory');
+      const rawValue = this.getDataValue('items');
       return rawValue ? JSON.parse(rawValue) : [];
     },
     set(value) {
-      this.setDataValue('inventory', JSON.stringify(value));
+      this.setDataValue('items', JSON.stringify(value));
     },
-  },
-  lastActivity: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-  },
-  lastInactiveMessageSentAt: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-  location: {
-    type: DataTypes.STRING,
-    defaultValue: 'Ville de départ',
-  },
-  mode: {
-    type: DataTypes.STRING,
-    defaultValue: 'normal', // Can be 'normal' or 'action'
-  },
-  characterDescription: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-  },
-  currentDungeonId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
   },
 });
 
-const Dungeon = sequelize.define('Dungeon', {
-    name: {
+const ActiveGroup = sequelize.define('ActiveGroup', {
+    groupId: {
         type: DataTypes.STRING,
-        unique: true,
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    rank: {
-        type: DataTypes.STRING,
-    },
-    floors: {
-        type: DataTypes.INTEGER,
-        defaultValue: 1,
+        primaryKey: true,
     }
 });
-
-const Quest = sequelize.define('Quest', {
-    title: {
-        type: DataTypes.STRING,
-        unique: true,
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    type: { // 'main' or 'side'
-        type: DataTypes.STRING,
-        defaultValue: 'side',
-    },
-    rank_required: {
-        type: DataTypes.STRING,
-        defaultValue: 'E',
-    },
-    reward_col: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-    },
-    reward_xp: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-    },
-});
-
-const PlayerQuest = sequelize.define('PlayerQuest', {
-    status: {
-        type: DataTypes.STRING,
-        defaultValue: 'not_started', // in_progress, completed
-    },
-});
-
-const Bank = sequelize.define('Bank', {
-    balance: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-    }
-});
-
-// Relationships
-Player.hasOne(Bank);
-Bank.belongsTo(Player);
-
-Player.belongsToMany(Quest, { through: PlayerQuest });
-Quest.belongsToMany(Player, { through: PlayerQuest });
 
 
 async function setupDatabase() {
@@ -165,29 +153,6 @@ async function setupDatabase() {
     console.log('Connection to the database has been established successfully.');
     await sequelize.sync({ alter: true });
     console.log('Database synchronized.');
-
-    // Seed initial game data
-    const dungeonCount = await Dungeon.count();
-    if (dungeonCount === 0) {
-        console.log('Seeding Dungeons...');
-        await Dungeon.bulkCreate([
-            { name: 'Forêt des Gobelins', description: 'Une forêt sombre grouillant de gobelins faibles.', rank: 'E', floors: 5 },
-            { name: 'Mine de Cobalt', description: 'Une mine abandonnée où vivent des kobolds mineurs.', rank: 'D', floors: 10 },
-            { name: 'Caverne des Ombres', description: 'Une caverne profonde où la lumière ne pénètre jamais.', rank: 'C', floors: 15 },
-        ]);
-        console.log('Dungeons seeded.');
-    }
-
-    const questCount = await Quest.count();
-    if (questCount === 0) {
-        console.log('Seeding Quests...');
-        await Quest.bulkCreate([
-            { title: 'La Chasse aux Gobelins', description: 'Éliminez 10 gobelins dans la Forêt des Gobelins.', type: 'side', rank_required: 'E', reward_col: 50, reward_xp: 100 },
-            { title: 'Le Fléau des Kobolds', description: 'Venez à bout du chef des kobolds dans la Mine de Cobalt.', type: 'main', rank_required: 'D', reward_col: 200, reward_xp: 300 },
-        ]);
-        console.log('Quests seeded.');
-    }
-
   } catch (error) {
     console.error('Unable to connect to the database:', error);
   }
@@ -196,10 +161,7 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   Player,
-  Dungeon,
-  Quest,
-  PlayerQuest,
-  Bank,
   Creds,
+  ActiveGroup,
   setupDatabase,
 };

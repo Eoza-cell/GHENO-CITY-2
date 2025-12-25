@@ -1,9 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank } = require('./database');
-const { handleFreeAction } = require('./ai-handler');
-const { sendWithImage } = require('./message-handler');
+const { Player, ActiveGroup } = require('./database');
+const { parseSheet } = require('./sheet-parser');
+const { sendAnimatedMessage } = require('./message-handler');
 const { Op } = require('sequelize');
 
 /**
@@ -16,207 +16,382 @@ function getJid(message) {
 const commands = new Map();
 const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_description'
 
-// Command: /start
-commands.set('start', async (sock, message) => {
-  const jid = getJid(message);
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  const replyJid = message.key.remoteJid;
+// Command: /on
+commands.set('on', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    if (!replyJid.endsWith('@g.us')) {
+        await sock.sendMessage(replyJid, { text: "Cette commande ne peut être utilisée que dans un groupe." });
+        return;
+    }
 
-  if (!player) {
-    registrationState.set(jid, 'awaiting_name');
-    await sock.sendMessage(replyJid, { text: "*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\nHélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.\n\nLe temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énemies... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est votre nom, aventurier ?" });
-  } else {
-    await sock.sendMessage(replyJid, { text: `Content de te revoir, ${player.name} ! Utilise /quests pour voir tes objectifs.` });
-  }
+    const jid = getJid(message);
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur du groupe peut activer le bot." });
+        return;
+    }
+
+    const [group, created] = await ActiveGroup.findOrCreate({ where: { groupId: replyJid } });
+    if (created) {
+        await sock.sendMessage(replyJid, { text: "Le bot Chivalern est maintenant *activé* dans ce groupe. Utilisez `/fiche` pour commencer." });
+    } else {
+        await sock.sendMessage(replyJid, { text: "Le bot est déjà actif dans ce groupe." });
+    }
 });
 
-// Command: /quests
-commands.set('quests', async (sock, message) => {
+// Command: /off
+commands.set('off', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    if (!replyJid.endsWith('@g.us')) {
+        await sock.sendMessage(replyJid, { text: "Cette commande ne peut être utilisée que dans un groupe." });
+        return;
+    }
+
+    const jid = getJid(message);
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur du groupe peut désactiver le bot." });
+        return;
+    }
+
+    const destroyed = await ActiveGroup.destroy({ where: { groupId: replyJid } });
+    if (destroyed) {
+        await sock.sendMessage(replyJid, { text: "Le bot Chivalern est maintenant *désactivé* dans ce groupe." });
+    } else {
+        await sock.sendMessage(replyJid, { text: "Le bot n'était pas actif dans ce groupe." });
+    }
+});
+
+// Command: /fiche
+commands.set('fiche', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const ficheTemplate = `
+╔═══════════════════╗
+║   𝕸𝖔𝖚𝖓𝖙 𝖆𝖓𝖉 𝕭𝖑𝖆𝖉𝖊 : 𝕮𝖍𝖎𝖛𝖆𝖑𝖊𝖗𝖞   ║
+╚═══════════════════╝
+
+*Nom :* (compléter)
+*Prénom :* (compléter)
+*Surnom :* Aucun
+*Titre de Noblesse :* Aucun
+*Ville/Région actuel :* Praven
+*Ville/Région d'Origine :* Praven
+
+*Âge :* 18 ans
+*Taille :* 1m70
+*Rôliste :* (au bot de compléter en voyant le pseudo WhatsApp)
+
+╔═══════◇
+║ *Rang :* Civil/Paysan
+║ *Serment :* Aucun
+║ *Allégeance :* Aucun
+║ *Région/Fief :* Aucune
+╚═════════════════╝
+╔═════════════════╗
+> Maître d'Armes              : 00
+> Puissance de Tension  : 00
+> Puissance de Jet           : 00
+> Bouclier                           : 00
+> Athlétisme                      : 00
+> Équitation                       : 00
+> Archerie Montée            : 00
+> Pistage                            : 00
+> Repérage                         : 00
+> Ingénierie                        : 00
+> Commandement            : 00
+> Soins des blessures      : 00
+╚═════════════════╝
+╔═════════════════╗
+▪️ Aucun
+╚═════════════════╝
+`;
+    await sock.sendMessage(replyJid, { text: ficheTemplate });
+});
+
+// Command: /guide
+commands.set('guide', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const guideDir = 'assets/guides';
+
+    try {
+        const imageFiles = fs.readdirSync(guideDir).filter(file => file.endsWith('.jpg'));
+
+        if (imageFiles.length === 0) {
+            await sock.sendMessage(replyJid, { text: "Le guide n'est pas disponible pour le moment." });
+            return;
+        }
+
+        await sock.sendMessage(replyJid, { text: "Voici le guide de création de personnage :" });
+
+        for (const file of imageFiles) {
+            const imagePath = path.join(guideDir, file);
+            await sock.sendMessage(replyJid, {
+                image: fs.readFileSync(imagePath),
+            });
+        }
+    } catch (error) {
+        console.error("Erreur lors de l'envoi du guide :", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue en tentant d'envoyer le guide." });
+    }
+});
+
+// Command: /give <@player> <amount>
+commands.set('give', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur peut utiliser cette commande." });
+        return;
+    }
+
+    const mentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur. Usage: `/give @joueur <montant>`" });
+        return;
+    }
+
+    const amount = parseInt(args[1], 10);
+    if (isNaN(amount) || amount <= 0) {
+        await sock.sendMessage(replyJid, { text: "Montant invalide. Usage: `/give @joueur <montant>`" });
+        return;
+    }
+
+    const player = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'a pas de fiche." });
+        return;
+    }
+
+    await player.increment('argent', { by: amount });
+    await sock.sendMessage(replyJid, { text: `${amount} argent(s) ont été donné(s) à ${player.prenom}.` });
+});
+
+// Command: /set <@player> <stat> <value>
+commands.set('set', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur peut utiliser cette commande." });
+        return;
+    }
+
+    const mentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    const statName = args[1];
+    const value = parseInt(args[2], 10);
+
+    if (!mentionedJid || !statName || isNaN(value)) {
+        await sock.sendMessage(replyJid, { text: "Usage incorrect. `/set @joueur <stat> <valeur>`" });
+        return;
+    }
+
+    const player = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'a pas de fiche." });
+        return;
+    }
+
+    const validStats = [
+        'maitreDArmes', 'puissanceDeTension', 'puissanceDeJet', 'bouclier',
+        'athletisme', 'equitation', 'archerieMontee', 'pistage', 'reperage',
+        'ingenierie', 'commandement', 'soinsDesBlessures', 'age', 'argent'
+    ];
+
+    // For user-friendliness, we allow common names
+    const statAlias = {
+        "maitredarmes": "maitreDArmes", "tension": "puissanceDeTension", "jet": "puissanceDeJet",
+    };
+
+    const normalizedStatName = statName.toLowerCase().replace(/\s/g, '');
+    const dbStatName = statAlias[normalizedStatName] || normalizedStatName;
+
+    if (!validStats.includes(dbStatName)) {
+        await sock.sendMessage(replyJid, { text: `Statistique "${statName}" invalide.` });
+        return;
+    }
+
+    try {
+        await player.update({ [dbStatName]: value });
+        await sock.sendMessage(replyJid, { text: `La statistique *${statName}* de ${player.prenom} a été mise à jour à ${value}.` });
+    } catch (error) {
+        console.error("Erreur lors de la mise à jour de la stat:", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la mise à jour." });
+    }
+});
+
+// Command: /valider <@player>
+commands.set('valider', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur peut utiliser cette commande." });
+        return;
+    }
+
+    const mentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur. Usage: `/valider @joueur`" });
+        return;
+    }
+
+    const player = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'a pas de fiche." });
+        return;
+    }
+
+    await player.update({ validated: true });
+    await sock.sendMessage(replyJid, { text: `La fiche de ${player.prenom} a été validée.` });
+});
+
+
+// Command: /retirer <@player> <amount>
+commands.set('retirer', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const groupMeta = await sock.groupMetadata(replyJid);
+    const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+    if (!admins.includes(jid)) {
+        await sock.sendMessage(replyJid, { text: "Seul un administrateur peut utiliser cette commande." });
+        return;
+    }
+
+    const mentionedJid = message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur. Usage: `/retirer @joueur <montant>`" });
+        return;
+    }
+
+    const amount = parseInt(args[1], 10);
+    if (isNaN(amount) || amount <= 0) {
+        await sock.sendMessage(replyJid, { text: "Montant invalide. Usage: `/retirer @joueur <montant>`" });
+        return;
+    }
+
+    const player = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'a pas de fiche." });
+        return;
+    }
+
+    if (player.argent < amount) {
+        await sock.sendMessage(replyJid, { text: `${player.prenom} n'a pas assez d'argent. Son solde est de ${player.argent}.` });
+        return;
+    }
+
+    await player.decrement('argent', { by: amount });
+    await sock.sendMessage(replyJid, { text: `${amount} argent(s) ont été retiré(s) à ${player.prenom}.` });
+});
+
+// Command: /fiches
+commands.set('fiches', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+
+    try {
+        const players = await Player.findAll();
+
+        if (players.length === 0) {
+            await sock.sendMessage(replyJid, { text: "Il n'y a encore aucune fiche de personnage enregistrée." });
+            return;
+        }
+
+        let fichesList = "📜 *Liste de toutes les fiches de personnage*\n\n";
+
+        players.forEach(player => {
+            const validationStatus = player.validated ? '✅ Validée' : '❌ En attente';
+            fichesList += `*${player.prenom} ${player.nom}*\n`;
+            fichesList += `> *Titre:* ${player.titreNoblesse}\n`;
+            fichesList += `> *Rang:* ${player.rang}\n`;
+            fichesList += `> *Statut:* ${validationStatus}\n\n`;
+        });
+
+        await sock.sendMessage(replyJid, { text: fichesList });
+
+    } catch (error) {
+        console.error("Erreur lors de la récupération des fiches:", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue en tentant de récupérer la liste des fiches." });
+    }
+});
+
+// Command: /profil
+commands.set('profil', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid }, include: Quest });
+
+    const player = await Player.findOne({ where: { whatsappId: jid } });
 
     if (!player) {
-        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas encore de fiche de personnage. Utilise `/fiche` pour en créer une." });
         return;
     }
 
-    const activeQuests = player.Quests.filter(q => q.PlayerQuest.status === 'in_progress');
-    const notStartedQuests = player.Quests.filter(q => q.PlayerQuest.status === 'not_started');
+    const validationStatus = player.validated ? '✅ Validée' : '❌ En attente de validation';
 
+    const profilText = `
+╔═══════════════════╗
+║   𝕸𝖔𝖚𝖓𝖙 𝖆𝖓𝖉 𝕭𝖑𝖆𝖉𝖊 : 𝕮𝖍𝖎𝖛𝖆𝖑𝖊𝖗𝖞   ║
+╚═══════════════════╝
 
-    if (activeQuests.length === 0 && notStartedQuests.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Tu n'as pas de quête active pour le moment. Explore le monde pour en trouver !" });
-        return;
-    }
+*Nom :* ${player.nom}
+*Prénom :* ${player.prenom}
+*Surnom :* ${player.surnom}
+*Titre de Noblesse :* ${player.titreNoblesse}
+*Ville/Région actuel :* ${player.villeActuelle}
+*Ville/Région d'Origine :* ${player.villeOrigine}
 
-    let questText = '';
-    if (activeQuests.length > 0) {
-        questText += '*Quêtes en cours:*\n' + activeQuests.map(q => `- ${q.title}: ${q.description}`).join('\n') + '\n\n';
-    }
-    if (notStartedQuests.length > 0) {
-        questText += '*Quêtes disponibles:*\n' + notStartedQuests.map(q => `- ${q.title}`).join('\n');
-    }
+*Âge :* ${player.age} ans
+*Taille :* ${player.taille}
+*Rôliste :* ${player.roliste}
 
-    await sock.sendMessage(replyJid, { text: questText });
+╔═══════◇
+║ *Rang :* ${player.rang}
+║ *Serment :* ${player.serment}
+║ *Allégeance :* ${player.allegeance}
+║ *Région/Fief :* ${player.regionFief}
+╚═════════════════╝
+╔═════════════════╗
+> Maître d'Armes              : ${String(player.maitreDArmes).padStart(2, '0')}
+> Puissance de Tension  : ${String(player.puissanceDeTension).padStart(2, '0')}
+> Puissance de Jet           : ${String(player.puissanceDeJet).padStart(2, '0')}
+> Bouclier                           : ${String(player.bouclier).padStart(2, '0')}
+> Athlétisme                      : ${String(player.athletisme).padStart(2, '0')}
+> Équitation                       : ${String(player.equitation).padStart(2, '0')}
+> Archerie Montée            : ${String(player.archerieMontee).padStart(2, '0')}
+> Pistage                            : ${String(player.pistage).padStart(2, '0')}
+> Repérage                         : ${String(player.reperage).padStart(2, '0')}
+> Ingénierie                        : ${String(player.ingenierie).padStart(2, '0')}
+> Commandement            : ${String(player.commandement).padStart(2, '0')}
+> Soins des blessures      : ${String(player.soinsDesBlessures).padStart(2, '0')}
+╚═════════════════╝
+╔═════════════════╗
+> *Argent:* ${player.argent} 💰
+> *Statut:* ${validationStatus}
+╚═════════════════╝
+╔═════════════════╗
+▪️ Inventaire: ${player.items.length > 0 ? player.items.map(i => i.name).join(', ') : 'Aucun objet'}
+╚═════════════════╝
+`;
+
+    await sock.sendMessage(replyJid, { text: profilText });
 });
 
-
-// Helper function to create a status bar
-function createStatusBar(current, max, filledChar = '▰', emptyChar = '▱', length = 10) {
-    if (max === 0) return emptyChar.repeat(length); // Avoid division by zero
-    const percentage = Math.max(0, Math.min(1, current / max));
-    const filledCount = Math.round(percentage * length);
-    const emptyCount = length - filledCount;
-    return filledChar.repeat(filledCount) + emptyChar.repeat(emptyCount);
-}
-
-
-// Command: /profile and /profil
-const profileCommand = async (sock, message) => {
-  const jid = getJid(message);
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  const replyJid = message.key.remoteJid;
-
-  if (!player) {
-    await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
-    return;
-  }
-
-  const healthBar = createStatusBar(player.health, 100);
-  const manaBar = createStatusBar(player.mana, 100);
-  const xpNeeded = player.level * 100;
-  const xpBar = createStatusBar(player.xp, xpNeeded);
-
-  const profileText = `*Profil de ${player.name}*\n\n` +
-                      `*Classe:* ${player.class} | *Rang:* ${player.rank}\n` +
-                      `*Niveau:* ${player.level}\n\n` +
-                      `*Vie:* ${healthBar} ${player.health}%\n` +
-                      `*Mana:* ${manaBar} ${player.mana}%\n` +
-                      `*XP:* ${xpBar} ${player.xp}/${xpNeeded}\n\n` +
-                      `*Col:* ${player.col} 🪙`;
-
-  await sock.sendMessage(replyJid, { text: profileText });
-};
-commands.set('profile', profileCommand);
-commands.set('profil', profileCommand);
-
-// Command: /inventory
-commands.set('inventory', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const replyJid = message.key.remoteJid;
-
-    if (!player) {
-        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
-        return;
-    }
-
-    const inventory = player.inventory;
-    if (inventory.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Ton inventaire est vide." });
-        return;
-    }
-
-    const inventoryText = inventory.map(item => `- ${item.name} (x${item.quantity})`).join('\n');
-    await sock.sendMessage(replyJid, { text: `*Inventaire:*\n\n${inventoryText}` });
-});
-
-// Command: /map
-commands.set('map', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const replyJid = message.key.remoteJid;
-
-     if (!player) {
-        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
-        return;
-    }
-
-    const dungeons = await Dungeon.findAll();
-    const mapText = `*Carte du monde*\n\n` +
-                    `*Emplacement actuel:* ${player.location}\n\n` +
-                    `*Donjons disponibles:*\n` +
-                    dungeons.map(d => `- ${d.name} (Rang ${d.rank})`).join('\n');
-
-    await sock.sendMessage(replyJid, { text: mapText });
-});
-
-// Command: /bank
-commands.set('bank', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const replyJid = message.key.remoteJid;
-
-    if (!player) {
-        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
-        return;
-    }
-
-    const [bank, created] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
-
-    const bankText = `*Banque Centrale de Skype*\n\n` +
-                     `*Solde:* ${bank.balance} 🪙\n\n` +
-                     `Pour déposer ou retirer, utilise le mode /action.\n` +
-                     `Ex: "Je dépose 50 col à la banque" ou "Je retire 100 col".`;
-
-    await sock.sendMessage(replyJid, { text: bankText });
-});
-
-
-// Command: /help
-commands.set('help', async (sock, message) => {
-  const helpText = "*Commandes Disponibles:*\n" +
-                   "/start - Commencer l'aventure.\n" +
-                   "/profile - Voir ton profil de joueur.\n" +
-                   "/inventory - Consulter ton inventaire.\n" +
-                   "/quests - Voir tes quêtes actives.\n" +
-                   "/map - Afficher la carte du monde et les donjons.\n" +
-                   "/bank - Accéder à ton compte en banque.\n" +
-                   "/action - Passer en mode immersif (RP).\n" +
-                   "/menu - Revenir au menu principal.\n" +
-                   "/help - Afficher cette aide.";
-  await sock.sendMessage(message.key.remoteJid, { text: helpText });
-});
-
-// Command: /action
-commands.set('action', async (sock, message) => {
-  const jid = getJid(message);
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (player) {
-      await player.update({ mode: 'action' });
-      await sock.sendMessage(message.key.remoteJid, { text: "Mode action activé. Décris tes actions en langage naturel pour interagir avec le monde." });
-  } else {
-      await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-  }
-});
-
-// Command: /menu
-commands.set('menu', async (sock, message) => {
-  const jid = getJid(message);
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (player) {
-    await player.update({ mode: 'normal' });
-  }
-
-  const menuText = "Menu Principal\n\n" +
-                   "Que veux-tu faire ?\n\n" +
-                   "🎮 `/action` - Passer en mode immersif (RP).\n" +
-                   "👤 `/profil` - Voir ton statut.\n" +
-                   "📋 `/quests` - Consulter tes quêtes.\n" +
-                   "🗺️ `/map` - Ouvrir la carte du monde.\n" +
-                   "💰 `/bank` - Accéder à la banque.\n" +
-                   "❓ `/help` - Liste des commandes.";
-  try {
-    await sock.sendMessage(message.key.remoteJid, {
-      image: fs.readFileSync('./menu_image.jpg'),
-      caption: menuText
-    });
-  } catch (error) {
-    console.error("Erreur envoi image menu:", error);
-    await sock.sendMessage(message.key.remoteJid, { text: menuText });
-  }
-});
 
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {
@@ -225,67 +400,82 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
   if (!messageText) return;
 
-  const jid = getJid(message);
   const replyJid = message.key.remoteJid;
-  const senderName = message.pushName || jid;
+
+  // Group activation check
+  if (replyJid.endsWith('@g.us')) {
+      const commandName = (messageText.startsWith('/') ? messageText.slice(1).trim().split(/ +/)[0].toLowerCase() : "");
+      if (commandName !== 'on') {
+          const isActive = await ActiveGroup.findOne({ where: { groupId: replyJid } });
+          if (!isActive) {
+              console.log(`[INACTIVE] Ignored message in group ${replyJid} because bot is not active.`);
+              return; // Bot is not active in this group, so ignore the message.
+          }
+      }
+  }
+
+
+  const jid = getJid(message);
+  const senderName = message.pushName || "Inconnu";
 
   console.log(`[MSG] From "${senderName}" (${jid}) in ${replyJid}: "${messageText}"`);
 
-  const player = await Player.findOne({ where: { whatsappId: jid } });
+    // Handle Character Sheet Submission
+    if (messageText.includes("𝕸𝖔𝖚𝖓𝖙 𝖆𝖓𝖉 𝕭𝖑𝖆𝖉𝖊 : 𝕮𝖍𝖎𝖛𝖆𝖑𝖊𝖗𝖞")) {
+        let loadingKey;
+        try {
+            loadingKey = await sendAnimatedMessage(sock, replyJid, "Lecture de la fiche...");
+            const playerData = parseSheet(messageText, senderName);
 
-  // Handle registration flow
-  const registrationStep = registrationState.get(jid);
-  if (registrationStep) {
-      if (registrationStep === 'awaiting_name') {
-          const playerName = messageText.trim();
-          if (playerName.length > 2 && playerName.length <= 20 && !playerName.startsWith('/')) {
-               const [newPlayer, created] = await Player.findOrCreate({
-                  where: { whatsappId: jid },
-                  defaults: { name: playerName },
-              });
-               if (created) {
-                   await Bank.create({ PlayerWhatsappId: jid }); // Create a bank account
-                   // Assign starting quests
-                   const startingQuest = await Quest.findOne({ where: { title: 'La Chasse aux Gobelins' } });
-                   if (startingQuest) {
-                       await newPlayer.addQuest(startingQuest, { through: { status: 'not_started' } });
-                   }
-               }
-              registrationState.set(jid, 'awaiting_description');
-              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
-          } else {
-              await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
-          }
-      } else if (registrationStep === 'awaiting_description') {
-        const description = messageText.trim();
-        if (description.length > 10 && description.length <= 150) {
-            await Player.update({ characterDescription: description }, { where: { whatsappId: jid } });
-            registrationState.delete(jid);
-            await sock.sendMessage(replyJid, { text: `Description enregistrée ! Bienvenue officiellement dans Skype. Ton aventure commence maintenant.\n\nUtilise /quests pour voir ton premier objectif.` });
-        } else {
-            await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères). Réessaie." });
+            const [player, created] = await Player.findOrCreate({
+                where: { whatsappId: jid },
+                defaults: playerData
+            });
+
+            if (created) {
+                await sock.sendMessage(replyJid, { text: `Fiche de ${playerData.prenom} ${playerData.nom} enregistrée !`, edit: loadingKey });
+
+                // Notify admins in a separate message
+                const groupMeta = await sock.groupMetadata(replyJid);
+                const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+
+                if (admins.length > 0) {
+                    const adminMentions = admins.map(a => `@${a.split('@')[0]}`).join(' ');
+                    const text = `${adminMentions}, veuillez valider la nouvelle fiche de @${jid.split('@')[0]}.`;
+                    await sock.sendMessage(replyJid, {
+                        text: text,
+                        mentions: [...admins, jid]
+                    });
+                }
+
+            } else {
+                await Player.update(playerData, { where: { whatsappId: jid } });
+                await sock.sendMessage(replyJid, { text: `Ta fiche a été mise à jour, ${playerData.prenom}.`, edit: loadingKey });
+
+                 // Notify admins in a separate message
+                const groupMeta = await sock.groupMetadata(replyJid);
+                const admins = groupMeta.participants.filter(p => p.admin).map(p => p.id);
+                if (admins.length > 0) {
+                    const adminMentions = admins.map(a => `@${a.split('@')[0]}`).join(' ');
+                    const text = `${adminMentions}, la fiche de @${jid.split('@')[0]} a été mise à jour. Veuillez la valider.`;
+                    await sock.sendMessage(replyJid, {
+                        text: text,
+                        mentions: [...admins, jid]
+                    });
+                }
+            }
+            return; // Done processing the sheet
+        } catch (error) {
+            console.error("Erreur de parsing de la fiche:", error);
+            const errorMessage = `Je n'ai pas pu lire ta fiche. Assure-toi de bien remplir tous les champs sans modifier le modèle.\n*Erreur:* ${error.message}`;
+            if (loadingKey) {
+                await sock.sendMessage(replyJid, { text: errorMessage, edit: loadingKey });
+            } else {
+                await sock.sendMessage(replyJid, { text: errorMessage });
+            }
+            return; // Stop processing on error
         }
-      }
-      return;
-  }
-
-  if (!player && !messageText.startsWith('/start')) {
-    await sock.sendMessage(replyJid, { text: "Utilise /start pour commencer." });
-    return;
-  }
-
-  // Handle free action mode
-  if (player?.mode === 'action' && !messageText.startsWith('/')) {
-    try {
-      await handleFreeAction(sock, message, player, messageText);
-    } catch (error) {
-      console.error('Erreur action libre:', error);
-      await sock.sendMessage(replyJid, { text: "Le MJ n'a pas pu interpréter ton action. Réessaie." });
-    } finally {
-        await player.update({ lastActivity: new Date() });
     }
-    return;
-  }
 
 
   // Handle standard commands
@@ -298,16 +488,12 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   if (command) {
     try {
       await command(sock, message, args);
-      if (player) {
-          await player.update({ lastActivity: new Date() });
-          // Mission completion will be handled by the AI now
-      }
     } catch (error) {
       console.error(`Erreur commande ${commandName}:`, error);
       await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de l'exécution de la commande." });
     }
   } else {
-    await sock.sendMessage(replyJid, { text: "Commande inconnue. Tape /help pour voir la liste des commandes." });
+    // We don't send "unknown command" to avoid spamming for messages that aren't commands.
   }
 }
 
