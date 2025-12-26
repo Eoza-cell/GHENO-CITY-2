@@ -1,11 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const { Player, PlayerVehicle, Shop, Item, ShopItem } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank } = require('./database');
 const { handleFreeAction } = require('./ai-handler');
 const { sendWithImage } = require('./message-handler');
-const { getMission, checkMissionCompletion } = require('./missions');
-const { startDriving, handleDrivingAction, activeDrivers } = require('./driving-handler');
 const { Op } = require('sequelize');
 
 /**
@@ -16,7 +14,7 @@ function getJid(message) {
 }
 
 const commands = new Map();
-const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_profile_pic' | 'awaiting_description'
+const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_description' | 'awaiting_profile_pic'
 
 // Command: /start
 commands.set('start', async (sock, message) => {
@@ -26,30 +24,48 @@ commands.set('start', async (sock, message) => {
 
   if (!player) {
     registrationState.set(jid, 'awaiting_name');
-    await sock.sendMessage(replyJid, { text: "Bienvenue à Gheno City 2 ! 🚗💥\n\nPour commencer, comment t'appelles-tu ?" });
+    await sock.sendMessage(replyJid, { text: "*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\nHélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.\n\nLe temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énemies... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est votre nom, aventurier ?" });
   } else {
-    await sock.sendMessage(replyJid, { text: `Content de te revoir, ${player.name} ! Utilise /quests pour continuer.` });
+    await sock.sendMessage(replyJid, { text: `Content de te revoir, ${player.name} ! Utilise /quests pour voir tes objectifs.` });
   }
 });
 
 // Command: /quests
 commands.set('quests', async (sock, message) => {
-  const jid = getJid(message);
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: Quest });
 
-  if (!player) {
-    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
-    return;
-  }
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
 
-  const mission = getMission(player.chapter, player.quest);
-  await sock.sendMessage(replyJid, { text: mission ? `*Objectif actuel:*\n${mission.objective}` : "Tu n'as pas de quête active." });
+    const activeQuests = player.Quests.filter(q => q.PlayerQuest.status === 'in_progress');
+    const notStartedQuests = player.Quests.filter(q => q.PlayerQuest.status === 'not_started');
+
+
+    if (activeQuests.length === 0 && notStartedQuests.length === 0) {
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de quête active pour le moment. Explore le monde pour en trouver !" });
+        return;
+    }
+
+    let questText = '';
+    if (activeQuests.length > 0) {
+        questText += '*Quêtes en cours:*\n' + activeQuests.map(q => `- ${q.title}: ${q.description}`).join('\n') + '\n\n';
+    }
+    if (notStartedQuests.length > 0) {
+        questText += '*Quêtes disponibles:*\n' + notStartedQuests.map(q => `- ${q.title}`).join('\n');
+    }
+
+    await sock.sendMessage(replyJid, { text: questText });
 });
+
 
 // Helper function to create a status bar
 function createStatusBar(current, max, filledChar = '▰', emptyChar = '▱', length = 10) {
-    const percentage = current / max;
+    if (max === 0) return emptyChar.repeat(length); // Avoid division by zero
+    const percentage = Math.max(0, Math.min(1, current / max));
     const filledCount = Math.round(percentage * length);
     const emptyCount = length - filledCount;
     return filledChar.repeat(filledCount) + emptyChar.repeat(emptyCount);
@@ -67,37 +83,98 @@ const profileCommand = async (sock, message) => {
     return;
   }
 
-  // No ID card generation for now, just text profile with status bars
   const healthBar = createStatusBar(player.health, 100);
-  const energyBar = createStatusBar(player.energy, 100);
-  const xpBar = createStatusBar(player.xp, player.level * 100);
+  const manaBar = createStatusBar(player.mana, 100);
+  const xpNeeded = player.level * 100;
+  const xpBar = createStatusBar(player.xp, xpNeeded);
 
   const profileText = `*Profil de ${player.name}*\n\n` +
-                      `*Niveau:* ${player.level}\n` +
-                      `*Argent:* ${player.money}$\n\n` +
+                      `*Classe:* ${player.class} | *Rang:* ${player.rank}\n` +
+                      `*Niveau:* ${player.level}\n\n` +
                       `*Vie:* ${healthBar} ${player.health}%\n` +
-                      `*Énergie:* ${energyBar} ${player.energy}%\n` +
-                      `*XP:* ${xpBar} ${player.xp}/${player.level * 100}`;
+                      `*Mana:* ${manaBar} ${player.mana}%\n` +
+                      `*XP:* ${xpBar} ${player.xp}/${xpNeeded}\n\n` +
+                      `*Col:* ${player.col} 🪙`;
 
   await sock.sendMessage(replyJid, { text: profileText });
 };
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
 
+// Command: /inventory
+commands.set('inventory', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
+        return;
+    }
+
+    const inventory = player.inventory;
+    if (inventory.length === 0) {
+        await sock.sendMessage(replyJid, { text: "Ton inventaire est vide." });
+        return;
+    }
+
+    const inventoryText = inventory.map(item => `- ${item.name} (x${item.quantity})`).join('\n');
+    await sock.sendMessage(replyJid, { text: `*Inventaire:*\n\n${inventoryText}` });
+});
+
+// Command: /map
+commands.set('map', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+     if (!player) {
+        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
+        return;
+    }
+
+    const dungeons = await Dungeon.findAll();
+    const mapText = `*Carte du monde*\n\n` +
+                    `*Emplacement actuel:* ${player.location}\n\n` +
+                    `*Donjons disponibles:*\n` +
+                    dungeons.map(d => `- ${d.name} (Rang ${d.rank})`).join('\n');
+
+    await sock.sendMessage(replyJid, { text: mapText });
+});
+
+// Command: /bank
+commands.set('bank', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
+        return;
+    }
+
+    const [bank, created] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
+
+    const bankText = `*Banque Centrale de Skype*\n\n` +
+                     `*Solde:* ${bank.balance} 🪙\n\n` +
+                     `Pour déposer ou retirer, utilise le mode /action.\n` +
+                     `Ex: "Je dépose 50 col à la banque" ou "Je retire 100 col".`;
+
+    await sock.sendMessage(replyJid, { text: bankText });
+});
+
 
 // Command: /help
 commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
-                   "/start - (Re)commencer l'aventure.\n" +
-                   "/quests - Voir tes objectifs.\n" +
-                   "/profil - Afficher ta carte d'identité.\n" +
-                   "/garage - Lister tes véhicules.\n" +
-                   "/conduire [ID] - Démarrer la conduite d'un véhicule.\n" +
-                   "/shop - Voir les articles du magasin local.\n" +
-                   "/interagir [nom] donner [article] [quantité] - Donner un objet à un joueur.\n" +
+                   "/start - Commencer l'aventure.\n" +
+                   "/profile - Voir ton profil de joueur.\n" +
+                   "/inventory - Consulter ton inventaire.\n" +
+                   "/quests - Voir tes quêtes actives.\n" +
+                   "/map - Afficher la carte du monde et les donjons.\n" +
+                   "/bank - Accéder à ton compte en banque.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
-                   "/tagall - Mentionner tous les membres du groupe.\n" +
                    "/help - Afficher cette aide.";
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
 });
@@ -106,8 +183,12 @@ commands.set('help', async (sock, message) => {
 commands.set('action', async (sock, message) => {
   const jid = getJid(message);
   const player = await Player.findOne({ where: { whatsappId: jid } });
-  await player.update({ mode: 'action' });
-  await sock.sendMessage(message.key.remoteJid, { text: "Mode action activé. Décris tes actions en langage naturel." });
+  if (player) {
+      await player.update({ mode: 'action' });
+      await sock.sendMessage(message.key.remoteJid, { text: "Mode action activé. Décris tes actions en langage naturel pour interagir avec le monde." });
+  } else {
+      await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+  }
 });
 
 // Command: /menu
@@ -118,12 +199,13 @@ commands.set('menu', async (sock, message) => {
     await player.update({ mode: 'normal' });
   }
 
-  const menuText = "Bienvenue à Gheno City 2.\n\nQue veux-tu faire ?\n\n" +
+  const menuText = "Menu Principal\n\n" +
+                   "Que veux-tu faire ?\n\n" +
                    "🎮 `/action` - Passer en mode immersif (RP).\n" +
-                   "👤 `/profil` - Voir ta carte d'identité.\n" +
-                   "📋 `/quests` - Consulter tes objectifs.\n" +
-                   "🚗 `/garage` - Accéder à tes véhicules.\n" +
-                   "🛒 `/shop` - Voir les articles du magasin.\n" +
+                   "👤 `/profil` - Voir ton statut.\n" +
+                   "📋 `/quests` - Consulter tes quêtes.\n" +
+                   "🗺️ `/map` - Ouvrir la carte du monde.\n" +
+                   "💰 `/bank` - Accéder à la banque.\n" +
                    "❓ `/help` - Liste des commandes.";
   try {
     await sock.sendMessage(message.key.remoteJid, {
@@ -134,190 +216,6 @@ commands.set('menu', async (sock, message) => {
     console.error("Erreur envoi image menu:", error);
     await sock.sendMessage(message.key.remoteJid, { text: menuText });
   }
-});
-
-// Command: /garage
-commands.set('garage', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const playerVehicles = await PlayerVehicle.findAll({
-        where: { PlayerWhatsappId: player.whatsappId },
-        include: 'Vehicle',
-    });
-
-    if (!playerVehicles.length) {
-        await sock.sendMessage(message.key.remoteJid, { text: "Ton garage est vide." });
-        return;
-    }
-
-    const garageText = playerVehicles.map(pv =>
-        `- ID: ${pv.id} | ${pv.Vehicle.name} | Dégâts: ${pv.damage}%`
-    ).join('\n');
-    await sock.sendMessage(message.key.remoteJid, { text: `Ton garage:\n\n${garageText}` });
-});
-
-// Command: /conduire
-commands.set('conduire', async (sock, message, args) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const replyJid = message.key.remoteJid;
-
-    if (!args.length) {
-        await sock.sendMessage(replyJid, { text: "Tu dois spécifier l'ID du véhicule que tu veux conduire. Trouve-le dans ton /garage." });
-        return;
-    }
-
-    const playerVehicleId = parseInt(args[0], 10);
-    if (isNaN(playerVehicleId)) {
-        await sock.sendMessage(replyJid, { text: "L'ID du véhicule doit être un nombre." });
-        return;
-    }
-
-    const playerVehicle = await PlayerVehicle.findOne({
-        where: { id: playerVehicleId, PlayerWhatsappId: player.whatsappId },
-        include: 'Vehicle',
-    });
-
-    if (!playerVehicle) {
-        await sock.sendMessage(replyJid, { text: "Véhicule non trouvé dans ton garage." });
-        return;
-    }
-
-    if (playerVehicle.damage >= 100) {
-        await sock.sendMessage(replyJid, { text: `Ta ${playerVehicle.Vehicle.name} est trop endommagée pour être conduite.` });
-        return;
-    }
-
-    await player.update({ mode: 'driving' });
-    startDriving(sock, message, player, playerVehicle);
-});
-
-
-// Command: /shop
-commands.set('shop', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const replyJid = message.key.remoteJid;
-
-    const shop = await Shop.findOne({ where: { location: player.location } });
-
-    if (!shop) {
-        await sock.sendMessage(replyJid, { text: "Il n'y a pas de magasin ici." });
-        return;
-    }
-
-    const items = await shop.getItems();
-    if (!items.length) {
-        await sock.sendMessage(replyJid, { text: `Le magasin "${shop.name}" est vide.` });
-        return;
-    }
-
-    const shopText = items.map(item => {
-        const quantity = item.ShopItem.quantity === -1 ? '∞' : item.ShopItem.quantity;
-        return `- ${item.name} | Prix: ${item.price}$ | Stock: ${quantity}`;
-    }).join('\n');
-
-    await sock.sendMessage(replyJid, { text: `*${shop.name}*\n\n${shopText}\n\nPour acheter, passe en mode /action et décris ton achat.` });
-});
-
-// Command: /interagir
-commands.set('interagir', async (sock, message, args) => {
-    const jid = getJid(message);
-    const sourcePlayer = await Player.findOne({ where: { whatsappId: jid } });
-    const replyJid = message.key.remoteJid;
-
-    if (args.length < 3) {
-        await sock.sendMessage(replyJid, { text: "Utilisation: /interagir [nom_joueur] donner [objet] [quantité?]" });
-        return;
-    }
-
-    const targetPlayerName = args[0];
-    const action = args[1].toLowerCase();
-
-    if (targetPlayerName.toLowerCase() === sourcePlayer.name.toLowerCase()) {
-        await sock.sendMessage(replyJid, { text: "Tu ne peux pas interagir avec toi-même." });
-        return;
-    }
-
-    const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: targetPlayerName } } });
-    if (!targetPlayer) {
-        await sock.sendMessage(replyJid, { text: `Joueur "${targetPlayerName}" non trouvé.` });
-        return;
-    }
-
-    if (action === 'donner') {
-        const itemName = args[2];
-        const quantity = args.length > 3 ? parseInt(args[3], 10) : 1;
-
-        if (isNaN(quantity) || quantity <= 0) {
-            await sock.sendMessage(replyJid, { text: "La quantité doit être un nombre positif." });
-            return;
-        }
-
-        const sourceInventory = sourcePlayer.inventory;
-        const itemInInventory = sourceInventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
-
-        if (!itemInInventory || itemInInventory.quantity < quantity) {
-            await sock.sendMessage(replyJid, { text: `Tu n'as pas assez de "${itemName}" (tu as ${itemInInventory ? itemInInventory.quantity : 0}).` });
-            return;
-        }
-
-        // Retirer de l'inventaire source
-        itemInInventory.quantity -= quantity;
-        if (itemInInventory.quantity === 0) {
-            sourcePlayer.inventory = sourceInventory.filter(i => i.name.toLowerCase() !== itemName.toLowerCase());
-        } else {
-            sourcePlayer.inventory = sourceInventory;
-        }
-        await sourcePlayer.save();
-
-        // Ajouter à l'inventaire cible
-        const targetInventory = targetPlayer.inventory;
-        const targetItem = targetInventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
-        if (targetItem) {
-            targetItem.quantity += quantity;
-        } else {
-            targetInventory.push({ name: itemInInventory.name, quantity: quantity });
-        }
-        targetPlayer.inventory = targetInventory;
-        await targetPlayer.save();
-
-        await sock.sendMessage(replyJid, { text: `Tu as donné ${quantity}x ${itemInInventory.name} à ${targetPlayer.name}.` });
-
-        // Envoyer une notification au joueur cible (nécessite d'être dans le même groupe/chat)
-        await sock.sendMessage(targetPlayer.whatsappId.endsWith('@g.us') ? targetPlayer.whatsappId : message.key.remoteJid, { text: `${sourcePlayer.name} t'a donné ${quantity}x ${itemInInventory.name}.` });
-
-    } else {
-        await sock.sendMessage(replyJid, { text: `Action "${action}" non reconnue.` });
-    }
-});
-
-
-// Command: /tagall
-commands.set('tagall', async (sock, message) => {
-    const jid = message.key.remoteJid;
-    if (!jid.endsWith('@g.us')) {
-        await sock.sendMessage(jid, { text: "Cette commande ne peut être utilisée que dans un groupe." });
-        return;
-    }
-
-    try {
-        const groupMetadata = await sock.groupMetadata(jid);
-        const participants = groupMetadata.participants;
-        let text = "Mention de tous les membres du groupe:\n";
-        let mentions = [];
-
-        for (let participant of participants) {
-            const userJid = participant.id;
-            text += `@${userJid.split('@')[0]}\n`;
-            mentions.push(userJid);
-        }
-
-        await sock.sendMessage(jid, { text, mentions });
-    } catch (error) {
-        console.error("Erreur /tagall:", error);
-        await sock.sendMessage(jid, { text: "Impossible de récupérer les membres du groupe." });
-    }
 });
 
 // Main command handler
@@ -331,56 +229,41 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   const replyJid = message.key.remoteJid;
   const senderName = message.pushName || jid;
 
-  console.log(`[DEBUG] Message de "${senderName}" (${jid}) dans ${replyJid}: "${messageText}"`);
+  console.log(`[MSG] From "${senderName}" (${jid}) in ${replyJid}: "${messageText}"`);
 
   const player = await Player.findOne({ where: { whatsappId: jid } });
-
-  // --- Driving Mode Check ---
-  // Give driving priority. If a driving session is active in this chat, all non-command messages are driving actions.
-  if (activeDrivers.has(replyJid) && !messageText.startsWith('/')) {
-      const drivingPlayer = activeDrivers.get(replyJid).player;
-      await handleDrivingAction(sock, message, drivingPlayer, messageText);
-      return;
-  }
 
   // Handle registration flow
   const registrationStep = registrationState.get(jid);
   if (registrationStep) {
-      if (registrationStep === 'awaiting_profile_pic' && message.message.imageMessage) {
-          try {
-              const buffer = await downloadMediaMessage(message, 'buffer', {});
-              const filePath = path.join('./assets/profile_pics', `${jid}.png`);
-              await sharp(buffer).resize(250, 250).toFile(filePath);
-              await Player.update({ profilePicPath: filePath }, { where: { whatsappId: jid } });
-              registrationState.delete(jid);
-              await sock.sendMessage(replyJid, { text: "Photo de profil enregistrée !" });
-              await commands.get('profile')(sock, message);
-          } catch (error) {
-              console.error("Erreur sauvegarde photo:", error);
-              await sock.sendMessage(replyJid, { text: "Erreur lors de la sauvegarde. Réessaie." });
-          }
-      } else if (registrationStep === 'awaiting_name') {
+      if (registrationStep === 'awaiting_name') {
           const playerName = messageText.trim();
-          if (playerName.length > 0 && playerName.length <= 15 && !playerName.startsWith('/')) {
-               await Player.findOrCreate({
+          if (playerName.length > 2 && playerName.length <= 20 && !playerName.startsWith('/')) {
+               const [newPlayer, created] = await Player.findOrCreate({
                   where: { whatsappId: jid },
                   defaults: { name: playerName },
               });
+               if (created) {
+                   await Bank.create({ PlayerWhatsappId: jid }); // Create a bank account
+                   // Assign starting quests
+                   const startingQuest = await Quest.findOne({ where: { title: 'La Chasse aux Gobelins' } });
+                   if (startingQuest) {
+                       await newPlayer.addQuest(startingQuest, { through: { status: 'not_started' } });
+                   }
+               }
               registrationState.set(jid, 'awaiting_description');
-              await sock.sendMessage(replyJid, { text: `Ok, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un homme grand aux cheveux noirs", "une femme athlétique avec une cicatrice sur l'oeil").` });
+              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
           } else {
-              await sock.sendMessage(replyJid, { text: "Nom invalide (1-15 caractères, pas de '/')." });
+              await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
           }
       } else if (registrationStep === 'awaiting_description') {
         const description = messageText.trim();
         if (description.length > 10 && description.length <= 150) {
-            await Player.update({ characterDescription: description }, { where: { whatsappId: jid } });
-            registrationState.delete(jid);
-            const player = await Player.findOne({ where: { whatsappId: jid } });
-            const mission = getMission(player.chapter, player.quest);
-            await sock.sendMessage(replyJid, { text: `Description enregistrée !\n\n*Objectif:*\n${mission.objective}` });
+            await Player.update({ characterDescription: description, awaitingProfilePic: true }, { where: { whatsappId: jid } });
+            registrationState.delete(jid); // We'll handle the pic upload outside the registration flow
+            await sock.sendMessage(replyJid, { text: `Description enregistrée ! Pour terminer, envoie une image qui représentera ton personnage.` });
         } else {
-            await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères)." });
+            await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères). Réessaie." });
         }
       }
       return;
@@ -391,13 +274,13 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     return;
   }
 
-  // Handle free action mode (if not driving)
+  // Handle free action mode
   if (player?.mode === 'action' && !messageText.startsWith('/')) {
     try {
       await handleFreeAction(sock, message, player, messageText);
     } catch (error) {
       console.error('Erreur action libre:', error);
-      await sock.sendMessage(replyJid, { text: "Erreur d'interprétation de l'action." });
+      await sock.sendMessage(replyJid, { text: "Le MJ n'a pas pu interpréter ton action. Réessaie." });
     } finally {
         await player.update({ lastActivity: new Date() });
     }
@@ -417,14 +300,14 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       await command(sock, message, args);
       if (player) {
           await player.update({ lastActivity: new Date() });
-          await checkMissionCompletion(sock, player, message);
+          // Mission completion will be handled by the AI now
       }
     } catch (error) {
       console.error(`Erreur commande ${commandName}:`, error);
-      await sock.sendMessage(replyJid, { text: "Erreur exécution commande." });
+      await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de l'exécution de la commande." });
     }
   } else {
-    await sock.sendMessage(replyJid, { text: "Commande inconnue. Tape /help." });
+    await sock.sendMessage(replyJid, { text: "Commande inconnue. Tape /help pour voir la liste des commandes." });
   }
 }
 

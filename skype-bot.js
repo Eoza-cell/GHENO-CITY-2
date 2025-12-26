@@ -4,12 +4,14 @@ require('dotenv').config();
 // Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const http = require('http');
-const { default: makeWASocket, delay, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { getMessageContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const fs = require('fs');
+const path = require('path');
 const { Sequelize } = require('sequelize');
-const { setupDatabase, Player, PlayerVehicle } = require('./database');
+const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
-const { handleCommand } = require('./command-handler');
+const { handleCommand, getJid } = require('./command-handler');
 const { startInactivePlayerCheck } = require('./inactive-handler');
 const { startDayNightCycle } = require('./game-state');
 
@@ -20,20 +22,6 @@ const server = http.createServer((req, res) => {
 });
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
-
-const GAME_TICK_RATE = 5000; // 5 seconds
-
-async function gameLoop(sock) {
-  // Friction
-  const drivingPlayers = await Player.findAll({ where: { drivingVehicleId: { [Sequelize.Op.ne]: null } } });
-  for (const player of drivingPlayers) {
-    const playerVehicle = await PlayerVehicle.findByPk(player.drivingVehicleId);
-    if (playerVehicle && playerVehicle.currentSpeed > 0) {
-      const newSpeed = playerVehicle.currentSpeed - 1; // Simple friction
-      await playerVehicle.update({ currentSpeed: newSpeed < 0 ? 0 : newSpeed });
-    }
-  }
-}
 
 async function connectToWhatsApp() {
   await setupDatabase();
@@ -64,11 +52,12 @@ async function connectToWhatsApp() {
     }
 
     await delay(1500); // Small delay to ensure the socket is ready
+    console.log(`Tentative de connexion avec le numéro de téléphone : ${phoneNumber}`);
     console.log('Demande du code de pairage...');
     try {
       const code = await sock.requestPairingCode(phoneNumber);
       console.log('==============================================================');
-      console.log('Votre code de pairage Gheno City 2 :');
+      console.log('Votre code de pairage Skype :');
       console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
       console.log('==============================================================');
       console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
@@ -90,8 +79,6 @@ async function connectToWhatsApp() {
       console.log('Connecté à WhatsApp');
       startInactivePlayerCheck(sock);
       startDayNightCycle();
-      // Start the game loop only after a successful connection
-      setInterval(() => gameLoop(sock), GAME_TICK_RATE);
 
       // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
       if (!serverStarted) {
@@ -106,10 +93,46 @@ async function connectToWhatsApp() {
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('messages.upsert', async (m) => {
-    m.messages.forEach(async (message) => {
-      if (!message.message) return;
-      handleCommand(sock, message, downloadMediaMessage);
-    });
+    for (const message of m.messages) {
+        if (!message.message) continue;
+
+        const jid = getJid(message);
+        const player = await Player.findOne({ where: { whatsappId: jid } });
+
+        // Handle profile picture submission
+        if (player && player.awaitingProfilePic) {
+            const type = getMessageContentType(message.message);
+            if (type === 'imageMessage') {
+                try {
+                    console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
+                    const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
+                    const filename = `${jid.split('@')[0]}.jpg`;
+                    const filepath = path.join('assets', 'profiles', filename);
+
+                    fs.writeFileSync(filepath, buffer);
+
+                    await player.update({
+                        profilePicUrl: filepath,
+                        awaitingProfilePic: false
+                    });
+
+                    console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
+                    await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype. Ton aventure commence maintenant.\n\nUtilise /quests pour voir ton premier objectif.` });
+                    continue; // Stop further processing for this message
+                } catch (error) {
+                    console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
+                    await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
+                    continue;
+                }
+            } else {
+                 await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
+                 continue;
+            }
+        }
+
+        // If not a profile pic submission, handle as a normal command/message
+        handleCommand(sock, message, downloadMediaMessage);
+    }
   });
 }
 

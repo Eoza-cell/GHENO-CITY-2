@@ -1,232 +1,111 @@
-const { Player, Vehicle, PlayerVehicle, Shop, Item, ShopItem, sequelize } = require('./database');
-const { isDay } = require('./game-state');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, sequelize } = require('./database');
 const { sendWithImage } = require('./message-handler');
-const { getMission, checkMissionCompletion } = require('./missions');
-const {
-  accelerateVehicle,
-  brakeVehicle,
-  driveVehicle,
-  parkVehicle,
-} = require('./vehicle-handler');
 const { Op } = require('sequelize');
-const { Puter } = require('@heyputer/puter.js');
+const Puter = require('@heyputer/puter.js');
 
-// Location data for AI context
-const locations = {
-  'Little Sicily': {
-    description: "Ton quartier natal. Un peu miteux, mais c'est chez toi.",
-    connections: ['Downtown'],
-  },
-  'Downtown': {
-    description: "Le cœur animé de la ville. Gratte-ciels, boutiques de luxe et sirènes de police.",
-    connections: ['Little Sicily'],
-  },
-  'dealership': {
-    description: "Une concession de voitures d'occasion. L'odeur de l'essence et des rêves brisés flotte dans l'air.",
-    connections: ['Little Sicily', 'hideout'],
-  },
-  'hideout': {
-    description: "Un entrepôt désaffecté. C'est ici que le caïd local dirige ses affaires.",
-    connections: ['dealership'],
-  }
-};
+// Assurez-vous que PUTER_API_KEY est défini dans votre .env
+const puter = new Puter(process.env.PUTER_API_KEY);
+
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const puter = new Puter();
 
-  // 1. Build the context for the AI
   const playerState = `
     - Nom: ${player.name}
     - Description: ${player.characterDescription}
-    - Argent: ${player.money}$
-    - Emplacement: ${player.location} (${locations[player.location]?.description || 'Description inconnue'})
-    - Destinations possibles: ${locations[player.location]?.connections.join(', ') || 'Aucune'}
+    - Classe: ${player.class}
+    - Rang: ${player.rank}
+    - Niveau: ${player.level}
+    - XP: ${player.xp}/${player.level * 100}
+    - Vie: ${player.health}%
+    - Mana: ${player.mana}%
+    - Col: ${player.col}
+    - Emplacement: ${player.location}
   `;
 
-  // Vehicle context
-  let playerVehicleState = "Tu n'es pas au volant.";
-  const playerVehicles = await PlayerVehicle.findAll({
-    where: { PlayerWhatsappId: player.whatsappId },
-    include: Vehicle,
-  });
+  const inventoryState = player.inventory.length > 0
+    ? "Inventaire:\n" + player.inventory.map(i => `- ${i.name} (x${i.quantity})`).join('\n')
+    : "Ton inventaire est vide.";
 
-  if (player.drivingVehicleId) {
-    const currentVehicle = playerVehicles.find(pv => pv.id === player.drivingVehicleId);
-    if (currentVehicle) {
-        playerVehicleState = `Tu conduis ta ${currentVehicle.Vehicle.name}. Vitesse actuelle: ${currentVehicle.currentSpeed.toFixed(0)} km/h.`;
-    }
-  }
+  const quests = await player.getQuests();
+  const questState = quests.length > 0
+    ? "Quêtes Actives:\n" + quests.filter(q => q.PlayerQuest.status === 'in_progress').map(q => `- ${q.title}: ${q.description}`).join('\n')
+    : "Aucune quête active.";
 
-  const garageState = playerVehicles.length > 0
-    ? "Véhicules dans ton garage:\n" + playerVehicles.map(pv => `- ID ${pv.id}: ${pv.Vehicle.name}`).join('\n')
-    : "Ton garage est vide.";
-
-  // Shop context
-  let shopInventory = "Aucun magasin ici.";
-  const currentShop = await Shop.findOne({ where: { location: player.location } });
-  if (currentShop) {
-      const items = await currentShop.getItems();
-      if (items.length > 0) {
-          shopInventory = `Articles à vendre chez "${currentShop.name}":\n` +
-          items.map(item => `- ${item.name}: ${item.price}$`).join('\n');
-      }
-  }
+  const dungeons = await Dungeon.findAll();
+  const dungeonState = "Donjons connus:\n" + dungeons.map(d => `- ${d.name} (Rang ${d.rank})`).join('\n');
 
   const systemPrompt = `
-    Tu es le Maître du Jeu (MJ) de "Gheno City 2", un RPG textuel. Ta seule et unique fonction est de retourner un objet JSON valide basé sur l'action du joueur. Ne retourne RIEN d'autre que du JSON.
+    Tu es le Maître du Jeu (MJ) de "Skype", un RPG textuel inspiré de Sword Art Online et Solo Leveling. Ta seule et unique fonction est de retourner un objet JSON valide basé sur l'action du joueur. Ne retourne RIEN d'autre que du JSON.
 
     RÈGLES FONDAMENTALES:
-    1.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide.
-    2.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
-    3.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image avec la description du joueur. Ex: \`[POLLINATION PROMPT: un homme grand aux cheveux noirs...]\`
+    1.  **Omniscience**: Tu es connecté à tout. Tu peux intégrer des éléments de n'importe quel univers (films, jeux, animes, histoire réelle) dans ta narration pour surprendre les joueurs. Les PNJ peuvent faire référence à des concepts inattendus. Sois créatif et imprévisible.
+    2.  **Censure Interdite & Ton Mature**: Adopte un ton décisif, mature et impartial. Le monde est dangereux et ne fait pas de cadeaux.
+    3.  **Difficulté "Tryhard"**: Le jeu est difficile. Les récompenses (Col, XP) sont rares. Les ennemis sont puissants et intelligents. Les succès faciles sont inexistants. Chaque victoire doit être méritée.
+    4.  **Conséquences Lourdes**: Les échecs ont des conséquences graves. Un mauvais choix peut entraîner la perte d'objets, de Col, ou même attirer des ennemis puissants.
+    5.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide. Commence ta réponse par '{' et finis par '}'.
+
+    // L'exemple JSON a été retiré pour éviter les erreurs de syntaxe.
+    // Le format attendu est un objet JSON avec une clé "action" et d'autres paramètres pertinents.
 
     TYPES D'ACTIONS (JSON):
-    - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant}
-    - "action": "steal_car", "parameters": {"success": true_ou_false, "category": "Compacte" | "Berline" | "Sportive"}
-    - "action": "move", "parameters": {"destination": "nom_du_lieu"}
-    - "action": "buy_item", "parameters": {"itemName": "nom_de_l_article", "quantity": nombre}
-    - "action": "drive", "parameters": {"vehicleId": id_du_vehicule}
-    - "action": "park"
-    - "action": "accelerate"
-    - "action": "brake"
+    - "action": "update_player", "parameters": {"col_change": montant, "xp_gain": montant, "health_change": montant, "mana_change": montant, "new_location": "nom_lieu"}
+    - "action": "add_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
+    - "action": "remove_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
     - "action": "narrate"
-    - "action": "error", "parameters": {"reason": "explication"}
-
-    CONTEXTE:
-    ---
-    ${playerState}
-    ---
-    VEHICULE:
-    ---
-    ${playerVehicleState}
-    ---
-    GARAGE:
-    ---
-    ${garageState}
-    ---
-    MAGASIN:
-    ---
-    ${shopInventory}
-    ---
-    ACTION DU JOUEUR: ${actionText}
   `;
 
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${questState}\n${dungeonState}\n\nACTION DU JOUEUR: ${actionText}`;
+
   try {
-    const fullPrompt = `${systemPrompt}\n\nACTION DU JOUEUR: ${actionText}`;
-    const response = await puter.ai.chat(fullPrompt, { model: "gpt-4" });
-    const rawResponse = response.text;
+    // Correction: Utilisation de puter.ai.chat pour la génération de texte/JSON
+    const response = await puter.ai.chat(
+      "pollination/flan-t5-xxl",
+      {
+        system: systemPrompt,
+        prompt: fullPrompt,
+        stream: false,
+      }
+    );
 
-    let aiResponse;
-    try {
-      aiResponse = JSON.parse(rawResponse);
-    } catch (parseError) {
-      console.error('Erreur de parsing JSON de la réponse IA:', { rawResponse, error: parseError.message });
-      await sock.sendMessage(jid, { text: "L'IA a renvoyé une réponse malformée. Réessayez." });
-      return;
-    }
-
+    // La réponse de puter.ai.chat est une chaîne JSON, nous devons la parser.
+    const aiResponse = JSON.parse(response);
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
 
+    if (!aiResponse.narrative) {
+        aiResponse.narrative = "Il ne se passe rien de spécial.";
+    }
+
+    // Process AI actions
     switch (action) {
       case 'update_player':
         if (aiResponse.parameters) {
-          if (aiResponse.parameters.money_change) await player.increment('money', { by: aiResponse.parameters.money_change });
+          if (aiResponse.parameters.col_change) await player.increment('col', { by: aiResponse.parameters.col_change });
           if (aiResponse.parameters.xp_gain) await player.increment('xp', { by: aiResponse.parameters.xp_gain });
-        }
-        await sendWithImage(sock, jid, aiResponse.narrative);
-        break;
-
-      case 'steal_car':
-        if (aiResponse.parameters.success) {
-            const vehicleCategory = aiResponse.parameters.category;
-            let priceRange;
-            if (vehicleCategory === 'Compacte') priceRange = [5000, 20000];
-            else if (vehicleCategory === 'Berline') priceRange = [40000, 80000];
-            else priceRange = [0, 1000000]; // Fallback
-
-            const vehicleToSteal = await Vehicle.findOne({
-                where: { price: { [Op.between]: priceRange } },
-                order: sequelize.random(),
-            });
-
-            if (vehicleToSteal) {
-                await PlayerVehicle.create({ PlayerWhatsappId: player.whatsappId, VehicleId: vehicleToSteal.id });
-                await player.increment('xp', { by: 50 });
-                await sendWithImage(sock, jid, aiResponse.narrative + ` Tu as volé une ${vehicleToSteal.name} !`);
-            } else {
-                await sock.sendMessage(jid, { text: `Aucune voiture de catégorie "${vehicleCategory}" n'a été trouvée à voler.` });
-            }
-        } else {
-            await sendWithImage(sock, jid, aiResponse.narrative);
+          // Ajoutez d'autres mises à jour de joueur ici (vie, mana, location, etc.)
         }
         break;
-
-      case 'move':
-        const destination = aiResponse.parameters.destination;
-        if (locations[destination] && locations[player.location]?.connections.includes(destination)) {
-          await player.update({ location: destination });
-          await sendWithImage(sock, jid, aiResponse.narrative);
-        } else {
-          await sock.sendMessage(jid, { text: `Déplacement invalide vers '${destination}'.` });
-        }
-        break;
-
-      case 'buy_item':
-        const { itemName, quantity = 1 } = aiResponse.parameters;
-        const shop = await Shop.findOne({ where: { location: player.location } });
-
-        if (!shop) {
-            await sock.sendMessage(jid, { text: "Il n'y a pas de magasin ici." });
-            break;
-        }
-
-        const itemToBuy = await Item.findOne({ where: { name: { [Op.like]: itemName } } });
-        if (!itemToBuy) {
-            await sock.sendMessage(jid, { text: `Article "${itemName}" non trouvé.` });
-            break;
-        }
-
-        const totalPrice = itemToBuy.price * quantity;
-        if (player.money < totalPrice) {
-            await sock.sendMessage(jid, { text: `Tu n'as pas assez d'argent.` });
-            break;
-        }
-
-        player.money -= totalPrice;
-        const playerInventory = player.inventory;
-        const existingItem = playerInventory.find(i => i.name === itemToBuy.name);
+      case 'add_item':
+        const { itemName, quantity } = aiResponse.parameters;
+        const inventory = player.inventory;
+        const existingItem = inventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
         if (existingItem) {
             existingItem.quantity += quantity;
         } else {
-            playerInventory.push({ name: itemToBuy.name, quantity });
+            inventory.push({ name: itemName, quantity: quantity });
         }
-        player.inventory = playerInventory;
+        // Cette ligne est cruciale pour que Sequelize détecte le changement dans le champ JSON
+        player.changed('inventory', true);
         await player.save();
-
-        await sendWithImage(sock, jid, aiResponse.narrative);
         break;
-
-      case 'drive':
-        await sendWithImage(sock, jid, (await driveVehicle(player, aiResponse.parameters.vehicleId)).narrative);
-        break;
-
-      case 'narrate':
-      case 'error':
-        await sendWithImage(sock, jid, aiResponse.narrative || aiResponse.parameters.reason);
-        break;
-
-      default:
-        console.error("Action IA non reconnue:", { response: aiResponse });
-        await sock.sendMessage(jid, { text: `Action inconnue de l'IA: ${action}` });
     }
 
-    await checkMissionCompletion(sock, player, message);
+    await sendWithImage(sock, jid, aiResponse);
 
   } catch (error) {
-    console.error('Erreur avec Puter.js AI:', { message: error.message });
-    await sock.sendMessage(jid, { text: "Erreur de l'IA. Réessaye ton action." });
+    console.error('Erreur avec l\'API Puter.js:', error);
+    await sock.sendMessage(jid, { text: "Erreur critique du MJ. L'action n'a pas pu être traitée." });
   }
 }
 
-module.exports = { handleFreeAction, locations };
+module.exports = { handleFreeAction };
