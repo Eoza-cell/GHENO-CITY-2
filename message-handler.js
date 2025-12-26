@@ -1,33 +1,27 @@
-const { Puter } = require('@heyputer/puter.js');
+const axios = require('axios');
 
 /**
- * Converts a data URL to a Buffer.
- * @param {string} dataUrl The data URL to convert.
- * @returns {Buffer} The resulting buffer.
- */
-function dataUrlToBuffer(dataUrl) {
-    const base64 = dataUrl.split(',')[1];
-    return Buffer.from(base64, 'base64');
-}
-
-/**
- * Sends a message with an optional AI-generated image using Puter.js.
+ * Sends a message with an optional AI-generated image from Pollinations.ai.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
  */
 async function sendWithImage(sock, jid, aiResponse) {
-    const puter = new Puter(process.env.PUTER_API_KEY);
     const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
     const imagePrompt = aiResponse.imagePrompt;
 
     if (imagePrompt) {
         try {
-            console.log(`Génération d'image (Puter.js) pour le prompt : "${imagePrompt}"`);
-            const imageDataUrl = await puter.ai.txt2img(imagePrompt, { model: "nano-banana" });
-            const imageBuffer = dataUrlToBuffer(imageDataUrl);
+            // URL-encode the prompt to handle special characters
+            const encodedPrompt = encodeURIComponent(imagePrompt);
+            const imageUrl = `https://text.pollinations.ai/${encodedPrompt}`;
+            console.log(`Génération d'image (Pollinations.ai) pour le prompt : "${imagePrompt}" | URL: ${imageUrl}`);
 
-            if (imageBuffer) {
+            // Fetch the image as a buffer
+            const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+            const imageBuffer = Buffer.from(response.data, 'binary');
+
+            if (imageBuffer && imageBuffer.length > 0) {
                 await sock.sendMessage(jid, {
                     image: imageBuffer,
                     caption: narrative
@@ -37,7 +31,10 @@ async function sendWithImage(sock, jid, aiResponse) {
                 console.error("La génération d'image a échoué (buffer vide). Envoi du texte seul.");
             }
         } catch (error) {
-            console.error(`Erreur lors de la génération de l'image (Puter.js):`, error);
+            console.error(`Erreur lors de la génération de l'image (Pollinations.ai):`, {
+                message: error.message,
+                status: error.response?.status
+            });
         }
     }
 

@@ -20,13 +20,13 @@
   },
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
-    "@heyputer/puter.js": "^2.2.2",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "p-queue": "^6.6.2",
     "p-retry": "^4.6.2",
     "pino": "^10.1.0",
+    "random": "^5.4.1",
     "sequelize": "^6.37.7",
     "sharp": "^0.34.5",
     "sqlite3": "^5.1.7"

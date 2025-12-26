@@ -14,7 +14,7 @@ function getJid(message) {
 }
 
 const commands = new Map();
-const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_description'
+const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_description' | 'awaiting_profile_pic'
 
 // Command: /start
 commands.set('start', async (sock, message) => {
@@ -259,9 +259,9 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       } else if (registrationStep === 'awaiting_description') {
         const description = messageText.trim();
         if (description.length > 10 && description.length <= 150) {
-            await Player.update({ characterDescription: description }, { where: { whatsappId: jid } });
-            registrationState.delete(jid);
-            await sock.sendMessage(replyJid, { text: `Description enregistrée ! Bienvenue officiellement dans Skype. Ton aventure commence maintenant.\n\nUtilise /quests pour voir ton premier objectif.` });
+            await Player.update({ characterDescription: description, awaitingProfilePic: true }, { where: { whatsappId: jid } });
+            registrationState.delete(jid); // We'll handle the pic upload outside the registration flow
+            await sock.sendMessage(replyJid, { text: `Description enregistrée ! Pour terminer, envoie une image qui représentera ton personnage.` });
         } else {
             await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères). Réessaie." });
         }

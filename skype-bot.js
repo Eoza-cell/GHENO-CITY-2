@@ -4,12 +4,14 @@ require('dotenv').config();
 // Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const http = require('http');
-const { default: makeWASocket, delay, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { getMessageContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const fs = require('fs');
+const path = require('path');
 const { Sequelize } = require('sequelize');
-const { setupDatabase, Player, PlayerVehicle } = require('./database');
+const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
-const { handleCommand } = require('./command-handler');
+const { handleCommand, getJid } = require('./command-handler');
 const { startInactivePlayerCheck } = require('./inactive-handler');
 const { startDayNightCycle } = require('./game-state');
 
@@ -91,10 +93,46 @@ async function connectToWhatsApp() {
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('messages.upsert', async (m) => {
-    m.messages.forEach(async (message) => {
-      if (!message.message) return;
-      handleCommand(sock, message, downloadMediaMessage);
-    });
+    for (const message of m.messages) {
+        if (!message.message) continue;
+
+        const jid = getJid(message);
+        const player = await Player.findOne({ where: { whatsappId: jid } });
+
+        // Handle profile picture submission
+        if (player && player.awaitingProfilePic) {
+            const type = getMessageContentType(message.message);
+            if (type === 'imageMessage') {
+                try {
+                    console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
+                    const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
+                    const filename = `${jid.split('@')[0]}.jpg`;
+                    const filepath = path.join('assets', 'profiles', filename);
+
+                    fs.writeFileSync(filepath, buffer);
+
+                    await player.update({
+                        profilePicUrl: filepath,
+                        awaitingProfilePic: false
+                    });
+
+                    console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
+                    await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype. Ton aventure commence maintenant.\n\nUtilise /quests pour voir ton premier objectif.` });
+                    continue; // Stop further processing for this message
+                } catch (error) {
+                    console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
+                    await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
+                    continue;
+                }
+            } else {
+                 await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
+                 continue;
+            }
+        }
+
+        // If not a profile pic submission, handle as a normal command/message
+        handleCommand(sock, message, downloadMediaMessage);
+    }
   });
 }
 

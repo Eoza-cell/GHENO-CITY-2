@@ -92,6 +92,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     allowNull: true,
   },
+  awaitingProfilePic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  profilePicUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 });
 
 const Dungeon = sequelize.define('Dungeon', {
