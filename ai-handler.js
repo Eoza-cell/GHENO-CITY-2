@@ -1,10 +1,7 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, sequelize } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
-const Puter = require('@heyputer/puter.js');
-
-// Assurez-vous que PUTER_API_KEY est défini dans votre .env
-const puter = new Puter(process.env.PUTER_API_KEY);
+const axios = require('axios');
 
 
 async function handleFreeAction(sock, message, player, actionText) {
@@ -58,18 +55,23 @@ async function handleFreeAction(sock, message, player, actionText) {
     const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${questState}\n${dungeonState}\n\nACTION DU JOUEUR: ${actionText}`;
 
   try {
-    // Correction: Utilisation de puter.ai.chat pour la génération de texte/JSON
-    const response = await puter.ai.chat(
-      "pollination/flan-t5-xxl",
-      {
-        system: systemPrompt,
-        prompt: fullPrompt,
-        stream: false,
-      }
+    const payload = {
+      model: "gpt-4",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: fullPrompt }
+      ],
+    };
+
+    const response = await axios.post(
+      "https://text.pollinations.ai/openai",
+      payload,
+      { headers: { 'Content-Type': 'application/json' } }
     );
 
-    // La réponse de puter.ai.chat est une chaîne JSON, nous devons la parser.
-    const aiResponse = JSON.parse(response);
+    const responseContent = response.data.choices[0].message.content;
+
+    const aiResponse = JSON.parse(responseContent);
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
 
     if (!aiResponse.narrative) {

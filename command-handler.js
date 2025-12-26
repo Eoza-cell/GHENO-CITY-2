@@ -311,4 +311,4 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   }
 }
 
-module.exports = { handleCommand };
+module.exports = { handleCommand, getJid };
