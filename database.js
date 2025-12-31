@@ -159,6 +159,28 @@ const Bank = sequelize.define('Bank', {
     }
 });
 
+const Equipment = sequelize.define('Equipment', {
+    name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    level: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+    },
+    category: { // 'Weapon' or 'Armor'
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    type: { // e.g., 'Swords', 'Rapiers', 'Upper Body', 'Lower Body'
+        type: DataTypes.STRING,
+        allowNull: false,
+    },
+    source: {
+        type: DataTypes.STRING,
+    },
+});
+
 // Relationships
 Player.hasOne(Bank);
 Bank.belongsTo(Player);
@@ -209,5 +231,6 @@ module.exports = {
   PlayerQuest,
   Bank,
   Creds,
+  Equipment,
   setupDatabase,
 };
