@@ -42,14 +42,21 @@ async function handleFreeAction(sock, message, player, actionText) {
     4.  **Conséquences Lourdes**: Les échecs ont des conséquences graves. Un mauvais choix peut entraîner la perte d'objets, de Col, ou même attirer des ennemis puissants.
     5.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide. Commence ta réponse par '{' et finis par '}'.
 
-    // L'exemple JSON a été retiré pour éviter les erreurs de syntaxe.
-    // Le format attendu est un objet JSON avec une clé "action" et d'autres paramètres pertinents.
+    STRUCTURE JSON ATTENDUE :
+    {
+      "narrative": "Une description textuelle de ce qui se passe. C'est obligatoire.",
+      "imagePrompt": "Un prompt court pour générer une image illustrant la scène. C'est optionnel.",
+      "action": "type_action",
+      "parameters": { ... }
+    }
 
-    TYPES D'ACTIONS (JSON):
-    - "action": "update_player", "parameters": {"col_change": montant, "xp_gain": montant, "health_change": montant, "mana_change": montant, "new_location": "nom_lieu"}
-    - "action": "add_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
-    - "action": "remove_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
-    - "action": "narrate"
+    TYPES D'ACTIONS POSSIBLES DANS LE JSON :
+    - "narrate": Ne fait que raconter l'histoire.
+    - "update_player": Modifie les stats du joueur. Ex: "parameters": {"col_change": -10, "xp_gain": 50, "health_change": -20}
+    - "add_item": Ajoute un objet à l'inventaire. Ex: "parameters": {"itemName": "Potion de vie", "quantity": 1}
+    - "remove_item": Retire un objet. Ex: "parameters": {"itemName": "Épée rouillée", "quantity": 1}
+
+    IMPORTANT : Ta réponse doit TOUJOURS contenir une clé "narrative".
   `;
 
     const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${questState}\n${dungeonState}\n\nACTION DU JOUEUR: ${actionText}`;
@@ -105,7 +112,13 @@ async function handleFreeAction(sock, message, player, actionText) {
     await sendWithImage(sock, jid, aiResponse);
 
   } catch (error) {
-    console.error('Erreur avec l\'API Pollination AI:', error);
+    console.error('Erreur détaillée de l\'API Pollination AI:', {
+      message: error.message,
+      data: error.response?.data,
+      status: error.response?.status,
+      headers: error.response?.headers,
+      requestData: error.config?.data,
+    });
     await sock.sendMessage(jid, { text: "Erreur critique du MJ. L'action n'a pas pu être traitée." });
   }
 }
