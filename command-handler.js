@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Equipment } = require('./database');
 const { handleFreeAction } = require('./ai-handler');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
@@ -310,5 +310,59 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     await sock.sendMessage(replyJid, { text: "Commande inconnue. Tape /help pour voir la liste des commandes." });
   }
 }
+// Command: /equipement
+commands.set('equipement', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
 
-module.exports = { handleCommand };
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
+
+    if (args.length === 0) {
+        await sock.sendMessage(replyJid, { text: "Veuillez spécifier le nom de l'équipement que vous recherchez.\nEx: `/equipement Bronze Sword`" });
+        return;
+    }
+
+    const searchQuery = args.join(' ');
+
+    // Case-insensitive exact match
+    const exactMatch = await Equipment.findOne({
+        where: {
+            name: {
+                [Op.like]: searchQuery
+            }
+        }
+    });
+
+    if (exactMatch) {
+        let details = `*${exactMatch.name}*\n\n` +
+                      `*Catégorie:* ${exactMatch.category}\n` +
+                      `*Type:* ${exactMatch.type}\n` +
+                      `*Niveau:* ${exactMatch.level}\n` +
+                      `*Source:* ${exactMatch.source}`;
+        await sock.sendMessage(replyJid, { text: details });
+        return;
+    }
+
+    // Case-insensitive partial match
+    const partialMatches = await Equipment.findAll({
+        where: {
+            name: {
+                [Op.like]: `%${searchQuery}%`
+            }
+        },
+        limit: 5
+    });
+
+    if (partialMatches.length > 0) {
+        const suggestions = partialMatches.map(eq => `- ${eq.name}`).join('\n');
+        await sock.sendMessage(replyJid, { text: `Aucun équipement exact trouvé. Suggestions:\n\n${suggestions}` });
+    } else {
+        await sock.sendMessage(replyJid, { text: `Aucun équipement trouvé pour "${searchQuery}".` });
+    }
+});
+
+module.exports = { handleCommand, getJid };

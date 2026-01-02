@@ -4,7 +4,7 @@ require('dotenv').config();
 // Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const http = require('http');
-const { getMessageContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket } = require('@whiskeysockets/baileys');
+const { delay, downloadMediaMessage, makeWASocket } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -101,13 +101,18 @@ async function connectToWhatsApp() {
 
         // Handle profile picture submission
         if (player && player.awaitingProfilePic) {
-            const type = getMessageContentType(message.message);
-            if (type === 'imageMessage') {
+            if (message.message && message.message.imageMessage) {
                 try {
                     console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
                     const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
                     const filename = `${jid.split('@')[0]}.jpg`;
-                    const filepath = path.join('assets', 'profiles', filename);
+                    const profilesDir = path.join('assets', 'profiles');
+                    const filepath = path.join(profilesDir, filename);
+
+                    // S'assurer que le répertoire des profils existe
+                    if (!fs.existsSync(profilesDir)) {
+                        fs.mkdirSync(profilesDir, { recursive: true });
+                    }
 
                     fs.writeFileSync(filepath, buffer);
 

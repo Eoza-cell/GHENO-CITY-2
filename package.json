@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node skype-bot.js",
-    "test": "echo \"No tests specified\" && exit 0"
+    "test": "echo \"No tests specified\" && exit 0",
+    "scrape": "node scraper.js"
   },
   "repository": {
     "type": "git",
@@ -22,6 +23,7 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.13.2",
+    "cheerio": "^1.1.2",
     "dotenv": "^17.2.3",
     "p-queue": "^6.6.2",
     "p-retry": "^4.6.2",
