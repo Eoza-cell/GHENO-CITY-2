@@ -56,7 +56,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   try {
     const payload = {
-      model: "gpt-4",
+      model: "openai",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: fullPrompt }
@@ -105,7 +105,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     await sendWithImage(sock, jid, aiResponse);
 
   } catch (error) {
-    console.error('Erreur avec l\'API Puter.js:', error);
+    console.error('Erreur avec l\'API Pollination AI:', error);
     await sock.sendMessage(jid, { text: "Erreur critique du MJ. L'action n'a pas pu être traitée." });
   }
 }
