@@ -9,7 +9,11 @@ async function generateImageFromPrompt(prompt) {
 
     // Génère l'image en utilisant Puter.js
     // La fonction txt2img renvoie un élément <img> HTMLImageElement
-    const imageElement = await puter.ai.txt2img(prompt);
+    const imageElement = await puter.ai.txt2img({
+      prompt: prompt,
+      model: 'grok-2-image',
+      provider: 'xai',
+    });
 
     // Pour obtenir les données brutes de l'image, nous devons extraire le contenu de l'attribut `src`,
     // qui est une URL de données (data URL) encodée en Base64.
