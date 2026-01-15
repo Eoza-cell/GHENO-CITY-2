@@ -134,6 +134,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     );
 
     const rawResponse = response.data.choices[0].message.content;
+    console.log('Réponse brute de Pollination AI:', rawResponse);
 
     let aiResponse;
     try {

@@ -15,6 +15,8 @@ async function generateImageFromPrompt(prompt) {
       provider: 'xai',
     });
 
+    console.log('Réponse brute de Puter.js:', imageElement);
+
     // Pour obtenir les données brutes de l'image, nous devons extraire le contenu de l'attribut `src`,
     // qui est une URL de données (data URL) encodée en Base64.
     const src = imageElement.src;
