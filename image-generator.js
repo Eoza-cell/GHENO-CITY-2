@@ -5,7 +5,7 @@ async function generateImageFromPrompt(prompt) {
     console.log(`[Puter.js] Demande de génération d'image pour : ${prompt}`);
 
     // Initialise Puter.js
-    const puter = new Puter();
+    const puter = new Puter(process.env.PUTER_API_KEY);
 
     // Génère l'image en utilisant Puter.js
     // La fonction txt2img renvoie un élément <img> HTMLImageElement
