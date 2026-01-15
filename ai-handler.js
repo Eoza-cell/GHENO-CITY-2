@@ -9,7 +9,7 @@ const {
   parkVehicle,
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
-const { Puter } = require('@heyputer/puter.js');
+const axios = require('axios');
 
 // Location data for AI context
 const locations = {
@@ -33,7 +33,6 @@ const locations = {
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const puter = new Puter();
 
   // 1. Build the context for the AI
   const playerState = `
@@ -113,9 +112,28 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
-    const fullPrompt = `${systemPrompt}\n\nACTION DU JOUEUR: ${actionText}`;
-    const response = await puter.ai.chat(fullPrompt, { model: "gpt-4" });
-    const rawResponse = response.text;
+    const payload = {
+      model: "openai/gpt-4",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: actionText }
+      ],
+      max_tokens: 1024,
+      response_format: { type: "json_object" },
+    };
+
+    const response = await axios.post(
+      'https://gen.pollinations.ai/v1/chat/completions',
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.POLLINATION_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const rawResponse = response.data.choices[0].message.content;
 
     let aiResponse;
     try {
