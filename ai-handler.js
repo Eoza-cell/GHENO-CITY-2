@@ -1,6 +1,6 @@
 const { Player, Vehicle, PlayerVehicle, Shop, Item, ShopItem, sequelize } = require('./database');
 const { isDay } = require('./game-state');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, sendAnimatedMessage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
 const {
   accelerateVehicle,
