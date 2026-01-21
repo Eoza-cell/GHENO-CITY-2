@@ -71,6 +71,51 @@ const missions = {
       },
     },
   },
+  2: { // Chapter 2
+    title: "L'Ombre du Pouvoir",
+    quests: {
+      1: {
+        title: "La proposition",
+        objective: "Maintenant que tu fais partie de l'organisation, le caïd a une mission plus sérieuse pour toi. Il veut que tu ailles au concessionnaire et que tu voles une voiture de sport. Il a besoin de quelque chose de rapide pour un travail.",
+        reward: {
+          xp: 250,
+        },
+        completionCondition: async (player) => {
+          const sportVehicle = await PlayerVehicle.findOne({
+            where: { PlayerWhatsappId: player.whatsappId },
+            include: {
+              model: Vehicle,
+              where: { category: 'Sportive' }
+            }
+          });
+          return !!sportVehicle;
+        },
+        narrativeOnComplete: "La voiture de sport est un monstre de puissance. Tu l'as ramenée à la planque, et le caïd est impressionné. 'Pas mal,' dit-il. 'Maintenant, le vrai travail commence.'",
+        nextQuest: 2,
+      },
+      2: {
+        title: "Le guet-apens",
+        objective: "Le caïd a repéré une transaction rivale qui aura lieu à Downtown. Il veut que tu y ailles et que tu voles l'argent. Sois prudent, ça pourrait mal tourner.",
+        reward: {
+          xp: 300,
+          money: 5000,
+        },
+        completionCondition: (player) => player.location === 'Downtown' && player.money >= 7000, // Assuming player had 2000 from previous chapter
+        narrativeOnComplete: "L'embuscade a été un succès. Tu as réussi à t'emparer de l'argent et à t'échapper avant que les choses ne dégénèrent. Le caïd est satisfait de ton travail.",
+        nextQuest: 3,
+      },
+      3: {
+        title: "La Célébration",
+        objective: "Après ce coup réussi, il est temps de célébrer. Le caïd t'invite à prendre un verre à Little Sicily. C'est une occasion de renforcer ta position.",
+        reward: {
+            xp: 100,
+        },
+        completionCondition: (player) => player.location === 'Little Sicily',
+        narrativeOnComplete: "Le bar est bruyant et enfumé. Tu partages un verre avec le caïd, qui te considère maintenant comme un membre précieux de son équipe. Tu as gagné son respect.",
+        nextQuest: null, // Fin du chapitre 2
+      },
+    },
+  },
 };
 
 function getMission(chapter, questId) {

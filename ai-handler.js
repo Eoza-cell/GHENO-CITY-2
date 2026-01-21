@@ -1,6 +1,6 @@
 const { Player, Vehicle, PlayerVehicle, Shop, Item, ShopItem, sequelize } = require('./database');
 const { isDay } = require('./game-state');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, sendAnimatedMessage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
 const {
   accelerateVehicle,
@@ -9,7 +9,8 @@ const {
   parkVehicle,
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
-const { Puter } = require('@heyputer/puter.js');
+const axios = require('axios');
+const API_KEY = process.env.POLLINATION_API_KEY;
 
 // Location data for AI context
 const locations = {
@@ -33,7 +34,11 @@ const locations = {
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const puter = new Puter();
+
+  if (!API_KEY) {
+    await sock.sendMessage(jid, { text: "La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env." });
+    return;
+  }
 
   // 1. Build the context for the AI
   const playerState = `
@@ -113,17 +118,37 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
-    const fullPrompt = `${systemPrompt}\n\nACTION DU JOUEUR: ${actionText}`;
-    const response = await puter.ai.chat(fullPrompt, { model: "gpt-4" });
-    const rawResponse = response.text;
+    const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
+
+    const response = await axios.post(
+      'https://text.pollinations.ai/openai',
+      {
+        "model": "openai",
+        "messages": [
+          { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
+          { "role": "user", "content": systemPrompt }
+        ]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        }
+      }
+    );
+
+    let aiResponseText = response.data.choices[0].message.content;
+
+    // Clean the response to ensure it's valid JSON
+    aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let aiResponse;
     try {
-      aiResponse = JSON.parse(rawResponse);
+      aiResponse = JSON.parse(aiResponseText);
     } catch (parseError) {
-      console.error('Erreur de parsing JSON de la réponse IA:', { rawResponse, error: parseError.message });
-      await sock.sendMessage(jid, { text: "L'IA a renvoyé une réponse malformée. Réessayez." });
-      return;
+      console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
+      // If parsing fails, wrap the raw string in a narrate action.
+      aiResponse = { action: 'narrate', narrative: aiResponseText };
     }
 
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
@@ -211,6 +236,18 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sendWithImage(sock, jid, (await driveVehicle(player, aiResponse.parameters.vehicleId)).narrative);
         break;
 
+      case 'park':
+        await sendWithImage(sock, jid, (await parkVehicle(player)).narrative);
+        break;
+
+      case 'accelerate':
+        await sendWithImage(sock, jid, (await accelerateVehicle(player)).narrative);
+        break;
+
+      case 'brake':
+        await sendWithImage(sock, jid, (await brakeVehicle(player)).narrative);
+        break;
+
       case 'narrate':
       case 'error':
         await sendWithImage(sock, jid, aiResponse.narrative || aiResponse.parameters.reason);
@@ -224,8 +261,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     await checkMissionCompletion(sock, player, message);
 
   } catch (error) {
-    console.error('Erreur avec Puter.js AI:', { message: error.message });
-    await sock.sendMessage(jid, { text: "Erreur de l'IA. Réessaye ton action." });
+    console.error("Erreur lors de l'interaction avec Pollination AI:", error.response ? error.response.data : error.message);
+    await sock.sendMessage(jid, { text: "Désolé, une erreur s'est produite lors de la connexion à l'IA. Veuillez réessayer." });
   }
 }
 
