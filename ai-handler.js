@@ -10,6 +10,10 @@ const {
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
 const axios = require('axios');
+const API_KEY = process.env.STABLE_HORDE_API_KEY || '0000000000';
+
+// Helper function to delay execution
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Location data for AI context
 const locations = {
@@ -30,6 +34,17 @@ const locations = {
     connections: ['dealership'],
   }
 };
+
+async function checkTextStatus(id) {
+    try {
+        const response = await axios.get(`https://stablehorde.net/api/v2/generate/text/status/${id}`);
+        return response.data;
+    } catch (error) {
+        console.error(`Erreur lors de la vérification du statut du texte pour l'ID ${id}:`, error.message);
+        await sleep(3000);
+        return checkTextStatus(id);
+    }
+}
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -112,29 +127,57 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
-    const payload = {
-      model: "openai/gpt-4",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: actionText }
-      ],
-      max_tokens: 1024,
-      response_format: { type: "json_object" },
-    };
-
-    const response = await axios.post(
-      'https://gen.pollinations.ai/v1/chat/completions',
-      payload,
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.POLLINATION_API_KEY}`,
-          'Content-Type': 'application/json'
+    const initialResponse = await axios.post(
+        "https://stablehorde.net/api/v2/generate/text/async",
+        {
+            prompt: systemPrompt,
+            params: {
+                max_length: 1024,
+                temperature: 0.8,
+                top_p: 0.9,
+            },
+            models: ["koboldcpp", "llama", "mistral"],
+            trusted_workers: false,
+        },
+        {
+            headers: {
+                "Content-Type": "application/json",
+                "apikey": API_KEY,
+            },
         }
-      }
     );
 
-    const rawResponse = response.data.choices[0].message.content;
-    console.log('Réponse brute de Pollination AI:', rawResponse);
+    const generationId = initialResponse.data.id;
+    if (!generationId) {
+        throw new Error("N'a pas pu obtenir l'ID de génération de texte de Stable Horde.");
+    }
+    console.log(`[Stable Horde] ID de génération de texte obtenu : ${generationId}`);
+
+    let attempts = 0;
+    const maxAttempts = 40; // Poll for a maximum of 2 minutes (40 * 3s)
+    let rawResponse = "";
+
+    while (attempts < maxAttempts) {
+        await sleep(3000);
+        const status = await checkTextStatus(generationId);
+
+        if (status.done) {
+            console.log(`[Stable Horde] Génération de texte terminée pour l'ID : ${generationId}`);
+            if (status.generations && status.generations.length > 0) {
+                rawResponse = status.generations[0].text;
+                break;
+            } else {
+                throw new Error("La génération de texte a été terminée mais aucun texte n'a été retourné.");
+            }
+        } else {
+            console.log(`[Stable Horde] Génération de texte en cours...`);
+        }
+        attempts++;
+    }
+
+    if (!rawResponse) {
+        throw new Error("La génération de texte a expiré après 2 minutes.");
+    }
 
     let aiResponse;
     try {
@@ -243,7 +286,9 @@ async function handleFreeAction(sock, message, player, actionText) {
     await checkMissionCompletion(sock, player, message);
 
   } catch (error) {
-    console.error('Erreur avec Puter.js AI:', { message: error.message });
+    console.error('Erreur avec Stable Horde AI:', {
+        message: error.response ? error.response.data : error.message
+    });
     await sock.sendMessage(jid, { text: "Erreur de l'IA. Réessaye ton action." });
   }
 }
