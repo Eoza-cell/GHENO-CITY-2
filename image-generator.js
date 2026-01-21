@@ -1,33 +1,56 @@
 const axios = require('axios');
-const API_KEY = process.env.POLLINATION_API_KEY;
 
 async function generateImageFromPrompt(prompt) {
-  if (!API_KEY) {
-    throw new Error("La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env.");
-  }
-
-  console.log(`[Pollination] Demande de génération d'image pour : ${prompt}`);
+  console.log(`[subnp] Demande de génération d'image pour : ${prompt}`);
   try {
-    const encodedPrompt = encodeURIComponent(prompt);
-    const url = `https://gen.pollinations.ai/image/${encodedPrompt}?model=flux`;
+    const url = `https://subnp.com/api/free/generate`;
 
-    const response = await axios.get(url, {
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`
-      },
-      responseType: 'arraybuffer' // Important pour recevoir les données de l'image
+    const response = await axios.post(url, { prompt }, {
+      responseType: 'text'
     });
 
-    // Les données de l'image sont directement dans response.data
-    const imageBuffer = Buffer.from(response.data);
-    return imageBuffer;
+    const responseText = response.data;
+
+    // The API returns a stream of JSON objects as a single text response.
+    // We need to parse this text to find the relevant information.
+    const lines = responseText.trim().split('\n');
+    const jsonEvents = lines
+      .map(line => line.replace(/^data: /, ''))
+      .map(line => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          // Ignore lines that are not valid JSON.
+          return null;
+        }
+      })
+      .filter(Boolean); // Remove null entries.
+
+    const errorEvent = jsonEvents.find(event => event.status === 'error');
+    if (errorEvent) {
+      // The API reported a specific error, so we'll use its message.
+      throw new Error(errorEvent.message || 'Le service d\'images a échoué à générer une image.');
+    }
+
+    // Based on observed behavior, a successful generation includes an event with a 'url' field.
+    const successEvent = jsonEvents.find(event => event.url);
+    if (successEvent && successEvent.url) {
+      // We found the image URL, now we download the image data.
+      const imageResponse = await axios.get(successEvent.url, { responseType: 'arraybuffer' });
+      return Buffer.from(imageResponse.data);
+    } else {
+      // If there's no error and no success event, the API's response is ambiguous.
+      // We'll throw a generic error to the user.
+      throw new Error('La réponse du service d\'images n\'a pas pu être traitée.');
+    }
 
   } catch (error) {
-    console.error("Erreur détaillée lors de la génération de l'image avec Pollination:", {
-        message: error.response ? error.response.data.toString() : error.message,
+    console.error("Erreur détaillée lors de la génération de l'image avec subnp:", {
+        message: error.response ? error.response.data : error.message,
         prompt: prompt,
     });
-    throw error;
+    // Provide a user-friendly error message, hiding the implementation details.
+    throw new Error("Le service de génération d'images est actuellement indisponible ou a rencontré une erreur.");
   }
 }
 
