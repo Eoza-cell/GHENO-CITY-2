@@ -46,4 +46,27 @@ async function sendWithImage(sock, jid, text) {
   }
 }
 
-module.exports = { sendWithImage };
+/**
+ * Sends and animates a message to show a "loading" effect.
+ * It repeatedly edits the message with a sequence of dots.
+ * @param {any} sock The Baileys socket instance.
+ * @param {string} jid The recipient JID.
+ * @param {string} baseText The base text of the loading message.
+ * @returns {Promise<object>} A promise that resolves with the final message object.
+ */
+async function sendAnimatedMessage(sock, jid, baseText) {
+  // Send the initial message
+  const sentMsg = await sock.sendMessage(jid, { text: baseText });
+  const messageKey = sentMsg.key;
+
+  // Animate the message
+  for (let i = 0; i < 3; i++) {
+    await new Promise(resolve => setTimeout(resolve, 500)); // 0.5 second delay
+    const animatedText = baseText + '.'.repeat(i + 1);
+    await sock.sendMessage(jid, { text: animatedText, edit: messageKey });
+  }
+
+  return sentMsg;
+}
+
+module.exports = { sendWithImage, sendAnimatedMessage };
