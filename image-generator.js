@@ -1,85 +1,34 @@
 const axios = require('axios');
-const API_KEY = process.env.STABLE_HORDE_API_KEY || '0000000000';
-
-// Helper function to delay execution
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Function to check the status of a generation request
-async function checkGenerationStatus(id) {
-  try {
-    const response = await axios.get(`https://stablehorde.net/api/v2/generate/status/${id}`);
-    return response.data;
-  } catch (error) {
-    console.error(`Erreur lors de la vérification du statut pour l'ID ${id}:`, error.message);
-    // If status check fails, retry after a delay
-    await sleep(5000);
-    return checkGenerationStatus(id);
-  }
-}
-
+const API_KEY = process.env.POLLINATION_API_KEY;
 
 async function generateImageFromPrompt(prompt) {
-    console.log(`[Stable Horde] Demande de génération d'image pour : ${prompt}`);
-    try {
-        // 1. Make the initial request to generate the image asynchronously
-        const initialResponse = await axios.post(
-            "https://stablehorde.net/api/v2/generate/async",
-            {
-                prompt: prompt,
-                params: {
-                    width: 512,
-                    height: 512,
-                    steps: 25,
-                },
-                nsfw: false,
-                models: ["stable_diffusion"],
-            },
-            {
-                headers: {
-                    "Content-Type": "application/json",
-                    "apikey": API_KEY,
-                },
-            }
-        );
+  if (!API_KEY) {
+    throw new Error("La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env.");
+  }
 
-        const generationId = initialResponse.data.id;
-        if (!generationId) {
-            throw new Error("N'a pas pu obtenir l'ID de génération de Stable Horde.");
-        }
-        console.log(`[Stable Horde] ID de génération obtenu : ${generationId}`);
+  console.log(`[Pollination] Demande de génération d'image pour : ${prompt}`);
+  try {
+    const encodedPrompt = encodeURIComponent(prompt);
+    const url = `https://gen.pollinations.ai/image/${encodedPrompt}?model=flux`;
 
-        // 2. Poll for the result
-        let attempts = 0;
-        const maxAttempts = 60; // Poll for a maximum of 5 minutes (60 * 5s)
-        while (attempts < maxAttempts) {
-            await sleep(5000); // Wait 5 seconds between checks
-            const status = await checkGenerationStatus(generationId);
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`
+      },
+      responseType: 'arraybuffer' // Important pour recevoir les données de l'image
+    });
 
-            if (status.done) {
-                console.log(`[Stable Horde] Génération terminée pour l'ID : ${generationId}`);
-                if (status.generations && status.generations.length > 0) {
-                    const imgBase64 = status.generations[0].img;
-                    const imageBuffer = Buffer.from(imgBase64, "base64");
-                    return imageBuffer;
-                } else {
-                    throw new Error("La génération a été terminée par Stable Horde mais aucune image n'a été retournée.");
-                }
-            } else {
-                const queuePosition = status.queue_position;
-                const waitTime = status.wait_time;
-                console.log(`[Stable Horde] En attente... Position dans la file : ${queuePosition}, Temps d'attente estimé : ${waitTime}s`);
-            }
-            attempts++;
-        }
-        throw new Error("La génération d'image a expiré après 5 minutes.");
+    // Les données de l'image sont directement dans response.data
+    const imageBuffer = Buffer.from(response.data);
+    return imageBuffer;
 
-    } catch (error) {
-        console.error("Erreur détaillée lors de la génération de l'image avec Stable Horde:", {
-            message: error.response ? error.response.data : error.message,
-            prompt: prompt,
-        });
-        throw error;
-    }
+  } catch (error) {
+    console.error("Erreur détaillée lors de la génération de l'image avec Pollination:", {
+        message: error.response ? error.response.data.toString() : error.message,
+        prompt: prompt,
+    });
+    throw error;
+  }
 }
 
 module.exports = { generateImageFromPrompt };

@@ -10,10 +10,7 @@ const {
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
 const axios = require('axios');
-const API_KEY = process.env.STABLE_HORDE_API_KEY || '0000000000';
-
-// Helper function to delay execution
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const API_KEY = process.env.POLLINATION_API_KEY;
 
 // Location data for AI context
 const locations = {
@@ -35,19 +32,13 @@ const locations = {
   }
 };
 
-async function checkTextStatus(id) {
-    try {
-        const response = await axios.get(`https://stablehorde.net/api/v2/generate/text/status/${id}`);
-        return response.data;
-    } catch (error) {
-        console.error(`Erreur lors de la vérification du statut du texte pour l'ID ${id}:`, error.message);
-        await sleep(3000);
-        return checkTextStatus(id);
-    }
-}
-
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
+
+  if (!API_KEY) {
+    await sock.sendMessage(jid, { text: "La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env." });
+    return;
+  }
 
   // 1. Build the context for the AI
   const playerState = `
@@ -127,65 +118,37 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
-    const initialResponse = await axios.post(
-        "https://stablehorde.net/api/v2/generate/text/async",
-        {
-            prompt: systemPrompt,
-            params: {
-                max_length: 1024,
-                temperature: 0.8,
-                top_p: 0.9,
-            },
-            models: ["koboldcpp", "llama", "mistral"],
-            trusted_workers: false,
-        },
-        {
-            headers: {
-                "Content-Type": "application/json",
-                "apikey": API_KEY,
-            },
+    const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
+
+    const response = await axios.post(
+      'https://text.pollinations.ai/openai',
+      {
+        "model": "openai",
+        "messages": [
+          { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
+          { "role": "user", "content": systemPrompt }
+        ]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
         }
+      }
     );
 
-    const generationId = initialResponse.data.id;
-    if (!generationId) {
-        throw new Error("N'a pas pu obtenir l'ID de génération de texte de Stable Horde.");
-    }
-    console.log(`[Stable Horde] ID de génération de texte obtenu : ${generationId}`);
+    let aiResponseText = response.data.choices[0].message.content;
 
-    let attempts = 0;
-    const maxAttempts = 40; // Poll for a maximum of 2 minutes (40 * 3s)
-    let rawResponse = "";
-
-    while (attempts < maxAttempts) {
-        await sleep(3000);
-        const status = await checkTextStatus(generationId);
-
-        if (status.done) {
-            console.log(`[Stable Horde] Génération de texte terminée pour l'ID : ${generationId}`);
-            if (status.generations && status.generations.length > 0) {
-                rawResponse = status.generations[0].text;
-                break;
-            } else {
-                throw new Error("La génération de texte a été terminée mais aucun texte n'a été retourné.");
-            }
-        } else {
-            console.log(`[Stable Horde] Génération de texte en cours...`);
-        }
-        attempts++;
-    }
-
-    if (!rawResponse) {
-        throw new Error("La génération de texte a expiré après 2 minutes.");
-    }
+    // Clean the response to ensure it's valid JSON
+    aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let aiResponse;
     try {
-      aiResponse = JSON.parse(rawResponse);
+      aiResponse = JSON.parse(aiResponseText);
     } catch (parseError) {
-      console.error('Erreur de parsing JSON de la réponse IA:', { rawResponse, error: parseError.message });
-      await sock.sendMessage(jid, { text: "L'IA a renvoyé une réponse malformée. Réessayez." });
-      return;
+      console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
+      // If parsing fails, wrap the raw string in a narrate action.
+      aiResponse = { action: 'narrate', narrative: aiResponseText };
     }
 
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
@@ -273,6 +236,18 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sendWithImage(sock, jid, (await driveVehicle(player, aiResponse.parameters.vehicleId)).narrative);
         break;
 
+      case 'park':
+        await sendWithImage(sock, jid, (await parkVehicle(player)).narrative);
+        break;
+
+      case 'accelerate':
+        await sendWithImage(sock, jid, (await accelerateVehicle(player)).narrative);
+        break;
+
+      case 'brake':
+        await sendWithImage(sock, jid, (await brakeVehicle(player)).narrative);
+        break;
+
       case 'narrate':
       case 'error':
         await sendWithImage(sock, jid, aiResponse.narrative || aiResponse.parameters.reason);
@@ -286,10 +261,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     await checkMissionCompletion(sock, player, message);
 
   } catch (error) {
-    console.error('Erreur avec Stable Horde AI:', {
-        message: error.response ? error.response.data : error.message
-    });
-    await sock.sendMessage(jid, { text: "Erreur de l'IA. Réessaye ton action." });
+    console.error("Erreur lors de l'interaction avec Pollination AI:", error.response ? error.response.data : error.message);
+    await sock.sendMessage(jid, { text: "Désolé, une erreur s'est produite lors de la connexion à l'IA. Veuillez réessayer." });
   }
 }
 
