@@ -10,7 +10,9 @@ const {
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
 const axios = require('axios');
-const API_KEY = process.env.POLLINATION_API_KEY;
+const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
+const TEXT_GENERATION_MODEL_URL = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1";
+
 
 // Location data for AI context
 const locations = {
@@ -35,8 +37,8 @@ const locations = {
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
-  if (!API_KEY) {
-    await sock.sendMessage(jid, { text: "La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env." });
+  if (!HUGGINGFACE_API_KEY) {
+    await sock.sendMessage(jid, { text: "La clé API de Hugging Face n'est pas configurée. Veuillez la définir dans le fichier .env (HUGGINGFACE_API_KEY)." });
     return;
   }
 
@@ -121,23 +123,23 @@ async function handleFreeAction(sock, message, player, actionText) {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
     const response = await axios.post(
-      'https://text.pollinations.ai/openai',
+      TEXT_GENERATION_MODEL_URL,
       {
-        "model": "openai",
-        "messages": [
-          { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
-          { "role": "user", "content": systemPrompt }
-        ]
+        inputs: systemPrompt,
+        parameters: {
+          return_full_text: false, // Ne retourne que le texte généré
+          max_new_tokens: 512,      // Limite la longueur de la réponse
+        }
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${HUGGINGFACE_API_KEY}`
         }
       }
     );
 
-    let aiResponseText = response.data.choices[0].message.content;
+    let aiResponseText = response.data[0].generated_text;
 
     // Clean the response to ensure it's valid JSON
     aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
