@@ -10,9 +10,6 @@ const {
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
 const axios = require('axios');
-const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
-const TEXT_GENERATION_MODEL_URL = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1";
-
 
 // Location data for AI context
 const locations = {
@@ -36,11 +33,6 @@ const locations = {
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-
-  if (!HUGGINGFACE_API_KEY) {
-    await sock.sendMessage(jid, { text: "La clé API de Hugging Face n'est pas configurée. Veuillez la définir dans le fichier .env (HUGGINGFACE_API_KEY)." });
-    return;
-  }
 
   // 1. Build the context for the AI
   const playerState = `
@@ -122,24 +114,13 @@ async function handleFreeAction(sock, message, player, actionText) {
   try {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
-    const response = await axios.post(
-      TEXT_GENERATION_MODEL_URL,
-      {
-        inputs: systemPrompt,
-        parameters: {
-          return_full_text: false, // Ne retourne que le texte généré
-          max_new_tokens: 512,      // Limite la longueur de la réponse
-        }
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${HUGGINGFACE_API_KEY}`
-        }
-      }
-    );
+    const encodedPrompt = encodeURIComponent(systemPrompt);
+    const url = `https://text.pollinations.ai/${encodedPrompt}`;
 
-    let aiResponseText = response.data[0].generated_text;
+    const response = await axios.get(url);
+
+    // La réponse de cette API est directement le texte brut
+    let aiResponseText = response.data;
 
     // Clean the response to ensure it's valid JSON
     aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();

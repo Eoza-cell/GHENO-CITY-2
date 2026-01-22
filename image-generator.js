@@ -1,33 +1,24 @@
 const axios = require('axios');
-const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
-const IMAGE_GENERATION_MODEL_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0";
 
 async function generateImageFromPrompt(prompt) {
-  if (!HUGGINGFACE_API_KEY) {
-    throw new Error("La clé API de Hugging Face n'est pas configurée.");
-  }
-
-  console.log(`[Hugging Face] Demande de génération d'image pour : ${prompt}`);
+  console.log(`[Pollinations] Demande de génération d'image pour : ${prompt}`);
   try {
-    const response = await axios.post(
-      IMAGE_GENERATION_MODEL_URL,
-      { inputs: prompt },
-      {
-        headers: {
-          'Authorization': `Bearer ${HUGGINGFACE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        responseType: 'arraybuffer', // Demande une réponse binaire (l'image)
-      }
-    );
+    // L'URL encode le prompt pour s'assurer qu'il est correctement formaté
+    const encodedPrompt = encodeURIComponent(prompt);
+    const imageUrl = `https://gen.pollinations.ai/prompt/${encodedPrompt}`;
+
+    const response = await axios.get(imageUrl, {
+      responseType: 'arraybuffer' // Demande la réponse en tant que données binaires
+    });
 
     return Buffer.from(response.data);
 
   } catch (error) {
-    console.error("Erreur détaillée lors de la génération de l'image avec Hugging Face:", {
-        message: error.response ? error.response.data.toString() : error.message,
+    console.error("Erreur détaillée lors de la génération de l'image avec Pollinations:", {
+        message: error.response ? error.response.statusText : error.message,
         prompt: prompt,
     });
+    // Fournit un message d'erreur convivial
     throw new Error("Le service de génération d'images est actuellement indisponible ou a rencontré une erreur.");
   }
 }
