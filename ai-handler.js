@@ -119,19 +119,25 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     const response = await axios.get(url);
 
-    // La réponse de cette API est directement le texte brut
-    let aiResponseText = response.data;
-
-    // Clean the response to ensure it's valid JSON
-    aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
-
     let aiResponse;
-    try {
-      aiResponse = JSON.parse(aiResponseText);
-    } catch (parseError) {
-      console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
-      // If parsing fails, wrap the raw string in a narrate action.
-      aiResponse = { action: 'narrate', narrative: aiResponseText };
+    const responseData = response.data;
+
+    if (typeof responseData === 'string') {
+      // La réponse est une chaîne de caractères, nous devons la nettoyer et la parser.
+      const cleanedText = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
+      try {
+        aiResponse = JSON.parse(cleanedText);
+      } catch (parseError) {
+        console.warn("La réponse de l'IA (string) n'était pas un JSON valide. Contenu:", cleanedText);
+        aiResponse = { action: 'narrate', narrative: cleanedText };
+      }
+    } else if (typeof responseData === 'object' && responseData !== null) {
+      // La réponse est déjà un objet JSON.
+      aiResponse = responseData;
+    } else {
+      // Type de réponse inattendu
+      console.error("Réponse inattendue de l'API Pollination:", responseData);
+      aiResponse = { action: 'error', parameters: { reason: "L'API a retourné une réponse inattendue." } };
     }
 
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
