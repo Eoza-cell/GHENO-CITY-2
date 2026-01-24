@@ -10,6 +10,7 @@ const {
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
 const axios = require('axios');
+const API_KEY = process.env.POLLINATION_API_KEY;
 
 // Location data for AI context
 const locations = {
@@ -33,6 +34,11 @@ const locations = {
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
+
+  if (!API_KEY) {
+    await sock.sendMessage(jid, { text: "La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env." });
+    return;
+  }
 
   // 1. Build the context for the AI
   const playerState = `
@@ -114,30 +120,34 @@ async function handleFreeAction(sock, message, player, actionText) {
   try {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
-    const encodedPrompt = encodeURIComponent(systemPrompt);
-    const url = `https://text.pollinations.ai/${encodedPrompt}`;
+    const response = await axios.post(
+      'https://text.pollinations.ai/openai',
+      {
+        "model": "openai",
+        "messages": [
+          { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
+          { "role": "user", "content": systemPrompt }
+        ]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        }
+      }
+    );
 
-    const response = await axios.get(url);
+    let aiResponseText = response.data.choices[0].message.content;
+
+    // Clean the response to ensure it's valid JSON
+    aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     let aiResponse;
-    const responseData = response.data;
-
-    if (typeof responseData === 'string') {
-      // La réponse est une chaîne de caractères, nous devons la nettoyer et la parser.
-      const cleanedText = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
-      try {
-        aiResponse = JSON.parse(cleanedText);
-      } catch (parseError) {
-        console.warn("La réponse de l'IA (string) n'était pas un JSON valide. Contenu:", cleanedText);
-        aiResponse = { action: 'narrate', narrative: cleanedText };
-      }
-    } else if (typeof responseData === 'object' && responseData !== null) {
-      // La réponse est déjà un objet JSON.
-      aiResponse = responseData;
-    } else {
-      // Type de réponse inattendu
-      console.error("Réponse inattendue de l'API Pollination:", responseData);
-      aiResponse = { action: 'error', parameters: { reason: "L'API a retourné une réponse inattendue." } };
+    try {
+      aiResponse = JSON.parse(aiResponseText);
+    } catch (parseError) {
+      console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
+      aiResponse = { action: 'narrate', narrative: aiResponseText };
     }
 
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
@@ -157,7 +167,7 @@ async function handleFreeAction(sock, message, player, actionText) {
             let priceRange;
             if (vehicleCategory === 'Compacte') priceRange = [5000, 20000];
             else if (vehicleCategory === 'Berline') priceRange = [40000, 80000];
-            else priceRange = [0, 1000000]; // Fallback
+            else priceRange = [0, 1000000];
 
             const vehicleToSteal = await Vehicle.findOne({
                 where: { price: { [Op.between]: priceRange } },
