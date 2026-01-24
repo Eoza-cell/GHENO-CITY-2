@@ -83,11 +83,12 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     RÈGLES FONDAMENTALES:
     1.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide.
-    2.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
-    3.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image avec la description du joueur. Ex: \`[POLLINATION PROMPT: un homme grand aux cheveux noirs...]\`
+    2.  **Champ "narrative" Obligatoire**: Chaque réponse JSON DOIT contenir un champ "narrative" (string) qui décrit le résultat de l'action pour le joueur.
+    3.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
+    4.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image avec la description du joueur. Ex: \`[POLLINATION PROMPT: un homme grand aux cheveux noirs...]\`
 
     TYPES D'ACTIONS (JSON):
-    - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant}
+    - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant}, "narrative": "Tu as gagné X argent..."
     - "action": "steal_car", "parameters": {"success": true_ou_false, "category": "Compacte" | "Berline" | "Sportive"}
     - "action": "move", "parameters": {"destination": "nom_du_lieu"}
     - "action": "buy_item", "parameters": {"itemName": "nom_de_l_article", "quantity": nombre}
