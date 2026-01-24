@@ -8,10 +8,16 @@ const { generateImageFromPrompt } = require('./image-generator');
  * @param {string} text The text to send, possibly containing image prompts.
  */
 async function sendWithImage(sock, jid, text) {
+  // S'assure que le texte est une chaîne de caractères avant de continuer.
+  if (typeof text !== 'string') {
+    console.warn(`[sendWithImage] Le texte fourni n'est pas une chaîne de caractères. Type reçu: ${typeof text}`);
+    return; // Ne rien envoyer si le texte n'est pas valide.
+  }
+
   const promptRegex = /\[POLLINATION PROMPT:\s*(.*?)\s*\]/gi;
-  // Use matchAll to get all prompts and map them to an array.
+  // Utilise matchAll pour obtenir toutes les invites et les mapper dans un tableau.
   const prompts = [...text.matchAll(promptRegex)].map(match => match[1]);
-  // The caption is the original text with all prompt tags removed.
+  // La légende est le texte original dont toutes les balises d'invite ont été supprimées.
   const caption = text.replace(promptRegex, '').trim();
 
   // If there are no prompts, just send the text if it's not empty.
