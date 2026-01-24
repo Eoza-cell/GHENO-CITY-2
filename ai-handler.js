@@ -147,6 +147,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       aiResponse = JSON.parse(aiResponseText);
     } catch (parseError) {
       console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
+      // If parsing fails, wrap the raw string in a narrate action.
       aiResponse = { action: 'narrate', narrative: aiResponseText };
     }
 
@@ -167,7 +168,7 @@ async function handleFreeAction(sock, message, player, actionText) {
             let priceRange;
             if (vehicleCategory === 'Compacte') priceRange = [5000, 20000];
             else if (vehicleCategory === 'Berline') priceRange = [40000, 80000];
-            else priceRange = [0, 1000000];
+            else priceRange = [0, 1000000]; // Fallback
 
             const vehicleToSteal = await Vehicle.findOne({
                 where: { price: { [Op.between]: priceRange } },
