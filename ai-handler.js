@@ -115,21 +115,59 @@ async function handleFreeAction(sock, message, player, actionText) {
   try {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
-    const response = await axios.post(
-      'https://api.airforce/v1/chat/completions',
+    const providers = [
       {
-        "model": "step-3.5-flash:free",
-        "messages": [
-          { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
-          { "role": "user", "content": systemPrompt }
-        ]
+        url: 'https://text.pollinations.ai/openai',
+        data: {
+          messages: [
+            { role: "system", content: "Vous êtes un maître du jeu de rôle." },
+            { role: "user", content: systemPrompt }
+          ]
+        }
       },
       {
-        headers: {
-          'Content-Type': 'application/json'
+        url: 'https://text.pollinations.ai/',
+        data: {
+          messages: [
+            { role: "system", content: "Vous êtes un maître du jeu de rôle." },
+            { role: "user", content: systemPrompt }
+          ]
+        }
+      },
+      {
+        url: 'https://api.airforce/v1/chat/completions',
+        data: {
+          model: "step-3.5-flash:free",
+          messages: [
+            { role: "system", content: "Vous êtes un maître du jeu de rôle." },
+            { role: "user", content: systemPrompt }
+          ]
         }
       }
-    );
+    ];
+
+    let response;
+    let lastError;
+
+    for (const provider of providers) {
+      try {
+        response = await axios.post(provider.url, provider.data, {
+          timeout: 30000,
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        });
+        if (response.data) break;
+      } catch (e) {
+        console.warn(`Le fournisseur AI à ${provider.url} a échoué:`, e.message);
+        lastError = e;
+      }
+    }
+
+    if (!response || !response.data) {
+        throw lastError || new Error("Tous les fournisseurs d'IA ont échoué.");
+    }
 
     let aiResponseText;
     if (typeof response.data === 'string') {
@@ -138,6 +176,10 @@ async function handleFreeAction(sock, message, player, actionText) {
       aiResponseText = response.data.choices[0].message.content;
     } else {
       aiResponseText = typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data);
+    }
+
+    if (!aiResponseText || aiResponseText.trim() === '') {
+        throw new Error("L'IA a retourné une réponse vide.");
     }
 
     // Extract JSON from the response (it might be wrapped in markdown or have extra text)
