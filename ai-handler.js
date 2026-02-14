@@ -10,7 +10,6 @@ const {
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
 const axios = require('axios');
-const API_KEY = process.env.POLLINATION_API_KEY;
 
 // Location data for AI context
 const locations = {
@@ -34,11 +33,6 @@ const locations = {
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-
-  if (!API_KEY) {
-    await sock.sendMessage(jid, { text: "La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env." });
-    return;
-  }
 
   // 1. Build the context for the AI
   const playerState = `
@@ -124,7 +118,6 @@ async function handleFreeAction(sock, message, player, actionText) {
     const response = await axios.post(
       'https://text.pollinations.ai/openai',
       {
-        "model": "openai",
         "messages": [
           { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
           { "role": "user", "content": systemPrompt }
@@ -132,13 +125,19 @@ async function handleFreeAction(sock, message, player, actionText) {
       },
       {
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Content-Type': 'application/json'
         }
       }
     );
 
-    let aiResponseText = response.data.choices[0].message.content;
+    let aiResponseText;
+    if (typeof response.data === 'string') {
+      aiResponseText = response.data;
+    } else if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
+      aiResponseText = response.data.choices[0].message.content;
+    } else {
+      aiResponseText = typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data);
+    }
 
     // Clean the response to ensure it's valid JSON
     aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
