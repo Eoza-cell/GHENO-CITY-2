@@ -116,8 +116,9 @@ async function handleFreeAction(sock, message, player, actionText) {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
     const response = await axios.post(
-      'https://text.pollinations.ai/openai',
+      'https://api.airforce/v1/chat/completions',
       {
+        "model": "step-3.5-flash:free",
         "messages": [
           { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
           { "role": "user", "content": systemPrompt }
@@ -139,8 +140,11 @@ async function handleFreeAction(sock, message, player, actionText) {
       aiResponseText = typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data);
     }
 
-    // Clean the response to ensure it's valid JSON
-    aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    // Extract JSON from the response (it might be wrapped in markdown or have extra text)
+    const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      aiResponseText = jsonMatch[0];
+    }
 
     let aiResponse;
     try {
@@ -151,7 +155,20 @@ async function handleFreeAction(sock, message, player, actionText) {
       aiResponse = { action: 'narrate', narrative: aiResponseText };
     }
 
-    const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
+    // Ensure we have a narrative even if the AI used a different field name
+    if (!aiResponse.narrative && aiResponse.description) {
+      aiResponse.narrative = aiResponse.description;
+    }
+    if (!aiResponse.narrative && aiResponse.message) {
+      aiResponse.narrative = aiResponse.message;
+    }
+
+    // Default to 'narrate' if no action is specified but we have a narrative
+    let action = aiResponse.action ? aiResponse.action.trim() : null;
+    if (!action && aiResponse.narrative) {
+      action = 'narrate';
+    }
+    if (!action) action = 'no_action';
 
     switch (action) {
       case 'update_player':
@@ -250,7 +267,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
       case 'narrate':
       case 'error':
-        await sendWithImage(sock, jid, aiResponse.narrative || aiResponse.parameters.reason);
+        await sendWithImage(sock, jid, aiResponse.narrative || aiResponse.parameters?.reason || "Désolé, je n'ai pas pu générer de réponse.");
         break;
 
       default:
@@ -261,7 +278,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     await checkMissionCompletion(sock, player, message);
 
   } catch (error) {
-    console.error("Erreur lors de l'interaction avec Pollination AI:", error.response ? error.response.data : error.message);
+    console.error("Erreur lors de l'interaction avec l'IA:", error.response ? (typeof error.response.data === 'string' ? error.response.data : JSON.stringify(error.response.data)) : error.message);
     await sock.sendMessage(jid, { text: "Désolé, une erreur s'est produite lors de la connexion à l'IA. Veuillez réessayer." });
   }
 }
