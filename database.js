@@ -94,6 +94,41 @@ const Player = sequelize.define('Player', {
   },
 });
 
+const Family = sequelize.define('Family', {
+  name: {
+    type: DataTypes.STRING,
+    unique: true,
+  },
+  description: {
+    type: DataTypes.TEXT,
+  },
+  influence: {
+    type: DataTypes.INTEGER,
+    defaultValue: 10,
+  },
+  baseLocation: {
+    type: DataTypes.STRING,
+  }
+});
+
+const House = sequelize.define('House', {
+    name: {
+        type: DataTypes.STRING,
+        unique: true,
+    },
+    description: {
+        type: DataTypes.TEXT,
+    },
+    price: {
+        type: DataTypes.INTEGER,
+    },
+    location: {
+        type: DataTypes.STRING,
+    },
+});
+
+const PlayerHouse = sequelize.define('PlayerHouse', {});
+
 const Vehicle = sequelize.define('Vehicle', {
   name: {
     type: DataTypes.STRING,
@@ -179,6 +214,12 @@ PlayerVehicle.belongsTo(Player);
 Vehicle.hasMany(PlayerVehicle);
 PlayerVehicle.belongsTo(Vehicle);
 
+Family.hasMany(Player);
+Player.belongsTo(Family);
+
+Player.belongsToMany(House, { through: PlayerHouse });
+House.belongsToMany(Player, { through: PlayerHouse });
+
 // Relations pour les magasins
 Shop.belongsToMany(Item, { through: ShopItem });
 Item.belongsToMany(Shop, { through: ShopItem });
@@ -217,6 +258,46 @@ async function setupDatabase() {
         await clothingStore.addItem(boots, { through: { quantity: 12 } });
 
         console.log('Shops and items seeded.');
+    }
+
+    // Seed Families
+    const familyCount = await Family.count();
+    if (familyCount === 0) {
+        console.log('Seeding influential families...');
+        await Family.bulkCreate([
+            {
+              name: 'Famille Valenti',
+              description: 'Les Valenti règnent sur Little Sicily depuis des décennies. Ils privilégient la loyauté et la tradition. Spécialisés dans le racket de protection et le trafic local.',
+              baseLocation: 'Little Sicily',
+              influence: 80
+            },
+            {
+              name: 'Le Syndicat Moretti',
+              description: 'Une organisation moderne et impitoyable basée à Downtown. Ils contrôlent les casinos et les importations de luxe. Pour eux, seul le profit compte.',
+              baseLocation: 'Downtown',
+              influence: 90
+            },
+            {
+              name: 'Les Black Lotus',
+              description: 'Un gang mystérieux opérant dans les zones industrielles. Ils sont connus pour leur discrétion et leur efficacité dans le vol de véhicules de haute technologie.',
+              baseLocation: 'dealership',
+              influence: 65
+            }
+        ]);
+        console.log('Families seeded.');
+    }
+
+    // Seed Houses
+    const houseCount = await House.count();
+    if (houseCount === 0) {
+        console.log('Seeding real estate...');
+        await House.bulkCreate([
+            { name: 'Studio miteux', description: 'Un petit appartement avec vue sur une ruelle sombre. Idéal pour débuter.', price: 5000, location: 'Little Sicily' },
+            { name: 'Loft moderne', description: 'Un grand espace ouvert au coeur de la ville. Très chic.', price: 50000, location: 'Downtown' },
+            { name: 'Planque sécurisée', description: 'Un endroit discret et renforcé pour se faire oublier.', price: 25000, location: 'dealership' },
+            { name: 'Manoir Valenti', description: 'La résidence ultime pour un membre influent de la famille.', price: 500000, location: 'Little Sicily' }
+        ]);
+        console.log('Real estate seeded.');
     }
 
 
@@ -343,5 +424,8 @@ module.exports = {
   Shop,
   Item,
   ShopItem,
+  Family,
+  House,
+  PlayerHouse,
   setupDatabase,
 };

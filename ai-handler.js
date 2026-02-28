@@ -1,4 +1,4 @@
-const { Player, Vehicle, PlayerVehicle, Shop, Item, ShopItem, sequelize } = require('./database');
+const { Player, Vehicle, PlayerVehicle, Shop, Item, ShopItem, Family, House, sequelize } = require('./database');
 const { isDay } = require('./game-state');
 const { sendWithImage, sendAnimatedMessage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
@@ -10,7 +10,6 @@ const {
 } = require('./vehicle-handler');
 const { Op } = require('sequelize');
 const axios = require('axios');
-const API_KEY = process.env.POLLINATION_API_KEY;
 
 // Location data for AI context
 const locations = {
@@ -20,11 +19,11 @@ const locations = {
   },
   'Downtown': {
     description: "Le cœur animé de la ville. Gratte-ciels, boutiques de luxe et sirènes de police.",
-    connections: ['Little Sicily'],
+    connections: ['Little Sicily', 'dealership'],
   },
   'dealership': {
     description: "Une concession de voitures d'occasion. L'odeur de l'essence et des rêves brisés flotte dans l'air.",
-    connections: ['Little Sicily', 'hideout'],
+    connections: ['Downtown', 'hideout'],
   },
   'hideout': {
     description: "Un entrepôt désaffecté. C'est ici que le caïd local dirige ses affaires.",
@@ -35,18 +34,15 @@ const locations = {
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
-  if (!API_KEY) {
-    await sock.sendMessage(jid, { text: "La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env." });
-    return;
-  }
-
   // 1. Build the context for the AI
+  const playerHouses = await player.getHouses();
   const playerState = `
     - Nom: ${player.name}
     - Description: ${player.characterDescription}
     - Argent: ${player.money}$
     - Emplacement: ${player.location} (${locations[player.location]?.description || 'Description inconnue'})
     - Destinations possibles: ${locations[player.location]?.connections.join(', ') || 'Aucune'}
+    - Propriétés possédées: ${playerHouses.length > 0 ? playerHouses.map(h => h.name).join(', ') : 'Aucune'}
   `;
 
   // Vehicle context
@@ -86,16 +82,19 @@ async function handleFreeAction(sock, message, player, actionText) {
     2.  **Champ "narrative" Obligatoire**: Chaque réponse JSON DOIT contenir un champ "narrative" (string) qui décrit le résultat de l'action pour le joueur.
     3.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
     4.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image avec la description du joueur. Ex: \`[POLLINATION PROMPT: un homme grand aux cheveux noirs...]\`
+    5.  **Mise à jour de la carte**: À CHAQUE déplacement ou action importante, ajoute le tag de carte: \`[GENERATE_MAP:${player.location}:${player.profilePicPath || 'null'}]\`
 
     TYPES D'ACTIONS (JSON):
     - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant}, "narrative": "Tu as gagné X argent..."
     - "action": "steal_car", "parameters": {"success": true_ou_false, "category": "Compacte" | "Berline" | "Sportive"}
     - "action": "move", "parameters": {"destination": "nom_du_lieu"}
     - "action": "buy_item", "parameters": {"itemName": "nom_de_l_article", "quantity": nombre}
+    - "action": "buy_house", "parameters": {"houseName": "nom_de_la_maison"}
     - "action": "drive", "parameters": {"vehicleId": id_du_vehicule}
     - "action": "park"
     - "action": "accelerate"
     - "action": "brake"
+    - "action": "join_family", "parameters": {"familyName": "nom_de_la_famille"}
     - "action": "narrate"
     - "action": "error", "parameters": {"reason": "explication"}
 
@@ -121,27 +120,84 @@ async function handleFreeAction(sock, message, player, actionText) {
   try {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
-    const response = await axios.post(
-      'https://text.pollinations.ai/openai',
+    const providers = [
       {
-        "model": "openai",
-        "messages": [
-          { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
-          { "role": "user", "content": systemPrompt }
-        ]
+        url: 'https://text.pollinations.ai/openai',
+        data: {
+          messages: [
+            { role: "system", content: "Vous êtes un maître du jeu de rôle." },
+            { role: "user", content: systemPrompt }
+          ]
+        }
       },
       {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+        url: 'https://text.pollinations.ai/',
+        data: {
+          messages: [
+            { role: "system", content: "Vous êtes un maître du jeu de rôle." },
+            { role: "user", content: systemPrompt }
+          ]
+        }
+      },
+      {
+        url: 'https://api.airforce/v1/chat/completions',
+        data: {
+          model: "step-3.5-flash:free",
+          messages: [
+            { role: "system", content: "Vous êtes un maître du jeu de rôle." },
+            { role: "user", content: systemPrompt }
+          ]
         }
       }
-    );
+    ];
 
-    let aiResponseText = response.data.choices[0].message.content;
+    let response;
+    let lastError;
 
-    // Clean the response to ensure it's valid JSON
-    aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    for (const provider of providers) {
+      try {
+        console.log(`[AI Handler] Tentative avec le fournisseur : ${provider.url}`);
+        response = await axios.post(provider.url, provider.data, {
+          timeout: 30000,
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        });
+        if (response.data) {
+            console.log(`[AI Handler] Succès avec ${provider.url}`);
+            break;
+        }
+      } catch (e) {
+        console.warn(`[AI Handler] Le fournisseur AI à ${provider.url} a échoué:`, e.response ? `Status ${e.response.status}` : e.message);
+        lastError = e;
+      }
+    }
+
+    if (!response || !response.data) {
+        throw lastError || new Error("Tous les fournisseurs d'IA ont échoué.");
+    }
+
+    let aiResponseText;
+    console.log("[AI Handler] Données brutes reçues de l'API:", JSON.stringify(response.data).substring(0, 500));
+
+    if (typeof response.data === 'string') {
+      aiResponseText = response.data;
+    } else if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
+      aiResponseText = response.data.choices[0].message.content;
+    } else {
+      aiResponseText = typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data);
+    }
+
+    if (!aiResponseText || aiResponseText.trim() === '') {
+        throw new Error("L'IA a retourné une réponse vide.");
+    }
+
+    // Extract JSON from the response (it might be wrapped in markdown or have extra text)
+    const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      aiResponseText = jsonMatch[0];
+    }
 
     let aiResponse;
     try {
@@ -152,7 +208,30 @@ async function handleFreeAction(sock, message, player, actionText) {
       aiResponse = { action: 'narrate', narrative: aiResponseText };
     }
 
-    const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
+    // Ensure we have a narrative even if the AI used a different field name
+    if (!aiResponse.narrative && aiResponse.description) {
+      aiResponse.narrative = aiResponse.description;
+    }
+    if (!aiResponse.narrative && aiResponse.message) {
+      aiResponse.narrative = aiResponse.message;
+    }
+
+    // Default to 'narrate' if no action is specified but we have a narrative
+    // Ensure map is generated on move
+    if (aiResponse.action === 'move' && aiResponse.narrative) {
+        if (!aiResponse.narrative.includes('[GENERATE_MAP:')) {
+            aiResponse.narrative += ` [GENERATE_MAP:${aiResponse.parameters.destination || player.location}:${player.profilePicPath || 'null'}]`;
+        }
+    }
+
+    let action = aiResponse.action ? aiResponse.action.trim() : null;
+    if (!action && aiResponse.narrative) {
+      action = 'narrate';
+    }
+    if (!action) action = 'no_action';
+
+    // Log the determined action
+    console.log(`[AI Handler] Action déterminée: ${action}`);
 
     switch (action) {
       case 'update_player':
@@ -233,6 +312,31 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sendWithImage(sock, jid, aiResponse.narrative);
         break;
 
+      case 'buy_house':
+        const hName = aiResponse.parameters.houseName;
+        const houseToBuy = await House.findOne({ where: { name: { [Op.like]: `%${hName}%` } } });
+
+        if (!houseToBuy) {
+            await sock.sendMessage(jid, { text: `Maison "${hName}" non trouvée.` });
+            break;
+        }
+
+        if (player.money < houseToBuy.price) {
+            await sock.sendMessage(jid, { text: `Tu n'as pas assez d'argent pour acheter "${houseToBuy.name}".` });
+            break;
+        }
+
+        const alreadyOwned = await player.hasHouse(houseToBuy);
+        if (alreadyOwned) {
+            await sock.sendMessage(jid, { text: `Tu possèdes déjà "${houseToBuy.name}".` });
+            break;
+        }
+
+        await player.addHouse(houseToBuy);
+        await player.decrement('money', { by: houseToBuy.price });
+        await sendWithImage(sock, jid, aiResponse.narrative + `\n\nFélicitations ! Tu es maintenant l'heureux propriétaire de : ${houseToBuy.name}.`);
+        break;
+
       case 'drive':
         await sendWithImage(sock, jid, (await driveVehicle(player, aiResponse.parameters.vehicleId)).narrative);
         break;
@@ -249,9 +353,25 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sendWithImage(sock, jid, (await brakeVehicle(player)).narrative);
         break;
 
+      case 'join_family':
+        const famName = aiResponse.parameters.familyName;
+        const familyToJoin = await Family.findOne({ where: { name: { [Op.like]: `%${famName}%` } } });
+        if (familyToJoin) {
+          // Check if player is at the right location to join
+          if (player.location === familyToJoin.baseLocation) {
+            await player.update({ FamilyId: familyToJoin.id });
+            await sendWithImage(sock, jid, aiResponse.narrative + `\n\nFélicitations, tu fais maintenant partie de la ${familyToJoin.name} !`);
+          } else {
+            await sock.sendMessage(jid, { text: `Tu dois te rendre à ${familyToJoin.baseLocation} pour rejoindre cette famille.` });
+          }
+        } else {
+          await sock.sendMessage(jid, { text: `La famille "${famName}" n'existe pas.` });
+        }
+        break;
+
       case 'narrate':
       case 'error':
-        await sendWithImage(sock, jid, aiResponse.narrative || aiResponse.parameters.reason);
+        await sendWithImage(sock, jid, aiResponse.narrative || aiResponse.parameters?.reason || "Désolé, je n'ai pas pu générer de réponse.");
         break;
 
       default:
@@ -262,7 +382,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     await checkMissionCompletion(sock, player, message);
 
   } catch (error) {
-    console.error("Erreur lors de l'interaction avec Pollination AI:", error.response ? error.response.data : error.message);
+    console.error("Erreur lors de l'interaction avec l'IA:", error.response ? (typeof error.response.data === 'string' ? error.response.data : JSON.stringify(error.response.data)) : error.message);
     await sock.sendMessage(jid, { text: "Désolé, une erreur s'est produite lors de la connexion à l'IA. Veuillez réessayer." });
   }
 }

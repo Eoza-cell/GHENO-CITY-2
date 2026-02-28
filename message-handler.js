@@ -1,4 +1,5 @@
 const { generateImageFromPrompt } = require('./image-generator');
+const { generateCityMap } = require('./city-map');
 
 /**
  * Sends a message, checking for image generation prompts.
@@ -14,11 +15,27 @@ async function sendWithImage(sock, jid, text) {
     return; // Ne rien envoyer si le texte n'est pas valide.
   }
 
+  // Handle map generation [GENERATE_MAP:Location:ProfilePicPath]
+  const mapRegex = /\[GENERATE_MAP:(.*?):(.*?)\]/gi;
+  const mapMatches = [...text.matchAll(mapRegex)];
+
+  for (const match of mapMatches) {
+    try {
+        const location = match[1];
+        const profilePic = match[2] !== 'null' ? match[2] : null;
+        console.log(`Génération de la carte pour: ${location}`);
+        const mapBuffer = await generateCityMap(location, profilePic);
+        await sock.sendMessage(jid, { image: mapBuffer, caption: "Carte de la ville mise à jour." });
+    } catch (error) {
+        console.error("Erreur génération carte:", error);
+    }
+  }
+
   const promptRegex = /\[POLLINATION PROMPT:\s*(.*?)\s*\]/gi;
   // Utilise matchAll pour obtenir toutes les invites et les mapper dans un tableau.
   const prompts = [...text.matchAll(promptRegex)].map(match => match[1]);
   // La légende est le texte original dont toutes les balises d'invite ont été supprimées.
-  const caption = text.replace(promptRegex, '').trim();
+  const caption = text.replace(promptRegex, '').replace(mapRegex, '').trim();
 
   // If there are no prompts, just send the text if it's not empty.
   if (prompts.length === 0) {
