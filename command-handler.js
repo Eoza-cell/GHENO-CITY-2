@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const { Player, PlayerVehicle, Shop, Item, ShopItem } = require('./database');
+const { Player, PlayerVehicle, Shop, Item, ShopItem, Family } = require('./database');
 const { handleFreeAction } = require('./ai-handler');
 const { sendWithImage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
@@ -72,7 +72,11 @@ const profileCommand = async (sock, message) => {
   const energyBar = createStatusBar(player.energy, 100);
   const xpBar = createStatusBar(player.xp, player.level * 100);
 
+  const family = player.FamilyId ? await Family.findByPk(player.FamilyId) : null;
+  const familyName = family ? family.name : 'Indépendant';
+
   const profileText = `*Profil de ${player.name}*\n\n` +
+                      `*Famille:* ${familyName}\n` +
                       `*Niveau:* ${player.level}\n` +
                       `*Argent:* ${player.money}$\n\n` +
                       `*Vie:* ${healthBar} ${player.health}%\n` +
@@ -94,6 +98,7 @@ commands.set('help', async (sock, message) => {
                    "/garage - Lister tes véhicules.\n" +
                    "/conduire [ID] - Démarrer la conduite d'un véhicule.\n" +
                    "/shop - Voir les articles du magasin local.\n" +
+                   "/familles - Voir les familles influentes de la ville.\n" +
                    "/interagir [nom] donner [article] [quantité] - Donner un objet à un joueur.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
@@ -292,6 +297,23 @@ commands.set('interagir', async (sock, message, args) => {
     }
 });
 
+
+// Command: /familles
+commands.set('familles', async (sock, message) => {
+    const families = await Family.findAll();
+    const replyJid = message.key.remoteJid;
+
+    if (!families.length) {
+        await sock.sendMessage(replyJid, { text: "Il n'y a pas encore de familles influentes répertoriées." });
+        return;
+    }
+
+    const familyText = families.map(f =>
+        `*${f.name}* (${f.influence} influence)\n_${f.description}_\n📍 Base: ${f.baseLocation}`
+    ).join('\n\n');
+
+    await sock.sendMessage(replyJid, { text: `*Les Familles de Gheno City*\n\n${familyText}\n\nPour rejoindre une famille, progresse dans tes missions.` });
+});
 
 // Command: /tagall
 commands.set('tagall', async (sock, message) => {

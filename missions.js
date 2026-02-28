@@ -1,4 +1,4 @@
-const { PlayerVehicle, Vehicle } = require('./database');
+const { PlayerVehicle, Vehicle, Family } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { startDriving } = require('./driving-handler');
 
@@ -66,9 +66,19 @@ const missions = {
         completionCondition: (player) => {
             return player.money >= 2000;
         },
-        narrativeOnComplete: "Tu as l'argent. Tu as prouvé que tu savais te débrouiller en ville. Tu as officiellement ta place dans l'organisation.",
-        nextQuest: null, // Fin du chapitre pour l'instant
+        narrativeOnComplete: "Tu as l'argent. Tu as prouvé que tu savais te débrouiller en ville. Maintenant, il est temps de choisir une allégeance. Rends-toi au siège de la famille Valenti à Little Sicily pour prêter serment.",
+        nextQuest: 6,
       },
+      6: {
+        title: "Allégeance",
+        objective: "Choisis ta famille. Rends-toi à Little Sicily pour rejoindre les Valenti, à Downtown pour le Syndicat Moretti, ou au concessionnaire pour les Black Lotus. (Utilise /action pour exprimer ton choix au MJ)",
+        reward: {
+            xp: 500,
+        },
+        completionCondition: (player) => player.FamilyId !== null,
+        narrativeOnComplete: "Tu as maintenant une famille qui te protège... et qui attend beaucoup de toi. Bienvenue dans la cour des grands.",
+        nextQuest: null,
+      }
     },
   },
   2: { // Chapter 2

@@ -90,6 +90,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "action": "park"
     - "action": "accelerate"
     - "action": "brake"
+    - "action": "join_family", "parameters": {"familyName": "nom_de_la_famille"}
     - "action": "narrate"
     - "action": "error", "parameters": {"reason": "explication"}
 
@@ -151,6 +152,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     for (const provider of providers) {
       try {
+        console.log(`[AI Handler] Tentative avec le fournisseur : ${provider.url}`);
         response = await axios.post(provider.url, provider.data, {
           timeout: 30000,
           headers: {
@@ -158,9 +160,12 @@ async function handleFreeAction(sock, message, player, actionText) {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
           }
         });
-        if (response.data) break;
+        if (response.data) {
+            console.log(`[AI Handler] Succès avec ${provider.url}`);
+            break;
+        }
       } catch (e) {
-        console.warn(`Le fournisseur AI à ${provider.url} a échoué:`, e.message);
+        console.warn(`[AI Handler] Le fournisseur AI à ${provider.url} a échoué:`, e.response ? `Status ${e.response.status}` : e.message);
         lastError = e;
       }
     }
@@ -170,6 +175,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
 
     let aiResponseText;
+    console.log("[AI Handler] Données brutes reçues de l'API:", JSON.stringify(response.data).substring(0, 500));
+
     if (typeof response.data === 'string') {
       aiResponseText = response.data;
     } else if (response.data && response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
@@ -211,6 +218,9 @@ async function handleFreeAction(sock, message, player, actionText) {
       action = 'narrate';
     }
     if (!action) action = 'no_action';
+
+    // Log the determined action
+    console.log(`[AI Handler] Action déterminée: ${action}`);
 
     switch (action) {
       case 'update_player':
@@ -305,6 +315,22 @@ async function handleFreeAction(sock, message, player, actionText) {
 
       case 'brake':
         await sendWithImage(sock, jid, (await brakeVehicle(player)).narrative);
+        break;
+
+      case 'join_family':
+        const famName = aiResponse.parameters.familyName;
+        const familyToJoin = await Family.findOne({ where: { name: { [Op.like]: `%${famName}%` } } });
+        if (familyToJoin) {
+          // Check if player is at the right location to join
+          if (player.location === familyToJoin.baseLocation) {
+            await player.update({ FamilyId: familyToJoin.id });
+            await sendWithImage(sock, jid, aiResponse.narrative + `\n\nFélicitations, tu fais maintenant partie de la ${familyToJoin.name} !`);
+          } else {
+            await sock.sendMessage(jid, { text: `Tu dois te rendre à ${familyToJoin.baseLocation} pour rejoindre cette famille.` });
+          }
+        } else {
+          await sock.sendMessage(jid, { text: `La famille "${famName}" n'existe pas.` });
+        }
         break;
 
       case 'narrate':
