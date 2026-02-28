@@ -1,4 +1,4 @@
-const { Player, Vehicle, PlayerVehicle, Shop, Item, ShopItem, sequelize } = require('./database');
+const { Player, Vehicle, PlayerVehicle, Shop, Item, ShopItem, Family, House, sequelize } = require('./database');
 const { isDay } = require('./game-state');
 const { sendWithImage, sendAnimatedMessage } = require('./message-handler');
 const { getMission, checkMissionCompletion } = require('./missions');
@@ -19,11 +19,11 @@ const locations = {
   },
   'Downtown': {
     description: "Le cœur animé de la ville. Gratte-ciels, boutiques de luxe et sirènes de police.",
-    connections: ['Little Sicily'],
+    connections: ['Little Sicily', 'dealership'],
   },
   'dealership': {
     description: "Une concession de voitures d'occasion. L'odeur de l'essence et des rêves brisés flotte dans l'air.",
-    connections: ['Little Sicily', 'hideout'],
+    connections: ['Downtown', 'hideout'],
   },
   'hideout': {
     description: "Un entrepôt désaffecté. C'est ici que le caïd local dirige ses affaires.",
@@ -35,12 +35,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
   // 1. Build the context for the AI
+  const playerHouses = await player.getHouses();
   const playerState = `
     - Nom: ${player.name}
     - Description: ${player.characterDescription}
     - Argent: ${player.money}$
     - Emplacement: ${player.location} (${locations[player.location]?.description || 'Description inconnue'})
     - Destinations possibles: ${locations[player.location]?.connections.join(', ') || 'Aucune'}
+    - Propriétés possédées: ${playerHouses.length > 0 ? playerHouses.map(h => h.name).join(', ') : 'Aucune'}
   `;
 
   // Vehicle context
@@ -80,12 +82,14 @@ async function handleFreeAction(sock, message, player, actionText) {
     2.  **Champ "narrative" Obligatoire**: Chaque réponse JSON DOIT contenir un champ "narrative" (string) qui décrit le résultat de l'action pour le joueur.
     3.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
     4.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image avec la description du joueur. Ex: \`[POLLINATION PROMPT: un homme grand aux cheveux noirs...]\`
+    5.  **Mise à jour de la carte**: À CHAQUE déplacement ou action importante, ajoute le tag de carte: \`[GENERATE_MAP:${player.location}:${player.profilePicPath || 'null'}]\`
 
     TYPES D'ACTIONS (JSON):
     - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant}, "narrative": "Tu as gagné X argent..."
     - "action": "steal_car", "parameters": {"success": true_ou_false, "category": "Compacte" | "Berline" | "Sportive"}
     - "action": "move", "parameters": {"destination": "nom_du_lieu"}
     - "action": "buy_item", "parameters": {"itemName": "nom_de_l_article", "quantity": nombre}
+    - "action": "buy_house", "parameters": {"houseName": "nom_de_la_maison"}
     - "action": "drive", "parameters": {"vehicleId": id_du_vehicule}
     - "action": "park"
     - "action": "accelerate"
@@ -213,6 +217,13 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
 
     // Default to 'narrate' if no action is specified but we have a narrative
+    // Ensure map is generated on move
+    if (aiResponse.action === 'move' && aiResponse.narrative) {
+        if (!aiResponse.narrative.includes('[GENERATE_MAP:')) {
+            aiResponse.narrative += ` [GENERATE_MAP:${aiResponse.parameters.destination || player.location}:${player.profilePicPath || 'null'}]`;
+        }
+    }
+
     let action = aiResponse.action ? aiResponse.action.trim() : null;
     if (!action && aiResponse.narrative) {
       action = 'narrate';
@@ -299,6 +310,31 @@ async function handleFreeAction(sock, message, player, actionText) {
         await player.save();
 
         await sendWithImage(sock, jid, aiResponse.narrative);
+        break;
+
+      case 'buy_house':
+        const hName = aiResponse.parameters.houseName;
+        const houseToBuy = await House.findOne({ where: { name: { [Op.like]: `%${hName}%` } } });
+
+        if (!houseToBuy) {
+            await sock.sendMessage(jid, { text: `Maison "${hName}" non trouvée.` });
+            break;
+        }
+
+        if (player.money < houseToBuy.price) {
+            await sock.sendMessage(jid, { text: `Tu n'as pas assez d'argent pour acheter "${houseToBuy.name}".` });
+            break;
+        }
+
+        const alreadyOwned = await player.hasHouse(houseToBuy);
+        if (alreadyOwned) {
+            await sock.sendMessage(jid, { text: `Tu possèdes déjà "${houseToBuy.name}".` });
+            break;
+        }
+
+        await player.addHouse(houseToBuy);
+        await player.decrement('money', { by: houseToBuy.price });
+        await sendWithImage(sock, jid, aiResponse.narrative + `\n\nFélicitations ! Tu es maintenant l'heureux propriétaire de : ${houseToBuy.name}.`);
         break;
 
       case 'drive':
