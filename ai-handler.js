@@ -122,7 +122,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
     const response = await axios.post(
-      'https://text.pollinations.ai/openai',
+      'https://gen.pollinations.ai/v1/chat/completions',
       {
         "model": "openai",
         "messages": [
@@ -133,7 +133,8 @@ async function handleFreeAction(sock, message, player, actionText) {
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${API_KEY}`,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
         }
       }
     );
