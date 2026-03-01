@@ -122,35 +122,35 @@ async function handleFreeAction(sock, message, player, actionText) {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
     const response = await axios.post(
-      'https://gen.pollinations.ai/v1/chat/completions',
+      'https://text.pollinations.ai/',
       {
-        "model": "openai",
         "messages": [
-          { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
+          { "role": "system", "content": "Vous êtes un maître du jeu de rôle. Vous répondez uniquement en JSON." },
           { "role": "user", "content": systemPrompt }
-        ]
+        ],
+        "model": "openai",
+        "jsonMode": true
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
         }
       }
     );
 
-    let aiResponseText = response.data.choices[0].message.content;
-
-    // Clean the response to ensure it's valid JSON
-    aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
-
     let aiResponse;
-    try {
-      aiResponse = JSON.parse(aiResponseText);
-    } catch (parseError) {
-      console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
-      // If parsing fails, wrap the raw string in a narrate action.
-      aiResponse = { action: 'narrate', narrative: aiResponseText };
+    if (typeof response.data === 'object') {
+      aiResponse = response.data;
+    } else {
+      let aiResponseText = response.data.replace(/```json/g, '').replace(/```/g, '').trim();
+      try {
+        aiResponse = JSON.parse(aiResponseText);
+      } catch (parseError) {
+        console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
+        // If parsing fails, wrap the raw string in a narrate action.
+        aiResponse = { action: 'narrate', narrative: aiResponseText };
+      }
     }
 
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
