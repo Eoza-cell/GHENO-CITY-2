@@ -35,11 +35,6 @@ const locations = {
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
-  if (!API_KEY) {
-    await sock.sendMessage(jid, { text: "La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env." });
-    return;
-  }
-
   // 1. Build the context for the AI
   const playerState = `
     - Nom: ${player.name}
