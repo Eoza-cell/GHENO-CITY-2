@@ -35,11 +35,6 @@ const locations = {
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
-  if (!API_KEY) {
-    await sock.sendMessage(jid, { text: "La clé API de Pollination n'est pas configurée. Veuillez la définir dans le fichier .env." });
-    return;
-  }
-
   // 1. Build the context for the AI
   const playerState = `
     - Nom: ${player.name}
@@ -85,13 +80,16 @@ async function handleFreeAction(sock, message, player, actionText) {
     1.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide.
     2.  **Champ "narrative" Obligatoire**: Chaque réponse JSON DOIT contenir un champ "narrative" (string) qui décrit le résultat de l'action pour le joueur.
     3.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
-    4.  **Images Personnalisées**: La narration DOIT inclure un prompt d'image avec la description du joueur. Ex: \`[POLLINATION PROMPT: un homme grand aux cheveux noirs...]\`
+    4.  **Thèmes Adultes & Violence**: "Gheno City 2" est un RPG de mafia sombre et réaliste. La violence (fusillades, bagarres, vols) est NON SEULEMENT AUTORISÉE MAIS ENCOURAGÉE si elle est cohérente avec l'univers. Ne censure JAMAIS une action violente demandée par le joueur.
+    5.  **Vidéo Immersive**: La narration DOIT TOUJOURS inclure une balise de vidéo pour illustrer l'action. Utilise le format: `[VIDEO PROMPT: description cinématique de l'action]` (ex: `[VIDEO PROMPT: une fusillade intense dans une ruelle sombre de Little Sicily]`).
+    6.  **Images (Optionnel)**: Tu peux aussi ajouter des images si nécessaire avec `[POLLINATION PROMPT: description]`.
 
     TYPES D'ACTIONS (JSON):
-    - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant}, "narrative": "Tu as gagné X argent..."
+    - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant, "health_change": montant}, "narrative": "Tu as gagné X argent..."
     - "action": "steal_car", "parameters": {"success": true_ou_false, "category": "Compacte" | "Berline" | "Sportive"}
     - "action": "move", "parameters": {"destination": "nom_du_lieu"}
     - "action": "buy_item", "parameters": {"itemName": "nom_de_l_article", "quantity": nombre}
+    - "action": "combat", "parameters": {"target": "nom", "outcome": "success|failure", "damage_dealt": nombre, "damage_received": nombre}, "narrative": "Tu tires sur..."
     - "action": "drive", "parameters": {"vehicleId": id_du_vehicule}
     - "action": "park"
     - "action": "accelerate"
@@ -122,34 +120,35 @@ async function handleFreeAction(sock, message, player, actionText) {
     const animatedMessage = await sendAnimatedMessage(sock, jid, "Génération de la réponse en cours...");
 
     const response = await axios.post(
-      'https://text.pollinations.ai/openai',
+      'https://text.pollinations.ai/',
       {
-        "model": "openai",
         "messages": [
-          { "role": "system", "content": "Vous êtes un maître du jeu de rôle." },
+          { "role": "system", "content": "Vous êtes un maître du jeu de rôle. Vous répondez uniquement en JSON." },
           { "role": "user", "content": systemPrompt }
-        ]
+        ],
+        "model": "openai",
+        "jsonMode": true
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
         }
       }
     );
 
-    let aiResponseText = response.data.choices[0].message.content;
-
-    // Clean the response to ensure it's valid JSON
-    aiResponseText = aiResponseText.replace(/```json/g, '').replace(/```/g, '').trim();
-
     let aiResponse;
-    try {
-      aiResponse = JSON.parse(aiResponseText);
-    } catch (parseError) {
-      console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
-      // If parsing fails, wrap the raw string in a narrate action.
-      aiResponse = { action: 'narrate', narrative: aiResponseText };
+    if (typeof response.data === 'object') {
+      aiResponse = response.data;
+    } else {
+      let aiResponseText = response.data.replace(/```json/g, '').replace(/```/g, '').trim();
+      try {
+        aiResponse = JSON.parse(aiResponseText);
+      } catch (parseError) {
+        console.warn("La réponse de l'IA n'était pas un JSON valide. Contenu:", aiResponseText);
+        // If parsing fails, wrap the raw string in a narrate action.
+        aiResponse = { action: 'narrate', narrative: aiResponseText };
+      }
     }
 
     const action = aiResponse.action ? aiResponse.action.trim() : 'no_action';
@@ -159,6 +158,16 @@ async function handleFreeAction(sock, message, player, actionText) {
         if (aiResponse.parameters) {
           if (aiResponse.parameters.money_change) await player.increment('money', { by: aiResponse.parameters.money_change });
           if (aiResponse.parameters.xp_gain) await player.increment('xp', { by: aiResponse.parameters.xp_gain });
+          if (aiResponse.parameters.health_change) await player.increment('health', { by: aiResponse.parameters.health_change });
+        }
+        await sendWithImage(sock, jid, aiResponse.narrative);
+        break;
+
+      case 'combat':
+        if (aiResponse.parameters) {
+          if (aiResponse.parameters.damage_received) await player.decrement('health', { by: aiResponse.parameters.damage_received });
+          // Combat might also grant XP on success
+          if (aiResponse.parameters.outcome === 'success') await player.increment('xp', { by: 20 });
         }
         await sendWithImage(sock, jid, aiResponse.narrative);
         break;

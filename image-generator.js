@@ -4,10 +4,20 @@ async function generateImageFromPrompt(prompt) {
   console.log(`[Pollinations Image] Demande de génération d'image pour : ${prompt}`);
   try {
     const encodedPrompt = encodeURIComponent(prompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512`;
+    // Use the reliable free endpoint
+    const imageUrl = `https://pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&nologo=true`;
+
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+    };
+
+    if (process.env.POLLINATION_API_KEY) {
+      headers['Authorization'] = `Bearer ${process.env.POLLINATION_API_KEY}`;
+    }
 
     const response = await axios.get(imageUrl, {
-      responseType: 'arraybuffer'
+      responseType: 'arraybuffer',
+      headers: headers
     });
 
     return Buffer.from(response.data);
