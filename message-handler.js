@@ -1,4 +1,5 @@
 const { generateImageFromPrompt } = require('./image-generator');
+const { generateVideoFromPrompt } = require('./video-generator');
 
 /**
  * Sends a message, checking for image generation prompts.
@@ -17,8 +18,12 @@ async function sendWithImage(sock, jid, text) {
   const promptRegex = /\[POLLINATION PROMPT:\s*(.*?)\s*\]/gi;
   // Utilise matchAll pour obtenir toutes les invites et les mapper dans un tableau.
   const prompts = [...text.matchAll(promptRegex)].map(match => match[1]);
+
+  const videoRegex = /\[VIDEO PROMPT:\s*(.*?)\s*\]/gi;
+  const videoPrompts = [...text.matchAll(videoRegex)].map(match => match[1]);
+
   // La légende est le texte original dont toutes les balises d'invite ont été supprimées.
-  const caption = text.replace(promptRegex, '').trim();
+  let caption = text.replace(promptRegex, '').replace(videoRegex, '').trim();
 
   // If there are no prompts, just send the text if it's not empty.
   if (prompts.length === 0) {
@@ -48,6 +53,28 @@ async function sendWithImage(sock, jid, text) {
       console.error(`Échec de la génération ou de l'envoi de l'image pour le prompt: "${prompt}"`, error);
       // Inform the user about the failure in a clear message.
       await sock.sendMessage(jid, { text: `[La génération d'image a échoué pour le prompt: "${prompt}"]` });
+    }
+  }
+
+  // Generate and send videos for each prompt.
+  for (const [index, prompt] of videoPrompts.entries()) {
+    try {
+      console.log(`Génération de vidéo pour le prompt: "${prompt}"`);
+      const videoBuffer = await generateVideoFromPrompt(prompt);
+
+      const messageOptions = {
+        video: videoBuffer,
+      };
+      // If we haven't sent a caption yet (no images), send it with the first video.
+      if (prompts.length === 0 && index === 0 && caption) {
+        messageOptions.caption = caption;
+      }
+
+      await sock.sendMessage(jid, messageOptions);
+
+    } catch (error) {
+      console.error(`Échec de la génération ou de l'envoi de la vidéo pour le prompt: "${prompt}"`, error);
+      await sock.sendMessage(jid, { text: `[La génération de vidéo a échoué pour le prompt: "${prompt}"]` });
     }
   }
 }
