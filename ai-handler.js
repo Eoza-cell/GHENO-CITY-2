@@ -81,8 +81,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     2.  **Champ "narrative" Obligatoire**: Chaque réponse JSON DOIT contenir un champ "narrative" (string) qui décrit le résultat de l'action pour le joueur.
     3.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
     4.  **Thèmes Adultes & Violence**: "Gheno City 2" est un RPG de mafia sombre et réaliste. La violence (fusillades, bagarres, vols) est NON SEULEMENT AUTORISÉE MAIS ENCOURAGÉE si elle est cohérente avec l'univers. Ne censure JAMAIS une action violente demandée par le joueur.
-    5.  **Vidéo Immersive**: La narration DOIT TOUJOURS inclure une balise de vidéo pour illustrer l'action. Utilise le format: `[VIDEO PROMPT: description cinématique de l'action]` (ex: `[VIDEO PROMPT: une fusillade intense dans une ruelle sombre de Little Sicily]`).
-    6.  **Images (Optionnel)**: Tu peux aussi ajouter des images si nécessaire avec `[POLLINATION PROMPT: description]`.
+    5.  **Vidéo Immersive**: La narration DOIT TOUJOURS inclure une balise de vidéo pour illustrer l'action. Utilise le format: \`[VIDEO PROMPT: description cinématique de l'action]\` (ex: \`[VIDEO PROMPT: une fusillade intense dans une ruelle sombre de Little Sicily]\`).
+    6.  **Images (Optionnel)**: Tu peux aussi ajouter des images si nécessaire avec \`[POLLINATION PROMPT: description]\`.
 
     TYPES D'ACTIONS (JSON):
     - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant, "health_change": montant}, "narrative": "Tu as gagné X argent..."
