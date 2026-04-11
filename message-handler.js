@@ -25,12 +25,18 @@ async function sendWithImage(sock, jid, text) {
   // La légende est le texte original dont toutes les balises d'invite ont été supprimées.
   let caption = text.replace(promptRegex, '').replace(videoRegex, '').trim();
 
-  // If there are no prompts, just send the text if it's not empty.
-  if (prompts.length === 0) {
+  // If there are no image or video prompts, just send the text.
+  if (prompts.length === 0 && videoPrompts.length === 0) {
     if (caption) {
       await sock.sendMessage(jid, { text: caption });
     }
     return;
+  }
+
+  // If there are video prompts but no image prompts, send the caption first (or later with the video)
+  if (prompts.length === 0 && videoPrompts.length > 0 && caption) {
+     // We will send it with the first video if we don't send it now.
+     // To keep it simple, if there are only videos, we'll let the video loop handle it.
   }
 
   // Generate and send images for each prompt.
