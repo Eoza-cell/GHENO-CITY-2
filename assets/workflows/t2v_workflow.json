@@ -1,0 +1,66 @@
+{
+    "3": {
+        "class_type": "KSampler",
+        "inputs": {
+            "cfg": 8,
+            "denoise": 1,
+            "latent_image": ["5", 0],
+            "model": ["4", 0],
+            "negative": ["7", 0],
+            "positive": ["6", 0],
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "seed": 5,
+            "steps": 20
+        }
+    },
+    "4": {
+        "class_type": "CheckpointLoaderSimple",
+        "inputs": {
+            "ckpt_name": "v1-5-pruned-emaonly.safetensors"
+        }
+    },
+    "5": {
+        "class_type": "EmptyLatentImage",
+        "inputs": {
+            "batch_size": 1,
+            "height": 512,
+            "width": 512
+        }
+    },
+    "6": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "clip": ["4", 1],
+            "text": "prompt placeholder"
+        }
+    },
+    "7": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "clip": ["4", 1],
+            "text": "bad quality, blurry"
+        }
+    },
+    "8": {
+        "class_type": "VAEDecode",
+        "inputs": {
+            "samples": ["3", 0],
+            "vae": ["4", 2]
+        }
+    },
+    "10": {
+        "class_type": "VideoCombine",
+        "inputs": {
+            "frame_rate": 8,
+            "loop_count": 0,
+            "filename_prefix": "GhenoCity",
+            "format": "video/h264-mp4",
+            "images": ["8", 0]
+        }
+    },
+    "_meta": {
+        "promptNodeId": "6",
+        "description": "TEMPLATE ONLY. This is a basic text-to-image workflow configured to output via VideoCombine. For real text-to-video, replace this file with a valid ComfyUI API JSON (Save as API Format) using a model like Wan 2.2, SVD, or AnimateDiff, and ensure node IDs match."
+    }
+}

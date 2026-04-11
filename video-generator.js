@@ -1,39 +1,47 @@
-const { Client } = require("@gradio/client");
-const axios = require("axios");
+const ComfyUIClient = require('./comfyui-client');
+const fs = require('fs');
+const path = require('path');
+
+// Default workflow for text-to-video.
+// In a real scenario, this would be a complex JSON exported from ComfyUI (API format).
+// For now, we'll try to use a placeholder or load from a file if it exists.
+let defaultWorkflow = null;
+const workflowPath = path.join(__dirname, 'assets', 'workflows', 't2v_workflow.json');
+
+try {
+    if (fs.existsSync(workflowPath)) {
+        defaultWorkflow = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
+    }
+} catch (error) {
+    console.error('[Video Generator] Error loading workflow:', error.message);
+}
 
 /**
- * Generates a video from a text prompt using the Omni-Video-Factory on Hugging Face.
+ * Generates a video from a text prompt using a ComfyUI instance.
  * @param {string} prompt The text prompt for the video.
  * @returns {Promise<Buffer>} The video data as a buffer.
  */
 async function generateVideoFromPrompt(prompt) {
-    console.log(`[Video Generator] Generating video for: ${prompt}`);
+    console.log(`[Video Generator] Generating video via ComfyUI for: ${prompt}`);
+
+    if (!defaultWorkflow) {
+        console.warn('[Video Generator] No ComfyUI workflow found. Falling back to old implementation or throwing error.');
+        // If no workflow is provided, we can't use ComfyUI properly.
+        // For the sake of this task, I'll assume the user wants the structure ready.
+        throw new Error("ComfyUI workflow not configured. Please add a valid API JSON in assets/workflows/t2v_workflow.json");
+    }
+
     try {
-        const client = await Client.connect("FrameAI4687/Omni-Video-Factory");
+        const client = new ComfyUIClient();
+        // Assuming node "6" is the CLIPTextEncode for the positive prompt in a standard workflow
+        // or whatever node ID is appropriate for the configured workflow.
+        // We might want to make this configurable in the workflow JSON metadata.
+        const promptNodeId = defaultWorkflow._meta?.promptNodeId || "6";
 
-        const result = await client.predict("/_submit_t2v", {
-            scene_count: 1,
-            seconds_per_scene: 3,
-            resolution: 512,
-            aspect_ratio: "9:16",
-            base_prompt: prompt,
-            s1: prompt,
-            s2: "",
-            s3: "",
-            s4: "",
-        });
-
-        if (result.data && result.data[1] && result.data[1].video && result.data[1].video.url) {
-            const videoUrl = result.data[1].video.url;
-            console.log(`[Video Generator] Video generated at: ${videoUrl}`);
-
-            const response = await axios.get(videoUrl, { responseType: 'arraybuffer' });
-            return Buffer.from(response.data);
-        } else {
-            throw new Error("Video generation failed or returned unexpected data structure.");
-        }
+        const videoBuffer = await client.generateVideo(defaultWorkflow, promptNodeId, prompt);
+        return videoBuffer;
     } catch (error) {
-        console.error("[Video Generator] Error generating video:", error.message);
+        console.error("[Video Generator] Error generating video via ComfyUI:", error.message);
         throw error;
     }
 }
