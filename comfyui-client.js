@@ -7,15 +7,21 @@ class ComfyUIClient {
         this.serverAddress = serverAddress.replace(/\/$/, '');
         this.baseAddress = this.serverAddress.replace(/^https?:\/\//, '');
         this.clientId = uuidv4();
+        console.log(`[ComfyUI] Initialized client for server: ${this.serverAddress} (Client ID: ${this.clientId})`);
     }
 
     async queuePrompt(prompt) {
         const url = `${this.serverAddress}/prompt`;
-        const response = await axios.post(url, {
-            prompt,
-            client_id: this.clientId
-        });
-        return response.data.prompt_id;
+        try {
+            const response = await axios.post(url, {
+                prompt,
+                client_id: this.clientId
+            });
+            return response.data.prompt_id;
+        } catch (error) {
+            console.error(`[ComfyUI] Error queuing prompt at ${url}:`, error.response?.data || error.message);
+            throw new Error(`Failed to queue prompt: ${error.message}`);
+        }
     }
 
     async getHistory(promptId) {

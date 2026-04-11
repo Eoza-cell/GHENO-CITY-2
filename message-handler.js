@@ -33,10 +33,13 @@ async function sendWithImage(sock, jid, text) {
     return;
   }
 
-  // If there are video prompts but no image prompts, send the caption first (or later with the video)
-  if (prompts.length === 0 && videoPrompts.length > 0 && caption) {
-     // We will send it with the first video if we don't send it now.
-     // To keep it simple, if there are only videos, we'll let the video loop handle it.
+  // If there's a caption and media to follow, send the caption first to keep the player engaged.
+  // We'll track if we've sent the caption to avoid sending it again.
+  let captionSent = false;
+
+  if (caption && (prompts.length > 0 || videoPrompts.length > 0)) {
+    await sock.sendMessage(jid, { text: caption });
+    captionSent = true;
   }
 
   // Generate and send images for each prompt.
@@ -45,19 +48,9 @@ async function sendWithImage(sock, jid, text) {
       console.log(`Génération d'image pour le prompt: "${prompt}"`);
       const imageBuffer = await generateImageFromPrompt(prompt);
 
-      // The caption is only sent with the first image to avoid repetition.
-      const messageOptions = {
-        image: imageBuffer,
-      };
-      if (index === 0 && caption) {
-        messageOptions.caption = caption;
-      }
-
-      await sock.sendMessage(jid, messageOptions);
-
+      await sock.sendMessage(jid, { image: imageBuffer });
     } catch (error) {
       console.error(`Échec de la génération ou de l'envoi de l'image pour le prompt: "${prompt}"`, error);
-      // Inform the user about the failure in a clear message.
       await sock.sendMessage(jid, { text: `[La génération d'image a échoué pour le prompt: "${prompt}"]` });
     }
   }
@@ -68,16 +61,7 @@ async function sendWithImage(sock, jid, text) {
       console.log(`Génération de vidéo pour le prompt: "${prompt}"`);
       const videoBuffer = await generateVideoFromPrompt(prompt);
 
-      const messageOptions = {
-        video: videoBuffer,
-      };
-      // If we haven't sent a caption yet (no images), send it with the first video.
-      if (prompts.length === 0 && index === 0 && caption) {
-        messageOptions.caption = caption;
-      }
-
-      await sock.sendMessage(jid, messageOptions);
-
+      await sock.sendMessage(jid, { video: videoBuffer });
     } catch (error) {
       console.error(`Échec de la génération ou de l'envoi de la vidéo pour le prompt: "${prompt}"`, error);
       await sock.sendMessage(jid, { text: `[La génération de vidéo a échoué pour le prompt: "${prompt}"]` });
