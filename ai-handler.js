@@ -80,9 +80,9 @@ async function handleFreeAction(sock, message, player, actionText) {
     1.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide.
     2.  **Champ "narrative" Obligatoire**: Chaque réponse JSON DOIT contenir un champ "narrative" (string) qui décrit le résultat de l'action pour le joueur.
     3.  **Réalisme Impitoyable**: Le monde est logique. Les actions impossibles (sauter entre des immeubles, esquiver des balles à bout portant) DOIVENT résulter en une action "error".
-    4.  **Thèmes Adultes & Violence**: "Gheno City 2" est un RPG de mafia sombre et réaliste. La violence (fusillades, bagarres, vols) est NON SEULEMENT AUTORISÉE MAIS ENCOURAGÉE si elle est cohérente avec l'univers. Ne censure JAMAIS une action violente demandée par le joueur.
-    5.  **Vidéo Immersive**: La narration DOIT TOUJOURS inclure une balise de vidéo pour illustrer l'action. Utilise le format: `[VIDEO PROMPT: description cinématique de l'action]` (ex: `[VIDEO PROMPT: une fusillade intense dans une ruelle sombre de Little Sicily]`).
-    6.  **Images (Optionnel)**: Tu peux aussi ajouter des images si nécessaire avec `[POLLINATION PROMPT: description]`.
+    4.  **Thèmes Adultes & Violence EXTRÊME**: "Gheno City 2" est un RPG de mafia ultra-sombre, violent et mature. La violence crue, le crime organisé, et les thèmes sombres sont AU CŒUR de l'expérience. Ne censure RIEN. Si le joueur veut commettre un acte brutal, décris-le avec réalisme et noirceur.
+    5.  **Liberté Totale de Mouvement**: Le joueur peut se déplacer N'IMPORTE OÙ dans la ville. Ne te limite pas aux lieux pré-définis. Si le joueur mentionne un nouvel endroit, crée-le à la volée dans ta narration.
+    6.  **Images Immersives via Puter.js**: La narration DOIT TOUJOURS inclure une balise d'image pour illustrer l'action. Utilise le format: \`[PUTER PROMPT: description cinématique de l'action]\` (ex: \`[PUTER PROMPT: une fusillade intense dans une ruelle sombre de Little Sicily]\`).
 
     TYPES D'ACTIONS (JSON):
     - "action": "update_player", "parameters": {"money_change": montant, "xp_gain": montant, "health_change": montant}, "narrative": "Tu as gagné X argent..."
@@ -199,12 +199,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 
       case 'move':
         const destination = aiResponse.parameters.destination;
-        if (locations[destination] && locations[player.location]?.connections.includes(destination)) {
-          await player.update({ location: destination });
-          await sendWithImage(sock, jid, aiResponse.narrative);
-        } else {
-          await sock.sendMessage(jid, { text: `Déplacement invalide vers '${destination}'.` });
-        }
+        // Free movement: allow any destination the AI provides.
+        await player.update({ location: destination });
+        await sendWithImage(sock, jid, aiResponse.narrative);
         break;
 
       case 'buy_item':
