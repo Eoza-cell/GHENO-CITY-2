@@ -1,48 +1,30 @@
-const puter = require('@heyputer/puter.js').default;
+const axios = require('axios');
 
 /**
- * Generates an image from a text prompt using Puter.js AI service.
+ * Generates an image from a text prompt using Pollinations AI (as a reliable fallback for Puter.js).
  * @param {string} prompt The text prompt for the image.
  * @returns {Promise<Buffer>} The image data as a buffer.
  */
 async function generateImageFromPrompt(prompt) {
-  console.log(`[Puter Image] Demande de génération d'image pour : ${prompt}`);
-
-  if (process.env.PUTER_AUTH_TOKEN) {
-    puter.setAuthToken(process.env.PUTER_AUTH_TOKEN);
-  }
+  console.log(`[Image Generator] Demande de génération d'image pour : ${prompt}`);
 
   try {
-    // Puter.js txt2img returns an object representing the image.
-    // In many environments, it's an FSItem that can be read.
-    // In others, its toString() returns a data URL.
-    const image = await puter.ai.txt2img(prompt, {
-        model: 'black-forest-labs/FLUX.1-schnell-Free'
+    const encodedPrompt = encodeURIComponent(prompt);
+    // Pollinations is free, unlimited, and reliable.
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
+
+    const response = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+      }
     });
 
-    // Check for toString() returning Data URI
-    const imageData = image.toString();
-    if (imageData && imageData.startsWith('data:')) {
-        const base64Data = imageData.split(',')[1];
-        return Buffer.from(base64Data, 'base64');
-    }
-
-    // Check if it's a PuterFile/FSItem with a read method
-    if (image && typeof image.read === 'function') {
-        const data = await image.read();
-        return Buffer.from(data);
-    }
-
-    // Fallback if it's already a buffer
-    if (Buffer.isBuffer(image)) {
-        return image;
-    }
-
-    throw new Error("Échec de la récupération des données de l'image Puter (Format inconnu)");
+    return Buffer.from(response.data);
 
   } catch (error) {
-    console.error("Erreur lors de la génération de l'image avec Puter:", error.message || error);
-    throw new Error("Le service de génération d'images Puter a rencontré une erreur.");
+    console.error("Erreur lors de la génération de l'image:", error.message);
+    throw new Error("Le service de génération d'images est actuellement indisponible.");
   }
 }
 
