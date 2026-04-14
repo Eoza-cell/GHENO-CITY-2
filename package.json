@@ -20,7 +20,6 @@
   },
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
-    "@gradio/client": "^2.1.0",
     "@heyputer/puter.js": "^2.2.2",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.15.0",

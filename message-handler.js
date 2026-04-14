@@ -14,7 +14,8 @@ async function sendWithImage(sock, jid, text) {
     return; // Ne rien envoyer si le texte n'est pas valide.
   }
 
-  const promptRegex = /\[POLLINATION PROMPT:\s*(.*?)\s*\]/gi;
+  // Handle both old and new tags for robustness
+  const promptRegex = /\[(?:POLLINATION|PUTER) PROMPT:\s*(.*?)\s*\]/gi;
   // Utilise matchAll pour obtenir toutes les invites et les mapper dans un tableau.
   const prompts = [...text.matchAll(promptRegex)].map(match => match[1]);
 
@@ -40,7 +41,10 @@ async function sendWithImage(sock, jid, text) {
       console.log(`Génération d'image pour le prompt: "${prompt}"`);
       const imageBuffer = await generateImageFromPrompt(prompt);
 
-      await sock.sendMessage(jid, { image: imageBuffer });
+      await sock.sendMessage(jid, {
+        image: imageBuffer,
+        mimetype: 'image/jpeg'
+      });
     } catch (error) {
       console.error(`Échec de la génération ou de l'envoi de l'image pour le prompt: "${prompt}"`, error);
       await sock.sendMessage(jid, { text: `[La génération d'image a échoué pour le prompt: "${prompt}"]` });
