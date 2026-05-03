@@ -12,13 +12,23 @@ async function sendWithImage(sock, jid, aiResponse) {
 
     if (imagePrompt) {
         try {
-            // URL-encode the prompt to handle special characters
-            const encodedPrompt = encodeURIComponent(imagePrompt);
-            const imageUrl = `https://text.pollinations.ai/${encodedPrompt}`;
+            let imageUrl;
+            if (imagePrompt.startsWith('http')) {
+                imageUrl = imagePrompt;
+            } else {
+                // URL-encode the prompt to handle special characters
+                const encodedPrompt = encodeURIComponent(imagePrompt);
+                imageUrl = `https://text.pollinations.ai/${encodedPrompt}`;
+            }
             console.log(`Génération d'image (Pollinations.ai) pour le prompt : "${imagePrompt}" | URL: ${imageUrl}`);
 
             // Fetch the image as a buffer
-            const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+            const response = await axios.get(imageUrl, {
+                responseType: 'arraybuffer',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+            });
             const imageBuffer = Buffer.from(response.data, 'binary');
 
             if (imageBuffer && imageBuffer.length > 0) {

@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item } = require('./database');
 const { handleFreeAction } = require('./ai-handler');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
@@ -94,6 +95,12 @@ const profileCommand = async (sock, message) => {
                       `*Vie:* ${healthBar} ${player.health}%\n` +
                       `*Mana:* ${manaBar} ${player.mana}%\n` +
                       `*XP:* ${xpBar} ${player.xp}/${xpNeeded}\n\n` +
+                      `*Statistiques:*\n` +
+                      `⚔️ Force: ${player.strength}\n` +
+                      `🏃 Agilité: ${player.agility}\n` +
+                      `🧠 Intelligence: ${player.intelligence}\n` +
+                      `🛡️ Défense: ${player.defense}\n` +
+                      `🍀 Chance: ${player.luck}\n\n` +
                       `*Col:* ${player.col} 🪙`;
 
   await sock.sendMessage(replyJid, { text: profileText });
@@ -142,6 +149,87 @@ commands.set('map', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: mapText });
 });
 
+// Command: /boutique
+commands.set('boutique', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const items = await Item.findAll();
+
+    if (items.length === 0) {
+        await sock.sendMessage(replyJid, { text: "La boutique est vide pour le moment." });
+        return;
+    }
+
+    let boutiqueText = "*Boutique de Skype*\n\n";
+    items.forEach(item => {
+        boutiqueText += `*${item.name}* - ${item.price} 🪙\n`;
+        boutiqueText += `${item.description}\n`;
+        const bonuses = item.statBonuses;
+        const bonusStrings = Object.entries(bonuses).map(([stat, value]) => `${stat}: +${value}`);
+        if (bonusStrings.length > 0) {
+            boutiqueText += `_Bonus: ${bonusStrings.join(', ')}_\n`;
+        }
+        boutiqueText += `\n`;
+    });
+
+    boutiqueText += "Pour acheter un objet, utilise /action et dis par exemple : 'J'achète l'épée Elucidator'.";
+
+    // Show a random item image if available
+    const featuredItem = items.find(i => i.imageUrl);
+    if (featuredItem) {
+        try {
+            const response = await axios.get(featuredItem.imageUrl, {
+                responseType: 'arraybuffer',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+            });
+            const imageBuffer = Buffer.from(response.data, 'binary');
+            await sock.sendMessage(replyJid, {
+                image: imageBuffer,
+                caption: boutiqueText
+            });
+        } catch (error) {
+            console.error("Erreur envoi image boutique (fallback au texte seul):", error.message);
+            await sock.sendMessage(replyJid, { text: boutiqueText });
+        }
+    } else {
+        await sock.sendMessage(replyJid, { text: boutiqueText });
+    }
+});
+
+// Command: /joueurs
+commands.set('joueurs', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
+        return;
+    }
+
+    const otherPlayers = await Player.findAll({
+        where: {
+            location: player.location,
+            whatsappId: { [Op.ne]: jid }
+        }
+    });
+
+    if (otherPlayers.length === 0) {
+        await sock.sendMessage(replyJid, { text: `Tu es seul ici à ${player.location}.` });
+        return;
+    }
+
+    let playersText = `*Joueurs à ${player.location}:*\n\n`;
+    otherPlayers.forEach(p => {
+        playersText += `- ${p.name} (Niveau ${p.level}, Rang ${p.rank})\n`;
+    });
+    playersText += "\nTu peux interagir avec eux en utilisant /action.";
+
+    await sock.sendMessage(replyJid, { text: playersText });
+});
+
 // Command: /bank
 commands.set('bank', async (sock, message) => {
     const jid = getJid(message);
@@ -173,6 +261,8 @@ commands.set('help', async (sock, message) => {
                    "/quests - Voir tes quêtes actives.\n" +
                    "/map - Afficher la carte du monde et les donjons.\n" +
                    "/bank - Accéder à ton compte en banque.\n" +
+                   "/boutique - Acheter de l'équipement.\n" +
+                   "/joueurs - Voir les joueurs à proximité.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
                    "/help - Afficher cette aide.";
@@ -206,6 +296,8 @@ commands.set('menu', async (sock, message) => {
                    "📋 `/quests` - Consulter tes quêtes.\n" +
                    "🗺️ `/map` - Ouvrir la carte du monde.\n" +
                    "💰 `/bank` - Accéder à la banque.\n" +
+                   "🛒 `/boutique` - Acheter de l'équipement.\n" +
+                   "👥 `/joueurs` - Voir les joueurs à proximité.\n" +
                    "❓ `/help` - Liste des commandes.";
   try {
     await sock.sendMessage(message.key.remoteJid, {

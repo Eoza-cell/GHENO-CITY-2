@@ -100,6 +100,58 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  strength: {
+    type: DataTypes.INTEGER,
+    defaultValue: 10,
+  },
+  agility: {
+    type: DataTypes.INTEGER,
+    defaultValue: 10,
+  },
+  intelligence: {
+    type: DataTypes.INTEGER,
+    defaultValue: 10,
+  },
+  luck: {
+    type: DataTypes.INTEGER,
+    defaultValue: 5,
+  },
+  defense: {
+    type: DataTypes.INTEGER,
+    defaultValue: 10,
+  },
+});
+
+const Item = sequelize.define('Item', {
+  name: {
+    type: DataTypes.STRING,
+    unique: true,
+  },
+  description: {
+    type: DataTypes.TEXT,
+  },
+  price: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  type: { // weapon, armor, consumable, etc.
+    type: DataTypes.STRING,
+  },
+  statBonuses: {
+    type: DataTypes.TEXT,
+    defaultValue: '{}',
+    get() {
+      const rawValue = this.getDataValue('statBonuses');
+      return rawValue ? JSON.parse(rawValue) : {};
+    },
+    set(value) {
+      this.setDataValue('statBonuses', JSON.stringify(value));
+    },
+  },
+  imageUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 });
 
 const Dungeon = sequelize.define('Dungeon', {
@@ -182,8 +234,59 @@ async function setupDatabase() {
             { name: 'Forêt des Gobelins', description: 'Une forêt sombre grouillant de gobelins faibles.', rank: 'E', floors: 5 },
             { name: 'Mine de Cobalt', description: 'Une mine abandonnée où vivent des kobolds mineurs.', rank: 'D', floors: 10 },
             { name: 'Caverne des Ombres', description: 'Une caverne profonde où la lumière ne pénètre jamais.', rank: 'C', floors: 15 },
+            { name: 'Labyrinthe d\'Aincrad', description: 'Un labyrinthe complexe menant au sommet du château volant.', rank: 'B', floors: 20 },
+            { name: 'Forêt de Glace de Givre', description: 'Une forêt éternellement gelée où rôdent des créatures de glace.', rank: 'A', floors: 25 },
+            { name: 'Donjon du Destin', description: 'Un donjon mystérieux qui change de forme à chaque entrée.', rank: 'S', floors: 100 },
         ]);
         console.log('Dungeons seeded.');
+    }
+
+    const itemCount = await Item.count();
+    if (itemCount === 0) {
+        console.log('Seeding Items...');
+        await Item.bulkCreate([
+            {
+                name: 'Elucidator',
+                description: 'Une épée noire obsidienne d\'une puissance incroyable.',
+                price: 5000,
+                type: 'weapon',
+                statBonuses: { strength: 25, agility: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/5/53/Elucidator.png'
+            },
+            {
+                name: 'Dark Repulser',
+                description: 'Une épée forgée à partir d\'un cristal rare, compagne de l\'Elucidator.',
+                price: 4500,
+                type: 'weapon',
+                statBonuses: { strength: 20, agility: 15 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/82/Dark_Repulser.png'
+            },
+            {
+                name: 'Lambent Light',
+                description: 'Une rapière élégante et rapide comme l\'éclair.',
+                price: 4000,
+                type: 'weapon',
+                statBonuses: { agility: 25, luck: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Lambent_Light.png'
+            },
+            {
+                name: 'Blue Rose Sword',
+                description: 'Une épée gravée d\'une rose bleue, capable de geler les ennemis.',
+                price: 6000,
+                type: 'weapon',
+                statBonuses: { intelligence: 20, defense: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/1/1a/Blue_Rose_Sword.png'
+            },
+            {
+                name: 'Night Sky Sword',
+                description: 'Une épée forgée à partir d\'une branche de l\'Arbre du Destin.',
+                price: 7000,
+                type: 'weapon',
+                statBonuses: { strength: 30, intelligence: 15 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/f/f6/Night_Sky_Sword.png'
+            }
+        ]);
+        console.log('Items seeded.');
     }
 
     const questCount = await Quest.count();
@@ -208,6 +311,7 @@ module.exports = {
   Quest,
   PlayerQuest,
   Bank,
+  Item,
   Creds,
   setupDatabase,
 };
