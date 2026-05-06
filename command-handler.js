@@ -3,6 +3,7 @@ const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item } = require('./database');
+const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { handleFreeAction } = require('./ai-handler');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
@@ -252,11 +253,63 @@ commands.set('bank', async (sock, message) => {
 });
 
 
+// Command: /statut
+commands.set('statut', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
+        return;
+    }
+
+    const inventory = player.inventory;
+    const equipped = {
+        head: false,
+        chest: false,
+        arms: false,
+        legs: false,
+        weapon: false
+    };
+
+    // For each item in inventory, check if it's in the DB and get its slot
+    // Optimization: find all items from DB that are in inventory
+    const itemNames = inventory.map(i => i.name);
+    const dbItems = await Item.findAll({ where: { name: { [Op.in]: itemNames } } });
+
+    dbItems.forEach(item => {
+        if (equipped[item.slot] !== undefined) {
+            equipped[item.slot] = true;
+        }
+    });
+
+    try {
+        const imageBuffer = await generateEquipmentStatusImage(equipped);
+        let caption = `*État de l'équipement de ${player.name}*\n\n`;
+        caption += `🟢 Protégé | ⚪ Non protégé\n\n`;
+        caption += `${equipped.head ? '🟢' : '⚪'} Tête\n`;
+        caption += `${equipped.chest ? '🟢' : '⚪'} Torse\n`;
+        caption += `${equipped.arms ? '🟢' : '⚪'} Bras\n`;
+        caption += `${equipped.legs ? '🟢' : '⚪'} Jambes\n`;
+        caption += `${equipped.weapon ? '⚔️' : '⚪'} Arme\n`;
+
+        await sock.sendMessage(replyJid, {
+            image: imageBuffer,
+            caption: caption
+        });
+    } catch (error) {
+        console.error("Erreur génération statut visuel:", error);
+        await sock.sendMessage(replyJid, { text: "Impossible de générer le visuel de l'équipement." });
+    }
+});
+
 // Command: /help
 commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
                    "/start - Commencer l'aventure.\n" +
                    "/profile - Voir ton profil de joueur.\n" +
+                   "/statut - Voir l'état de ton équipement.\n" +
                    "/inventory - Consulter ton inventaire.\n" +
                    "/quests - Voir tes quêtes actives.\n" +
                    "/map - Afficher la carte du monde et les donjons.\n" +
@@ -296,6 +349,7 @@ commands.set('menu', async (sock, message) => {
                    "📋 `/quests` - Consulter tes quêtes.\n" +
                    "🗺️ `/map` - Ouvrir la carte du monde.\n" +
                    "💰 `/bank` - Accéder à la banque.\n" +
+                   "🛡️ `/statut` - État de l'équipement.\n" +
                    "🛒 `/boutique` - Acheter de l'équipement.\n" +
                    "👥 `/joueurs` - Voir les joueurs à proximité.\n" +
                    "❓ `/help` - Liste des commandes.";

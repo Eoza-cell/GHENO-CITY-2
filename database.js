@@ -137,6 +137,10 @@ const Item = sequelize.define('Item', {
   type: { // weapon, armor, consumable, etc.
     type: DataTypes.STRING,
   },
+  slot: { // head, chest, arms, legs, weapon, none
+    type: DataTypes.STRING,
+    defaultValue: 'none',
+  },
   statBonuses: {
     type: DataTypes.TEXT,
     defaultValue: '{}',
@@ -250,6 +254,7 @@ async function setupDatabase() {
                 description: 'Une épée noire obsidienne d\'une puissance incroyable.',
                 price: 5000,
                 type: 'weapon',
+                slot: 'weapon',
                 statBonuses: { strength: 25, agility: 10 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/5/53/Elucidator.png'
             },
@@ -258,6 +263,7 @@ async function setupDatabase() {
                 description: 'Une épée forgée à partir d\'un cristal rare, compagne de l\'Elucidator.',
                 price: 4500,
                 type: 'weapon',
+                slot: 'weapon',
                 statBonuses: { strength: 20, agility: 15 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/82/Dark_Repulser.png'
             },
@@ -266,6 +272,7 @@ async function setupDatabase() {
                 description: 'Une rapière élégante et rapide comme l\'éclair.',
                 price: 4000,
                 type: 'weapon',
+                slot: 'weapon',
                 statBonuses: { agility: 25, luck: 10 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Lambent_Light.png'
             },
@@ -274,6 +281,7 @@ async function setupDatabase() {
                 description: 'Une épée gravée d\'une rose bleue, capable de geler les ennemis.',
                 price: 6000,
                 type: 'weapon',
+                slot: 'weapon',
                 statBonuses: { intelligence: 20, defense: 10 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/1/1a/Blue_Rose_Sword.png'
             },
@@ -282,8 +290,67 @@ async function setupDatabase() {
                 description: 'Une épée forgée à partir d\'une branche de l\'Arbre du Destin.',
                 price: 7000,
                 type: 'weapon',
+                slot: 'weapon',
                 statBonuses: { strength: 30, intelligence: 15 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/f/f6/Night_Sky_Sword.png'
+            },
+            // Armures
+            {
+                name: 'Plastron de la Confrérie',
+                description: 'L\'armure emblématique des Chevaliers du Sang.',
+                price: 3000,
+                type: 'armor',
+                slot: 'chest',
+                statBonuses: { defense: 20, strength: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Knights_of_the_Blood_Uniform.png'
+            },
+            {
+                name: 'Heaume de Fer',
+                description: 'Un casque solide offrant une protection basique.',
+                price: 800,
+                type: 'armor',
+                slot: 'head',
+                statBonuses: { defense: 10 },
+            },
+            {
+                name: 'Gantelets de Combat',
+                description: 'Des gantelets renforçant les coups et la garde.',
+                price: 600,
+                type: 'armor',
+                slot: 'arms',
+                statBonuses: { defense: 5, strength: 3 },
+            },
+            {
+                name: 'Jambières de Vitesse',
+                description: 'Des bottes légères favorisant le mouvement.',
+                price: 1200,
+                type: 'armor',
+                slot: 'legs',
+                statBonuses: { defense: 8, agility: 10 },
+            },
+            {
+                name: 'Arc Elfique',
+                description: 'Un arc élégant sculpté dans du bois de lothlorien.',
+                price: 2500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 15, luck: 5 },
+            },
+            {
+                name: 'Bouclier en Os de Dragon',
+                description: 'Un bouclier massif forgé à partir des restes d\'un dragon ancien.',
+                price: 3500,
+                type: 'armor',
+                slot: 'arms',
+                statBonuses: { defense: 25, strength: 10 },
+            },
+            {
+                name: 'Tunique de Soie Magique',
+                description: 'Une tunique légère imprégnée de mana.',
+                price: 1800,
+                type: 'armor',
+                slot: 'chest',
+                statBonuses: { intelligence: 15, defense: 5 },
             }
         ]);
         console.log('Items seeded.');
@@ -295,6 +362,11 @@ async function setupDatabase() {
         await Quest.bulkCreate([
             { title: 'La Chasse aux Gobelins', description: 'Éliminez 10 gobelins dans la Forêt des Gobelins.', type: 'side', rank_required: 'E', reward_col: 50, reward_xp: 100 },
             { title: 'Le Fléau des Kobolds', description: 'Venez à bout du chef des kobolds dans la Mine de Cobalt.', type: 'main', rank_required: 'D', reward_col: 200, reward_xp: 300 },
+            { title: 'L\'Énigme d\'Aincrad', description: 'Explorez le premier palier du labyrinthe et trouvez la stèle ancienne.', type: 'main', rank_required: 'C', reward_col: 500, reward_xp: 1000 },
+            { title: 'Larmes de Glace', description: 'Récupérez 5 cristaux de givre dans la Forêt de Glace.', type: 'side', rank_required: 'B', reward_col: 800, reward_xp: 1500 },
+            { title: 'Le Duel des Maîtres', description: 'Affrontez un épéiste légendaire pour prouver votre valeur.', type: 'main', rank_required: 'A', reward_col: 2000, reward_xp: 5000 },
+            { title: 'La Menace Volante', description: 'Éliminez les wyvernes qui terrorisent les caravanes marchandes.', type: 'side', rank_required: 'B', reward_col: 1200, reward_xp: 2000 },
+            { title: 'Le Secret du Forgeron', description: 'Aidez le forgeron de la ville de départ à retrouver son marteau volé.', type: 'side', rank_required: 'D', reward_col: 300, reward_xp: 500 },
         ]);
         console.log('Quests seeded.');
     }

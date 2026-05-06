@@ -29,10 +29,20 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Inventaire:\n" + inventory.map(i => `- ${i.name} (x${i.quantity})`).join('\n')
     : "Ton inventaire est vide.";
 
-  const quests = await player.getQuests();
-  const questState = quests.length > 0
-    ? "Quêtes Actives:\n" + quests.filter(q => q.PlayerQuest.status === 'in_progress').map(q => `- ${q.title}: ${q.description}`).join('\n')
-    : "Aucune quête active.";
+  const allQuests = await Quest.findAll();
+  const playerQuests = await player.getQuests();
+
+  const activeQuestNames = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress').map(q => q.title);
+  const completedQuestNames = playerQuests.filter(q => q.PlayerQuest.status === 'completed').map(q => q.title);
+
+  const questState = playerQuests.length > 0
+    ? "Tes Quêtes:\n" + playerQuests.map(q => `- ${q.title} [${q.PlayerQuest.status}]`).join('\n')
+    : "Tu n'as commencé aucune quête.";
+
+  const availableQuests = allQuests.filter(q => !activeQuestNames.includes(q.title) && !completedQuestNames.includes(q.title));
+  const availableQuestState = availableQuests.length > 0
+    ? "Quêtes disponibles dans le monde:\n" + availableQuests.map(q => `- ${q.title}: ${q.description} (Requis: Rang ${q.rank_required})`).join('\n')
+    : "Toutes les quêtes connues ont été commencées ou terminées.";
 
   const dungeons = await Dungeon.findAll();
   const dungeonState = "Donjons connus:\n" + dungeons.map(d => `- ${d.name} (Rang ${d.rank})`).join('\n');
@@ -72,7 +82,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "type": "remove_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${questState}\n${dungeonState}\n${socialState}\n${shopState}\n\nACTION DU JOUEUR: ${actionText}`;
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n\nACTION DU JOUEUR: ${actionText}`;
 
   try {
     const response = await puter.ai.chat(
