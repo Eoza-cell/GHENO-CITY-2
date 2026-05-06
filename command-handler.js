@@ -5,6 +5,7 @@ const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item } = require('./database');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { handleFreeAction } = require('./ai-handler');
+const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 
@@ -423,7 +424,12 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   // Handle free action mode
   if (player?.mode === 'action' && !messageText.startsWith('/')) {
     try {
-      await handleFreeAction(sock, message, player, messageText);
+        if (player.tutorialStep > 0 && player.tutorialStep < 3) {
+            const { handleTutorialAction } = require('./tutorial-handler');
+            await handleTutorialAction(sock, message, player, messageText);
+        } else {
+            await handleFreeAction(sock, message, player, messageText);
+        }
     } catch (error) {
       console.error('Erreur action libre:', error);
       await sock.sendMessage(replyJid, { text: "Le MJ n'a pas pu interpréter ton action. Réessaie." });

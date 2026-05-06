@@ -100,6 +100,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  tutorialStep: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0, // 0: not started, 1: class choice, 2: combat training, 3: completed
+  },
   strength: {
     type: DataTypes.INTEGER,
     defaultValue: 10,
@@ -351,6 +355,24 @@ async function setupDatabase() {
                 type: 'armor',
                 slot: 'chest',
                 statBonuses: { intelligence: 15, defense: 5 },
+            },
+            {
+                name: 'Fragrant Olive Sword',
+                description: 'L\'épée divine d\'Alice, capable de se diviser en mille pétales.',
+                price: 8000,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 35, defense: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/43/Fragrant_Olive_Sword.png'
+            },
+            {
+                name: 'Heaven Piercing Sword',
+                description: 'L\'épée de Fanatio, dont la lumière peut tout transpercer.',
+                price: 7500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { intelligence: 30, agility: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/7/77/Heaven_Piercing_Sword.png'
             }
         ]);
         console.log('Items seeded.');
@@ -367,6 +389,8 @@ async function setupDatabase() {
             { title: 'Le Duel des Maîtres', description: 'Affrontez un épéiste légendaire pour prouver votre valeur.', type: 'main', rank_required: 'A', reward_col: 2000, reward_xp: 5000 },
             { title: 'La Menace Volante', description: 'Éliminez les wyvernes qui terrorisent les caravanes marchandes.', type: 'side', rank_required: 'B', reward_col: 1200, reward_xp: 2000 },
             { title: 'Le Secret du Forgeron', description: 'Aidez le forgeron de la ville de départ à retrouver son marteau volé.', type: 'side', rank_required: 'D', reward_col: 300, reward_xp: 500 },
+            { title: 'Le Trésor Oublié', description: 'Une légende parle d\'un trésor caché au fond des Mines de Cobalt.', type: 'side', rank_required: 'D', reward_col: 600, reward_xp: 800 },
+            { title: 'Invasion de Monstres', description: 'Repoussez l\'attaque soudaine de monstres sur le village de pêcheurs.', type: 'side', rank_required: 'C', reward_col: 1000, reward_xp: 2000 },
         ]);
         console.log('Quests seeded.');
     }

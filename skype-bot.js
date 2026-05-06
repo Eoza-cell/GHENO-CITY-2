@@ -12,6 +12,7 @@ const { Sequelize } = require('sequelize');
 const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
+const { startTutorial } = require('./tutorial-handler');
 const { startInactivePlayerCheck } = require('./inactive-handler');
 const { startDayNightCycle } = require('./game-state');
 
@@ -117,7 +118,10 @@ async function connectToWhatsApp() {
                     });
 
                     console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                    await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype. Ton aventure commence maintenant.\n\nUtilise /quests pour voir ton premier objectif.` });
+                    await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
+
+                    // Trigger tutorial after profile pic
+                    await startTutorial(sock, message.key.remoteJid, player);
                     continue; // Stop further processing for this message
                 } catch (error) {
                     console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
