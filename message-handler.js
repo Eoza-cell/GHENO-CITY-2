@@ -18,7 +18,7 @@ async function sendWithImage(sock, jid, aiResponse) {
             } else {
                 // URL-encode the prompt to handle special characters
                 const encodedPrompt = encodeURIComponent(imagePrompt);
-                imageUrl = `https://text.pollinations.ai/${encodedPrompt}`;
+                imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
             }
             console.log(`Génération d'image (Pollinations.ai) pour le prompt : "${imagePrompt}" | URL: ${imageUrl}`);
 

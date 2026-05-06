@@ -147,12 +147,26 @@ async function handleFreeAction(sock, message, player, actionText) {
                 let inventory = [...player.inventory];
                 const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === itemName.toLowerCase());
                 if (itemIndex !== -1) {
-                    inventory[itemIndex].quantity -= quantity;
+                    const actualQuantityToRemove = Math.min(quantity, inventory[itemIndex].quantity);
+                    inventory[itemIndex].quantity -= actualQuantityToRemove;
+
                     if (inventory[itemIndex].quantity <= 0) {
                         inventory.splice(itemIndex, 1);
                     }
+
                     player.inventory = inventory;
                     await player.save();
+
+                    // Reverse stat bonuses if the item exists in the database
+                    const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
+                    if (itemData) {
+                        const bonuses = itemData.statBonuses;
+                        for (const [stat, value] of Object.entries(bonuses)) {
+                            if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                                await player.decrement(stat, { by: value * actualQuantityToRemove });
+                            }
+                        }
+                    }
                 }
             }
             break;
