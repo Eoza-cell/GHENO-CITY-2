@@ -250,6 +250,9 @@ async function setupDatabase() {
             { name: 'Océan de Corail', description: 'Un royaume sous-marin protégé par des sirènes guerrières.', rank: 'B', floors: 20 },
             { name: 'Volcan d\'Ignis', description: 'Le cœur brûlant du monde, gardé par un dragon de feu ancien.', rank: 'S', floors: 30 },
             { name: 'Jardin Suspendu d\'Éden', description: 'Un paradis aérien rempli de créatures célestes protectrices.', rank: 'A', floors: 15 },
+            { name: 'Forteresse de Fer', description: 'Une citadelle imprenable située dans les montagnes du Nord.', rank: 'B', floors: 25 },
+            { name: 'Ruines de Xanadu', description: 'Une cité antique autrefois glorieuse, maintenant hantée par des spectres.', rank: 'C', floors: 18 },
+            { name: 'Abysse de l\'Oubli', description: 'Un gouffre sans fond où résident des entités cosmiques terrifiantes.', rank: 'S', floors: 50 },
         ]);
         console.log('Dungeons seeded.');
     }
@@ -423,6 +426,42 @@ async function setupDatabase() {
                 slot: 'weapon',
                 statBonuses: { strength: 50, intelligence: 30, agility: 20 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4e/Excalibur.png'
+            },
+            {
+                name: 'Object Eraser',
+                description: 'Une épée de MJ capable d\'effacer n\'importe quel objet du monde virtuel.',
+                price: 50000,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 100, intelligence: 100 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a8/Object_Eraser.png'
+            },
+            {
+                name: 'Infracheur de Ciel',
+                description: 'Une épée lourde capable de briser les défenses les plus solides.',
+                price: 3200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 22, defense: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b5/Sky_Piercing_Sword.png'
+            },
+            {
+                name: 'Rapière de Fleur de Givre',
+                description: 'Une rapière imprégnée de l\'élément glace.',
+                price: 2800,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 18, intelligence: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e0/Frost_Flower_Rapier.png'
+            },
+            {
+                name: 'Épée de l\'Arbre du Destin',
+                description: 'Forgée à partir du bois sacré, elle résonne avec la nature.',
+                price: 4800,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { intelligence: 25, luck: 15 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e7/Gigas_Cedar.png'
             }
         ]);
         console.log('Items seeded.');

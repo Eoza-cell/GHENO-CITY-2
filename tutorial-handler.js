@@ -2,9 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
 const { sendWithImage } = require('./message-handler');
-const Puter = require('@heyputer/puter.js').default;
+const puter = require('@heyputer/puter.js').default;
 
-const puter = new Puter(process.env.PUTER_API_KEY);
+if (process.env.PUTER_API_KEY) {
+    puter.setAuthToken(process.env.PUTER_API_KEY);
+}
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
