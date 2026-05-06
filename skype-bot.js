@@ -4,7 +4,7 @@ require('dotenv').config();
 // Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const http = require('http');
-const { getMessageContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket } = require('@whiskeysockets/baileys');
+const { getMessageContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -28,12 +28,14 @@ async function connectToWhatsApp() {
   await setupDatabase();
 
   const { state, saveCreds } = await useDatabaseAuth();
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
 
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false, // QR code is no longer needed
     browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
-    version: [2, 3000, 1027934701],
+    version,
     logger: pino({ level: 'silent' }), // Suppress verbose logging
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
