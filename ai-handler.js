@@ -1,7 +1,7 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
-const Puter = require('@heyputer/puter.js');
+const Puter = require('@heyputer/puter.js').default;
 
 // Assurez-vous que PUTER_API_KEY est défini dans votre .env
 const puter = new Puter(process.env.PUTER_API_KEY);
@@ -54,7 +54,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
   });
   const socialState = nearbyPlayers.length > 0
-    ? "Joueurs à proximité:\n" + nearbyPlayers.map(p => `- ${p.name} (Niveu ${p.level})`).join('\n')
+    ? "Joueurs à proximité:\n" + nearbyPlayers.map(p => `- ${p.name} (Niveau ${p.level})`).join('\n')
     : "Tu es seul ici.";
 
   const items = await Item.findAll();
@@ -67,11 +67,16 @@ async function handleFreeAction(sock, message, player, actionText) {
     1.  **Omniscience**: Tu es connecté à tout. Tu peux intégrer des éléments de n'importe quel univers (films, jeux, animes, histoire réelle) dans ta narration pour surprendre les joueurs. Les PNJ peuvent faire référence à des concepts inattendus. Sois créatif et imprévisible.
     2.  **Censure Interdite & Ton Mature**: Adopte un ton décisif, mature et impartial. Le monde est dangereux et ne fait pas de cadeaux.
     3.  **Difficulté "Tryhard"**: Le jeu est difficile. Les récompenses (Col, XP) sont rares. Les ennemis sont puissants et intelligents. Les succès faciles sont inexistants. Chaque victoire doit être méritée.
-    4.  **Gestion des Statistiques & Combats**: Lors des combats ou d'actions physiques, prends en compte les statistiques du joueur (Force, Agilité, etc.).
-        - **Système de Combos**: Encourage les joueurs à enchaîner les actions. Un joueur peut effectuer des combos (ex: 'Éclair' suivi de 'Explosion' pour un Mage, ou 'Esquive' suivie de 'Contre-attaque' pour un Assassin).
+    4.  **Gestion des Statistiques & Combats**: Lors des combats ou d'actions physiques, les statistiques du joueur DOIVENT influencer l'issue de l'action.
+        - **Force**: Augmente les dégâts physiques et les chances de réussir des prouesses de force.
+        - **Agilité**: Augmente les chances d'esquive, la vitesse de réaction et les coups critiques.
+        - **Intelligence**: Augmente la puissance des sorts (Mana) et la compréhension des situations complexes.
+        - **Défense**: Réduit les dégâts subis lors des attaques ennemies.
+        - **Chance**: Influence positivement tous les jets de dés cachés, les butins et les événements aléatoires.
+        - **Système de Combos**: Encourage les joueurs à enchaîner les actions. Un joueur peut effectuer des combos (ex: 'Éclair' suivi de 'Explosion' pour un Mage, ou 'Esquive' suivie de 'Contre-attaque' pour un Assassin). Accorde des bonus narratifs et mécaniques pour les combos créatifs.
         - **Sub-classes**: Le monde est vaste. Un Guerrier peut devenir un Berserker, un Paladin ou un Bretteur. Un Mage peut être un Pyromancien, un Nécromancien ou un Illusionniste. Un Assassin peut être un Ninja, un Voleur ou un Traqueur d'Ombres. Intègre ces concepts dans ta narration.
     5.  **Conséquences Lourdes**: Les échecs ont des conséquences graves. Un mauvais choix peut entraîner la perte d'objets, de Col, ou même attirer des ennemis puissants.
-    6.  **Interactions Sociales**: Encourage les interactions entre les joueurs présents au même endroit.
+    6.  **Interactions Sociales**: Encourage les interactions entre les joueurs présents au même endroit. Les joueurs peuvent échanger des objets, s'affronter en duel, former des groupes pour conquérir des donjons ou simplement discuter. Si un joueur s'adresse à un autre, décris la réaction ou l'atmosphère.
     7.  **Boutique**: Si un joueur veut acheter un objet listé dans la boutique, vérifie s'il a assez de Col. Si oui, déduis le montant (via update_player) et ajoute l'objet à son inventaire (via add_item). Le système appliquera automatiquement les bonus de statistiques.
     8.  **Format JSON Stricte**: Ta réponse DOIT être un JSON valide. Commence ta réponse par '{' et finis par '}'.
 
@@ -88,7 +93,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   try {
     const response = await puter.ai.chat(
-      "pollination/flan-t5-xxl",
+      "gpt-4o-mini", // Switching to a more capable model for RPG logic
       {
         system: systemPrompt,
         prompt: fullPrompt,
@@ -96,7 +101,14 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
     );
 
-    const aiResponse = JSON.parse(response);
+    // Robust JSON extraction
+    let content = response.toString();
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+        throw new Error("Impossible d'extraire le JSON de la réponse de l'IA.");
+    }
+
+    const aiResponse = JSON.parse(jsonMatch[0]);
     const actions = aiResponse.actions || [];
 
     if (!aiResponse.narrative) {

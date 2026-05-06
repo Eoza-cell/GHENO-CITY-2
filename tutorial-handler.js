@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
 const { sendWithImage } = require('./message-handler');
-const Puter = require('@heyputer/puter.js');
+const Puter = require('@heyputer/puter.js').default;
 
 const puter = new Puter(process.env.PUTER_API_KEY);
 
@@ -88,7 +88,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
         try {
             const response = await puter.ai.chat(
-                "pollination/flan-t5-xxl",
+                "gpt-4o-mini",
                 {
                     system: systemPrompt,
                     prompt: fullPrompt,
@@ -96,7 +96,13 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 }
             );
 
-            const aiResponse = JSON.parse(response);
+            let content = response.toString();
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                throw new Error("Impossible d'extraire le JSON de la réponse de l'IA.");
+            }
+
+            const aiResponse = JSON.parse(jsonMatch[0]);
 
             if (aiResponse.tutorial_complete) {
                 await player.update({ tutorialStep: 3, mode: 'normal' });

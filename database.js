@@ -245,6 +245,11 @@ async function setupDatabase() {
             { name: 'Labyrinthe d\'Aincrad', description: 'Un labyrinthe complexe menant au sommet du château volant.', rank: 'B', floors: 20 },
             { name: 'Forêt de Glace de Givre', description: 'Une forêt éternellement gelée où rôdent des créatures de glace.', rank: 'A', floors: 25 },
             { name: 'Donjon du Destin', description: 'Un donjon mystérieux qui change de forme à chaque entrée.', rank: 'S', floors: 100 },
+            { name: 'Désert de la Mort', description: 'Une étendue de sable infinie abritant des scorpions géants et des cités perdues.', rank: 'C', floors: 12 },
+            { name: 'Tour des Épreuves', description: 'Une tour s\'élevant au-dessus des nuages, testant la volonté des héros.', rank: 'A', floors: 50 },
+            { name: 'Océan de Corail', description: 'Un royaume sous-marin protégé par des sirènes guerrières.', rank: 'B', floors: 20 },
+            { name: 'Volcan d\'Ignis', description: 'Le cœur brûlant du monde, gardé par un dragon de feu ancien.', rank: 'S', floors: 30 },
+            { name: 'Jardin Suspendu d\'Éden', description: 'Un paradis aérien rempli de créatures célestes protectrices.', rank: 'A', floors: 15 },
         ]);
         console.log('Dungeons seeded.');
     }
@@ -373,6 +378,51 @@ async function setupDatabase() {
                 slot: 'weapon',
                 statBonuses: { intelligence: 30, agility: 10 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/7/77/Heaven_Piercing_Sword.png'
+            },
+            {
+                name: 'Liberator',
+                description: 'L\'épée et le bouclier massifs de Heathcliff.',
+                price: 10000,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 20, defense: 40 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/d/df/Liberator_Shield.png'
+            },
+            {
+                name: 'Kagemitsu G4',
+                description: 'Un sabre laser (Photon Sword) extrêmement léger et tranchant.',
+                price: 5500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 30, strength: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e0/Kagemitsu_G4_Design.png'
+            },
+            {
+                name: 'Wind Fleuret',
+                description: 'Une rapière de haut niveau pour les joueurs agiles.',
+                price: 1500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 12 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Wind_Fleuret.png'
+            },
+            {
+                name: 'Anneal Blade',
+                description: 'Une épée droite à une main obtenue lors d\'une quête difficile.',
+                price: 1200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 10, agility: 2 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/25/Anneal_Blade.png'
+            },
+            {
+                name: 'Excalibur',
+                description: 'L\'épée la plus puissante d\'ALfheim Online.',
+                price: 15000,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 50, intelligence: 30, agility: 20 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4e/Excalibur.png'
             }
         ]);
         console.log('Items seeded.');
@@ -391,6 +441,10 @@ async function setupDatabase() {
             { title: 'Le Secret du Forgeron', description: 'Aidez le forgeron de la ville de départ à retrouver son marteau volé.', type: 'side', rank_required: 'D', reward_col: 300, reward_xp: 500 },
             { title: 'Le Trésor Oublié', description: 'Une légende parle d\'un trésor caché au fond des Mines de Cobalt.', type: 'side', rank_required: 'D', reward_col: 600, reward_xp: 800 },
             { title: 'Invasion de Monstres', description: 'Repoussez l\'attaque soudaine de monstres sur le village de pêcheurs.', type: 'side', rank_required: 'C', reward_col: 1000, reward_xp: 2000 },
+            { title: 'L\'Héritage du Désert', description: 'Retrouvez l\'amulette de l\'ancien pharaon dans le Désert de la Mort.', type: 'main', rank_required: 'C', reward_col: 700, reward_xp: 1200 },
+            { title: 'Le Chant des Sirènes', description: 'Calmez la tempête mystique qui frappe l\'Océan de Corail.', type: 'side', rank_required: 'B', reward_col: 900, reward_xp: 1800 },
+            { title: 'L\'Ascension Finale', description: 'Atteignez le 50ème étage de la Tour des Épreuves.', type: 'main', rank_required: 'A', reward_col: 3000, reward_xp: 10000 },
+            { title: 'Le Cœur de Feu', description: 'Récupérez une écaille du Dragon d\'Ignis au sommet du volcan.', type: 'main', rank_required: 'S', reward_col: 10000, reward_xp: 50000 },
         ]);
         console.log('Quests seeded.');
     }
