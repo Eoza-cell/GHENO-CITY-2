@@ -225,9 +225,11 @@ commands.set('joueurs', async (sock, message) => {
 
     let playersText = `*Joueurs à ${player.location}:*\n\n`;
     otherPlayers.forEach(p => {
-        playersText += `- ${p.name} (Niveau ${p.level}, Rang ${p.rank})\n`;
+        playersText += `*${p.name}*\n`;
+        playersText += `└ Classe: ${p.class} | Niveau: ${p.level} | Rang: ${p.rank}\n`;
+        playersText += `└ Description: ${p.characterDescription || 'Aucune'}\n\n`;
     });
-    playersText += "\nTu peux interagir avec eux en utilisant /action.";
+    playersText += "Pour interagir (parler, échanger, attaquer), active le mode `/action` et décris ton intention !";
 
     await sock.sendMessage(replyJid, { text: playersText });
 });

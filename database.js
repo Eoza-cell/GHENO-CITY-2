@@ -462,6 +462,87 @@ async function setupDatabase() {
                 slot: 'weapon',
                 statBonuses: { intelligence: 25, luck: 15 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e7/Gigas_Cedar.png'
+            },
+            {
+                name: 'Karakurenai',
+                description: 'Le katana courbe de Klein, capable de trancher l\'acier.',
+                price: 3500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 18, agility: 12 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/bc/Karakurenai.png'
+            },
+            {
+                name: 'Mate-Chopper',
+                description: 'Un hachoir terrifiant utilisé par le chef des Laughing Coffin.',
+                price: 4200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 28, luck: -5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4c/Mate_Chopper_Design.png'
+            },
+            {
+                name: 'Gram',
+                description: 'L\'épée à deux mains de Sigurd, imprégnée d\'une aura de vide.',
+                price: 5200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 30, intelligence: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/2a/Gram.png'
+            },
+            {
+                name: 'Tyrant Dragon',
+                description: 'La hache massive d\'Agil, capable de briser n\'importe quelle garde.',
+                price: 3800,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 35, defense: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/3/36/Tyrant_Dragon.png'
+            },
+            {
+                name: 'Shadow Dagger',
+                description: 'Une dague rapide et empoisonnée utilisée par Silica.',
+                price: 2200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 20, luck: 8 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/87/Shadow_Dagger.png'
+            },
+            {
+                name: 'Radiant Light',
+                description: 'La rapière divine de Stacia, émettant une lumière pure.',
+                price: 9000,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 35, intelligence: 20 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/23/Radiant_Light.png'
+            },
+            {
+                name: 'Time Splitting Sword',
+                description: 'L\'épée de Bercouli, capable de trancher le passé et le futur.',
+                price: 12000,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 40, intelligence: 30 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4e/Time_Splitting_Sword.png'
+            },
+            {
+                name: 'Conflagrant Flame Bow',
+                description: 'L\'arc de Deusolbert, décochant des flèches de feu inextinguibles.',
+                price: 6500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 25, intelligence: 15 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/6/6d/Conflagrant_Flame_Bow.png'
+            },
+            {
+                name: 'Frostscale Whip',
+                description: 'Le fouet d\'Eldrie, se transformant en serpent de givre.',
+                price: 5800,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 22, intelligence: 18 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e1/Frostscale_Whip.png'
             }
         ]);
         console.log('Items seeded.');
