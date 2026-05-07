@@ -75,18 +75,17 @@ async function handleTutorialAction(sock, message, player, actionText) {
         // Combat training logic powered by AI
         const systemPrompt = `
             Tu es l'Instructeur, un maître d'armes légendaire dans GHENO CITY 2. Ton but est d'évaluer et de former le nouveau joueur.
-            Le joueur a choisi la classe : ${player.class}.
+            Le joueur est un ${player.class} (FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}).
 
             RÈGLES DU TUTORIEL:
-            1.  **Réaction Dynamique**: Pour chaque action du joueur, décris ta parade, ton esquive ou le fait que tu encaisses le coup pour tester sa force.
-            2.  **Instruction Pédagogique**: Explique les mécanismes. Si c'est un Guerrier, parle de la puissance brute et des enchaînements. Si c'est un Mage, explique comment canaliser le mana pour des sorts dévastateurs. Si c'est un Assassin, insiste sur la précision et la vitesse.
-            3.  **Ton Immersif**: Tu es un mentor sévère mais juste. Utilise un langage guerrier et inspirant.
-            4.  **Progression**: Introduis progressivement des concepts comme les combos (ex: 'Charge' + 'Coup de bouclier') ou les sub-classes (ex: Mage -> Nécromancien).
-            5.  **Fin du Tutoriel**: Après 3-4 échanges de qualité, conclus le tutoriel. Offre un mot d'encouragement final.
-            6.  **Format JSON**: Retourne un JSON avec les clés "narrative" (obligatoire) et "tutorial_complete" (booléen, true pour terminer).
+            1.  **Réaction Dynamique**: Décris précisément l'impact de l'attaque du joueur en fonction de ses stats.
+            2.  **Instruction Rapide**: Le tutoriel doit être court. Si l'action du joueur est correcte et créative, termine le tutoriel immédiatement.
+            3.  **Ton Immersif**: Tu es un mentor sévère mais juste. Langage guerrier.
+            4.  **Fin du Tutoriel**: Dès que tu juges que le joueur a compris (souvent après 1 ou 2 actions bien décrites), passe "tutorial_complete" à true.
+            5.  **Format JSON**: Retourne UNIQUEMENT un objet JSON avec les clés "narrative" (string) et "tutorial_complete" (boolean).
         `;
 
-        const fullPrompt = `JOUEUR (${player.class}) ACTION: ${actionText}`;
+        const fullPrompt = `ACTION DU JOUEUR: ${actionText}`;
 
         try {
             const response = await puter.ai.chat(
@@ -98,23 +97,35 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 }
             );
 
-            let content = response.toString();
+            let content = response.toString().trim();
+            // Try to fix common AI formatting issues
+            if (content.includes('```json')) {
+                content = content.split('```json')[1].split('```')[0].trim();
+            } else if (content.includes('```')) {
+                content = content.split('```')[1].split('```')[0].trim();
+            }
+
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
-                throw new Error("Impossible d'extraire le JSON de la réponse de l'IA.");
+                 console.error("Échec extraction JSON tutoriel. Contenu brut:", content);
+                 await sock.sendMessage(jid, { text: "Instructeur : 'Impressionnant ! Tu apprends vite. Le tutoriel est terminé.'\n\n*Utilise /menu pour commencer.*" });
+                 await player.update({ tutorialStep: 3, mode: 'normal' });
+                 return;
             }
 
             const aiResponse = JSON.parse(jsonMatch[0]);
 
             if (aiResponse.tutorial_complete) {
                 await player.update({ tutorialStep: 3, mode: 'normal' });
-                aiResponse.narrative += "\n\n*FÉLICITATIONS ! Tu as terminé le tutoriel. Tu es maintenant prêt à explorer GHENO CITY 2. Utilise /menu pour commencer.*";
+                aiResponse.narrative += "\n\n*FÉLICITATIONS ! Tu as terminé le tutoriel. Utilise /menu pour commencer.*";
             }
 
             await sendWithImage(sock, jid, aiResponse);
         } catch (error) {
             console.error("Erreur AI tutoriel:", error);
-            await sock.sendMessage(jid, { text: "Instructeur : 'Belle tentative, mais essaie encore !'" });
+            // Fallback to avoid blocking the user
+            await sock.sendMessage(jid, { text: "Instructeur : 'Pas mal ! C'est suffisant pour aujourd'hui. Bienvenue dans Skype.'\n\n*Utilise /menu pour commencer.*" });
+            await player.update({ tutorialStep: 3, mode: 'normal' });
         }
     }
 }

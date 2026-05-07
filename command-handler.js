@@ -162,23 +162,24 @@ commands.set('boutique', async (sock, message) => {
         return;
     }
 
-    let boutiqueText = "*Boutique de Skype*\n\n";
+    let boutiqueText = "⚔️ *CATALOGUE D'ARMEMENT SAO* ⚔️\n\n";
     items.forEach(item => {
-        boutiqueText += `*${item.name}* - ${item.price} 🪙\n`;
-        boutiqueText += `${item.description}\n`;
+        boutiqueText += `*${item.name.toUpperCase()}*\n`;
+        boutiqueText += `├ 💰 Prix: ${item.price} 🪙\n`;
         const bonuses = item.statBonuses;
         const bonusStrings = Object.entries(bonuses).map(([stat, value]) => `${stat}: +${value}`);
         if (bonusStrings.length > 0) {
-            boutiqueText += `_Bonus: ${bonusStrings.join(', ')}_\n`;
+            boutiqueText += `├ ✨ Stats: ${bonusStrings.join(', ')}\n`;
         }
-        boutiqueText += `\n`;
+        boutiqueText += `└ 📜 ${item.description}\n\n`;
     });
 
-    boutiqueText += "Pour acheter un objet, utilise /action et dis par exemple : 'J'achète l'épée Elucidator'.";
+    boutiqueText += "🛒 *Pour acheter:* active `/action` et dis 'Je veux acheter [Nom de l'arme]'.";
 
-    // Show a random item image if available
-    const featuredItem = items.find(i => i.imageUrl);
-    if (featuredItem) {
+    // Show top-tier item image (Excalibur or Elucidator)
+    const featuredItem = items.find(i => i.name === 'Excalibur') || items.find(i => i.name === 'Elucidator') || items.find(i => i.imageUrl);
+
+    if (featuredItem && featuredItem.imageUrl) {
         try {
             const response = await axios.get(featuredItem.imageUrl, {
                 responseType: 'arraybuffer',
@@ -192,7 +193,7 @@ commands.set('boutique', async (sock, message) => {
                 caption: boutiqueText
             });
         } catch (error) {
-            console.error("Erreur envoi image boutique (fallback au texte seul):", error.message);
+            console.error("Erreur envoi image boutique:", error.message);
             await sock.sendMessage(replyJid, { text: boutiqueText });
         }
     } else {
@@ -345,25 +346,42 @@ commands.set('menu', async (sock, message) => {
     await player.update({ mode: 'normal' });
   }
 
-  const menuText = "Menu Principal\n\n" +
-                   "Que veux-tu faire ?\n\n" +
-                   "🎮 `/action` - Passer en mode immersif (RP).\n" +
-                   "👤 `/profil` - Voir ton statut.\n" +
-                   "📋 `/quests` - Consulter tes quêtes.\n" +
-                   "🗺️ `/map` - Ouvrir la carte du monde.\n" +
-                   "💰 `/bank` - Accéder à la banque.\n" +
-                   "🛡️ `/statut` - État de l'équipement.\n" +
-                   "🛒 `/boutique` - Acheter de l'équipement.\n" +
-                   "👥 `/joueurs` - Voir les joueurs à proximité.\n" +
-                   "❓ `/help` - Liste des commandes.";
+  const menuText = "🌐 *GHENO CITY 2: LINK START* 🌐\n\n" +
+                   "Que souhaites-tu faire, voyageur ?\n\n" +
+                   "🎮 `/action` - Entrer dans la matrice (RP).\n" +
+                   "👤 `/profil` - Ton profil de joueur.\n" +
+                   "📋 `/quests` - Liste de tes objectifs.\n" +
+                   "🗺️ `/map` - Carte du monde & Donjons.\n" +
+                   "💰 `/bank` - Gestion de tes Col (🪙).\n" +
+                   "🛡️ `/statut` - État de ton équipement.\n" +
+                   "🛒 `/boutique` - Arsenal & Équipement.\n" +
+                   "👥 `/joueurs` - Joueurs aux alentours.\n" +
+                   "❓ `/help` - Guide de survie.";
+
+  // High quality SAO Menu Image
+  const saoMenuUrl = "https://images.alphacoders.com/264/264350.jpg";
+
   try {
+    const response = await axios.get(saoMenuUrl, {
+        responseType: 'arraybuffer',
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    const imageBuffer = Buffer.from(response.data, 'binary');
+
     await sock.sendMessage(message.key.remoteJid, {
-      image: fs.readFileSync('./menu_image.jpg'),
+      image: imageBuffer,
       caption: menuText
     });
   } catch (error) {
-    console.error("Erreur envoi image menu:", error);
-    await sock.sendMessage(message.key.remoteJid, { text: menuText });
+    console.error("Erreur envoi image menu (fallback local):", error.message);
+    try {
+        await sock.sendMessage(message.key.remoteJid, {
+            image: fs.readFileSync('./menu_image.jpg'),
+            caption: menuText
+        });
+    } catch (localError) {
+        await sock.sendMessage(message.key.remoteJid, { text: menuText });
+    }
   }
 });
 
