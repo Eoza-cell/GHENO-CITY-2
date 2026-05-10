@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, NPC, Skill } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
@@ -57,11 +57,36 @@ async function handleFreeAction(sock, message, player, actionText) {
   const items = await Item.findAll();
   const shopState = "Objets en vente à la boutique:\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description}`).join('\n');
 
+  const playerSkills = await player.getSkills();
+  const skillState = playerSkills.length > 0
+    ? "Compétences possédées:\n" + playerSkills.map(s => `- ${s.name} (${s.type}): ${s.description}`).join('\n')
+    : "Tu n'as aucune compétence. Étudie à l'Académie Impériale !";
+
+  const kingdoms = await Kingdom.findAll();
+  const kingdomState = "État du Monde (Royaumes & Guerres):\n" + kingdoms.map(k => `- ${k.name}: ${k.description} [Statut: ${k.status}]`).join('\n');
+
+  const npcs = await NPC.findAll();
+  const npcState = "Personnages Importants (PNG) connus:\n" + npcs.map(n => `- ${n.name} (${n.role}) à ${n.location}: ${n.description}`).join('\n');
+
+  // Time Logic: 1 month real = 1 year RP
+  // Reference date: Jan 1st 2024
+  const startDate = new Date('2024-01-01').getTime();
+  const now = Date.now();
+  const elapsedMs = now - startDate;
+  const elapsedMonths = elapsedMs / (1000 * 60 * 60 * 24 * 30);
+  const rpYears = Math.floor(elapsedMonths);
+  const rpMonth = Math.floor((elapsedMonths % 1) * 12) + 1;
+  const rpYearString = `An ${rpYears + 1}, Mois ${rpMonth}`;
+
   const systemPrompt = `
     Tu es le Maître du Jeu (MJ) de "Arise / Gheno City 2", un RPG textuel ultra-immersif inspiré de Sword Art Online et Solo Leveling. Ta seule et unique fonction est de retourner un objet JSON valide basé sur l'action du joueur. Ne retourne RIEN d'autre que du JSON.
 
+    LOGIQUE TEMPORELLE:
+    - Date actuelle en RP: ${rpYearString}.
+    - Échelle: 1 mois réel = 1 an RP. Les saisons passent, les guerres évoluent, les personnages vieillissent. Ta narration doit refléter ce passage du temps.
+
     RÈGLES FONDAMENTALES:
-    1.  **Omniscience & Lore**: Tu es le créateur de ce monde. Tu peux intégrer des éléments de n'importe quel univers (films, jeux, animes, mythologie) pour enrichir la narration. Les PNJ ont leurs propres motivations et secrets.
+    1.  **Omniscience & Lore**: Tu es le créateur de ce monde. Tu peux intégrer des éléments de n'importe quel univers (films, jeux, animes, mythologie) pour enrichir la narration. Les PNJ (Directeur Magnus, etc.) ont leurs propres motivations et secrets.
     2.  **Censure Interdite & Ton Mature**: Adopte un ton sombre, réaliste, mature et sans compromis. Le monde est violent, injuste et impitoyable. Les descriptions doivent être viscérales.
     3.  **Difficulté "Hardcore"**: Le jeu est impitoyable. Les succès sont rares et les échecs brutaux. Un joueur imprudent peut mourir ou tout perdre. La victoire doit être un soulagement, pas une évidence.
     4.  **Calcul des Statistiques & Combats (CRUCIAL)**: Tu DOIS effectuer un calcul mental basé sur les statistiques du joueur pour CHAQUE action risquée.
@@ -76,19 +101,21 @@ async function handleFreeAction(sock, message, player, actionText) {
         - **Joueurs à proximité**: Si d'autres joueurs sont présents (liste fournie), encourage le dialogue, le commerce ou les duels. Si le joueur interagit avec eux, décris l'impact sur l'environnement.
         - **Commerce**: Les joueurs peuvent troquer, s'arnaquer ou s'allier.
         - **Monde Vaste**: Décris des environnements grandioses, des détails cachés, des bruits ambiants et des odeurs pour renforcer l'immersion. Le monde ne s'arrête pas aux pieds du joueur.
-    7.  **Gestion de l'Inventaire & Boutique**: Les objets achetés ou trouvés modifient DIRECTEMENT les statistiques du joueur. Vérifie toujours le solde de Col avant un achat.
-    8.  **Format JSON Impératif**: Réponse JSON uniquement. Pas de texte avant ou après. Ta réponse DOIT commencer par '{' et se terminer par '}'.
+    7.  **Logique & Consistance**: Tes actions doivent être logiques par rapport au contexte. Si un joueur achète un objet, utilise "update_player" pour retirer les Col et "add_item" pour ajouter l'objet. Si un joueur apprend une technique à l'Académie, utilise "add_skill".
+    8.  **Gestion de l'Inventaire & Boutique**: Les objets achetés ou trouvés modifient DIRECTEMENT les statistiques du joueur. Vérifie toujours le solde de Col avant un achat.
+    9.  **Format JSON Impératif**: Réponse JSON uniquement. Pas de texte avant ou après. Ta réponse DOIT commencer par '{' et se terminer par '}'.
 
     TYPES D'ACTIONS (JSON):
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
     Exemple: {"narrative": "...", "actions": [{"type": "update_player", "parameters": {...}}, {"type": "add_item", "parameters": {...}}]}
 
     - "type": "update_player", "parameters": {"col_change": montant, "xp_gain": montant, "health_change": montant, "mana_change": montant, "new_location": "nom_lieu", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant}
+    - "type": "add_skill", "parameters": {"skillName": "nom_de_la_competence"}
     - "type": "add_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n\nACTION DU JOUEUR: ${actionText}`;
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${npcState}\n\nACTION DU JOUEUR: ${actionText}`;
 
   try {
     const content = await callAI(systemPrompt, fullPrompt);
@@ -134,6 +161,24 @@ async function handleFreeAction(sock, message, player, actionText) {
             if (parameters.defense_change) await player.increment('defense', { by: parameters.defense_change });
             if (parameters.luck_change) await player.increment('luck', { by: parameters.luck_change });
             if (parameters.new_location) await player.update({ location: parameters.new_location });
+          }
+          break;
+        case 'add_skill':
+          if (parameters && parameters.skillName) {
+            const skill = await Skill.findOne({ where: { name: { [Op.like]: `%${parameters.skillName}%` } } });
+            if (skill) {
+              const hasSkill = await player.hasSkill(skill);
+              if (!hasSkill) {
+                await player.addSkill(skill);
+                // Apply stat bonuses immediately
+                const bonuses = skill.statBonuses;
+                for (const [stat, value] of Object.entries(bonuses)) {
+                  if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                    await player.increment(stat, { by: value });
+                  }
+                }
+              }
+            }
           }
           break;
         case 'add_item':

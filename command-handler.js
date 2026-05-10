@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./database');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
@@ -38,6 +38,47 @@ commands.set('start', async (sock, message) => {
 });
 
 // Command: /quests
+// Command: /competences
+commands.set('competences', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: Skill });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
+
+    const skills = player.Skills;
+
+    if (!skills || skills.length === 0) {
+        await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !" });
+        return;
+    }
+
+    let skillText = `*Compétences de ${player.name}:*\n\n`;
+
+    const activeSkills = skills.filter(s => s.type === 'active' || s.type === 'spell' || s.type === 'sword_technique');
+    const passiveSkills = skills.filter(s => s.type === 'passive');
+
+    if (activeSkills.length > 0) {
+        skillText += "*Capacités Actives & Sorts:*\n";
+        activeSkills.forEach(s => {
+            skillText += `- *${s.name}* (${s.manaCost} PM): ${s.description}\n`;
+        });
+        skillText += "\n";
+    }
+
+    if (passiveSkills.length > 0) {
+        skillText += "*Capacités Passives:*\n";
+        passiveSkills.forEach(s => {
+            skillText += `- *${s.name}*: ${s.description}\n`;
+        });
+    }
+
+    await sock.sendMessage(replyJid, { text: skillText });
+});
+
 commands.set('quests', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
@@ -358,7 +399,8 @@ commands.set('menu', async (sock, message) => {
                    "🗺️ `/map` - Carte du monde & Donjons.\n" +
                    "💰 `/bank` - Gestion de tes Col (🪙).\n" +
                    "🛡️ `/statut` - État de ton équipement.\n" +
-                   "🛒 `/boutique` - Arsenal & Équipement.\n" +
+                   "✨ `/competences` - Sorts & Techniques.\n" +
+                   "🛒 `/boutique` - Boutique d'objets.\n" +
                    "👥 `/joueurs` - Joueurs aux alentours.\n" +
                    "❓ `/help` - Guide de survie.";
 

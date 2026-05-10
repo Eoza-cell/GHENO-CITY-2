@@ -219,12 +219,84 @@ const Bank = sequelize.define('Bank', {
     }
 });
 
+const Skill = sequelize.define('Skill', {
+    name: {
+        type: DataTypes.STRING,
+        unique: true,
+    },
+    description: {
+        type: DataTypes.TEXT,
+    },
+    type: { // 'active', 'passive', 'spell', 'sword_technique'
+        type: DataTypes.STRING,
+    },
+    manaCost: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+    },
+    statBonuses: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const rawValue = this.getDataValue('statBonuses');
+            return rawValue ? JSON.parse(rawValue) : {};
+        },
+        set(value) {
+            this.setDataValue('statBonuses', JSON.stringify(value));
+        },
+    }
+});
+
+const PlayerSkill = sequelize.define('PlayerSkill', {
+    level: {
+        type: DataTypes.INTEGER,
+        defaultValue: 1,
+    }
+});
+
+const Kingdom = sequelize.define('Kingdom', {
+    name: {
+        type: DataTypes.STRING,
+        unique: true,
+    },
+    description: {
+        type: DataTypes.TEXT,
+    },
+    status: { // 'peace', 'war', 'truce'
+        type: DataTypes.STRING,
+        defaultValue: 'peace',
+    },
+    influence: {
+        type: DataTypes.INTEGER,
+        defaultValue: 50,
+    }
+});
+
+const NPC = sequelize.define('NPC', {
+    name: {
+        type: DataTypes.STRING,
+        unique: true,
+    },
+    role: {
+        type: DataTypes.STRING,
+    },
+    description: {
+        type: DataTypes.TEXT,
+    },
+    location: {
+        type: DataTypes.STRING,
+    }
+});
+
 // Relationships
 Player.hasOne(Bank);
 Bank.belongsTo(Player);
 
 Player.belongsToMany(Quest, { through: PlayerQuest });
 Quest.belongsToMany(Player, { through: PlayerQuest });
+
+Player.belongsToMany(Skill, { through: PlayerSkill });
+Skill.belongsToMany(Player, { through: PlayerSkill });
 
 
 async function setupDatabase() {
@@ -628,6 +700,48 @@ async function setupDatabase() {
         console.log('Quests seeded.');
     }
 
+    const skillCount = await Skill.count();
+    if (skillCount === 0) {
+        console.log('Seeding Skills...');
+        await Skill.bulkCreate([
+            // Techniques d'épée
+            { name: 'Vertical Square', description: 'Un enchaînement de 4 coups d\'épée verticaux ultra-rapides.', type: 'sword_technique', manaCost: 20 },
+            { name: 'Sonic Leap', description: 'Une charge fulgurante vers l\'ennemi.', type: 'sword_technique', manaCost: 15, statBonuses: { agility: 5 } },
+            { name: 'Starburst Stream', description: 'La technique ultime à deux épées (50 coups).', type: 'sword_technique', manaCost: 100, statBonuses: { strength: 20, agility: 20 } },
+            // Sorts
+            { name: 'Fireball', description: 'Projette une boule de feu explosive.', type: 'spell', manaCost: 30, statBonuses: { intelligence: 10 } },
+            { name: 'Healing Breeze', description: 'Un vent doux qui soigne les blessures légères.', type: 'spell', manaCost: 25 },
+            { name: 'Ice Spikes', description: 'Fait jaillir des pics de glace du sol.', type: 'spell', manaCost: 35, statBonuses: { intelligence: 12 } },
+            // Passifs
+            { name: 'Regen', description: 'Restaure lentement la santé au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
+            { name: 'Senseur de Mana', description: 'Permet de détecter les créatures magiques à proximité.', type: 'passive', statBonuses: { intelligence: 15 } },
+            { name: 'Force d\'Hercule', description: 'Augmente de manière permanente la force brute.', type: 'passive', statBonuses: { strength: 15 } },
+        ]);
+        console.log('Skills seeded.');
+    }
+
+    const kingdomCount = await Kingdom.count();
+    if (kingdomCount === 0) {
+        console.log('Seeding Kingdoms...');
+        await Kingdom.bulkCreate([
+            { name: 'Empire d\'Aincrad', description: 'Le royaume central, siège de l\'Académie Impériale.', status: 'peace', influence: 90 },
+            { name: 'Royaume de Sylphide', description: 'Un pays de forêts et de magie, actuellement en tension.', status: 'truce', influence: 70 },
+            { name: 'Territoires des Morts-Vivants', description: 'Une terre désolée et dangereuse en guerre contre l\'Empire.', status: 'war', influence: 50 },
+        ]);
+        console.log('Kingdoms seeded.');
+    }
+
+    const npcCount = await NPC.count();
+    if (npcCount === 0) {
+        console.log('Seeding NPCs...');
+        await NPC.bulkCreate([
+            { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Un mage puissant et sage, superviseur de l\'Académie Impériale.', location: 'Académie Impériale' },
+            { name: 'Capitaine Valerius', role: 'Chef de la Garde Impériale', description: 'Un guerrier endurci par des décennies de guerre.', location: 'Cité Impériale' },
+            { name: 'Lady Elara', role: 'Haute Magicienne', description: 'Spécialiste des sorts de lumière et de soin.', location: 'Académie Impériale' },
+        ]);
+        console.log('NPCs seeded.');
+    }
+
   } catch (error) {
     console.error('Unable to connect to the database:', error);
   }
@@ -642,5 +756,9 @@ module.exports = {
   Bank,
   Item,
   Creds,
+  Skill,
+  Kingdom,
+  NPC,
+  PlayerSkill,
   setupDatabase,
 };
