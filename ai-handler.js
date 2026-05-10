@@ -1,13 +1,7 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
-const puter = require('@heyputer/puter.js').default;
-
-// Assurez-vous que PUTER_API_KEY est défini dans votre .env
-if (process.env.PUTER_API_KEY) {
-    puter.setAuthToken(process.env.PUTER_API_KEY);
-}
-
+const { callAI } = require('./ai-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -83,7 +77,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         - **Commerce**: Les joueurs peuvent troquer, s'arnaquer ou s'allier.
         - **Monde Vaste**: Décris des environnements grandioses, des détails cachés, des bruits ambiants et des odeurs pour renforcer l'immersion. Le monde ne s'arrête pas aux pieds du joueur.
     7.  **Gestion de l'Inventaire & Boutique**: Les objets achetés ou trouvés modifient DIRECTEMENT les statistiques du joueur. Vérifie toujours le solde de Col avant un achat.
-    8.  **Format JSON Impératif**: Réponse JSON uniquement. Pas de texte avant ou après.
+    8.  **Format JSON Impératif**: Réponse JSON uniquement. Pas de texte avant ou après. Ta réponse DOIT commencer par '{' et se terminer par '}'.
 
     TYPES D'ACTIONS (JSON):
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
@@ -97,23 +91,26 @@ async function handleFreeAction(sock, message, player, actionText) {
     const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n\nACTION DU JOUEUR: ${actionText}`;
 
   try {
-    const response = await puter.ai.chat(
-      "gpt-4o-mini", // Switching to a more capable model for RPG logic
-      {
-        system: systemPrompt,
-        prompt: fullPrompt,
-        stream: false,
-      }
-    );
+    const content = await callAI(systemPrompt, fullPrompt);
+    console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 500)}...`);
 
     // Robust JSON extraction
-    let content = response.toString();
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    let jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+        // Second attempt: check if AI returned markdown code blocks
+        if (content.includes('```')) {
+            const stripped = content.split('```')[1].replace(/^json\n?/, '').split('```')[0].trim();
+            jsonMatch = stripped.match(/\{[\s\S]*\}/);
+        }
+    }
+
+    if (!jsonMatch) {
+        console.error("[AI ERROR] Échec extraction JSON. Contenu brut:", content);
         throw new Error("Impossible d'extraire le JSON de la réponse de l'IA.");
     }
 
     const aiResponse = JSON.parse(jsonMatch[0]);
+    console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
     const actions = aiResponse.actions || [];
 
     if (!aiResponse.narrative) {

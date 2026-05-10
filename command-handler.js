@@ -13,7 +13,11 @@ const { Op } = require('sequelize');
  * Determines the correct JID (Jabber ID) for the sender of a message.
  */
 function getJid(message) {
-  return message.key.remoteJid.endsWith('@g.us') ? message.key.participant : message.key.remoteJid;
+  if (!message || !message.key) return null;
+  if (message.key.remoteJid && message.key.remoteJid.endsWith('@g.us')) {
+      return message.key.participant || null;
+  }
+  return message.key.remoteJid || null;
 }
 
 const commands = new Map();

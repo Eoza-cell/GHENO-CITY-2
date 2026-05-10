@@ -102,47 +102,60 @@ async function connectToWhatsApp() {
 
   sock.ev.on('messages.upsert', async (m) => {
     for (const message of m.messages) {
-        if (!message.message) continue;
+        try {
+            if (!message.message) continue;
 
-        const jid = getJid(message);
-        const player = await Player.findOne({ where: { whatsappId: jid } });
+            const jid = getJid(message);
+            if (!jid) continue;
 
-        // Handle profile picture submission
-        if (player && player.awaitingProfilePic) {
-            const type = getContentType(message.message);
-            if (type === 'imageMessage') {
-                try {
-                    console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
-                    const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
-                    const filename = `${jid.split('@')[0]}.jpg`;
-                    const filepath = path.join('assets', 'profiles', filename);
+            const player = await Player.findOne({ where: { whatsappId: jid } });
 
-                    fs.writeFileSync(filepath, buffer);
+            // Handle profile picture submission
+            if (player && player.awaitingProfilePic) {
+                const type = getContentType(message.message);
+                if (type === 'imageMessage') {
+                    try {
+                        console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
+                        const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
 
-                    await player.update({
-                        profilePicUrl: filepath,
-                        awaitingProfilePic: false
-                    });
+                        const idPart = jid.includes('@') ? jid.split('@')[0] : jid;
+                        const filename = `${idPart}.jpg`;
+                        const filepath = path.join('assets', 'profiles', filename);
 
-                    console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                    await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
+                        fs.writeFileSync(filepath, buffer);
 
-                    // Trigger tutorial after profile pic
-                    await startTutorial(sock, message.key.remoteJid, player);
-                    continue; // Stop further processing for this message
-                } catch (error) {
-                    console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
-                    await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
-                    continue;
+                        await player.update({
+                            profilePicUrl: filepath,
+                            awaitingProfilePic: false
+                        });
+
+                        console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
+                        await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
+
+                        // Trigger tutorial after profile pic
+                        await startTutorial(sock, message.key.remoteJid, player);
+                        continue; // Stop further processing for this message
+                    } catch (error) {
+                        console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
+                        await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
+                        continue;
+                    }
+                } else {
+                     // Only warn if it's not a command
+                     const text = message.message.conversation || message.message.extendedTextMessage?.text;
+                     if (!text || !text.startsWith('/')) {
+                         await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
+                         continue;
+                     }
                 }
-            } else {
-                 await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
-                 continue;
             }
-        }
 
-        // If not a profile pic submission, handle as a normal command/message
-        handleCommand(sock, message, downloadMediaMessage);
+            // If not a profile pic submission, handle as a normal command/message
+            await handleCommand(sock, message, downloadMediaMessage);
+        } catch (globalError) {
+            console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
+            // On ne crash pas le bot, on continue le traitement
+        }
     }
   });
 }

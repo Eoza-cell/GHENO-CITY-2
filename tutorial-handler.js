@@ -2,11 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
 const { sendWithImage } = require('./message-handler');
-const puter = require('@heyputer/puter.js').default;
-
-if (process.env.PUTER_API_KEY) {
-    puter.setAuthToken(process.env.PUTER_API_KEY);
-}
+const { callAI } = require('./ai-utils');
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
@@ -28,6 +24,7 @@ async function startTutorial(sock, jid, player) {
         await sock.sendMessage(jid, { text: welcomeText + "\n\n(Désolé, l'image n'a pas pu être générée. Choisis entre : Guerrier, Mage ou Assassin)" });
     }
 }
+
 
 async function handleTutorialAction(sock, message, player, actionText) {
     const jid = message.key.remoteJid;
@@ -88,16 +85,9 @@ async function handleTutorialAction(sock, message, player, actionText) {
         const fullPrompt = `ACTION DU JOUEUR: ${actionText}`;
 
         try {
-            const response = await puter.ai.chat(
-                "gpt-4o-mini",
-                {
-                    system: systemPrompt,
-                    prompt: fullPrompt,
-                    stream: false,
-                }
-            );
+            const contentRaw = await callAI(systemPrompt, fullPrompt);
 
-            let content = response.toString().trim();
+            let content = contentRaw.trim();
             // Try to fix common AI formatting issues
             if (content.includes('```json')) {
                 content = content.split('```json')[1].split('```')[0].trim();

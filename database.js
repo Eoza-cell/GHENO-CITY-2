@@ -253,6 +253,16 @@ async function setupDatabase() {
             { name: 'Forteresse de Fer', description: 'Une citadelle imprenable située dans les montagnes du Nord.', rank: 'B', floors: 25 },
             { name: 'Ruines de Xanadu', description: 'Une cité antique autrefois glorieuse, maintenant hantée par des spectres.', rank: 'C', floors: 18 },
             { name: 'Abysse de l\'Oubli', description: 'Un gouffre sans fond où résident des entités cosmiques terrifiantes.', rank: 'S', floors: 50 },
+            { name: 'Citadelle de Cristal', description: 'Une forteresse de verre brillant sous un soleil éternel.', rank: 'A', floors: 30 },
+            { name: 'Marais Empoisonnés', description: 'Un lieu fétide où chaque pas peut être le dernier.', rank: 'C', floors: 10 },
+            { name: 'Montagnes du Tonnerre', description: 'Des sommets perpétuellement frappés par la foudre.', rank: 'B', floors: 22 },
+            { name: 'Nécropole de Granit', description: 'Une cité des morts sculptée dans la roche noire.', rank: 'S', floors: 45 },
+            { name: 'Jardin des Murmures', description: 'Un labyrinthe végétal où les fleurs parlent aux voyageurs.', rank: 'D', floors: 8 },
+            { name: 'Porte du Néant', description: 'Une faille dimensionnelle au bord du monde connu.', rank: 'S', floors: 99 },
+            { name: 'Récif des Sirènes', description: 'Un paradis trompeur caché sous les vagues.', rank: 'B', floors: 15 },
+            { name: 'Désert de Sel', description: 'Une étendue blanche aveuglante où rien ne survit.', rank: 'C', floors: 12 },
+            { name: 'Forêt d\'Émeraude', description: 'Le berceau de la magie ancienne, gardé par des esprits sylvains.', rank: 'A', floors: 20 },
+            { name: 'Crypte des Rois Oubliés', description: 'Le repos éternel de ceux qui ont jadis régné sur Skype.', rank: 'B', floors: 18 },
         ]);
         console.log('Dungeons seeded.');
     }
@@ -543,6 +553,46 @@ async function setupDatabase() {
                 slot: 'weapon',
                 statBonuses: { agility: 22, intelligence: 18 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e1/Frostscale_Whip.png'
+            },
+            {
+                name: 'Anneau de Céleste',
+                description: 'Un anneau augmentant la régénération de mana.',
+                price: 2000,
+                type: 'accessory',
+                slot: 'none',
+                statBonuses: { intelligence: 15, luck: 5 }
+            },
+            {
+                name: 'Cape de l\'Ombre',
+                description: 'Une cape favorisant la discrétion et l\'agilité.',
+                price: 1500,
+                type: 'armor',
+                slot: 'chest',
+                statBonuses: { agility: 12, defense: 3 }
+            },
+            {
+                name: 'Amulette de Fortune',
+                description: 'Une amulette bénie qui attire la chance.',
+                price: 3000,
+                type: 'accessory',
+                slot: 'none',
+                statBonuses: { luck: 25 }
+            },
+            {
+                name: 'Bottes de Sept Lieues',
+                description: 'Des bottes magiques permettant de parcourir de grandes distances.',
+                price: 4000,
+                type: 'armor',
+                slot: 'legs',
+                statBonuses: { agility: 30 }
+            },
+            {
+                name: 'Livre des Sorts Anciens',
+                description: 'Un grimoire contenant des connaissances oubliées.',
+                price: 5000,
+                type: 'item',
+                slot: 'none',
+                statBonuses: { intelligence: 40 }
             }
         ]);
         console.log('Items seeded.');
@@ -565,6 +615,15 @@ async function setupDatabase() {
             { title: 'Le Chant des Sirènes', description: 'Calmez la tempête mystique qui frappe l\'Océan de Corail.', type: 'side', rank_required: 'B', reward_col: 900, reward_xp: 1800 },
             { title: 'L\'Ascension Finale', description: 'Atteignez le 50ème étage de la Tour des Épreuves.', type: 'main', rank_required: 'A', reward_col: 3000, reward_xp: 10000 },
             { title: 'Le Cœur de Feu', description: 'Récupérez une écaille du Dragon d\'Ignis au sommet du volcan.', type: 'main', rank_required: 'S', reward_col: 10000, reward_xp: 50000 },
+            { title: 'Le Mystère de la Citadelle', description: 'Enquêtez sur les disparitions inexpliquées dans la Citadelle de Cristal.', type: 'side', rank_required: 'A', reward_col: 2500, reward_xp: 4000 },
+            { title: 'Herboriste de l\'Ombre', description: 'Collectez des plantes rares dans les Marais Empoisonnés.', type: 'side', rank_required: 'C', reward_col: 800, reward_xp: 1200 },
+            { title: 'Chasseur de Tonnerre', description: 'Capturez l\'essence de la foudre au sommet des Montagnes du Tonnerre.', type: 'main', rank_required: 'B', reward_col: 1500, reward_xp: 2500 },
+            { title: 'Le Repos des Rois', description: 'Purifiez la Crypte des Rois Oubliés de son influence maléfique.', type: 'main', rank_required: 'B', reward_col: 2000, reward_xp: 3500 },
+            { title: 'Murmures de Fleurs', description: 'Écoutez et rapportez les secrets du Jardin des Murmures.', type: 'side', rank_required: 'D', reward_col: 400, reward_xp: 600 },
+            { title: 'Sentinelle du Néant', description: 'Gardez la Porte du Néant contre une vague d\'envahisseurs.', type: 'main', rank_required: 'S', reward_col: 20000, reward_xp: 75000 },
+            { title: 'Perles de l\'Océan', description: 'Plongez dans le Récif des Sirènes pour trouver les perles de lune.', type: 'side', rank_required: 'B', reward_col: 1100, reward_xp: 1900 },
+            { title: 'Mirage de Sel', description: 'Survivez à une traversée du Désert de Sel sans perdre la raison.', type: 'side', rank_required: 'C', reward_col: 1300, reward_xp: 2200 },
+            { title: 'Éclat d\'Émeraude', description: 'Protégez l\'Arbre de Vie au cœur de la Forêt d\'Émeraude.', type: 'main', rank_required: 'A', reward_col: 4500, reward_xp: 8000 },
         ]);
         console.log('Quests seeded.');
     }
