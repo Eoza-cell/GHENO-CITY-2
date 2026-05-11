@@ -23,7 +23,7 @@ async function sendWithImage(sock, jid, aiResponse) {
                     headers: { 'User-Agent': 'Mozilla/5.0' }
                 });
                 const imageBuffer = Buffer.from(response.data, 'binary');
-                await sock.sendMessage(jid, { image: imageBuffer, caption: narrative });
+                await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
                 return;
             }
 
@@ -32,8 +32,14 @@ async function sendWithImage(sock, jid, aiResponse) {
                 try {
                     console.log(`[IMG] Génération Puter (Flux) pour : "${imagePrompt}"`);
                     const img = await puter.ai.txt2img(imagePrompt);
-                    const buffer = Buffer.from(img.toString().split(',')[1], 'base64');
-                    await sock.sendMessage(jid, { image: buffer, caption: narrative });
+                    const imgStr = img.toString();
+                    let buffer;
+                    if (imgStr.includes(',')) {
+                        buffer = Buffer.from(imgStr.split(',')[1], 'base64');
+                    } else {
+                        buffer = Buffer.from(imgStr, 'base64');
+                    }
+                    await sock.sendMessage(jid, { image: buffer, caption: narrative, mimetype: 'image/jpeg' });
                     return;
                 } catch (puterError) {
                     console.error("[IMG] Échec Puter:", puterError.message);
@@ -43,13 +49,13 @@ async function sendWithImage(sock, jid, aiResponse) {
             // Fallback: Pollinations.ai
             console.log(`[IMG] Fallback Pollinations pour : "${imagePrompt}"`);
             const encodedPrompt = encodeURIComponent(imagePrompt);
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
             const response = await axios.get(imageUrl, {
                 responseType: 'arraybuffer',
                 headers: { 'User-Agent': 'Mozilla/5.0' }
             });
             const imageBuffer = Buffer.from(response.data, 'binary');
-            await sock.sendMessage(jid, { image: imageBuffer, caption: narrative });
+            await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
             return;
         } catch (error) {
             console.error(`[IMG] Erreur totale:`, error.message);

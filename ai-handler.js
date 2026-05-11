@@ -57,7 +57,15 @@ async function handleFreeAction(sock, message, player, actionText) {
   const items = await Item.findAll();
   const shopState = "Objets en vente à la boutique:\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description}`).join('\n');
 
-  // Memory: Get last 15 messages from this location
+  // Save current player message to memory before fetching history
+  await RPMessage.create({
+      senderJid: player.whatsappId,
+      senderName: player.name,
+      content: actionText,
+      location: player.location
+  });
+
+  // Memory: Get last 15 messages from this location (now including the current one)
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['timestamp', 'DESC']],
@@ -66,14 +74,6 @@ async function handleFreeAction(sock, message, player, actionText) {
   const historyState = history.length > 0
     ? "Historique récent à cet endroit (Mémoire):\n" + history.reverse().map(h => `[${h.timestamp.toLocaleTimeString()}] ${h.senderName}: ${h.content}`).join('\n')
     : "Aucun événement récent marqué dans la mémoire collective ici.";
-
-  // Save current player message to memory
-  await RPMessage.create({
-      senderJid: player.whatsappId,
-      senderName: player.name,
-      content: actionText,
-      location: player.location
-  });
 
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0
@@ -115,11 +115,12 @@ async function handleFreeAction(sock, message, player, actionText) {
         - **Défense**: Absorption des dégâts. Crucial pour la survie.
         - **Chance**: Événements aléatoires favorables, loot rare, survie miraculeuse.
         - **Résultat**: Compare les stats du joueur à la difficulté de la tâche (ennemi, obstacle). Décris précisément l'impact des stats dans la narration (ex: "Grâce à ta force de 50, tu soulèves le débris...", "Ton agilité médiocre te fait trébucher lors de l'esquive...").
+        - **COMBAT**: Lors d'un combat, utilise explicitement les statistiques pour déterminer les dommages infligés et reçus. Mentionne les chiffres (ex: "Ton coup inflige 40 points de dégâts grâce à ta force accrue").
     5.  **Combos & Synergies**: Récompense grassement les joueurs qui combinent leurs compétences de manière créative. Accorde des bonus de dégâts ou des effets secondaires (étourdissement, brûlure) pour les enchaînements logiques.
     6.  **Interactions Sociales & Monde Ouvert**:
         - **Joueurs à proximité**: Si d'autres joueurs sont présents (liste fournie), encourage le dialogue, le commerce ou les duels. Si le joueur interagit avec eux, décris l'impact sur l'environnement.
         - **Commerce**: Les joueurs peuvent troquer, s'arnaquer ou s'allier.
-        - **Monde Vaste**: Décris des environnements grandioses, des détails cachés, des bruits ambiants et des odeurs pour renforcer l'immersion. Le monde ne s'arrête pas aux pieds du joueur.
+        - **Monde Vaste**: Le monde de Skype est infini et fusionne plusieurs univers virtuels. Décris des environnements grandioses, des détails cachés, des bruits ambiants et des odeurs. Si le joueur explore, n'hésite pas à créer des sous-lieux uniques et des biomes variés. Le monde ne s'arrête pas aux pieds du joueur.
     7.  **Logique & Consistance**: Tes actions doivent être logiques par rapport au contexte. Si un joueur achète un objet, utilise "update_player" pour retirer les Col et "add_item" pour ajouter l'objet. Si un joueur apprend une technique à l'Académie, utilise "add_skill".
     8.  **Gestion de l'Inventaire & Boutique**: Les objets achetés ou trouvés modifient DIRECTEMENT les statistiques du joueur. Vérifie toujours le solde de Col avant un achat.
     9.  **Format JSON Impératif**: Réponse JSON uniquement. Pas de texte avant ou après. Ta réponse DOIT commencer par '{' et se terminer par '}'.
@@ -162,6 +163,14 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (!aiResponse.narrative) {
         aiResponse.narrative = "Il ne se passe rien de spécial.";
     }
+
+    // Save bot response to memory
+    await RPMessage.create({
+        senderJid: 'bot',
+        senderName: 'Arise MJ',
+        content: aiResponse.narrative,
+        location: player.location
+    });
 
     // Process AI actions
     for (const actionObj of actions) {
