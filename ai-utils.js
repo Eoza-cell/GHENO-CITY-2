@@ -13,9 +13,9 @@ async function callAI(systemPrompt, userPrompt) {
     // 1. Try Puter.js
     if (process.env.PUTER_API_KEY) {
         try {
-            console.log("[AI] Tentative avec Puter.js...");
+            console.log("[AI] Tentative avec Puter.js (Claude 3.5 Sonnet)...");
             const response = await puter.ai.chat(
-                "gpt-4o-mini",
+                "claude-3-5-sonnet", // Upgraded for better reasoning
                 {
                     system: systemPrompt,
                     prompt: userPrompt,

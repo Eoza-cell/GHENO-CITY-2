@@ -1,7 +1,12 @@
 const axios = require('axios');
+const puter = require('@heyputer/puter.js').default;
+
+if (process.env.PUTER_API_KEY) {
+    puter.setAuthToken(process.env.PUTER_API_KEY);
+}
 
 /**
- * Sends a message with an optional AI-generated image from Pollinations.ai.
+ * Sends a message with an optional AI-generated image.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
@@ -12,39 +17,42 @@ async function sendWithImage(sock, jid, aiResponse) {
 
     if (imagePrompt) {
         try {
-            let imageUrl;
             if (imagePrompt.startsWith('http')) {
-                imageUrl = imagePrompt;
-            } else {
-                // URL-encode the prompt to handle special characters
-                const encodedPrompt = encodeURIComponent(imagePrompt);
-                imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
+                const response = await axios.get(imagePrompt, {
+                    responseType: 'arraybuffer',
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                const imageBuffer = Buffer.from(response.data, 'binary');
+                await sock.sendMessage(jid, { image: imageBuffer, caption: narrative });
+                return;
             }
-            console.log(`Génération d'image (Pollinations.ai) pour le prompt : "${imagePrompt}" | URL: ${imageUrl}`);
 
-            // Fetch the image as a buffer
+            // Primary: Puter (Flux.1-schnell)
+            if (process.env.PUTER_API_KEY) {
+                try {
+                    console.log(`[IMG] Génération Puter (Flux) pour : "${imagePrompt}"`);
+                    const img = await puter.ai.txt2img(imagePrompt);
+                    const buffer = Buffer.from(img.toString().split(',')[1], 'base64');
+                    await sock.sendMessage(jid, { image: buffer, caption: narrative });
+                    return;
+                } catch (puterError) {
+                    console.error("[IMG] Échec Puter:", puterError.message);
+                }
+            }
+
+            // Fallback: Pollinations.ai
+            console.log(`[IMG] Fallback Pollinations pour : "${imagePrompt}"`);
+            const encodedPrompt = encodeURIComponent(imagePrompt);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
             const response = await axios.get(imageUrl, {
                 responseType: 'arraybuffer',
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
+                headers: { 'User-Agent': 'Mozilla/5.0' }
             });
             const imageBuffer = Buffer.from(response.data, 'binary');
-
-            if (imageBuffer && imageBuffer.length > 0) {
-                await sock.sendMessage(jid, {
-                    image: imageBuffer,
-                    caption: narrative
-                });
-                return;
-            } else {
-                console.error("La génération d'image a échoué (buffer vide). Envoi du texte seul.");
-            }
+            await sock.sendMessage(jid, { image: imageBuffer, caption: narrative });
+            return;
         } catch (error) {
-            console.error(`Erreur lors de la génération de l'image (Pollinations.ai):`, {
-                message: error.message,
-                status: error.response?.status
-            });
+            console.error(`[IMG] Erreur totale:`, error.message);
         }
     }
 
