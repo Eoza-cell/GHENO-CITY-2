@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, NPC, Skill } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, NPC, Skill, RPMessage } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
@@ -56,6 +56,24 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const items = await Item.findAll();
   const shopState = "Objets en vente à la boutique:\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description}`).join('\n');
+
+  // Memory: Get last 15 messages from this location
+  const history = await RPMessage.findAll({
+      where: { location: player.location },
+      order: [['timestamp', 'DESC']],
+      limit: 15
+  });
+  const historyState = history.length > 0
+    ? "Historique récent à cet endroit (Mémoire):\n" + history.reverse().map(h => `[${h.timestamp.toLocaleTimeString()}] ${h.senderName}: ${h.content}`).join('\n')
+    : "Aucun événement récent marqué dans la mémoire collective ici.";
+
+  // Save current player message to memory
+  await RPMessage.create({
+      senderJid: player.whatsappId,
+      senderName: player.name,
+      content: actionText,
+      location: player.location
+  });
 
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0
@@ -115,7 +133,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "type": "remove_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${npcState}\n\nACTION DU JOUEUR: ${actionText}`;
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${npcState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
 
   try {
     const content = await callAI(systemPrompt, fullPrompt);

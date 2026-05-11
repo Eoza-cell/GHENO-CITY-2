@@ -21,7 +21,6 @@ function getJid(message) {
 }
 
 const commands = new Map();
-const registrationState = new Map(); // whatsappId -> 'awaiting_name' | 'awaiting_description' | 'awaiting_profile_pic'
 
 // Command: /start
 commands.set('start', async (sock, message) => {
@@ -30,8 +29,18 @@ commands.set('start', async (sock, message) => {
   const replyJid = message.key.remoteJid;
 
   if (!player) {
-    registrationState.set(jid, 'awaiting_name');
+    await Player.create({
+        whatsappId: jid,
+        registrationStep: 'awaiting_name'
+    });
     await sock.sendMessage(replyJid, { text: "*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\nHélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.\n\nLe temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énemies... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est votre nom, aventurier ?" });
+  } else if (player.registrationStep) {
+    // Resume registration
+    if (player.registrationStep === 'awaiting_name') {
+        await sock.sendMessage(replyJid, { text: "Rappel: Quel est votre nom, aventurier ?" });
+    } else if (player.registrationStep === 'awaiting_description') {
+        await sock.sendMessage(replyJid, { text: `Rappel: Enchanté ${player.name}. Décris ton personnage en une phrase.` });
+    }
   } else {
     await sock.sendMessage(replyJid, { text: `Content de te revoir, ${player.name} ! Utilise /quests pour voir tes objectifs.` });
   }
@@ -447,33 +456,33 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   const player = await Player.findOne({ where: { whatsappId: jid } });
 
   // Handle registration flow
-  const registrationStep = registrationState.get(jid);
-  if (registrationStep) {
-      if (registrationStep === 'awaiting_name') {
+  if (player && player.registrationStep) {
+      if (player.registrationStep === 'awaiting_name') {
           const playerName = messageText.trim();
           if (playerName.length > 2 && playerName.length <= 20 && !playerName.startsWith('/')) {
-               const [newPlayer, created] = await Player.findOrCreate({
-                  where: { whatsappId: jid },
-                  defaults: { name: playerName },
-              });
-               if (created) {
-                   await Bank.create({ PlayerWhatsappId: jid }); // Create a bank account
-                   // Assign starting quests
-                   const startingQuest = await Quest.findOne({ where: { title: 'La Chasse aux Gobelins' } });
-                   if (startingQuest) {
-                       await newPlayer.addQuest(startingQuest, { through: { status: 'not_started' } });
-                   }
-               }
-              registrationState.set(jid, 'awaiting_description');
+              await player.update({ name: playerName, registrationStep: 'awaiting_description' });
+
+              // Create a bank account if not exists
+              await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+
+              // Assign starting quests
+              const startingQuest = await Quest.findOne({ where: { title: 'La Chasse aux Gobelins' } });
+              if (startingQuest) {
+                  await player.addQuest(startingQuest, { through: { status: 'not_started' } });
+              }
+
               await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
           } else {
               await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
           }
-      } else if (registrationStep === 'awaiting_description') {
+      } else if (player.registrationStep === 'awaiting_description') {
         const description = messageText.trim();
         if (description.length > 10 && description.length <= 150) {
-            await Player.update({ characterDescription: description, awaitingProfilePic: true }, { where: { whatsappId: jid } });
-            registrationState.delete(jid); // We'll handle the pic upload outside the registration flow
+            await player.update({
+                characterDescription: description,
+                registrationStep: null, // Registration finished
+                awaitingProfilePic: true
+            });
             await sock.sendMessage(replyJid, { text: `Description enregistrée ! Pour terminer, envoie une image qui représentera ton personnage.` });
         } else {
             await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères). Réessaie." });

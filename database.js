@@ -92,6 +92,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     allowNull: true,
   },
+  registrationStep: {
+    type: DataTypes.STRING,
+    allowNull: true, // null means registered, or use 'completed'
+  },
   awaitingProfilePic: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
@@ -269,6 +273,25 @@ const Kingdom = sequelize.define('Kingdom', {
     influence: {
         type: DataTypes.INTEGER,
         defaultValue: 50,
+    }
+});
+
+const RPMessage = sequelize.define('RPMessage', {
+    senderJid: {
+        type: DataTypes.STRING,
+    },
+    senderName: {
+        type: DataTypes.STRING,
+    },
+    content: {
+        type: DataTypes.TEXT,
+    },
+    location: {
+        type: DataTypes.STRING,
+    },
+    timestamp: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
     }
 });
 
@@ -760,5 +783,6 @@ module.exports = {
   Kingdom,
   NPC,
   PlayerSkill,
+  RPMessage,
   setupDatabase,
 };
