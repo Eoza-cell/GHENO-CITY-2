@@ -53,7 +53,15 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 100,
   },
+  maxHealth: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100,
+  },
   mana: { // Changed from energy
+    type: DataTypes.INTEGER,
+    defaultValue: 100,
+  },
+  maxMana: {
     type: DataTypes.INTEGER,
     defaultValue: 100,
   },
@@ -655,6 +663,24 @@ async function setupDatabase() {
                 statBonuses: { intelligence: 15, luck: 5 }
             },
             {
+                name: 'Épée de la Forêt',
+                description: 'Une épée de base pour les nouveaux aventuriers.',
+                price: 300,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Anneal_Blade.png'
+            },
+            {
+                name: 'Rapière de Fer',
+                description: 'Une arme légère pour frapper vite.',
+                price: 450,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 6 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Wind_Fleuret.png'
+            },
+            {
                 name: 'Cape de l\'Ombre',
                 description: 'Une cape favorisant la discrétion et l\'agilité.',
                 price: 1500,
@@ -685,6 +711,23 @@ async function setupDatabase() {
                 type: 'item',
                 slot: 'none',
                 statBonuses: { intelligence: 40 }
+            },
+            {
+                name: 'Anneau de Kirito',
+                description: 'Un anneau légendaire augmentant tous les sens.',
+                price: 25000,
+                type: 'accessory',
+                slot: 'none',
+                statBonuses: { strength: 10, agility: 10, intelligence: 10, luck: 10, defense: 10 }
+            },
+            {
+                name: 'Manteau de Minuit',
+                description: 'Le manteau emblématique de Kirito, favorisant la discrétion.',
+                price: 12000,
+                type: 'armor',
+                slot: 'chest',
+                statBonuses: { agility: 25, defense: 15 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c8/Black_wyrm_coat.png'
             }
         ]);
         console.log('Items seeded.');
@@ -760,7 +803,11 @@ async function setupDatabase() {
             { name: 'Directeur Magnus', role: 'Directeur de l\'Académie d\'Elion', description: 'Un mage légendaire supervisant la formation des recrues.', location: 'Académie Impériale' },
             { name: 'Forgeron Brokk', role: 'Maître de la Forge Impériale', description: 'Un artisan capable de forger les armes les plus résistantes.', location: 'Eldoria' },
             { name: 'Aubergiste Silas', role: 'Propriétaire du Griffon Rouge', description: 'Toujours au courant des dernières rumeurs.', location: 'Eldoria' },
-            { name: 'Capitaine Valerius', role: 'Commandant de la Garde d\'Elion', description: 'Un guerrier austère et dévoué à l\'Empereur.', location: 'Lux Aeterna' }
+            { name: 'Capitaine Valerius', role: 'Commandant de la Garde d\'Elion', description: 'Un guerrier austère et dévoué à l\'Empereur.', location: 'Lux Aeterna' },
+            { name: 'Reine Freya', role: 'Souveraine de Valkyrr', description: 'Une dirigeante sage et puissante, protectrice des terres gelées.', location: 'Valkyrr' },
+            { name: 'Sultan Malek', role: 'Maître d\'Azrak', description: 'Un collectionneur d\'artefacts mystérieux et richissime.', location: 'Sahra’Zul' },
+            { name: 'Amiral Kael', role: 'Protecteur de Nereïs', description: 'Un marin aguerri qui connaît tous les secrets de l\'océan.', location: 'Nereïs' },
+            { name: 'Lich Lord Vharos', role: 'Souverain du Dominion Noir', description: 'Une entité ancienne cherchant à plonger le monde dans le néant.', location: 'Citadelle de Cristal' }
         ]);
         console.log('NPCs seeded.');
     }

@@ -144,8 +144,8 @@ const profileCommand = async (sock, message) => {
     return;
   }
 
-  const healthBar = createStatusBar(player.health, 100);
-  const manaBar = createStatusBar(player.mana, 100);
+  const healthBar = createStatusBar(player.health, player.maxHealth);
+  const manaBar = createStatusBar(player.mana, player.maxMana);
   const xpNeeded = player.level * 100;
   const xpBar = createStatusBar(player.xp, xpNeeded);
 
@@ -154,8 +154,8 @@ const profileCommand = async (sock, message) => {
                       `🎭 *CLASSE:* ${player.class}\n` +
                       `🎖️ *RANG:* ${player.rank}\n` +
                       `📊 *NIVEAU:* ${player.level}\n\n` +
-                      `❤️ *VIE:*  [${healthBar}] ${player.health}%\n` +
-                      `🔷 *MANA:* [${manaBar}] ${player.mana}%\n` +
+                      `❤️ *VIE:*  [${healthBar}] ${player.health}/${player.maxHealth}\n` +
+                      `🔷 *MANA:* [${manaBar}] ${player.mana}/${player.maxMana}\n` +
                       `✨ *XP:*   [${xpBar}] ${player.xp}/${xpNeeded}\n\n` +
                       `--- ⚔️ STATISTIQUES --- \n` +
                       `💪 Force: ${player.strength}\n` +
@@ -170,6 +170,49 @@ const profileCommand = async (sock, message) => {
 };
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
+
+// Command: /inspecter
+commands.set('inspecter', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+
+    // Check for mentions
+    const mentionedJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur pour l'inspecter (ex: /inspecter @joueur)." });
+        return;
+    }
+
+    const targetPlayer = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!targetPlayer) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'existe pas ou n'est pas enregistré." });
+        return;
+    }
+
+    const healthBar = createStatusBar(targetPlayer.health, targetPlayer.maxHealth);
+    const manaBar = createStatusBar(targetPlayer.mana, targetPlayer.maxMana);
+    const xpNeeded = targetPlayer.level * 100;
+    const xpBar = createStatusBar(targetPlayer.xp, xpNeeded);
+
+    const profileText = `--- 🔍 INSPECTION - ${targetPlayer.name} --- \n\n` +
+                        `🎭 *CLASSE:* ${targetPlayer.class}\n` +
+                        `🎖️ *RANG:* ${targetPlayer.rank}\n` +
+                        `📊 *NIVEAU:* ${targetPlayer.level}\n\n` +
+                        `❤️ *VIE:*  [${healthBar}] ${targetPlayer.health}/${targetPlayer.maxHealth}\n` +
+                        `🔷 *MANA:* [${manaBar}] ${targetPlayer.mana}/${targetPlayer.maxMana}\n` +
+                        `✨ *XP:*   [${xpBar}] ${targetPlayer.xp}/${xpNeeded}\n\n` +
+                        `📜 *BIO:* ${targetPlayer.characterDescription || 'Aucune description.'}\n\n` +
+                        `--- ⚔️ STATISTIQUES --- \n` +
+                        `💪 Force: ${targetPlayer.strength}\n` +
+                        `🏃 Agilité: ${targetPlayer.agility}\n` +
+                        `🧠 Intelligence: ${targetPlayer.intelligence}\n` +
+                        `🛡️ Défense: ${targetPlayer.defense}\n` +
+                        `🍀 Chance: ${targetPlayer.luck}\n\n` +
+                        `📍 *LIEU:* ${targetPlayer.location}\n` +
+                        `---------------------------`;
+
+    await sock.sendMessage(replyJid, { text: profileText });
+});
 
 // Command: /inventory
 commands.set('inventory', async (sock, message) => {
@@ -384,6 +427,7 @@ commands.set('help', async (sock, message) => {
                    "/bank - Accéder à ton compte en banque.\n" +
                    "/boutique - Acheter de l'équipement.\n" +
                    "/joueurs - Voir les joueurs à proximité.\n" +
+                   "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
                    "/help - Afficher cette aide.";
@@ -421,6 +465,7 @@ commands.set('menu', async (sock, message) => {
                    "✨ `/competences` - Sorts & Techniques.\n" +
                    "🛒 `/boutique` - Boutique d'objets.\n" +
                    "👥 `/joueurs` - Joueurs aux alentours.\n" +
+                   "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
                    "❓ `/help` - Guide de survie.";
 
   // High quality SAO Menu Image

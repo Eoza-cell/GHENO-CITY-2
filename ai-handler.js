@@ -14,8 +14,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Rang: ${player.rank}
     - Niveau: ${player.level}
     - XP: ${player.xp}/${player.level * 100}
-    - Vie: ${player.health}%
-    - Mana: ${player.mana}%
+    - Vie: ${player.health}/${player.maxHealth}
+    - Mana: ${player.mana}/${player.maxMana}
     - Col: ${player.col}
     - Emplacement: ${player.location}
     - Statistiques: Force ${player.strength}, Agilité ${player.agility}, Intelligence ${player.intelligence}, Défense ${player.defense}, Chance ${player.luck}
@@ -116,7 +116,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     2.  **Censure Interdite & Ton Mature**: Ton sombre, réaliste, viscéral. Le monde est impitoyable.
     3.  **Difficulté "Hardcore"**: Les succès sont rares. Un échec peut être fatal.
     4.  **Calcul des Statistiques (CRUCIAL)**: Utilise Force, Agilité, Intelligence, Défense et Chance pour chaque test.
-        - **COMBAT**: Utilise explicitement les chiffres dans la narration (ex: "Ton coup inflige 40 points de dégâts"). Compare les stats aux monstres du donjon.
+        - **COMBAT**: Utilise explicitement les chiffres dans la narration (ex: "Ton coup inflige 40 points de dégâts").
+        - Ne laisse pas le hasard décider arbitrairement : si un joueur a 50 en Force, il DOIT terrasser un gobelin de base (Force 5) sans difficulté.
+        - Si un joueur a une faible Agilité, il a de grandes chances de rater ou d'être touché.
+        - Compare toujours les stats du joueur à celles de l'adversaire ou de l'obstacle.
     5.  **Système de Rang**: Respecte strictement la hiérarchie de l'Académie (F, E, D, C, B, A, S). Les missions de l'Académie sont vitales pour progresser.
     6.  **Interactions Sociales**: Si des joueurs sont à proximité, encourage les alliances ou les trahisons.
     7.  **Format JSON Impératif**: Réponse JSON uniquement. Ta réponse DOIT commencer par '{' et se terminer par '}'.
@@ -139,7 +142,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
     Exemple: {"narrative": "...", "actions": [{"type": "update_player", "parameters": {...}}, {"type": "add_item", "parameters": {...}}]}
 
-    - "type": "update_player", "parameters": {"col_change": montant, "xp_gain": montant, "health_change": montant, "mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant}
+    - "type": "update_player", "parameters": {"col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant}
     - "type": "add_skill", "parameters": {"skillName": "nom_de_la_competence"}
     - "type": "add_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
@@ -192,7 +195,9 @@ async function handleFreeAction(sock, message, player, actionText) {
             if (parameters.col_change) await player.increment('col', { by: parameters.col_change });
             if (parameters.xp_gain) await player.increment('xp', { by: parameters.xp_gain });
             if (parameters.health_change) await player.increment('health', { by: parameters.health_change });
+            if (parameters.max_health_change) await player.increment('maxHealth', { by: parameters.max_health_change });
             if (parameters.mana_change) await player.increment('mana', { by: parameters.mana_change });
+            if (parameters.max_mana_change) await player.increment('maxMana', { by: parameters.max_mana_change });
             if (parameters.strength_change) await player.increment('strength', { by: parameters.strength_change });
             if (parameters.agility_change) await player.increment('agility', { by: parameters.agility_change });
             if (parameters.intelligence_change) await player.increment('intelligence', { by: parameters.intelligence_change });
