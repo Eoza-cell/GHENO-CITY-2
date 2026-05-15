@@ -107,12 +107,16 @@ commands.set('quests', async (sock, message) => {
         return;
     }
 
-    let questText = '';
+    let questText = '--- 📜 JOURNAL DE QUÊTES --- \n\n';
     if (activeQuests.length > 0) {
-        questText += '*Quêtes en cours:*\n' + activeQuests.map(q => `- ${q.title}: ${q.description}`).join('\n') + '\n\n';
+        questText += '*⚔️ En Cours:*\n' + activeQuests.map(q => `├ ${q.title}\n└ ${q.description}`).join('\n\n') + '\n\n';
     }
     if (notStartedQuests.length > 0) {
-        questText += '*Quêtes disponibles:*\n' + notStartedQuests.map(q => `- ${q.title}`).join('\n');
+        questText += '*📍 Disponibles:*\n' + notStartedQuests.map(q => `└ ${q.title}`).join('\n');
+    }
+
+    if (activeQuests.length === 0 && notStartedQuests.length === 0) {
+        questText += "Aucune quête à l'horizon. Explore le monde !";
     }
 
     await sock.sendMessage(replyJid, { text: questText });
@@ -145,19 +149,22 @@ const profileCommand = async (sock, message) => {
   const xpNeeded = player.level * 100;
   const xpBar = createStatusBar(player.xp, xpNeeded);
 
-  const profileText = `*Profil de ${player.name}*\n\n` +
-                      `*Classe:* ${player.class} | *Rang:* ${player.rank}\n` +
-                      `*Niveau:* ${player.level}\n\n` +
-                      `*Vie:* ${healthBar} ${player.health}%\n` +
-                      `*Mana:* ${manaBar} ${player.mana}%\n` +
-                      `*XP:* ${xpBar} ${player.xp}/${xpNeeded}\n\n` +
-                      `*Statistiques:*\n` +
-                      `⚔️ Force: ${player.strength}\n` +
+  const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
+                      `👤 *JOUEUR:* ${player.name}\n` +
+                      `🎭 *CLASSE:* ${player.class}\n` +
+                      `🎖️ *RANG:* ${player.rank}\n` +
+                      `📊 *NIVEAU:* ${player.level}\n\n` +
+                      `❤️ *VIE:*  [${healthBar}] ${player.health}%\n` +
+                      `🔷 *MANA:* [${manaBar}] ${player.mana}%\n` +
+                      `✨ *XP:*   [${xpBar}] ${player.xp}/${xpNeeded}\n\n` +
+                      `--- ⚔️ STATISTIQUES --- \n` +
+                      `💪 Force: ${player.strength}\n` +
                       `🏃 Agilité: ${player.agility}\n` +
                       `🧠 Intelligence: ${player.intelligence}\n` +
                       `🛡️ Défense: ${player.defense}\n` +
                       `🍀 Chance: ${player.luck}\n\n` +
-                      `*Col:* ${player.col} 🪙`;
+                      `💰 *COL:* ${player.col} 🪙\n` +
+                      `---------------------------`;
 
   await sock.sendMessage(replyJid, { text: profileText });
 };
@@ -181,8 +188,8 @@ commands.set('inventory', async (sock, message) => {
         return;
     }
 
-    const inventoryText = inventory.map(item => `- ${item.name} (x${item.quantity})`).join('\n');
-    await sock.sendMessage(replyJid, { text: `*Inventaire:*\n\n${inventoryText}` });
+    const inventoryText = inventory.map(item => `├ ${item.name} (x${item.quantity})`).join('\n');
+    await sock.sendMessage(replyJid, { text: `--- 🎒 INVENTAIRE --- \n\n${inventoryText}\n\n└ _Utilise /action pour utiliser ou équiper un objet._` });
 });
 
 // Command: /map
@@ -197,10 +204,11 @@ commands.set('map', async (sock, message) => {
     }
 
     const dungeons = await Dungeon.findAll();
-    const mapText = `*Carte du monde*\n\n` +
-                    `*Emplacement actuel:* ${player.location}\n\n` +
-                    `*Donjons disponibles:*\n` +
-                    dungeons.map(d => `- ${d.name} (Rang ${d.rank})`).join('\n');
+    const mapText = `--- 🗺️ CARTE D'AETHERYS --- \n\n` +
+                    `📍 *POSITION:* ${player.location}\n\n` +
+                    `🏰 *DONJONS DÉCOUVERTS:* \n` +
+                    dungeons.map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
+                    `\n\n_Le monde est vaste. Déplace-toi via le mode /action._`;
 
     await sock.sendMessage(replyJid, { text: mapText });
 });
@@ -216,7 +224,7 @@ commands.set('boutique', async (sock, message) => {
         return;
     }
 
-    let boutiqueText = "⚔️ *CATALOGUE D'ARMEMENT SAO* ⚔️\n\n";
+    let boutiqueText = "--- ⚔️ FORGE DE BROKK --- \n\n";
     items.forEach(item => {
         boutiqueText += `*${item.name.toUpperCase()}*\n`;
         boutiqueText += `├ 💰 Prix: ${item.price} 🪙\n`;
@@ -228,7 +236,7 @@ commands.set('boutique', async (sock, message) => {
         boutiqueText += `└ 📜 ${item.description}\n\n`;
     });
 
-    boutiqueText += "🛒 *Pour acheter:* active `/action` et dis 'Je veux acheter [Nom de l'arme]'.";
+    boutiqueText += "🛒 *Achat:* Utilise `/action` -> 'Je veux acheter [Objet]'.";
 
     // Show top-tier item image (Excalibur or Elucidator)
     const featuredItem = items.find(i => i.name === 'Excalibur') || items.find(i => i.name === 'Elucidator') || items.find(i => i.imageUrl);
@@ -278,13 +286,14 @@ commands.set('joueurs', async (sock, message) => {
         return;
     }
 
-    let playersText = `*Joueurs à ${player.location}:*\n\n`;
+    let playersText = `--- 👥 AVENTURIERS À PROXIMITÉ --- \n\n`;
     otherPlayers.forEach(p => {
         playersText += `*${p.name}*\n`;
-        playersText += `└ Classe: ${p.class} | Niveau: ${p.level} | Rang: ${p.rank}\n`;
-        playersText += `└ Description: ${p.characterDescription || 'Aucune'}\n\n`;
+        playersText += `├ 🎭 Classe: ${p.class} | 📊 Niveau: ${p.level}\n`;
+        playersText += `├ 🎖️ Rang: ${p.rank}\n`;
+        playersText += `└ 📜 Bio: ${p.characterDescription || '...'}\n\n`;
     });
-    playersText += "Pour interagir (parler, échanger, attaquer), active le mode `/action` et décris ton intention !";
+    playersText += "_Utilise /action pour interagir avec eux._";
 
     await sock.sendMessage(replyJid, { text: playersText });
 });
@@ -302,10 +311,11 @@ commands.set('bank', async (sock, message) => {
 
     const [bank, created] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
 
-    const bankText = `*Banque Centrale de Skype*\n\n` +
-                     `*Solde:* ${bank.balance} 🪙\n\n` +
-                     `Pour déposer ou retirer, utilise le mode /action.\n` +
-                     `Ex: "Je dépose 50 col à la banque" ou "Je retire 100 col".`;
+    const bankText = `--- 🏦 BANQUE D'ELION --- \n\n` +
+                     `💳 *SOLDE:* ${bank.balance} 🪙\n\n` +
+                     `--------------------------- \n` +
+                     `_Pour déposer ou retirer, utilise le mode /action._\n` +
+                     `_Ex: "Je dépose 50 col à la banque"_`;
 
     await sock.sendMessage(replyJid, { text: bankText });
 });

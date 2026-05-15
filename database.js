@@ -27,7 +27,7 @@ const Player = sequelize.define('Player', {
   },
   rank: {
     type: DataTypes.STRING,
-    defaultValue: 'E',
+    defaultValue: 'F',
   },
   class: {
     type: DataTypes.STRING,
@@ -78,7 +78,7 @@ const Player = sequelize.define('Player', {
   },
   location: {
     type: DataTypes.STRING,
-    defaultValue: 'Ville de départ',
+    defaultValue: 'Eldoria',
   },
   mode: {
     type: DataTypes.STRING,
@@ -332,32 +332,29 @@ async function setupDatabase() {
     // Seed initial game data
     const dungeonCount = await Dungeon.count();
     if (dungeonCount === 0) {
-        console.log('Seeding Dungeons...');
+        console.log('Seeding Dungeons for Aetherys...');
         await Dungeon.bulkCreate([
-            { name: 'Forêt des Gobelins', description: 'Une forêt sombre grouillant de gobelins faibles.', rank: 'E', floors: 5 },
-            { name: 'Mine de Cobalt', description: 'Une mine abandonnée où vivent des kobolds mineurs.', rank: 'D', floors: 10 },
-            { name: 'Caverne des Ombres', description: 'Une caverne profonde où la lumière ne pénètre jamais.', rank: 'C', floors: 15 },
-            { name: 'Labyrinthe d\'Aincrad', description: 'Un labyrinthe complexe menant au sommet du château volant.', rank: 'B', floors: 20 },
-            { name: 'Forêt de Glace de Givre', description: 'Une forêt éternellement gelée où rôdent des créatures de glace.', rank: 'A', floors: 25 },
-            { name: 'Donjon du Destin', description: 'Un donjon mystérieux qui change de forme à chaque entrée.', rank: 'S', floors: 100 },
-            { name: 'Désert de la Mort', description: 'Une étendue de sable infinie abritant des scorpions géants et des cités perdues.', rank: 'C', floors: 12 },
-            { name: 'Tour des Épreuves', description: 'Une tour s\'élevant au-dessus des nuages, testant la volonté des héros.', rank: 'A', floors: 50 },
-            { name: 'Océan de Corail', description: 'Un royaume sous-marin protégé par des sirènes guerrières.', rank: 'B', floors: 20 },
-            { name: 'Volcan d\'Ignis', description: 'Le cœur brûlant du monde, gardé par un dragon de feu ancien.', rank: 'S', floors: 30 },
-            { name: 'Jardin Suspendu d\'Éden', description: 'Un paradis aérien rempli de créatures célestes protectrices.', rank: 'A', floors: 15 },
-            { name: 'Forteresse de Fer', description: 'Une citadelle imprenable située dans les montagnes du Nord.', rank: 'B', floors: 25 },
-            { name: 'Ruines de Xanadu', description: 'Une cité antique autrefois glorieuse, maintenant hantée par des spectres.', rank: 'C', floors: 18 },
-            { name: 'Abysse de l\'Oubli', description: 'Un gouffre sans fond où résident des entités cosmiques terrifiantes.', rank: 'S', floors: 50 },
-            { name: 'Citadelle de Cristal', description: 'Une forteresse de verre brillant sous un soleil éternel.', rank: 'A', floors: 30 },
-            { name: 'Marais Empoisonnés', description: 'Un lieu fétide où chaque pas peut être le dernier.', rank: 'C', floors: 10 },
-            { name: 'Montagnes du Tonnerre', description: 'Des sommets perpétuellement frappés par la foudre.', rank: 'B', floors: 22 },
-            { name: 'Nécropole de Granit', description: 'Une cité des morts sculptée dans la roche noire.', rank: 'S', floors: 45 },
-            { name: 'Jardin des Murmures', description: 'Un labyrinthe végétal où les fleurs parlent aux voyageurs.', rank: 'D', floors: 8 },
-            { name: 'Porte du Néant', description: 'Une faille dimensionnelle au bord du monde connu.', rank: 'S', floors: 99 },
-            { name: 'Récif des Sirènes', description: 'Un paradis trompeur caché sous les vagues.', rank: 'B', floors: 15 },
-            { name: 'Désert de Sel', description: 'Une étendue blanche aveuglante où rien ne survit.', rank: 'C', floors: 12 },
-            { name: 'Forêt d\'Émeraude', description: 'Le berceau de la magie ancienne, gardé par des esprits sylvains.', rank: 'A', floors: 20 },
-            { name: 'Crypte des Rois Oubliés', description: 'Le repos éternel de ceux qui ont jadis régné sur Skype.', rank: 'B', floors: 18 },
+            // Rang E-D : Donjons Débutants
+            { name: 'Forêt des Gobelins', description: 'Une forêt dense infestée de gobelins.', rank: 'E', floors: 5 },
+            { name: 'Mine de Cobalt', description: 'Ancienne mine de minerai rare, refuge des kobolds.', rank: 'D', floors: 10 },
+            { name: 'Jardin des Murmures', description: 'Un labyrinthe végétal où les fleurs murmurent des secrets.', rank: 'D', floors: 8 },
+
+            // Rang C-B : Zones Mortelles
+            { name: 'Caverne des Ombres', description: 'Une grotte obscure habitée par des spectres.', rank: 'C', floors: 15 },
+            { name: 'Ruines de Xanadu', description: 'Les vestiges d\'une cité antique hantée.', rank: 'C', floors: 18 },
+            { name: 'Forteresse de Fer', description: 'Une citadelle imprenable gardée par des golems.', rank: 'B', floors: 25 },
+            { name: 'Montagnes du Tonnerre', description: 'Sommets perpétuellement frappés par la foudre.', rank: 'B', floors: 22 },
+            { name: 'Crypte des Rois Oubliés', description: 'Tombeau des anciens souverains d\'Aetherys.', rank: 'B', floors: 18 },
+            { name: 'Labyrinthe d\'Aincrad', description: 'Un défi complexe de 100 étages flottant dans le ciel.', rank: 'B', floors: 100 },
+
+            // Rang A-S : Catastrophes Vivantes
+            { name: 'Volcan d\'Ignis', description: 'Le coeur brûlant d\'Aetherys, domaine des dragons.', rank: 'A', floors: 30 },
+            { name: 'Tour des Épreuves', description: 'Une tour s\'élevant vers les cieux, testant les héros.', rank: 'A', floors: 50 },
+            { name: 'Citadelle de Cristal', description: 'Forteresse translucide aux pouvoirs magiques intenses.', rank: 'A', floors: 30 },
+            { name: 'Donjon du Destin', description: 'Un donjon imprévisible dont personne n\'est revenu.', rank: 'S', floors: 50 },
+            { name: 'Porte du Néant', description: 'La frontière finale protégeant le monde de l\'annihilation.', rank: 'S', floors: 1 },
+            { name: 'Abysse de l\'Oubli', description: 'Un gouffre sans fond situé dans le Dominion Noir.', rank: 'S', floors: 50 },
+            { name: 'Nécropole de Granit', description: 'Cité des morts-vivants sculptée dans la roche.', rank: 'S', floors: 45 }
         ]);
         console.log('Dungeons seeded.');
     }
@@ -745,22 +742,25 @@ async function setupDatabase() {
 
     const kingdomCount = await Kingdom.count();
     if (kingdomCount === 0) {
-        console.log('Seeding Kingdoms...');
+        console.log('Seeding Kingdoms for Aetherys...');
         await Kingdom.bulkCreate([
-            { name: 'Empire d\'Aincrad', description: 'Le royaume central, siège de l\'Académie Impériale.', status: 'peace', influence: 90 },
-            { name: 'Royaume de Sylphide', description: 'Un pays de forêts et de magie, actuellement en tension.', status: 'truce', influence: 70 },
-            { name: 'Territoires des Morts-Vivants', description: 'Une terre désolée et dangereuse en guerre contre l\'Empire.', status: 'war', influence: 50 },
+            { name: 'Empire Impérial d\'Elion', description: 'Puissant royaume central, symbole du dragon doré. Capitale: Lux Aeterna.', status: 'peace', influence: 95 },
+            { name: 'Royaume Nordique de Valkyrr', description: 'Nation glaciale, guerriers aux runes et dompteurs de loups.', status: 'truce', influence: 75 },
+            { name: 'Sultanat d\'Azrak', description: 'Empire du désert, maîtres des artefacts anciens. Capitale: Sahra’Zul.', status: 'peace', influence: 80 },
+            { name: 'République Maritime de Nereïs', description: 'Puissance navale du sud, maîtres explorateurs des mers.', status: 'peace', influence: 85 },
+            { name: 'Dominion Noir de Vharos', description: 'Royaume de nécromancie et de morts-vivants. Ennemi de tous.', status: 'war', influence: 60 }
         ]);
         console.log('Kingdoms seeded.');
     }
 
     const npcCount = await NPC.count();
     if (npcCount === 0) {
-        console.log('Seeding NPCs...');
+        console.log('Seeding NPCs for Eldoria & Elion...');
         await NPC.bulkCreate([
-            { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Un mage puissant et sage, superviseur de l\'Académie Impériale.', location: 'Académie Impériale' },
-            { name: 'Capitaine Valerius', role: 'Chef de la Garde Impériale', description: 'Un guerrier endurci par des décennies de guerre.', location: 'Cité Impériale' },
-            { name: 'Lady Elara', role: 'Haute Magicienne', description: 'Spécialiste des sorts de lumière et de soin.', location: 'Académie Impériale' },
+            { name: 'Directeur Magnus', role: 'Directeur de l\'Académie d\'Elion', description: 'Un mage légendaire supervisant la formation des recrues.', location: 'Académie Impériale' },
+            { name: 'Forgeron Brokk', role: 'Maître de la Forge Impériale', description: 'Un artisan capable de forger les armes les plus résistantes.', location: 'Eldoria' },
+            { name: 'Aubergiste Silas', role: 'Propriétaire du Griffon Rouge', description: 'Toujours au courant des dernières rumeurs.', location: 'Eldoria' },
+            { name: 'Capitaine Valerius', role: 'Commandant de la Garde d\'Elion', description: 'Un guerrier austère et dévoué à l\'Empereur.', location: 'Lux Aeterna' }
         ]);
         console.log('NPCs seeded.');
     }
