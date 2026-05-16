@@ -51,7 +51,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
   });
   const socialState = nearbyPlayers.length > 0
-    ? "Joueurs à proximité:\n" + nearbyPlayers.map(p => `- ${p.name} (Niveau ${p.level})`).join('\n')
+    ? "Joueurs à proximité:\n" + nearbyPlayers.map(p => `- Nom: ${p.name}, Niveau: ${p.level}, Classe: ${p.class}, Vie: ${p.health}/${p.maxHealth}, Rang: ${p.rank}`).join('\n')
     : "Tu es seul ici.";
 
   const items = await Item.findAll();
@@ -121,8 +121,10 @@ async function handleFreeAction(sock, message, player, actionText) {
         - Si un joueur a une faible Agilité, il a de grandes chances de rater ou d'être touché.
         - Compare toujours les stats du joueur à celles de l'adversaire ou de l'obstacle.
     5.  **Système de Rang**: Respecte strictement la hiérarchie de l'Académie (F, E, D, C, B, A, S). Les missions de l'Académie sont vitales pour progresser.
-    6.  **Interactions Sociales**: Si des joueurs sont à proximité, encourage les alliances ou les trahisons.
-    7.  **Format JSON Impératif**: Réponse JSON uniquement. Ta réponse DOIT commencer par '{' et se terminer par '}'.
+    6.  **Interactions Sociales**: Si des joueurs sont à proximité, encourage les alliances, les échanges ou les affrontements. Tu DOIS les identifier par leur nom.
+    7.  **Ciblage (MULTIJOUEUR)**: Tu peux appliquer des actions à d'autres joueurs présents en ajoutant "target_name" dans les paramètres JSON. Si un joueur "A" attaque "B", l'action JSON doit cibler "B" pour les dégâts.
+    8.  **Vérification des Noms**: Utilise uniquement les noms fournis dans la section "Joueurs à proximité". Si le joueur mentionne un nom qui n'est pas là, il s'adresse à un PNJ ou hallucine.
+    9.  **Format JSON Impératif**: Réponse JSON uniquement. Ta réponse DOIT commencer par '{' et se terminer par '}'.
 
     FORMAT DE LA NARRATION:
     - Utilise des en-têtes stylisés avec des emojis.
@@ -142,10 +144,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
     Exemple: {"narrative": "...", "actions": [{"type": "update_player", "parameters": {...}}, {"type": "add_item", "parameters": {...}}]}
 
-    - "type": "update_player", "parameters": {"col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant}
-    - "type": "add_skill", "parameters": {"skillName": "nom_de_la_competence"}
-    - "type": "add_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
-    - "type": "remove_item", "parameters": {"itemName": "nom_de_l_objet", "quantity": nombre}
+    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant}
+    - "type": "add_skill", "parameters": {"target_name": "nom_optionnel", "skillName": "nom_de_la_competence"}
+    - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
+    - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
   `;
 
     const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${npcState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
@@ -188,103 +190,158 @@ async function handleFreeAction(sock, message, player, actionText) {
     // Process AI actions
     for (const actionObj of actions) {
       const { type, parameters } = actionObj;
+      if (!parameters) continue;
+
+      let target = player;
+      if (parameters.target_name) {
+          const foundTarget = await Player.findOne({
+              where: {
+                  name: parameters.target_name,
+                  location: player.location // Only target players at same location
+              }
+          });
+          if (foundTarget) {
+              target = foundTarget;
+          } else {
+              console.log(`[AI] Target not found or not at location: ${parameters.target_name}`);
+          }
+      }
 
       switch (type) {
         case 'update_player':
-          if (parameters) {
-            if (parameters.col_change) await player.increment('col', { by: parameters.col_change });
-            if (parameters.xp_gain) await player.increment('xp', { by: parameters.xp_gain });
-            if (parameters.health_change) await player.increment('health', { by: parameters.health_change });
-            if (parameters.max_health_change) await player.increment('maxHealth', { by: parameters.max_health_change });
-            if (parameters.mana_change) await player.increment('mana', { by: parameters.mana_change });
-            if (parameters.max_mana_change) await player.increment('maxMana', { by: parameters.max_mana_change });
-            if (parameters.strength_change) await player.increment('strength', { by: parameters.strength_change });
-            if (parameters.agility_change) await player.increment('agility', { by: parameters.agility_change });
-            if (parameters.intelligence_change) await player.increment('intelligence', { by: parameters.intelligence_change });
-            if (parameters.defense_change) await player.increment('defense', { by: parameters.defense_change });
-            if (parameters.luck_change) await player.increment('luck', { by: parameters.luck_change });
-            if (parameters.new_location) await player.update({ location: parameters.new_location });
-            if (parameters.new_rank) await player.update({ rank: parameters.new_rank });
+          if (parameters.col_change) await target.increment('col', { by: parameters.col_change });
+          if (parameters.xp_gain) {
+              await target.increment('xp', { by: parameters.xp_gain });
+              // Reload target to check XP
+              await target.reload();
+              const xpNeeded = target.level * 100;
+              if (target.xp >= xpNeeded) {
+                  const levelsGained = Math.floor(target.xp / xpNeeded);
+                  await target.increment('level', { by: levelsGained });
+                  await target.update({
+                      xp: target.xp % xpNeeded,
+                      maxHealth: target.maxHealth + (levelsGained * 20),
+                      maxMana: target.maxMana + (levelsGained * 10),
+                      health: target.maxHealth + (levelsGained * 20),
+                      mana: target.maxMana + (levelsGained * 10)
+                  });
+                  await sock.sendMessage(target.whatsappId, {
+                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes points de vie et de mana ont augmenté.`
+                  });
+              }
           }
+          if (parameters.health_change) {
+              await target.increment('health', { by: parameters.health_change });
+              await target.reload();
+              if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
+              if (target.health < 0) await target.update({ health: 0 });
+          }
+          if (parameters.max_health_change) await target.increment('maxHealth', { by: parameters.max_health_change });
+          if (parameters.mana_change) {
+              await target.increment('mana', { by: parameters.mana_change });
+              await target.reload();
+              if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
+              if (target.mana < 0) await target.update({ mana: 0 });
+          }
+          if (parameters.max_mana_change) await target.increment('maxMana', { by: parameters.max_mana_change });
+          if (parameters.strength_change) await target.increment('strength', { by: parameters.strength_change });
+          if (parameters.agility_change) await target.increment('agility', { by: parameters.agility_change });
+          if (parameters.intelligence_change) await target.increment('intelligence', { by: parameters.intelligence_change });
+          if (parameters.defense_change) await target.increment('defense', { by: parameters.defense_change });
+          if (parameters.luck_change) await target.increment('luck', { by: parameters.luck_change });
+          if (parameters.new_location) await target.update({ location: parameters.new_location });
+          if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
           break;
+
         case 'add_skill':
-          if (parameters && parameters.skillName) {
-            const skill = await Skill.findOne({ where: { name: { [Op.like]: `%${parameters.skillName}%` } } });
+          if (parameters.skillName) {
+            const skill = await Skill.findOne({
+                where: {
+                    [Op.or]: [
+                        { name: { [Op.like]: `%${parameters.skillName}%` } },
+                        { name: parameters.skillName }
+                    ]
+                }
+            });
             if (skill) {
-              const hasSkill = await player.hasSkill(skill);
+              const hasSkill = await target.hasSkill(skill);
               if (!hasSkill) {
-                await player.addSkill(skill);
-                // Apply stat bonuses immediately
+                await target.addSkill(skill);
+                console.log(`[AI] Skill added to ${target.name}: ${skill.name}`);
                 const bonuses = skill.statBonuses;
                 for (const [stat, value] of Object.entries(bonuses)) {
                   if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
-                    await player.increment(stat, { by: value });
+                    await target.increment(stat, { by: value });
                   }
                 }
               }
             }
           }
           break;
+
         case 'add_item':
-          if (parameters) {
-            const { itemName, quantity } = parameters;
-            const inventory = [...player.inventory];
-            const existingItem = inventory.find(i => i.name.toLowerCase() === itemName.toLowerCase());
+          if (parameters.itemName && parameters.quantity) {
+            const inventory = [...target.inventory];
+            const existingItem = inventory.find(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
 
             if (existingItem) {
-                existingItem.quantity += quantity;
+                existingItem.quantity += parameters.quantity;
             } else {
-                inventory.push({ name: itemName, quantity: quantity });
+                inventory.push({ name: parameters.itemName, quantity: parameters.quantity });
             }
 
-            player.inventory = inventory;
-            await player.save();
+            target.inventory = inventory;
+            await target.save();
 
-            // Automatic stat bonus application for items found in the database
-            const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
+            const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${parameters.itemName}%` } } });
             if (itemData) {
                 const bonuses = itemData.statBonuses;
                 for (const [stat, value] of Object.entries(bonuses)) {
                     if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
-                        await player.increment(stat, { by: value * quantity });
+                        await target.increment(stat, { by: value * parameters.quantity });
                     }
                 }
-                // If it's an item from the database, use its image
-                if (itemData.imageUrl && !aiResponse.imagePrompt) {
+                if (itemData.imageUrl && !aiResponse.imagePrompt && target.whatsappId === player.whatsappId) {
                     aiResponse.imagePrompt = itemData.imageUrl;
                 }
             }
           }
           break;
+
         case 'remove_item':
-            if (parameters) {
-                const { itemName, quantity } = parameters;
-                let inventory = [...player.inventory];
-                const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === itemName.toLowerCase());
+            if (parameters.itemName && parameters.quantity) {
+                let inventory = [...target.inventory];
+                const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
                 if (itemIndex !== -1) {
-                    const actualQuantityToRemove = Math.min(quantity, inventory[itemIndex].quantity);
+                    const actualQuantityToRemove = Math.min(parameters.quantity, inventory[itemIndex].quantity);
                     inventory[itemIndex].quantity -= actualQuantityToRemove;
 
                     if (inventory[itemIndex].quantity <= 0) {
                         inventory.splice(itemIndex, 1);
                     }
 
-                    player.inventory = inventory;
-                    await player.save();
+                    target.inventory = inventory;
+                    await target.save();
 
-                    // Reverse stat bonuses if the item exists in the database
-                    const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
+                    const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${parameters.itemName}%` } } });
                     if (itemData) {
                         const bonuses = itemData.statBonuses;
                         for (const [stat, value] of Object.entries(bonuses)) {
                             if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
-                                await player.decrement(stat, { by: value * actualQuantityToRemove });
+                                await target.decrement(stat, { by: value * actualQuantityToRemove });
                             }
                         }
                     }
                 }
             }
             break;
+      }
+
+      // Notify target if it's not the current player
+      if (target.whatsappId !== player.whatsappId) {
+          await sock.sendMessage(target.whatsappId, {
+              text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
+          });
       }
     }
 
