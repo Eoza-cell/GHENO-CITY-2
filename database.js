@@ -319,6 +319,34 @@ const NPC = sequelize.define('NPC', {
     }
 });
 
+const Monster = sequelize.define('Monster', {
+    name: {
+        type: DataTypes.STRING,
+        unique: true,
+    },
+    rank: {
+        type: DataTypes.STRING,
+    },
+    health: {
+        type: DataTypes.INTEGER,
+    },
+    strength: {
+        type: DataTypes.INTEGER,
+    },
+    defense: {
+        type: DataTypes.INTEGER,
+    },
+    agility: {
+        type: DataTypes.INTEGER,
+    },
+    xp_reward: {
+        type: DataTypes.INTEGER,
+    },
+    col_reward: {
+        type: DataTypes.INTEGER,
+    }
+});
+
 // Relationships
 Player.hasOne(Bank);
 Bank.belongsTo(Player);
@@ -807,9 +835,32 @@ async function setupDatabase() {
             { name: 'Reine Freya', role: 'Souveraine de Valkyrr', description: 'Une dirigeante sage et puissante, protectrice des terres gelées.', location: 'Valkyrr' },
             { name: 'Sultan Malek', role: 'Maître d\'Azrak', description: 'Un collectionneur d\'artefacts mystérieux et richissime.', location: 'Sahra’Zul' },
             { name: 'Amiral Kael', role: 'Protecteur de Nereïs', description: 'Un marin aguerri qui connaît tous les secrets de l\'océan.', location: 'Nereïs' },
-            { name: 'Lich Lord Vharos', role: 'Souverain du Dominion Noir', description: 'Une entité ancienne cherchant à plonger le monde dans le néant.', location: 'Citadelle de Cristal' }
+            { name: 'Lich Lord Vharos', role: 'Souverain du Dominion Noir', description: 'Une entité ancienne cherchant à plonger le monde dans le néant.', location: 'Citadelle de Cristal' },
+            { name: 'Argo', role: 'L\'Informatrice', description: 'Une informatrice agile qui vend des secrets pour quelques Col.', location: 'Eldoria' },
+            { name: 'Agil', role: 'Marchand Costaud', description: 'Un ancien guerrier tenant une boutique d\'objets rares.', location: 'Eldoria' },
+            { name: 'Klein', role: 'Chef de guilde', description: 'Un samouraï jovial menant la guilde Fuurinkazan.', location: 'Eldoria' },
+            { name: 'Sachi', role: 'Membre des Chats Noirs', description: 'Une jeune fille douce cherchant à surmonter sa peur du combat.', location: 'Eldoria' },
+            { name: 'Heathcliff', role: 'Grand Maître', description: 'Le chef de la Confrérie des Chevaliers du Sang.', location: 'Lux Aeterna' },
+            { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, célèbre pour sa rapidité.', location: 'Lux Aeterna' }
         ]);
         console.log('NPCs seeded.');
+    }
+
+    const monsterCount = await Monster.count();
+    if (monsterCount === 0) {
+        console.log('Seeding Monsters...');
+        await Monster.bulkCreate([
+            { name: 'Gobelin', rank: 'F', health: 50, strength: 5, defense: 2, agility: 5, xp_reward: 20, col_reward: 10 },
+            { name: 'Loup Sauvage', rank: 'F', health: 40, strength: 8, defense: 1, agility: 12, xp_reward: 25, col_reward: 5 },
+            { name: 'Kobold Mineur', rank: 'E', health: 100, strength: 12, defense: 8, agility: 10, xp_reward: 50, col_reward: 30 },
+            { name: 'Slime Géant', rank: 'E', health: 150, strength: 10, defense: 15, agility: 2, xp_reward: 45, col_reward: 20 },
+            { name: 'Orc Guerrier', rank: 'D', health: 300, strength: 25, defense: 15, agility: 10, xp_reward: 150, col_reward: 80 },
+            { name: 'Spectre des Ruines', rank: 'C', health: 200, strength: 30, defense: 50, agility: 20, xp_reward: 400, col_reward: 150 },
+            { name: 'Golem de Fer', rank: 'B', health: 1000, strength: 60, defense: 80, agility: 5, xp_reward: 1500, col_reward: 500 },
+            { name: 'Dragon d\'Ignis', rank: 'A', health: 5000, strength: 150, defense: 120, agility: 80, xp_reward: 10000, col_reward: 5000 },
+            { name: 'Le Faucheur', rank: 'S', health: 20000, strength: 400, defense: 300, agility: 500, xp_reward: 100000, col_reward: 50000 }
+        ]);
+        console.log('Monsters seeded.');
     }
 
   } catch (error) {
@@ -829,6 +880,7 @@ module.exports = {
   Skill,
   Kingdom,
   NPC,
+  Monster,
   PlayerSkill,
   RPMessage,
   setupDatabase,

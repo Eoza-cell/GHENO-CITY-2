@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, NPC, Skill, RPMessage } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, NPC, Skill, RPMessage, Monster } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
@@ -86,6 +86,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   const npcs = await NPC.findAll();
   const npcState = "Personnages Importants (PNG) connus:\n" + npcs.map(n => `- ${n.name} (${n.role}) à ${n.location}: ${n.description}`).join('\n');
 
+  const monsters = await Monster.findAll();
+  const monsterState = "Bestiaire (Référence de puissance pour le MJ):\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}): PV ${m.health}, STR ${m.strength}, DEF ${m.defense}, AGI ${m.agility}`).join('\n');
+
   // Time Logic: 1 month real = 1 year RP
   // Reference date: Jan 1st 2024
   const startDate = new Date('2024-01-01').getTime();
@@ -119,7 +122,8 @@ async function handleFreeAction(sock, message, player, actionText) {
         - **COMBAT**: Utilise explicitement les chiffres dans la narration (ex: "Ton coup inflige 40 points de dégâts").
         - Ne laisse pas le hasard décider arbitrairement : si un joueur a 50 en Force, il DOIT terrasser un gobelin de base (Force 5) sans difficulté.
         - Si un joueur a une faible Agilité, il a de grandes chances de rater ou d'être touché.
-        - Compare toujours les stats du joueur à celles de l'adversaire ou de l'obstacle.
+        - Compare toujours les stats du joueur à celles de l'adversaire ou de l'obstacle en utilisant le "Bestiaire" comme référence pour les ennemis.
+        - Un combat se déroule en plusieurs échanges si nécessaire. Tu dois réduire la Vie du joueur ou de l'ennemi dans le JSON.
     5.  **Système de Rang**: Respecte strictement la hiérarchie de l'Académie (F, E, D, C, B, A, S). Les missions de l'Académie sont vitales pour progresser.
     6.  **Interactions Sociales**: Si des joueurs sont à proximité, encourage les alliances, les échanges ou les affrontements. Tu DOIS les identifier par leur nom.
     7.  **Ciblage (MULTIJOUEUR)**: Tu peux appliquer des actions à d'autres joueurs présents en ajoutant "target_name" dans les paramètres JSON. Si un joueur "A" attaque "B", l'action JSON doit cibler "B" pour les dégâts.
@@ -150,7 +154,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${npcState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
 
   try {
     const content = await callAI(systemPrompt, fullPrompt);

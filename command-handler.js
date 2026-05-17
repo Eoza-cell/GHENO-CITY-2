@@ -363,6 +363,107 @@ commands.set('bank', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: bankText });
 });
 
+// Command: /donner
+commands.set('donner', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
+        return;
+    }
+
+    const mentionedJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur pour lui donner quelque chose (ex: /donner @joueur 100 col)." });
+        return;
+    }
+
+    const targetPlayer = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!targetPlayer) {
+        await sock.sendMessage(replyJid, { text: "Ce joueur n'existe pas." });
+        return;
+    }
+
+    if (player.location !== targetPlayer.location) {
+        await sock.sendMessage(replyJid, { text: "Tu dois être au même endroit que le joueur pour lui donner quelque chose." });
+        return;
+    }
+
+    const amountIndex = args.findIndex(arg => !isNaN(parseInt(arg)));
+    const amount = amountIndex !== -1 ? parseInt(args[amountIndex]) : 0;
+    const isCol = args.some(arg => arg.toLowerCase() === 'col' || arg.toLowerCase() === 'cols');
+
+    if (isCol && amount > 0) {
+        if (player.col < amount) {
+            await sock.sendMessage(replyJid, { text: "Tu n'as pas assez de Col." });
+            return;
+        }
+
+        await player.decrement('col', { by: amount });
+        await targetPlayer.increment('col', { by: amount });
+
+        await sock.sendMessage(replyJid, { text: `Tu as donné ${amount} Col à ${targetPlayer.name}.` });
+        await sock.sendMessage(mentionedJid, { text: `💰 ${player.name} t'a donné ${amount} Col !` });
+        return;
+    }
+
+    // Giving items
+    const itemName = args.filter(arg => isNaN(parseInt(arg)) && !['col', 'cols'].includes(arg.toLowerCase()) && !arg.startsWith('@')).join(' ');
+    if (itemName) {
+        let inventory = [...player.inventory];
+        const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === itemName.toLowerCase());
+
+        if (itemIndex === -1) {
+            await sock.sendMessage(replyJid, { text: `Tu n'as pas d'objet nommé "${itemName}" dans ton inventaire.` });
+            return;
+        }
+
+        const quantity = amount > 0 ? amount : 1;
+        if (inventory[itemIndex].quantity < quantity) {
+            await sock.sendMessage(replyJid, { text: `Tu n'as pas assez de "${itemName}".` });
+            return;
+        }
+
+        // Remove from sender
+        inventory[itemIndex].quantity -= quantity;
+        if (inventory[itemIndex].quantity <= 0) {
+            inventory.splice(itemIndex, 1);
+        }
+        player.inventory = inventory;
+        await player.save();
+
+        // Add to receiver
+        let targetInventory = [...targetPlayer.inventory];
+        const targetItemIndex = targetInventory.findIndex(i => i.name.toLowerCase() === itemName.toLowerCase());
+        if (targetItemIndex !== -1) {
+            targetInventory[targetItemIndex].quantity += quantity;
+        } else {
+            targetInventory.push({ name: itemName, quantity: quantity });
+        }
+        targetPlayer.inventory = targetInventory;
+        await targetPlayer.save();
+
+        await sock.sendMessage(replyJid, { text: `Tu as donné ${quantity}x ${itemName} à ${targetPlayer.name}.` });
+        await sock.sendMessage(mentionedJid, { text: `🎒 ${player.name} t'a donné ${quantity}x ${itemName} !` });
+
+        // Handle stat changes if it's an item with bonuses
+        const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
+        if (itemData) {
+            const bonuses = itemData.statBonuses;
+            for (const [stat, value] of Object.entries(bonuses)) {
+                if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                    await player.decrement(stat, { by: value * quantity });
+                    await targetPlayer.increment(stat, { by: value * quantity });
+                }
+            }
+        }
+    } else {
+        await sock.sendMessage(replyJid, { text: "Spécifie ce que tu veux donner (ex: /donner @joueur 100 col OU /donner @joueur Épée)." });
+    }
+});
+
 
 // Command: /statut
 commands.set('statut', async (sock, message) => {
@@ -428,6 +529,7 @@ commands.set('help', async (sock, message) => {
                    "/boutique - Acheter de l'équipement.\n" +
                    "/joueurs - Voir les joueurs à proximité.\n" +
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
+                   "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
                    "/help - Afficher cette aide.";
@@ -466,6 +568,7 @@ commands.set('menu', async (sock, message) => {
                    "🛒 `/boutique` - Boutique d'objets.\n" +
                    "👥 `/joueurs` - Joueurs aux alentours.\n" +
                    "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
+                   "🤝 `/donner @joueur ...` - Échange d'objets.\n" +
                    "❓ `/help` - Guide de survie.";
 
   // High quality SAO Menu Image
