@@ -7,11 +7,11 @@ const { callAI } = require('./ai-utils');
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
 
-    const welcomeText = "*BIENVENUE DANS GHENO CITY 2 : LE TUTORIEL*\n\n" +
-                        "Un homme à la carrure imposante et aux cheveux rouges se tient devant toi. Il s'agit de ton instructeur.\n\n" +
-                        "Instructeur : 'Alors comme ça, tu veux devenir un joueur de haut niveau ? Voyons d'abord ce que tu as dans le ventre.'\n\n" +
-                        "Il te tend trois parchemins anciens.\n\n" +
-                        "'Choisis ta classe, aventurier.'";
+    const welcomeText = "--- ⚔️ *START: LINK START!* --- \n\n" +
+                        "Un homme à la carrure imposante et aux cheveux rouges se tient devant toi, une aura de puissance écrasante se dégageant de lui. Il s'agit de ton instructeur.\n\n" +
+                        "Instructeur : 'Alors comme ça, un nouveau visage apparaît dans ce monde condamné ? Voyons si tu as la flamme d'un héros ou si tu n'es qu'une erreur de la matrice.'\n\n" +
+                        "Il te tend trois parchemins anciens entourés d'éclairs de mana.\n\n" +
+                        "'Choisis ton destin, ton arme et ton âme. *Quelle est ta classe ?*'";
 
     try {
         const imageBuffer = await generateClassSelectionImage();
@@ -47,10 +47,11 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 agility: chosenClass === 'Assassin' ? 20 : 10
             });
 
-            const nextText = `Instructeur : 'Un ${chosenClass}, hein ? Un choix audacieux. Passons maintenant à la pratique.'\n\n` +
-                             "Il sort deux épées de bois (ou un bâton, selon ton choix) et se met en garde.\n\n" +
-                             "'Donne-moi des coups. N'aie pas peur, je vais te montrer comment on se bat vraiment ici.'\n\n" +
-                             "*CONSEIL : Décris tes attaques (ex: 'Je lance un coup d'épée vertical') pour apprendre les combos.*";
+            const nextText = `Instructeur : 'Un ${chosenClass}, hein ? *DODODO!* Un choix qui en dit long sur ton tempérament. Passons maintenant à la destruction !'\n\n` +
+                             "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre.\n\n" +
+                             "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
+                             "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
+                             "Décris tes attaques avec passion (ex: 'Je concentre mon mana dans ma lame et je lance une entaille fulgurante !') pour maximiser tes dégâts.";
 
             try {
                 const bossImage = fs.readFileSync(path.join('assets', 'tutorial_boss.jpg'));
@@ -71,15 +72,16 @@ async function handleTutorialAction(sock, message, player, actionText) {
     if (player.tutorialStep === 2) {
         // Combat training logic powered by AI
         const systemPrompt = `
-            Tu es l'Instructeur, un maître d'armes légendaire dans GHENO CITY 2. Ton but est d'évaluer et de former le nouveau joueur.
+            Tu es l'Instructeur, un maître d'armes légendaire dans GHENO CITY 2. Ton but est d'évaluer et de former le nouveau joueur dans un duel d'entraînement épique de style ANIME (Ufotable/MAPPA style).
             Le joueur est un ${player.class} (FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}).
 
-            RÈGLES DU TUTORIEL:
-            1.  **Réaction Dynamique**: Décris précisément l'impact de l'attaque du joueur en fonction de ses stats.
-            2.  **Instruction Rapide**: Le tutoriel doit être court. Si l'action du joueur est correcte et créative, termine le tutoriel immédiatement.
-            3.  **Ton Immersif**: Tu es un mentor sévère mais juste. Langage guerrier.
-            4.  **Fin du Tutoriel**: Dès que tu juges que le joueur a compris (souvent après 1 ou 2 actions bien décrites), passe "tutorial_complete" à true.
-            5.  **Format JSON**: Retourne UNIQUEMENT un objet JSON avec les clés "narrative" (string) et "tutorial_complete" (boolean).
+            RÈGLES DU TUTORIEL (STYLE ANIME):
+            1.  **Narration Épique**: Décris les impacts avec des onomatopées (*BOOM*, *ZING*), des effets de lumière et des ralentis dramatiques.
+            2.  **Réaction Dynamique**: Décris précisément l'impact de l'attaque du joueur en fonction de ses stats. Si le joueur a beaucoup de force, le sol doit se fissurer.
+            3.  **Instruction Rapide**: Le tutoriel doit être court (1-2 échanges).
+            4.  **Ton Mentor Anime**: Tu es un mentor sévère mais respectueux. Utilise des répliques comme "Pas mal, mais trop lent !" ou "Ressens le flux du mana !".
+            5.  **Fin du Tutoriel**: Dès que tu juges que le joueur a compris, passe "tutorial_complete" à true.
+            6.  **Format JSON**: Retourne UNIQUEMENT un objet JSON avec les clés "narrative" (string) et "tutorial_complete" (boolean).
         `;
 
         const fullPrompt = `ACTION DU JOUEUR: ${actionText}`;
