@@ -83,8 +83,16 @@ async function handleFreeAction(sock, message, player, actionText) {
   const kingdoms = await Kingdom.findAll();
   const kingdomState = "État du Monde (Royaumes & Guerres):\n" + kingdoms.map(k => `- ${k.name}: ${k.description} [Statut: ${k.status}]`).join('\n');
 
-  const npcs = await NPC.findAll();
-  const npcState = "Personnages Importants (PNG) connus:\n" + npcs.map(n => `- ${n.name} (${n.role}) à ${n.location}: ${n.description}`).join('\n');
+  // Limit NPCs to current location or key global ones for prompt efficiency
+  const npcs = await NPC.findAll({
+      where: {
+          [Op.or]: [
+              { location: player.location },
+              { name: ['Directeur Magnus', 'Heathcliff', 'Asuna'] }
+          ]
+      }
+  });
+  const npcState = "Personnages Importants (PNJ) à proximité ou mondiaux:\n" + npcs.map(n => `- ${n.name} (${n.role}): ${n.description}`).join('\n');
 
   const monsters = await Monster.findAll();
   const monsterState = "Bestiaire (Référence de puissance pour le MJ):\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}): PV ${m.health}, STR ${m.strength}, DEF ${m.defense}, AGI ${m.agility}`).join('\n');

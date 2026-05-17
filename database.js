@@ -841,7 +841,30 @@ async function setupDatabase() {
             { name: 'Klein', role: 'Chef de guilde', description: 'Un samouraï jovial menant la guilde Fuurinkazan.', location: 'Eldoria' },
             { name: 'Sachi', role: 'Membre des Chats Noirs', description: 'Une jeune fille douce cherchant à surmonter sa peur du combat.', location: 'Eldoria' },
             { name: 'Heathcliff', role: 'Grand Maître', description: 'Le chef de la Confrérie des Chevaliers du Sang.', location: 'Lux Aeterna' },
-            { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, célèbre pour sa rapidité.', location: 'Lux Aeterna' }
+            { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, célèbre pour sa rapidité.', location: 'Lux Aeterna' },
+
+            // Éducateurs et Personnel de l'Académie
+            { name: 'Maître Ghyran', role: 'Instructeur de Combat', description: 'Un vétéran balafré qui ne tolère aucune paresse.', location: 'Académie Impériale' },
+            { name: 'Professeur Elena', role: 'Enseignante de Magie', description: 'Experte en manipulation du mana et en sorts élémentaires.', location: 'Académie Impériale' },
+            { name: 'Bibliothécaire Otho', role: 'Gardien du Savoir', description: 'Un vieil homme qui en sait plus qu\'il ne veut bien le dire.', location: 'Académie Impériale' },
+            { name: 'Infirmière Joy', role: 'Guérisseuse', description: 'Douce mais ferme, elle soigne les blessures des entraînements.', location: 'Académie Impériale' },
+
+            // Élèves de l'Académie - Rang F (Débutants)
+            { name: 'Léo', role: 'Élève (Guerrier)', description: 'Toujours enthousiaste, il rêve de devenir un Chevalier du Sang.', location: 'Académie Impériale' },
+            { name: 'Mia', role: 'Élève (Mage)', description: 'Studieuse, elle passe ses nuits à la bibliothèque.', location: 'Académie Impériale' },
+            { name: 'Kenji', role: 'Élève (Assassin)', description: 'Silencieux et discret, il observe tout depuis les ombres.', location: 'Académie Impériale' },
+            { name: 'Toby', role: 'Élève (Guerrier)', description: 'Un peu maladroit mais possède une force brute surprenante.', location: 'Académie Impériale' },
+
+            // Élèves de l'Académie - Rang E-D
+            { name: 'Sora', role: 'Élève (Épéiste)', description: 'Un prodige arrogant qui se croit déjà au-dessus des autres.', location: 'Académie Impériale' },
+            { name: 'Lyra', role: 'Élève (Archère)', description: 'Calme et précise, elle ne rate jamais sa cible au champ de tir.', location: 'Académie Impériale' },
+            { name: 'Ryu', role: 'Élève (Moine)', description: 'S\'entraîne pieds nus sous la cascade de l\'Académie.', location: 'Académie Impériale' },
+            { name: 'Emi', role: 'Élève (Prêtresse)', description: 'Dévouée à la Lumière, elle aide les nouveaux élèves.', location: 'Académie Impériale' },
+
+            // Élèves de l'Académie - Rang C-B (Élites)
+            { name: 'Jax', role: 'Élève (Chevalier)', description: 'Le meilleur de sa promotion, respecté de tous.', location: 'Académie Impériale' },
+            { name: 'Zelda', role: 'Élève (Invocatrice)', description: 'Capable de matérialiser de petites créatures de mana.', location: 'Académie Impériale' },
+            { name: 'Kaelith', role: 'Élève (Lame-Sort)', description: 'Fusionne la magie et le fer avec une grâce mortelle.', location: 'Académie Impériale' }
         ]);
         console.log('NPCs seeded.');
     }
