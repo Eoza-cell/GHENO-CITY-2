@@ -359,6 +359,53 @@ commands.set('royaumes', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: text });
 });
 
+// Command: /ecoles
+commands.set('ecoles', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const { School } = require('./database');
+    const schools = await School.findAll();
+
+    let text = "--- 🏫 ACADÉMIES D'AETHERYS --- \n\n";
+    schools.forEach(s => {
+        text += `*${s.name.toUpperCase()}*\n`;
+        text += `├ 🧪 Spécialité: ${s.specialty}\n`;
+        text += `├ 📍 Royaume: ${s.kingdomName}\n`;
+        text += `└ 📜 ${s.description}\n\n`;
+    });
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /examens
+commands.set('examens', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    let text = "--- 📝 DOSSIER ACADÉMIQUE --- \n\n";
+    text += `👤 *Élève:* ${player.name}\n`;
+    text += `🏫 *École:* ${player.schoolName}\n`;
+    text += `📊 *Moyenne Générale:* ${player.academicGrade}/100\n\n`;
+    text += `_Participe aux cours via /action pour améliorer tes notes et passer les examens._`;
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /tournoi
+commands.set('tournoi', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+
+    let text = "--- 🏆 GRAND TOURNOI D'AETHERYS --- \n\n";
+    text += "Le Tournoi Inter-Écoles a lieu une fois par an (chaque mois réel).\n\n";
+    text += "⚔️ *Format:* Duels 1v1 par rangs.\n";
+    text += "🎁 *Récompenses:* Équipement légendaire, Col, et titres de noblesse.\n\n";
+    text += "_Les inscriptions s'ouvriront bientôt auprès du Directeur de ton école._";
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
 // Command: /conflits
 commands.set('conflits', async (sock, message) => {
     const replyJid = message.key.remoteJid;
@@ -611,6 +658,9 @@ commands.set('menu', async (sock, message) => {
                    "🤝 `/donner @joueur ...` - Échange d'objets.\n" +
                    "🏰 `/royaumes` - Géopolitique mondiale.\n" +
                    "🛡️ `/conflits` - Guerres en cours.\n" +
+                   "🏫 `/ecoles` - Liste des académies.\n" +
+                   "📝 `/examens` - Ton dossier scolaire.\n" +
+                   "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
                    "❓ `/help` - Guide de survie.";
 
   // High quality SAO Menu Image

@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, NPC, Skill, RPMessage, Monster } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
@@ -100,6 +100,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   const monsters = await Monster.findAll();
   const monsterState = "Bestiaire (Référence de puissance pour le MJ):\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}): PV ${m.health}, STR ${m.strength}, DEF ${m.defense}, AGI ${m.agility}`).join('\n');
 
+  const schools = await School.findAll();
+  const schoolState = "Écoles et Académies:\n" + schools.map(s => `- ${s.name} (${s.specialty}): ${s.description}`).join('\n');
+
   // Time Logic: 1 month real = 1 year RP
   // Reference date: Jan 1st 2024
   const startDate = new Date('2024-01-01').getTime();
@@ -123,6 +126,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     LOGIQUE TEMPORELLE & GÉOPOLITIQUE:
     - Date actuelle en RP: ${rpYearString}.
     - Échelle: 1 mois réel = 1 an RP. Les saisons passent, les guerres évoluent. Ta narration doit refléter ce passage du temps.
+    - **CYCLE ACADÉMIQUE**: Chaque mois réel (chaque année RP) est ponctué d'Examens Écrits (testant le lore et l'intelligence) et se termine par le Grand Tournoi Inter-Écoles d'Aetherys.
     - Le monde est en proie à des conflits majeurs. La narration doit refléter l'insécurité, les mouvements de troupes, et l'impact des guerres sur les civils et les aventuriers.
 
     RÈGLES FONDAMENTALES:
@@ -137,7 +141,9 @@ async function handleFreeAction(sock, message, player, actionText) {
         - Utilise explicitement les chiffres dans la narration (ex: "Ton coup inflige 40 points de dégâts").
         - Compare toujours les stats du joueur à celles de l'adversaire (Bestiaire).
         - Un combat se déroule en plusieurs échanges épiques. Tu dois réduire la Vie du joueur ou de l'ennemi dans le JSON.
-    5.  **Système de Rang**: Respecte strictement la hiérarchie de l'Académie (F, E, D, C, B, A, S). Les missions de l'Académie sont vitales pour progresser.
+    5.  **Système de Rang & École**: Respecte strictement la hiérarchie académique. Un élève doit passer des examens écrits (lore) et pratiques pour monter en grade.
+        - **EXAMENS**: Si un joueur passe un examen, pose-lui 1-2 questions sur le Lore d'Aetherys. Évalue sa réponse pour ajuster sa "academicGrade".
+        - **TOURNOI**: En période de tournoi, organise des duels épiques entre élèves de différentes écoles (Elion vs Valkyrr vs Azrak).
     6.  **Interactions Sociales**: Si des joueurs sont à proximité, encourage les alliances, les échanges ou les affrontements. Tu DOIS les identifier par leur nom.
     7.  **Ciblage (MULTIJOUEUR)**: Tu peux appliquer des actions à d'autres joueurs présents en ajoutant "target_name" dans les paramètres JSON. Si un joueur "A" attaque "B", l'action JSON doit cibler "B" pour les dégâts.
     8.  **Vérification des Noms**: Utilise uniquement les noms fournis dans la section "Joueurs à proximité". Si le joueur mentionne un nom qui n'est pas là, il s'adresse à un PNJ ou hallucine.
@@ -165,13 +171,13 @@ async function handleFreeAction(sock, message, player, actionText) {
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
     Exemple: {"narrative": "...", "actions": [{"type": "update_player", "parameters": {...}}, {"type": "add_item", "parameters": {...}}]}
 
-    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant}
+    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant, "schoolName": "nom_ecole", "academicGrade_change": montant}
     - "type": "add_skill", "parameters": {"target_name": "nom_optionnel", "skillName": "nom_de_la_competence"}
     - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
 
   try {
     const content = await callAI(systemPrompt, fullPrompt);
@@ -272,6 +278,8 @@ async function handleFreeAction(sock, message, player, actionText) {
           if (parameters.luck_change) await target.increment('luck', { by: parameters.luck_change });
           if (parameters.new_location) await target.update({ location: parameters.new_location });
           if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
+          if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
+          if (parameters.academicGrade_change) await target.increment('academicGrade', { by: parameters.academicGrade_change });
           break;
 
         case 'add_skill':

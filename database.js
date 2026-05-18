@@ -112,6 +112,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  schoolName: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucune',
+  },
+  academicGrade: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0, // Score out of 100
+  },
   tutorialStep: {
     type: DataTypes.INTEGER,
     defaultValue: 0, // 0: not started, 1: class choice, 2: combat training, 3: completed
@@ -304,6 +312,22 @@ const Conflict = sequelize.define('Conflict', {
     status: { // 'active', 'resolved'
         type: DataTypes.STRING,
         defaultValue: 'active',
+    }
+});
+
+const School = sequelize.define('School', {
+    name: {
+        type: DataTypes.STRING,
+        unique: true,
+    },
+    specialty: {
+        type: DataTypes.STRING, // e.g., 'Combat', 'Magic', 'Alchemy'
+    },
+    description: {
+        type: DataTypes.TEXT,
+    },
+    kingdomName: {
+        type: DataTypes.STRING,
     }
 });
 
@@ -860,6 +884,17 @@ async function setupDatabase() {
         console.log('Conflicts seeded.');
     }
 
+    const schoolCount = await School.count();
+    if (schoolCount === 0) {
+        console.log('Seeding Schools...');
+        await School.bulkCreate([
+            { name: 'Académie Impériale d\'Elion', specialty: 'Polyvalente', description: 'La plus prestigieuse école du continent, formant l\'élite de l\'Empire.', kingdomName: 'Empire Impérial d\'Elion' },
+            { name: 'Institut des Runes de Valkyrr', specialty: 'Magie Runique', description: 'Une école austère nichée dans les montagnes, spécialisée dans les glyphes de puissance.', kingdomName: 'Royaume Nordique de Valkyrr' },
+            { name: 'Madrasa d\'Al-Kimiya', specialty: 'Alchimie & Artefacts', description: 'Un centre de savoir doré au milieu du désert, maître des secrets de la matière.', kingdomName: 'Sultanat d\'Azrak' }
+        ]);
+        console.log('Schools seeded.');
+    }
+
     const npcCount = await NPC.count();
     if (npcCount === 0) {
         console.log('Seeding NPCs for Eldoria & Elion...');
@@ -900,7 +935,17 @@ async function setupDatabase() {
             // Élèves de l'Académie - Rang C-B (Élites)
             { name: 'Jax', role: 'Élève (Chevalier)', description: 'Le meilleur de sa promotion, respecté de tous.', location: 'Académie Impériale' },
             { name: 'Zelda', role: 'Élève (Invocatrice)', description: 'Capable de matérialiser de petites créatures de mana.', location: 'Académie Impériale' },
-            { name: 'Kaelith', role: 'Élève (Lame-Sort)', description: 'Fusionne la magie et le fer avec une grâce mortelle.', location: 'Académie Impériale' }
+            { name: 'Kaelith', role: 'Élève (Lame-Sort)', description: 'Fusionne la magie et le fer avec une grâce mortelle.', location: 'Académie Impériale' },
+
+            // Institut des Runes de Valkyrr
+            { name: 'Maître Vorgrim', role: 'Directeur de Valkyrr', description: 'Un géant taciturne gravant des runes sur sa propre peau.', location: 'Institut des Runes' },
+            { name: 'Hilda', role: 'Élève (Guerrière Runique)', description: 'Manie une hache gravée de glyphes de givre.', location: 'Institut des Runes' },
+            { name: 'Bjorn', role: 'Élève (Sculpteur)', description: 'Spécialiste dans la création de totems défensifs.', location: 'Institut des Runes' },
+
+            // Madrasa d'Al-Kimiya
+            { name: 'Vizir Jaffar', role: 'Directeur d\'Al-Kimiya', description: 'Un alchimiste brillant dont les yeux brillent d\'une lueur dorée.', location: 'Madrasa d\'Al-Kimiya' },
+            { name: 'Zuleika', role: 'Élève (Artificière)', description: 'Manipule des poudres explosives et des golems d\'argile.', location: 'Madrasa d\'Al-Kimiya' },
+            { name: 'Omar', role: 'Élève (Potioniste)', description: 'Toujours en train de concocter des breuvages aux effets imprévisibles.', location: 'Madrasa d\'Al-Kimiya' }
         ]);
         console.log('NPCs seeded.');
     }
@@ -939,6 +984,7 @@ module.exports = {
   Skill,
   Kingdom,
   Conflict,
+  School,
   NPC,
   Monster,
   PlayerSkill,
