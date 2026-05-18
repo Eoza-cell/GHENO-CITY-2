@@ -854,6 +854,27 @@ async function setupDatabase() {
             { name: 'Regen', description: 'Restaure lentement la santé au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
             { name: 'Senseur de Mana', description: 'Permet de détecter les créatures magiques à proximité.', type: 'passive', statBonuses: { intelligence: 15 } },
             { name: 'Force d\'Hercule', description: 'Augmente de manière permanente la force brute.', type: 'passive', statBonuses: { strength: 15 } },
+
+            // Compétences de Base (Académie)
+            // Guerrier
+            { name: 'Tranchant Brise-Roc', description: 'Une attaque puissante capable de fendre les défenses les plus solides.', type: 'sword_technique', manaCost: 25, statBonuses: { strength: 5 } },
+            { name: 'Cri de Guerre', description: 'Augmente temporairement la défense et intimide les ennemis.', type: 'active', manaCost: 15, statBonuses: { defense: 5 } },
+
+            // Mage
+            { name: 'Flèche de Mana', description: 'Un projectile de pur mana, rapide et précis.', type: 'spell', manaCost: 15, statBonuses: { intelligence: 3 } },
+            { name: 'Bouclier Arcanique', description: 'Crée une barrière magique absorbant les dégâts.', type: 'spell', manaCost: 40, statBonuses: { defense: 8 } },
+
+            // Assassin
+            { name: 'Pas Fantôme', description: 'Une technique de déplacement rendant l\'utilisateur quasi-invisible.', type: 'active', manaCost: 20, statBonuses: { agility: 5 } },
+            { name: 'Frappe Venimeuse', description: 'Une attaque ciblée sur les points vitaux.', type: 'sword_technique', manaCost: 30, statBonuses: { luck: 5 } },
+
+            // Archer
+            { name: 'Tir de Précision', description: 'Prend le temps de viser pour infliger des dégâts critiques.', type: 'active', manaCost: 10, statBonuses: { luck: 8 } },
+            { name: 'Pluie de Flèches', description: 'Décoche une salve de flèches sur une large zone.', type: 'active', manaCost: 45, statBonuses: { agility: 3 } },
+
+            // Prêtre
+            { name: 'Lumière Divine', description: 'Soigne les blessures et purifie les poisons.', type: 'spell', manaCost: 30, statBonuses: { intelligence: 5 } },
+            { name: 'Bénédiction', description: 'Augmente toutes les statistiques d\'un allié temporairement.', type: 'spell', manaCost: 50, statBonuses: { luck: 10 } }
         ]);
         console.log('Skills seeded.');
     }
