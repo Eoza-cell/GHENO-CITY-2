@@ -67,7 +67,13 @@ async function callAI(systemPrompt, userPrompt) {
             jsonMode: true
         }, { timeout: 20000 });
 
-        return typeof response.data === 'object' ? JSON.stringify(response.data) : response.data.toString();
+        const content = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data.toString();
+
+        // Final robustness check: strip any leading/trailing non-json chars if possible
+        if (content.includes('{') && content.includes('}')) {
+            return content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+        }
+        return content;
     } catch (error) {
         console.error("[AI] Erreur Pollinations.ai:", error.message);
         throw new Error("Tous les fournisseurs d'IA ont échoué.");

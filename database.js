@@ -281,6 +281,29 @@ const Kingdom = sequelize.define('Kingdom', {
     influence: {
         type: DataTypes.INTEGER,
         defaultValue: 50,
+    },
+    militaryPower: {
+        type: DataTypes.INTEGER,
+        defaultValue: 50,
+    },
+    leader: {
+        type: DataTypes.STRING,
+    }
+});
+
+const Conflict = sequelize.define('Conflict', {
+    title: {
+        type: DataTypes.STRING,
+    },
+    description: {
+        type: DataTypes.TEXT,
+    },
+    involvedKingdoms: {
+        type: DataTypes.TEXT, // JSON string of kingdom names
+    },
+    status: { // 'active', 'resolved'
+        type: DataTypes.STRING,
+        defaultValue: 'active',
     }
 });
 
@@ -815,13 +838,26 @@ async function setupDatabase() {
     if (kingdomCount === 0) {
         console.log('Seeding Kingdoms for Aetherys...');
         await Kingdom.bulkCreate([
-            { name: 'Empire Impérial d\'Elion', description: 'Puissant royaume central, symbole du dragon doré. Capitale: Lux Aeterna.', status: 'peace', influence: 95 },
-            { name: 'Royaume Nordique de Valkyrr', description: 'Nation glaciale, guerriers aux runes et dompteurs de loups.', status: 'truce', influence: 75 },
-            { name: 'Sultanat d\'Azrak', description: 'Empire du désert, maîtres des artefacts anciens. Capitale: Sahra’Zul.', status: 'peace', influence: 80 },
-            { name: 'République Maritime de Nereïs', description: 'Puissance navale du sud, maîtres explorateurs des mers.', status: 'peace', influence: 85 },
-            { name: 'Dominion Noir de Vharos', description: 'Royaume de nécromancie et de morts-vivants. Ennemi de tous.', status: 'war', influence: 60 }
+            { name: 'Empire Impérial d\'Elion', description: 'Puissant royaume central, symbole du dragon doré. Capitale: Lux Aeterna.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
+            { name: 'Royaume Nordique de Valkyrr', description: 'Nation glaciale, guerriers aux runes et dompteurs de loups.', status: 'truce', influence: 75, militaryPower: 85, leader: 'Reine Freya' },
+            { name: 'Sultanat d\'Azrak', description: 'Empire du désert, maîtres des artefacts anciens. Capitale: Sahra’Zul.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Sultan Malek' },
+            { name: 'République Maritime de Nereïs', description: 'Puissance navale du sud, maîtres explorateurs des mers.', status: 'peace', influence: 85, militaryPower: 65, leader: 'Amiral Kael' },
+            { name: 'Dominion Noir de Vharos', description: 'Royaume de nécromancie et de morts-vivants. Ennemi de tous.', status: 'war', influence: 60, militaryPower: 95, leader: 'Lich Lord Vharos' },
+            { name: 'Santuaires d\'Élysée', description: 'Terres sacrées protégées par des barrières magiques, foyer des prêtres et guérisseurs.', status: 'peace', influence: 40, militaryPower: 30, leader: 'Grande Prêtresse Selene' },
+            { name: 'Terres Sauvages de Kormak', description: 'Territoires sans loi habités par des tribus barbares et des monstres.', status: 'war', influence: 20, militaryPower: 50, leader: 'Chef de Guerre Grom' }
         ]);
         console.log('Kingdoms seeded.');
+    }
+
+    const conflictCount = await Conflict.count();
+    if (conflictCount === 0) {
+        console.log('Seeding Conflicts...');
+        await Conflict.bulkCreate([
+            { title: 'La Croisade du Néant', description: 'Le Dominion Noir de Vharos lance des assauts massifs sur les frontières d\'Elion.', involvedKingdoms: JSON.stringify(['Empire Impérial d\'Elion', 'Dominion Noir de Vharos']), status: 'active' },
+            { title: 'Guerre de la Route de Soie', description: 'Des tensions éclatent entre Azrak et Nereïs pour le contrôle des routes commerciales.', involvedKingdoms: JSON.stringify(['Sultanat d\'Azrak', 'République Maritime de Nereïs']), status: 'active' },
+            { title: 'Incursion Barbare', description: 'Les tribus de Kormak pillent les villages frontaliers de Valkyrr.', involvedKingdoms: JSON.stringify(['Royaume Nordique de Valkyrr', 'Terres Sauvages de Kormak']), status: 'active' }
+        ]);
+        console.log('Conflicts seeded.');
     }
 
     const npcCount = await NPC.count();
@@ -902,6 +938,7 @@ module.exports = {
   Creds,
   Skill,
   Kingdom,
+  Conflict,
   NPC,
   Monster,
   PlayerSkill,

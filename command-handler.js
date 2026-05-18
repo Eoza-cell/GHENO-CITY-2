@@ -341,6 +341,46 @@ commands.set('joueurs', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: playersText });
 });
 
+// Command: /royaumes
+commands.set('royaumes', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const { Kingdom } = require('./database');
+    const kingdoms = await Kingdom.findAll();
+
+    let text = "--- 🏰 ROYAUMES D'AETHERYS --- \n\n";
+    kingdoms.forEach(k => {
+        text += `*${k.name.toUpperCase()}*\n`;
+        text += `├ 👑 Leader: ${k.leader}\n`;
+        text += `├ ⚔️ Force Militaire: ${k.militaryPower}\n`;
+        text += `├ 📊 Influence: ${k.influence}\n`;
+        text += `└ 📜 ${k.description}\n\n`;
+    });
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /conflits
+commands.set('conflits', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const { Conflict } = require('./database');
+    const conflicts = await Conflict.findAll({ where: { status: 'active' } });
+
+    if (conflicts.length === 0) {
+        await sock.sendMessage(replyJid, { text: "Le monde est actuellement en paix... une paix fragile." });
+        return;
+    }
+
+    let text = "--- 🛡️ ÉTAT DES CONFLITS --- \n\n";
+    conflicts.forEach(c => {
+        text += `*${c.title.toUpperCase()}*\n`;
+        const involved = JSON.parse(c.involvedKingdoms).join(', ');
+        text += `├ ⚔️ Belligérants: ${involved}\n`;
+        text += `└ 📜 ${c.description}\n\n`;
+    });
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
 // Command: /bank
 commands.set('bank', async (sock, message) => {
     const jid = getJid(message);
@@ -569,6 +609,8 @@ commands.set('menu', async (sock, message) => {
                    "👥 `/joueurs` - Joueurs aux alentours.\n" +
                    "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
                    "🤝 `/donner @joueur ...` - Échange d'objets.\n" +
+                   "🏰 `/royaumes` - Géopolitique mondiale.\n" +
+                   "🛡️ `/conflits` - Guerres en cours.\n" +
                    "❓ `/help` - Guide de survie.";
 
   // High quality SAO Menu Image

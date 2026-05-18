@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, NPC, Skill, RPMessage, Monster } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, NPC, Skill, RPMessage, Monster } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
@@ -68,7 +68,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   // Memory: Get last 15 messages from this location (now including the current one)
   const history = await RPMessage.findAll({
       where: { location: player.location },
-      order: [['timestamp', 'DESC']],
+      order: [['id', 'DESC']], // Using ID for faster sorting if indexed
       limit: 15
   });
   const historyState = history.length > 0
@@ -81,7 +81,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "Tu n'as aucune compétence. Étudie à l'Académie Impériale !";
 
   const kingdoms = await Kingdom.findAll();
-  const kingdomState = "État du Monde (Royaumes & Guerres):\n" + kingdoms.map(k => `- ${k.name}: ${k.description} [Statut: ${k.status}]`).join('\n');
+  const kingdomState = "État du Monde (Royaumes):\n" + kingdoms.map(k => `- ${k.name}: ${k.description} [Statut: ${k.status}, Force Militaire: ${k.militaryPower}, Leader: ${k.leader}]`).join('\n');
+
+  const conflicts = await Conflict.findAll({ where: { status: 'active' } });
+  const conflictState = "Conflits Actuels (Guerres):\n" + conflicts.map(c => `- ${c.title}: ${c.description} (Impliqués: ${c.involvedKingdoms})`).join('\n');
 
   // Limit NPCs to current location or key global ones for prompt efficiency
   const npcs = await NPC.findAll({
@@ -117,9 +120,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Ville de Départ: Eldoria.
     - Académie d'Elion: Formation des recrues par rangs (Rang F Novice à Rang S Légende).
 
-    LOGIQUE TEMPORELLE:
+    LOGIQUE TEMPORELLE & GÉOPOLITIQUE:
     - Date actuelle en RP: ${rpYearString}.
     - Échelle: 1 mois réel = 1 an RP. Les saisons passent, les guerres évoluent. Ta narration doit refléter ce passage du temps.
+    - Le monde est en proie à des conflits majeurs. La narration doit refléter l'insécurité, les mouvements de troupes, et l'impact des guerres sur les civils et les aventuriers.
 
     RÈGLES FONDAMENTALES:
     0.  **Logique & Lore (STRICT)**: Chaque action doit respecter le Lore d'Aetherys. Si un joueur de Rang F tente d'entrer dans un donjon Rang S, il doit mourir ou être arrêté par la garde.
@@ -167,7 +171,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
 
   try {
     const content = await callAI(systemPrompt, fullPrompt);
