@@ -415,6 +415,10 @@ const Monster = sequelize.define('Monster', {
     },
     col_reward: {
         type: DataTypes.INTEGER,
+    },
+    imageUrl: {
+        type: DataTypes.STRING,
+        allowNull: true,
     }
 });
 
@@ -467,9 +471,9 @@ async function setupDatabase() {
     }
 
     const itemCount = await Item.count();
-    if (itemCount === 0) {
-        console.log('Seeding Items...');
-        await Item.bulkCreate([
+    if (itemCount < 40) { // Increased to force seeding new items if added
+        console.log('Seeding/Updating Items...');
+        const itemsToSeed = [
             {
                 name: 'Elucidator',
                 description: 'Une épée noire obsidienne d\'une puissance incroyable.',
@@ -827,9 +831,49 @@ async function setupDatabase() {
                 slot: 'chest',
                 statBonuses: { agility: 25, defense: 15 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c8/Black_wyrm_coat.png'
+            },
+            {
+                name: 'Heroic Promise',
+                description: 'Une épée courte et puissante, symbole de courage.',
+                price: 4500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 15, luck: 15 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/8d/Heroic_Promise.png'
+            },
+            {
+                name: 'Unity Vow',
+                description: 'Une épée forgée pour l\'unité et la protection des alliés.',
+                price: 5500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { defense: 20, strength: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/0/07/Unity_Vow.png'
+            },
+            {
+                name: 'The Eclipse',
+                description: 'Un set de deux épées représentant l\'ombre et la lumière.',
+                price: 20000,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 40, agility: 40, luck: 20 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/1/1a/Dual_Blades_Anime.png'
+            },
+            {
+                name: 'Amulette d\'Yuna',
+                description: 'Un bijou mélodieux augmentant les capacités magiques.',
+                price: 7000,
+                type: 'accessory',
+                slot: 'none',
+                statBonuses: { intelligence: 30, mana: 50 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Yuna%27s_Necklace.png'
             }
-        ]);
-        console.log('Items seeded.');
+        ];
+
+        for (const item of itemsToSeed) {
+            await Item.findOrCreate({ where: { name: item.name }, defaults: item });
+        }
+        console.log('Items seeded/updated.');
     }
 
     const questCount = await Quest.count();
@@ -996,9 +1040,9 @@ async function setupDatabase() {
     }
 
     const monsterCount = await Monster.count();
-    if (monsterCount === 0) {
-        console.log('Seeding Monsters...');
-        await Monster.bulkCreate([
+    if (monsterCount < 12) {
+        console.log('Seeding/Updating Monsters...');
+        const monstersToSeed = [
             { name: 'Gobelin', rank: 'F', health: 50, strength: 5, defense: 2, agility: 5, xp_reward: 20, col_reward: 10 },
             { name: 'Loup Sauvage', rank: 'F', health: 40, strength: 8, defense: 1, agility: 12, xp_reward: 25, col_reward: 5 },
             { name: 'Kobold Mineur', rank: 'E', health: 100, strength: 12, defense: 8, agility: 10, xp_reward: 50, col_reward: 30 },
@@ -1007,9 +1051,57 @@ async function setupDatabase() {
             { name: 'Spectre des Ruines', rank: 'C', health: 200, strength: 30, defense: 50, agility: 20, xp_reward: 400, col_reward: 150 },
             { name: 'Golem de Fer', rank: 'B', health: 1000, strength: 60, defense: 80, agility: 5, xp_reward: 1500, col_reward: 500 },
             { name: 'Dragon d\'Ignis', rank: 'A', health: 5000, strength: 150, defense: 120, agility: 80, xp_reward: 10000, col_reward: 5000 },
-            { name: 'Le Faucheur', rank: 'S', health: 20000, strength: 400, defense: 300, agility: 500, xp_reward: 100000, col_reward: 50000 }
-        ]);
-        console.log('Monsters seeded.');
+            { name: 'Le Faucheur', rank: 'S', health: 20000, strength: 400, defense: 300, agility: 500, xp_reward: 100000, col_reward: 50000 },
+            // Bosses
+            {
+                name: 'Illfang the Kobold Lord',
+                rank: 'D',
+                health: 800,
+                strength: 40,
+                defense: 30,
+                agility: 25,
+                xp_reward: 2000,
+                col_reward: 1000,
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/f/f6/Illfang_the_Kobold_Lord_Full.png'
+            },
+            {
+                name: 'The Gleam Eyes',
+                rank: 'A',
+                health: 12000,
+                strength: 180,
+                defense: 150,
+                agility: 100,
+                xp_reward: 25000,
+                col_reward: 15000,
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e4/The_Gleam_Eyes_Anime.png'
+            },
+            {
+                name: 'The Skull Reaper',
+                rank: 'S',
+                health: 45000,
+                strength: 350,
+                defense: 250,
+                agility: 400,
+                xp_reward: 150000,
+                col_reward: 80000,
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/9/91/The_Skull_Reaper_Anime.png'
+            },
+            {
+                name: 'Fatalis Elion',
+                rank: 'S',
+                health: 100000,
+                strength: 600,
+                defense: 500,
+                agility: 300,
+                xp_reward: 500000,
+                col_reward: 200000,
+            }
+        ];
+
+        for (const monster of monstersToSeed) {
+            await Monster.findOrCreate({ where: { name: monster.name }, defaults: monster });
+        }
+        console.log('Monsters seeded/updated.');
     }
 
   } catch (error) {
