@@ -20,6 +20,8 @@ function getJid(message) {
   return message.key.remoteJid || null;
 }
 
+const GOD_NUMBER = '48198576038116@s.whatsapp.net';
+
 const commands = new Map();
 
 // Command: /start
@@ -391,6 +393,69 @@ commands.set('examens', async (sock, message) => {
     text += `_Participe aux cours via /action pour améliorer tes notes et passer les examens._`;
 
     await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /god
+commands.set('god', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+
+    if (jid !== GOD_NUMBER) {
+        await sock.sendMessage(replyJid, { text: "Seul le Dieu Eoza possède ces pouvoirs." });
+        return;
+    }
+
+    const subCommand = args.shift()?.toLowerCase();
+    const targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+
+    if (!subCommand) {
+        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set @joueur <stat> <valeur>\n/god give @joueur <item> <quantité>\n/god rank @joueur <rang>\n/god col @joueur <montant>" });
+        return;
+    }
+
+    if (!targetJid) {
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un mortel pour exercer ton pouvoir." });
+        return;
+    }
+
+    const targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
+    if (!targetPlayer) return;
+
+    switch (subCommand) {
+        case 'set':
+            const stat = args[0];
+            const value = parseInt(args[1]);
+            if (stat && !isNaN(value)) {
+                await targetPlayer.update({ [stat]: value });
+                await sock.sendMessage(replyJid, { text: `La statistique ${stat} de ${targetPlayer.name} a été fixée à ${value} par la main de Dieu.` });
+            }
+            break;
+        case 'give':
+            const itemName = args.slice(0, -1).join(' ');
+            const qty = parseInt(args[args.length - 1]);
+            if (itemName && !isNaN(qty)) {
+                let inv = [...targetPlayer.inventory];
+                inv.push({ name: itemName, quantity: qty });
+                targetPlayer.inventory = inv;
+                await targetPlayer.save();
+                await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${qty}x ${itemName} par décret divin.` });
+            }
+            break;
+        case 'rank':
+            const newRank = args[0];
+            if (newRank) {
+                await targetPlayer.update({ rank: newRank });
+                await sock.sendMessage(replyJid, { text: `Le rang de ${targetPlayer.name} a été changé en ${newRank} par la grâce d'Eoza.` });
+            }
+            break;
+        case 'col':
+            const amount = parseInt(args[0]);
+            if (!isNaN(amount)) {
+                await targetPlayer.increment('col', { by: amount });
+                await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${amount} Col de la part du créateur.` });
+            }
+            break;
+    }
 });
 
 // Command: /tournoi

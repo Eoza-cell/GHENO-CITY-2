@@ -114,9 +114,12 @@ async function handleFreeAction(sock, message, player, actionText) {
   const rpYearString = `An ${rpYears + 1}, Mois ${rpMonth}`;
 
   const systemPrompt = `
-    Tu es le Maître du Jeu (MJ) de "Arise / Le Monde d’Aetherys", un RPG textuel ultra-immersif. Ta seule et unique fonction est de retourner un objet JSON valide basé sur l'action du joueur. Ne retourne RIEN d'autre que du JSON.
+    Tu es le Maître du Jeu (MJ) de "Arise / Le Monde d’Aetherys", un RPG textuel ultra-immersif. Ton style est celui d'un ANIME MODERN-FANTASY à gros budget.
+    **LANGAGE**: Tu dois écrire dans un FRANÇAIS PUR, NATUREL et ÉVOCATEUR. Évite le jargon robotique ou les répétitions inutiles. Ta seule et unique fonction est de retourner un objet JSON valide.
 
     LORE D'AETHERYS:
+    - Esthétique: Un mélange de technologie moderne (téléphones, écrans de mana) et de fantasy médiévale.
+    - Divinité: Le SEUL ET UNIQUE DIEU de ce monde est **EOZA**. Les joueurs sont des mortels ordinaires suivant leur propre voie. Ils ne sont pas des demi-dieux.
     - Le monde était uni sous l'Empire Céleste d'Elion avant la "Fracture des Couronnes".
     - Nations: Empire d'Elion (Magie sacrée, Lux Aeterna), Valkyrr (Glace, Runes), Sultanat d'Azrak (Désert, Artefacts), République de Nereïs (Mer, Explorateurs), Dominion Noir de Vharos (Nécromancie).
     - Intrigue: Les donjons deviennent agressifs. Marques noires sur les aventuriers. Prophétie des Sept Portes et du Roi du Néant.
@@ -157,7 +160,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     9.  **Format JSON Impératif**: Réponse JSON uniquement. Ta réponse DOIT commencer par '{' et se terminer par '}'.
 
     FORMAT DE LA NARRATION (STYLE ANIME):
-    - Narration CINÉMATIQUE et ÉPIQUE (Style Shonen/Seinen).
+    - Narration CINÉMATIQUE, FLUIDE et IMMERSIVE (Style Shonen/Seinen de haute qualité).
+    - Utilise un Français riche et soutenu, digne d'un scénario d'anime professionnel.
     - Utilise des en-têtes stylisés avec des emojis et des onomatopées japonaises (ex: *ZING*, *DODODO*, *SHING*, *GOGOGO*).
     - Ajoute des lignes de "dialogue de combat" entre parenthèses pour les personnages.
     - Description détaillée des mouvements: "Tu dégaines ton épée avec une vitesse fulgurante, l'acier fendant l'air dans un sifflement aigu..."
@@ -171,8 +175,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     DIRECTIVES D'IMAGES (imagePrompt):
     - Pour chaque action significative, fournis un "imagePrompt" descriptif.
-    - Style: "Anime style, Sword Art Online aesthetic, high detail, cinematic lighting, 4k".
-    - Exemple: "Anime style, a mysterious dark dungeon with glowing blue crystals, cinematic lighting, high detail".
+    - Style: "High-end Anime art style, Modern Fantasy aesthetic, vibrant colors, cinematic lighting, 8k, detailed characters".
+    - Exemple: "Modern anime style, a futuristic city with floating mana screens, neon lights mixed with stone architecture, high detail".
 
     TYPES D'ACTIONS (JSON):
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
@@ -254,10 +258,14 @@ async function handleFreeAction(sock, message, player, actionText) {
                   await target.increment('level', { by: levelsGained });
                   await target.update({
                       xp: target.xp % xpNeeded,
-                      maxHealth: target.maxHealth + (levelsGained * 20),
-                      maxMana: target.maxMana + (levelsGained * 10),
-                      health: target.maxHealth + (levelsGained * 20),
-                      mana: target.maxMana + (levelsGained * 10)
+                      maxHealth: target.maxHealth + (levelsGained * 15), // Reduced from 20 for balance
+                      maxMana: target.maxMana + (levelsGained * 8), // Reduced from 10
+                      health: target.maxHealth + (levelsGained * 15),
+                      mana: target.maxMana + (levelsGained * 8),
+                      // Automatic small stat increase on level up
+                      strength: target.strength + (levelsGained * 1),
+                      agility: target.agility + (levelsGained * 1),
+                      intelligence: target.intelligence + (levelsGained * 1)
                   });
                   await sock.sendMessage(target.whatsappId, {
                       text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes points de vie et de mana ont augmenté.`
