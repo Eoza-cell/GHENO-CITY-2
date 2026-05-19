@@ -56,8 +56,9 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Joueurs à proximité:\n" + nearbyPlayers.map(p => `- Nom: ${p.name}, Niveau: ${p.level}, Classe: ${p.class}, Vie: ${p.health}/${p.maxHealth}, Rang: ${p.rank}`).join('\n')
     : "Tu es seul ici.";
 
-  const items = await Item.findAll();
-  const shopState = "Objets en vente à la boutique:\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description}`).join('\n');
+  // Limit shop items to a few featured ones to save tokens
+  const items = await Item.findAll({ limit: 15 });
+  const shopState = "Objets en vente à la boutique (Aperçu):\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description}`).join('\n');
 
   // Save current player message to memory before fetching history
   await RPMessage.create({
@@ -100,8 +101,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const npcState = "Personnages Importants (PNJ) à proximité ou mondiaux:\n" + npcs.map(n => `- ${n.name} (${n.role}): ${n.description}`).join('\n');
 
-  const monsters = await Monster.findAll();
-  const monsterState = "Bestiaire (Référence de puissance pour le MJ):\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}): PV ${m.health}, STR ${m.strength}, DEF ${m.defense}, AGI ${m.agility}`).join('\n');
+  // Limit monsters to those of similar rank to the player
+  const monsters = await Monster.findAll({
+      where: {
+          rank: { [Op.in]: [player.rank, 'F', 'E', 'D', 'C', 'B', 'A', 'S'].slice(0, ['F', 'E', 'D', 'C', 'B', 'A', 'S'].indexOf(player.rank) + 2) }
+      },
+      limit: 10
+  });
+  const monsterState = "Bestiaire (Référence de puissance):\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}): PV ${m.health}, STR ${m.strength}, DEF ${m.defense}, AGI ${m.agility}`).join('\n');
 
   const schools = await School.findAll();
   const schoolState = "Écoles et Académies:\n" + schools.map(s => `- ${s.name} (${s.specialty}): ${s.description}`).join('\n');
@@ -144,6 +151,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     3.  **Difficulté "Hardcore"**: Les succès sont rares. Un échec peut être fatal.
     4.  **Calcul des Statistiques & Flair Anime (CRUCIAL)**:
         - **LOGIQUE**: Utilise TOUJOURS les statistiques (Force, Agilité, Intelligence, Défense, Chance) pour chaque test. Ne laisse pas le hasard décider arbitrairement. Un joueur avec 100 en Force doit terrasser un monstre de 10 en Force instantanément.
+        - **RÈGLES DE COMBAT**:
+            * Dégâts = (Force de l'attaquant * 2) - (Défense du défenseur). Minimum 5 dégâts.
+            * Esquive = Si Agilité attaquant < Agilité défenseur, le défenseur a une chance d'esquiver totalement le coup.
+            * Critique = La Chance augmente les probabilités d'infliger des dégâts doublés.
         - **COMBAT ANIME (PRÉCIS)**: Les combats doivent être décrits comme des scènes d'action intenses.
         - **MÉTRIQUES**: Utilise des distances précises en MÈTRES (ex: "Tu te tiens à 5 mètres de l'ennemi").
         - **ESQUIVE**: Si l'Agilité du joueur est nettement supérieure à celle de l'ennemi, décris une "Esquive" (Dodge) parfaite.

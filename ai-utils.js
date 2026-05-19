@@ -22,12 +22,14 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         throw new Error("Récursion AI trop profonde détectée.");
     }
 
-    // 1. Try Puter.js
+    // 1. Try Puter.js (Wrapped in a try-catch to prevent stack overflow crashes)
     const puterInstance = initPuter();
     if (puterInstance) {
         try {
             console.log("[AI] Tentative avec Puter.js (Claude 3.5 Sonnet)...");
-            const response = await puterInstance.ai.chat(
+
+            // Promise wrapper with timeout for Puter.js
+            const puterPromise = puterInstance.ai.chat(
                 "claude-3-5-sonnet",
                 {
                     system: systemPrompt,
@@ -35,9 +37,16 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
                     stream: false,
                 }
             );
+
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Puter.js Timeout (30s)")), 30000)
+            );
+
+            const response = await Promise.race([puterPromise, timeoutPromise]);
             return response.toString();
         } catch (error) {
             console.error("[AI] Erreur Puter.js:", error.message);
+            // If Puter.js crashes with a RangeError (Stack overflow), we MUST continue to fallbacks
         }
     }
 

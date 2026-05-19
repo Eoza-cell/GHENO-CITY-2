@@ -470,10 +470,8 @@ async function setupDatabase() {
         console.log('Dungeons seeded.');
     }
 
-    const itemCount = await Item.count();
-    if (itemCount < 40) { // Increased to force seeding new items if added
-        console.log('Seeding/Updating Items...');
-        const itemsToSeed = [
+    console.log('Synchronisation du contenu du jeu...');
+    const itemsToSeed = [
             {
                 name: 'Elucidator',
                 description: 'Une épée noire obsidienne d\'une puissance incroyable.',
@@ -867,14 +865,55 @@ async function setupDatabase() {
                 slot: 'none',
                 statBonuses: { intelligence: 30, mana: 50 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Yuna%27s_Necklace.png'
+            },
+            {
+                name: 'Guilty Thorn',
+                description: 'Une dague rouge sang créée par un forgeron de génie pour les assassins.',
+                price: 2500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 18, luck: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Guilty_Thorn.png'
+            },
+            {
+                name: 'Ebon Dagger',
+                description: 'Une dague noire discrète et équilibrée.',
+                price: 1200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 10, luck: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/43/Ebon_Dagger.png'
+            },
+            {
+                name: 'Stout Brand',
+                description: 'Une épée à deux mains massive privilégiant la force brute.',
+                price: 3800,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 28, defense: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/87/Stout_Brand.png'
+            },
+            {
+                name: 'Advancer',
+                description: 'Une épée équilibrée utilisée par les éclaireurs de l\'armée impériale.',
+                price: 1800,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 12, agility: 8 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4c/Advancer.png'
             }
         ];
 
-        for (const item of itemsToSeed) {
-            await Item.findOrCreate({ where: { name: item.name }, defaults: item });
+    for (const item of itemsToSeed) {
+        const [dbItem, created] = await Item.findOrCreate({
+            where: { name: item.name },
+            defaults: item
+        });
+        if (!created) {
+            await dbItem.update(item); // Ensure images and stats are updated
         }
-        console.log('Items seeded/updated.');
     }
+    console.log('Items synchronisés.');
 
     const questCount = await Quest.count();
     if (questCount === 0) {
@@ -1039,10 +1078,7 @@ async function setupDatabase() {
         console.log('NPCs seeded.');
     }
 
-    const monsterCount = await Monster.count();
-    if (monsterCount < 12) {
-        console.log('Seeding/Updating Monsters...');
-        const monstersToSeed = [
+    const monstersToSeed = [
             { name: 'Gobelin', rank: 'F', health: 50, strength: 5, defense: 2, agility: 5, xp_reward: 20, col_reward: 10 },
             { name: 'Loup Sauvage', rank: 'F', health: 40, strength: 8, defense: 1, agility: 12, xp_reward: 25, col_reward: 5 },
             { name: 'Kobold Mineur', rank: 'E', health: 100, strength: 12, defense: 8, agility: 10, xp_reward: 50, col_reward: 30 },
@@ -1095,14 +1131,41 @@ async function setupDatabase() {
                 agility: 300,
                 xp_reward: 500000,
                 col_reward: 200000,
+            },
+            {
+                name: 'Nicholas the Renegade',
+                rank: 'A',
+                health: 15000,
+                strength: 200,
+                defense: 120,
+                agility: 90,
+                xp_reward: 40000,
+                col_reward: 20000,
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Nicholas_the_Renegade.png'
+            },
+            {
+                name: 'The Fatal Scythe',
+                rank: 'S',
+                health: 35000,
+                strength: 400,
+                defense: 200,
+                agility: 350,
+                xp_reward: 120000,
+                col_reward: 50000,
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/23/The_Fatal_Scythe.png'
             }
         ];
 
-        for (const monster of monstersToSeed) {
-            await Monster.findOrCreate({ where: { name: monster.name }, defaults: monster });
+    for (const monster of monstersToSeed) {
+        const [dbMonster, created] = await Monster.findOrCreate({
+            where: { name: monster.name },
+            defaults: monster
+        });
+        if (!created) {
+            await dbMonster.update(monster);
         }
-        console.log('Monsters seeded/updated.');
     }
+    console.log('Monsters synchronisés.');
 
   } catch (error) {
     console.error('Unable to connect to the database:', error);
