@@ -1,8 +1,16 @@
 const axios = require('axios');
-const puter = require('@heyputer/puter.js').default;
+let puter = null;
 
-if (process.env.PUTER_API_KEY) {
-    puter.setAuthToken(process.env.PUTER_API_KEY);
+function initPuter() {
+    if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+        try {
+            puter = require('@heyputer/puter.js').default;
+            puter.setAuthToken(process.env.PUTER_API_KEY);
+        } catch (e) {
+            console.error("[IMG] Erreur chargement Puter.js:", e.message);
+        }
+    }
+    return puter;
 }
 
 /**
@@ -28,10 +36,11 @@ async function sendWithImage(sock, jid, aiResponse) {
             }
 
             // Primary: Puter (Flux.1-schnell)
-            if (process.env.PUTER_API_KEY) {
+            const puterInstance = initPuter();
+            if (puterInstance) {
                 try {
                     console.log(`[IMG] Génération Puter (Flux) pour : "${imagePrompt}"`);
-                    const img = await puter.ai.txt2img(imagePrompt);
+                    const img = await puterInstance.ai.txt2img(imagePrompt);
                     const imgStr = img.toString();
                     let buffer;
                     if (imgStr.includes(',')) {

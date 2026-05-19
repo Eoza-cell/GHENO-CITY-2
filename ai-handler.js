@@ -12,6 +12,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Nom: ${player.name} ${isGod ? '(DIEU SUPRÊME)' : ''}
     - Description: ${player.characterDescription}
     - Classe: ${player.class}
+    - Points de Compétence (SP): ${player.skillPoints}
     - Rang: ${player.rank}
     - Niveau: ${player.level}
     - XP: ${player.xp}/${player.level * 100}
@@ -82,7 +83,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "Tu n'as aucune compétence. Étudie à l'Académie Impériale !";
 
   const kingdoms = await Kingdom.findAll();
-  const kingdomState = "État du Monde (Royaumes):\n" + kingdoms.map(k => `- ${k.name}: ${k.description} [Statut: ${k.status}, Force Militaire: ${k.militaryPower}, Leader: ${k.leader}]`).join('\n');
+  const currentKingdom = kingdoms.find(k => player.location.toLowerCase().includes(k.name.toLowerCase()) || (k.description && player.location.toLowerCase().includes(k.description.split(':')[1]?.trim().toLowerCase())));
+  const kingdomState = "État du Monde (Royaumes):\n" + kingdoms.map(k => `- ${k.name}: ${k.description} [Statut: ${k.status}, Force Militaire: ${k.militaryPower}, Leader: ${k.leader}] ${k.name === currentKingdom?.name ? '(LIEU ACTUEL)' : ''}`).join('\n');
 
   const conflicts = await Conflict.findAll({ where: { status: 'active' } });
   const conflictState = "Conflits Actuels (Guerres):\n" + conflicts.map(c => `- ${c.title}: ${c.description} (Impliqués: ${c.involvedKingdoms})`).join('\n');
@@ -115,8 +117,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const rpYearString = `An ${rpYears + 1}, Mois ${rpMonth}`;
 
   const systemPrompt = `
-    Tu es le Maître du Jeu (MJ) de "Arise / Le Monde d’Aetherys", un RPG textuel ultra-immersif. Ton style est celui d'un ANIME MODERN-FANTASY à gros budget.
-    **LANGAGE**: Tu dois écrire dans un FRANÇAIS PUR, NATUREL et ÉVOCATEUR. Évite le jargon robotique ou les répétitions inutiles. Ta seule et unique fonction est de retourner un objet JSON valide.
+    Tu es le Maître du Jeu (MJ) de "Arise / Le Monde d’Aetherys", un RPG textuel ultra-immersif. Ton style est celui d'un SCÉNARISTE D'ANIME PROFESSIONNEL pour une série à gros budget.
+    **EXIGENCE LINGUISTIQUE**: Tu dois écrire dans un FRANÇAIS RICHE, FLUIDE et NATUREL. Bannis toute tournure de phrase "IA" (ex: "En tant qu'IA...", "Voici le résultat..."). Utilise un vocabulaire varié, des figures de style et une grammaire irréprochable. Ta seule et unique fonction est de retourner un objet JSON valide.
 
     LORE D'AETHERYS:
     - Esthétique: Un mélange de technologie moderne (le "Gheno Phone" servant d'interface, écrans de mana, néons magiques, véhicules à mana) et de fantasy médiévale.
@@ -151,6 +153,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     5.  **Système de Rang & École**: Respecte strictement la hiérarchie académique. Un élève doit passer des examens écrits (lore) et pratiques pour monter en grade.
         - **EXAMENS**: Si un joueur passe un examen, pose-lui 1-2 questions sur le Lore d'Aetherys. Évalue sa réponse pour ajuster sa "academicGrade".
         - **TOURNOI**: En période de tournoi, organise des duels épiques entre élèves de différentes écoles (Elion vs Valkyrr vs Azrak).
+        - **POINTS DE COMPÉTENCE (SP)**: Si un joueur a des SP, il peut te demander de les dépenser pour augmenter ses statistiques (Force, Agilité, etc.). 1 SP = +1 stat.
     6.  **Interactions Sociales**: Si des joueurs sont à proximité, encourage les alliances, les échanges ou les affrontements. Tu DOIS les identifier par leur nom.
     7.  **Ciblage & Arbitrage PvP (CRUCIAL)**:
         - Tu peux appliquer des actions à d'autres joueurs présents en ajoutant "target_name" dans les paramètres JSON.
@@ -165,6 +168,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Narration CINÉMATIQUE, FLUIDE et IMMERSIVE (Style Shonen/Seinen de haute qualité).
     - **LANGUE**: Utilise un Français riche, fluide et surtout NATUREL. Évite les phrases robotiques, les répétitions ou le jargon artificiel.
     - Ton: Épique, mystérieux, et viscéral lors des combats.
+    - IMMERSION: Décris les interactions avec le "Gheno Phone", les publicités holographiques dans les rues, et le mélange entre technologie de pointe et magie ancienne.
     - Utilise des en-têtes stylisés avec des emojis et des onomatopées japonaises (ex: *ZING*, *DODODO*, *SHING*, *GOGOGO*).
     - Ajoute des lignes de "dialogue de combat" entre parenthèses pour les personnages.
     - Description détaillée des mouvements: "Tu dégaines ton épée avec une vitesse fulgurante, l'acier fendant l'air dans un sifflement aigu..."
@@ -185,7 +189,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
     Exemple: {"narrative": "...", "actions": [{"type": "update_player", "parameters": {...}}, {"type": "add_item", "parameters": {...}}]}
 
-    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant, "schoolName": "nom_ecole", "academicGrade_change": montant}
+    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant, "schoolName": "nom_ecole", "academicGrade_change": montant, "sp_gain": montant}
     - "type": "add_skill", "parameters": {"target_name": "nom_optionnel", "skillName": "nom_de_la_competence"}
     - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
@@ -298,6 +302,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
           if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
           if (parameters.academicGrade_change) await target.increment('academicGrade', { by: parameters.academicGrade_change });
+          if (parameters.sp_gain) await target.increment('skillPoints', { by: parameters.sp_gain });
           break;
 
         case 'add_skill':

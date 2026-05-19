@@ -1,21 +1,34 @@
 const axios = require('axios');
-const puter = require('@heyputer/puter.js').default;
+let puter = null;
 
-if (process.env.PUTER_API_KEY) {
-    puter.setAuthToken(process.env.PUTER_API_KEY);
+function initPuter() {
+    if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+        try {
+            puter = require('@heyputer/puter.js').default;
+            puter.setAuthToken(process.env.PUTER_API_KEY);
+        } catch (e) {
+            console.error("[AI] Erreur chargement Puter.js:", e.message);
+        }
+    }
+    return puter;
 }
 
 /**
  * Calls the best available AI provider.
  * Priority: Puter.js -> OpenRouter -> Pollinations.ai
  */
-async function callAI(systemPrompt, userPrompt) {
+async function callAI(systemPrompt, userPrompt, depth = 0) {
+    if (depth > 3) {
+        throw new Error("Récursion AI trop profonde détectée.");
+    }
+
     // 1. Try Puter.js
-    if (process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+    const puterInstance = initPuter();
+    if (puterInstance) {
         try {
             console.log("[AI] Tentative avec Puter.js (Claude 3.5 Sonnet)...");
-            const response = await puter.ai.chat(
-                "claude-3-5-sonnet", // Upgraded for better reasoning
+            const response = await puterInstance.ai.chat(
+                "claude-3-5-sonnet",
                 {
                     system: systemPrompt,
                     prompt: userPrompt,
@@ -57,13 +70,13 @@ async function callAI(systemPrompt, userPrompt) {
 
     // 3. Fallback to Pollinations.ai
     try {
-        console.log("[AI] Tentative avec Pollinations.ai...");
+        console.log("[AI] Tentative avec Pollinations.ai (Mistral)...");
         const response = await axios.post('https://text.pollinations.ai/', {
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
             ],
-            model: 'openai',
+            model: 'mistral', // Mistral usually has better French than the default for free
             jsonMode: true
         }, { timeout: 20000 });
 

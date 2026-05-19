@@ -164,7 +164,8 @@ const profileCommand = async (sock, message) => {
                       `🏃 Agilité: ${player.agility}\n` +
                       `🧠 Intelligence: ${player.intelligence}\n` +
                       `🛡️ Défense: ${player.defense}\n` +
-                      `🍀 Chance: ${player.luck}\n\n` +
+                      `🍀 Chance: ${player.luck}\n` +
+                      `✨ *SP:* ${player.skillPoints}\n\n` +
                       `💰 *COL:* ${player.col} 🪙\n` +
                       `---------------------------`;
 
