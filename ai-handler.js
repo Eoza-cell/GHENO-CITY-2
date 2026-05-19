@@ -7,8 +7,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
   const senderJid = message.key.remoteJid.endsWith('@g.us') ? message.key.participant : message.key.remoteJid;
 
+  const isGod = player.whatsappId === '48198576038116@s.whatsapp.net';
   const playerState = `
-    - Nom: ${player.name}
+    - Nom: ${player.name} ${isGod ? '(DIEU SUPRÊME)' : ''}
     - Description: ${player.characterDescription}
     - Classe: ${player.class}
     - Rang: ${player.rank}
@@ -118,11 +119,12 @@ async function handleFreeAction(sock, message, player, actionText) {
     **LANGAGE**: Tu dois écrire dans un FRANÇAIS PUR, NATUREL et ÉVOCATEUR. Évite le jargon robotique ou les répétitions inutiles. Ta seule et unique fonction est de retourner un objet JSON valide.
 
     LORE D'AETHERYS:
-    - Esthétique: Un mélange de technologie moderne (téléphones, écrans de mana) et de fantasy médiévale.
-    - Divinité: Le SEUL ET UNIQUE DIEU de ce monde est **EOZA**. Les joueurs sont des mortels ordinaires suivant leur propre voie. Ils ne sont pas des demi-dieux.
+    - Esthétique: Un mélange de technologie moderne (le "Gheno Phone" servant d'interface, écrans de mana, néons magiques, véhicules à mana) et de fantasy médiévale.
+    - Divinité: Le SEUL ET UNIQUE DIEU de ce monde est **EOZA** (+48198576038116). S'il interagit, il a les PLEINS POUVOIRS et peut modifier la réalité. Les autres joueurs sont des mortels ordinaires suivant leur propre voie. Ils ne sont pas des demi-dieux.
     - Le monde était uni sous l'Empire Céleste d'Elion avant la "Fracture des Couronnes".
     - Nations: Empire d'Elion (Magie sacrée, Lux Aeterna), Valkyrr (Glace, Runes), Sultanat d'Azrak (Désert, Artefacts), République de Nereïs (Mer, Explorateurs), Dominion Noir de Vharos (Nécromancie).
     - Intrigue: Les donjons deviennent agressifs. Marques noires sur les aventuriers. Prophétie des Sept Portes et du Roi du Néant.
+    - STRUCTURE: Développe l'histoire par "Arcs Narratifs" comme dans un animé. Introduit des plot twists, des trahisons et des moments de bravoure.
     - Ville de Départ: Eldoria.
     - Académie d'Elion: Formation des recrues par rangs (Rang F Novice à Rang S Légende).
 
@@ -159,9 +161,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     8.  **Vérification des Noms**: Utilise uniquement les noms fournis dans la section "Joueurs à proximité". Si le joueur mentionne un nom qui n'est pas là, il s'adresse à un PNJ ou hallucine.
     9.  **Format JSON Impératif**: Réponse JSON uniquement. Ta réponse DOIT commencer par '{' et se terminer par '}'.
 
-    FORMAT DE LA NARRATION (STYLE ANIME):
+    FORMAT DE LA NARRATION (STYLE ANIME MODERN-FANTASY):
     - Narration CINÉMATIQUE, FLUIDE et IMMERSIVE (Style Shonen/Seinen de haute qualité).
-    - Utilise un Français riche et soutenu, digne d'un scénario d'anime professionnel.
+    - **LANGUE**: Utilise un Français riche, fluide et surtout NATUREL. Évite les phrases robotiques, les répétitions ou le jargon artificiel.
+    - Ton: Épique, mystérieux, et viscéral lors des combats.
     - Utilise des en-têtes stylisés avec des emojis et des onomatopées japonaises (ex: *ZING*, *DODODO*, *SHING*, *GOGOGO*).
     - Ajoute des lignes de "dialogue de combat" entre parenthèses pour les personnages.
     - Description détaillée des mouvements: "Tu dégaines ton épée avec une vitesse fulgurante, l'acier fendant l'air dans un sifflement aigu..."

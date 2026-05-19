@@ -366,6 +366,30 @@ const NPC = sequelize.define('NPC', {
     }
 });
 
+const Duel = sequelize.define('Duel', {
+    playerAJid: {
+        type: DataTypes.STRING,
+    },
+    playerBJid: {
+        type: DataTypes.STRING,
+    },
+    startTime: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+    },
+    lastActionTime: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+    },
+    status: { // 'active', 'finished'
+        type: DataTypes.STRING,
+        defaultValue: 'active',
+    },
+    location: {
+        type: DataTypes.STRING,
+    }
+});
+
 const Monster = sequelize.define('Monster', {
     name: {
         type: DataTypes.STRING,
@@ -1006,6 +1030,7 @@ module.exports = {
   Kingdom,
   Conflict,
   School,
+  Duel,
   NPC,
   Monster,
   PlayerSkill,
