@@ -79,21 +79,19 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     // 3. Fallback to Pollinations.ai
     try {
-        console.log("[AI] Tentative avec Pollinations.ai (Mistral)...");
+        console.log("[AI] Tentative avec Pollinations.ai (Default model)...");
         const response = await axios.post('https://text.pollinations.ai/', {
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
-            ],
-            model: 'mistral', // Mistral usually has better French than the default for free
-            jsonMode: true
-        }, { timeout: 20000 });
+            ]
+        });
 
-        const content = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data.toString();
+        let content = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data.toString();
 
         // Final robustness check: strip any leading/trailing non-json chars if possible
         if (content.includes('{') && content.includes('}')) {
-            return content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+            content = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
         }
         return content;
     } catch (error) {

@@ -57,7 +57,15 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "Tu es seul ici.";
 
   // Limit shop items to a few featured ones to save tokens
-  const items = await Item.findAll({ limit: 15 });
+  const items = await Item.findAll({
+      where: {
+          [Op.or]: [
+              { price: { [Op.lte]: player.col + 500 } }, // Items the player can almost afford
+              { name: ['Elucidator', 'Dark Repulser', 'Lambent Light'] } // Featured items
+          ]
+      },
+      limit: 10
+  });
   const shopState = "Objets en vente à la boutique (Aperçu):\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description}`).join('\n');
 
   // Save current player message to memory before fetching history
@@ -68,11 +76,11 @@ async function handleFreeAction(sock, message, player, actionText) {
       location: player.location
   });
 
-  // Memory: Get last 15 messages from this location (now including the current one)
+  // Memory: Get last 8 messages from this location (now including the current one) - Optimized for context length
   const history = await RPMessage.findAll({
       where: { location: player.location },
-      order: [['id', 'DESC']], // Using ID for faster sorting if indexed
-      limit: 15
+      order: [['id', 'DESC']],
+      limit: 8
   });
   const historyState = history.length > 0
     ? "Historique récent à cet endroit (Mémoire):\n" + history.reverse().map(h => `[${h.timestamp.toLocaleTimeString()}] ${h.senderName}: ${h.content}`).join('\n')
@@ -95,18 +103,20 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: {
           [Op.or]: [
               { location: player.location },
-              { name: ['Directeur Magnus', 'Heathcliff', 'Asuna'] }
+              { name: ['Directeur Magnus', 'Heathcliff', 'Asuna', 'Lich Lord Vharos'] }
           ]
-      }
+      },
+      limit: 8
   });
   const npcState = "Personnages Importants (PNJ) à proximité ou mondiaux:\n" + npcs.map(n => `- ${n.name} (${n.role}): ${n.description}`).join('\n');
 
   // Limit monsters to those of similar rank to the player
+  const currentRankIndex = ['F', 'E', 'D', 'C', 'B', 'A', 'S'].indexOf(player.rank);
   const monsters = await Monster.findAll({
       where: {
-          rank: { [Op.in]: [player.rank, 'F', 'E', 'D', 'C', 'B', 'A', 'S'].slice(0, ['F', 'E', 'D', 'C', 'B', 'A', 'S'].indexOf(player.rank) + 2) }
+          rank: { [Op.in]: ['F', 'E', 'D', 'C', 'B', 'A', 'S'].slice(Math.max(0, currentRankIndex - 1), currentRankIndex + 2) }
       },
-      limit: 10
+      limit: 6
   });
   const monsterState = "Bestiaire (Référence de puissance):\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}): PV ${m.health}, STR ${m.strength}, DEF ${m.defense}, AGI ${m.agility}`).join('\n');
 
@@ -210,7 +220,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
 
   try {
-    const content = await callAI(systemPrompt, fullPrompt);
+    let content = await callAI(systemPrompt, fullPrompt);
+    if (!content) {
+        throw new Error("L'IA a retourné une réponse vide.");
+    }
     console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 500)}...`);
 
     // Robust JSON extraction
@@ -218,14 +231,36 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (!jsonMatch) {
         // Second attempt: check if AI returned markdown code blocks
         if (content.includes('```')) {
-            const stripped = content.split('```')[1].replace(/^json\n?/, '').split('```')[0].trim();
-            jsonMatch = stripped.match(/\{[\s\S]*\}/);
+            const parts = content.split('```');
+            for (const part of parts) {
+                const stripped = part.replace(/^json\n?/, '').trim();
+                const match = stripped.match(/\{[\s\S]*\}/);
+                if (match) {
+                    jsonMatch = match;
+                    break;
+                }
+            }
         }
     }
 
+    // Third attempt: if no JSON but we have content, wrap it in a narrative action
     if (!jsonMatch) {
-        console.error("[AI ERROR] Échec extraction JSON. Contenu brut:", content);
-        throw new Error("Impossible d'extraire le JSON de la réponse de l'IA.");
+        console.warn("[AI WARNING] Pas de JSON détecté, création d'une réponse narrative par défaut.");
+        const aiResponse = {
+            narrative: content,
+            actions: []
+        };
+
+        // Save bot response to memory
+        await RPMessage.create({
+            senderJid: 'bot',
+            senderName: 'Arise MJ',
+            content: aiResponse.narrative,
+            location: player.location
+        });
+
+        await sendWithImage(sock, jid, aiResponse);
+        return;
     }
 
     const aiResponse = JSON.parse(jsonMatch[0]);
