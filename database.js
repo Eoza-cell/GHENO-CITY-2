@@ -901,6 +901,33 @@ async function setupDatabase() {
                 slot: 'weapon',
                 statBonuses: { strength: 12, agility: 8 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4c/Advancer.png'
+            },
+            {
+                name: 'Osmanthus Blade',
+                description: 'Une épée divine aux pétales dorés, symbole de pureté et de force.',
+                price: 8500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 32, intelligence: 12 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/43/Fragrant_Olive_Sword.png'
+            },
+            {
+                name: 'Black Iron Greatsword',
+                description: 'Une épée massive et lourde, capable de briser les armures.',
+                price: 3200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 30, agility: -5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/0/07/Unity_Vow.png'
+            },
+            {
+                name: 'Silverlight Rapier',
+                description: 'Une rapière d\'une finesse exceptionnelle, brillant sous la lune.',
+                price: 2400,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 22, luck: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Lambent_Light.png'
             }
         ];
 
@@ -1041,6 +1068,11 @@ async function setupDatabase() {
             { name: 'Sachi', role: 'Membre des Chats Noirs', description: 'Une jeune fille douce cherchant à surmonter sa peur du combat.', location: 'Eldoria' },
             { name: 'Heathcliff', role: 'Grand Maître', description: 'Le chef de la Confrérie des Chevaliers du Sang.', location: 'Lux Aeterna' },
             { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, célèbre pour sa rapidité.', location: 'Lux Aeterna' },
+            { name: 'Silica', role: 'Dresseuse de Dragon', description: 'Une jeune fille accompagnée de son petit dragon Plume.', location: 'Eldoria' },
+            { name: 'Lisbeth', role: 'Maître Forgeronne', description: 'Propriétaire d\'une boutique de forge renommée, amie d\'Asuna.', location: 'Lux Aeterna' },
+            { name: 'Sinon', role: 'Archère de Précision', description: 'Une tireuse d\'élite calme et déterminée.', location: 'Valkyrr' },
+            { name: 'Leafa', role: 'Guerrière Sylphide', description: 'Une épéiste talentueuse maîtrisant la magie du vent.', location: 'Lux Aeterna' },
+            { name: 'Yui', role: 'Navigation Pixie', description: 'Une petite fée IA qui aide les voyageurs égarés.', location: 'Académie Impériale' },
 
             // Éducateurs et Personnel de l'Académie
             { name: 'Maître Ghyran', role: 'Instructeur de Combat', description: 'Un vétéran balafré qui ne tolère aucune paresse.', location: 'Académie Impériale' },
@@ -1073,7 +1105,13 @@ async function setupDatabase() {
             // Madrasa d'Al-Kimiya
             { name: 'Vizir Jaffar', role: 'Directeur d\'Al-Kimiya', description: 'Un alchimiste brillant dont les yeux brillent d\'une lueur dorée.', location: 'Madrasa d\'Al-Kimiya' },
             { name: 'Zuleika', role: 'Élève (Artificière)', description: 'Manipule des poudres explosives et des golems d\'argile.', location: 'Madrasa d\'Al-Kimiya' },
-            { name: 'Omar', role: 'Élève (Potioniste)', description: 'Toujours en train de concocter des breuvages aux effets imprévisibles.', location: 'Madrasa d\'Al-Kimiya' }
+            { name: 'Omar', role: 'Élève (Potioniste)', description: 'Toujours en train de concocter des breuvages aux effets imprévisibles.', location: 'Madrasa d\'Al-Kimiya' },
+
+            // Azrak & Nereïs
+            { name: 'Nasir', role: 'Vendeur d\'Épices', description: 'Un marchand jovial qui connaît toutes les routes du désert.', location: 'Sahra’Zul' },
+            { name: 'Zara', role: 'Danseuse de Lame', description: 'Une guerrière agile protégeant les caravanes d\'Azrak.', location: 'Sahra’Zul' },
+            { name: 'Capitaine Nemo', role: 'Explorateur Sous-marin', description: 'Un marin excentrique possédant un navire capable de plonger.', location: 'Nereïs' },
+            { name: 'Lia', role: 'Chanteuse de Mer', description: 'Une jeune femme dont le chant dit-on peut calmer les tempêtes.', location: 'Nereïs' }
         ]);
         console.log('NPCs seeded.');
     }

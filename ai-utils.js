@@ -77,26 +77,37 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    // 3. Fallback to Pollinations.ai
+    // 3. Fallback to Pollinations.ai (Using a more robust method)
     try {
-        console.log("[AI] Tentative avec Pollinations.ai (Default model)...");
+        console.log("[AI] Tentative avec Pollinations.ai (Flux-compatible text)...");
+        const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
         const response = await axios.post('https://text.pollinations.ai/', {
             messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ]
-        });
+                { role: 'user', content: combinedPrompt }
+            ],
+            model: 'openai', // Force a more stable model
+            json: true
+        }, { timeout: 40000 });
 
-        let content = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data.toString();
-
-        // Final robustness check: strip any leading/trailing non-json chars if possible
-        if (content.includes('{') && content.includes('}')) {
-            content = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+        let content = "";
+        if (typeof response.data === 'string') {
+            content = response.data;
+        } else if (response.data && response.data.choices && response.data.choices[0]) {
+            content = response.data.choices[0].message.content;
+        } else {
+            content = JSON.stringify(response.data);
         }
+
         return content;
     } catch (error) {
-        console.error("[AI] Erreur Pollinations.ai:", error.message);
-        throw new Error("Tous les fournisseurs d'IA ont échoué.");
+        console.error("[AI] Erreur Pollinations.ai:", error.response?.data || error.message);
+
+        // 4. Ultimate Fallback: Return a static narrative if AI is totally down
+        console.warn("[AI] TOUS LES FOURNISSEURS ONT ÉCHOUÉ. Utilisation du secours statique.");
+        return JSON.stringify({
+            narrative: "Le flux magique d'Aetherys semble perturbé par une force mystérieuse... L'action n'a pas pu se matérialiser correctement, mais ton esprit reste focalisé sur ton objectif. (Erreur Serveur AI)",
+            actions: []
+        });
     }
 }
 

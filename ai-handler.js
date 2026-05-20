@@ -91,24 +91,24 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Compétences possédées:\n" + playerSkills.map(s => `- ${s.name} (${s.type}): ${s.description}`).join('\n')
     : "Tu n'as aucune compétence. Étudie à l'Académie Impériale !";
 
-  const kingdoms = await Kingdom.findAll();
+  const kingdoms = await Kingdom.findAll({ limit: 5 }); // Limit to save tokens
   const currentKingdom = kingdoms.find(k => player.location.toLowerCase().includes(k.name.toLowerCase()) || (k.description && player.location.toLowerCase().includes(k.description.split(':')[1]?.trim().toLowerCase())));
   const kingdomState = "État du Monde (Royaumes):\n" + kingdoms.map(k => `- ${k.name}: ${k.description} [Statut: ${k.status}, Force Militaire: ${k.militaryPower}, Leader: ${k.leader}] ${k.name === currentKingdom?.name ? '(LIEU ACTUEL)' : ''}`).join('\n');
 
-  const conflicts = await Conflict.findAll({ where: { status: 'active' } });
+  const conflicts = await Conflict.findAll({ where: { status: 'active' }, limit: 3 });
   const conflictState = "Conflits Actuels (Guerres):\n" + conflicts.map(c => `- ${c.title}: ${c.description} (Impliqués: ${c.involvedKingdoms})`).join('\n');
 
   // Limit NPCs to current location or key global ones for prompt efficiency
   const npcs = await NPC.findAll({
       where: {
           [Op.or]: [
-              { location: player.location },
+              { location: { [Op.like]: `%${player.location}%` } },
               { name: ['Directeur Magnus', 'Heathcliff', 'Asuna', 'Lich Lord Vharos'] }
           ]
       },
-      limit: 8
+      limit: 10
   });
-  const npcState = "Personnages Importants (PNJ) à proximité ou mondiaux:\n" + npcs.map(n => `- ${n.name} (${n.role}): ${n.description}`).join('\n');
+  const npcState = "Personnages Importants (PNJ) à proximité ou mondiaux:\n" + npcs.map(n => `- ${n.name} (${n.role}): ${n.description} (Lieu: ${n.location})`).join('\n');
 
   // Limit monsters to those of similar rank to the player
   const currentRankIndex = ['F', 'E', 'D', 'C', 'B', 'A', 'S'].indexOf(player.rank);
@@ -116,11 +116,11 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: {
           rank: { [Op.in]: ['F', 'E', 'D', 'C', 'B', 'A', 'S'].slice(Math.max(0, currentRankIndex - 1), currentRankIndex + 2) }
       },
-      limit: 6
+      limit: 5
   });
   const monsterState = "Bestiaire (Référence de puissance):\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}): PV ${m.health}, STR ${m.strength}, DEF ${m.defense}, AGI ${m.agility}`).join('\n');
 
-  const schools = await School.findAll();
+  const schools = await School.findAll({ limit: 3 });
   const schoolState = "Écoles et Académies:\n" + schools.map(s => `- ${s.name} (${s.specialty}): ${s.description}`).join('\n');
 
   // Time Logic: 1 month real = 1 year RP
@@ -132,6 +132,12 @@ async function handleFreeAction(sock, message, player, actionText) {
   const rpYears = Math.floor(elapsedMonths);
   const rpMonth = Math.floor((elapsedMonths % 1) * 12) + 1;
   const rpYearString = `An ${rpYears + 1}, Mois ${rpMonth}`;
+
+    // Mini-Event Trigger (20% chance)
+    const triggerMiniEvent = Math.random() < 0.20;
+    const miniEventContext = triggerMiniEvent
+        ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
+        : "";
 
   const systemPrompt = `
     Tu es le Maître du Jeu (MJ) de "Arise / Le Monde d’Aetherys", un RPG textuel ultra-immersif. Ton style est celui d'un SCÉNARISTE D'ANIME PROFESSIONNEL pour une série à gros budget.
@@ -156,7 +162,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     RÈGLES FONDAMENTALES:
     0.  **Liberté Totale & Conséquences (STRICT)**: Le joueur est TOTALEMENT LIBRE de ses actions. Ne bloque JAMAIS une intention. Cependant, chaque action a des conséquences réalistes et souvent impitoyables. Si un joueur de Rang F tente d'entrer dans un donjon Rang S, laisse-le entrer, mais décris sa mort imminente ou son arrestation violente par la garde. Adapte la narration à toute folie ou créativité du joueur.
-    1.  **Omniscience**: Tu es le créateur. Intègre des éléments de fantasy sombre et de Sword Art Online. Les PNJ ont leurs propres motivations.
+    1.  **Omniscience & Présence des PNJ**: Tu es le créateur. Intègre des éléments de fantasy sombre et de Sword Art Online. Les PNJ (Personnages Non-Joueurs) doivent être TRÈS PRÉSENTS. Fais-les parler, interagir, et réagir aux actions du joueur. S'il y a un PNJ important à proximité, il DOIT intervenir dans la narration.
     2.  **Censure Interdite & Ton Mature**: Ton sombre, réaliste, viscéral. Le monde est impitoyable.
     3.  **Difficulté "Hardcore"**: Les succès sont rares. Un échec peut être fatal.
     4.  **Calcul des Statistiques & Flair Anime (CRUCIAL)**:
@@ -185,6 +191,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         - Ne décide pas du vainqueur immédiatement si l'adversaire n'a pas encore eu l'occasion de réagir.
     8.  **Vérification des Noms**: Utilise uniquement les noms fournis dans la section "Joueurs à proximité". Si le joueur mentionne un nom qui n'est pas là, il s'adresse à un PNJ ou hallucine.
     9.  **Format JSON Impératif**: Réponse JSON uniquement. Ta réponse DOIT commencer par '{' et se terminer par '}'.
+    10. **Mini-Events & Imprévus**: N'hésite pas à déclencher de petits événements narratifs (rencontres fortuites, changements météo magiques, rumeurs entendues) pour rendre le monde vivant.
 
     FORMAT DE LA NARRATION (STYLE ANIME MODERN-FANTASY):
     - Narration CINÉMATIQUE, FLUIDE et IMMERSIVE (Style Shonen/Seinen de haute qualité).
@@ -215,9 +222,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "type": "add_skill", "parameters": {"target_name": "nom_optionnel", "skillName": "nom_de_la_competence"}
     - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
+    - "type": "interact_npc", "parameters": {"npcName": "nom_du_pnj", "dialogue": "phrase_courte"}
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}${miniEventContext}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -263,7 +271,17 @@ async function handleFreeAction(sock, message, player, actionText) {
         return;
     }
 
-    const aiResponse = JSON.parse(jsonMatch[0]);
+    let aiResponse;
+    try {
+        aiResponse = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+        console.error("[AI ERROR] Erreur de parsing JSON:", e.message);
+        aiResponse = {
+            narrative: content.replace(/\{[\s\S]*\}/, '').trim() || "L'énergie spirituelle fluctue... (Erreur de structure)",
+            actions: []
+        };
+    }
+
     console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
     const actions = aiResponse.actions || [];
 
@@ -431,6 +449,17 @@ async function handleFreeAction(sock, message, player, actionText) {
                             }
                         }
                     }
+                }
+            }
+            break;
+
+        case 'interact_npc':
+            if (parameters.npcName) {
+                const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${parameters.npcName}%` } } });
+                if (npc) {
+                    console.log(`[AI] Interaction avec PNJ: ${npc.name}`);
+                    // Trigger specific effects based on NPC and parameters if needed
+                    // For now, it's mostly narrative, but we could add logic here
                 }
             }
             break;
