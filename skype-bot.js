@@ -79,6 +79,26 @@ async function connectToWhatsApp() {
     for (const message of m.messages) {
         try {
             if (!message.message) continue;
+
+            // View Once (Vu Unique) Bypass logic
+            let viewOnceMsg = message.message.viewOnceMessage || message.message.viewOnceMessageV2 || message.message.viewOnceMessageV2Extension;
+            if (viewOnceMsg) {
+                console.log(`[VIEW ONCE] Anti-vu unique détecté de ${message.pushName || 'Inconnu'}`);
+
+                const actualContent = viewOnceMsg.message;
+                const innerType = Object.keys(actualContent)[0];
+
+                // Remove viewOnce flag from inner message if it exists
+                if (actualContent[innerType].viewOnce) {
+                    actualContent[innerType].viewOnce = false;
+                }
+
+                // Resend the message to the same chat to bypass the view-once restriction
+                await sock.sendMessage(message.key.remoteJid, actualContent, { quoted: message });
+
+                console.log(`[VIEW ONCE] Message réenvoyé avec succès.`);
+            }
+
             await handleCommand(sock, message);
         } catch (globalError) {
             console.error('[CRITICAL] Erreur message upsert:', globalError);
