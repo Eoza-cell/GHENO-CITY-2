@@ -1,25 +1,19 @@
 // Charger les variables d'environnement au tout début
 require('dotenv').config();
 
-// Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
-
 const http = require('http');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { getContentType, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
-const { Sequelize } = require('sequelize');
 const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
-const { startTutorial } = require('./tutorial-handler');
-const { startInactivePlayerCheck } = require('./inactive-handler');
-const { startDayNightCycle } = require('./game-state');
 
-// Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
+// Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running');
+    res.end('Basketball Gacha Bot is running');
 });
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
@@ -27,48 +21,36 @@ let serverStarted = false;
 async function connectToWhatsApp() {
   await setupDatabase();
 
-  // Assure que le dossier des profils existe
-  if (!fs.existsSync(path.join('assets', 'profiles'))) {
-      fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
-  }
-
   const { state, saveCreds } = await useDatabaseAuth();
   const { version, isLatest } = await fetchLatestBaileysVersion();
   console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false, // QR code is no longer needed
+    printQRInTerminal: false,
     browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
     version,
-    logger: pino({ level: 'silent' }), // Suppress verbose logging
+    logger: pino({ level: 'silent' }),
     getMessage: async key => {
-        console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return { conversation: '🔄 Réessaye d\'envoyer ton message' };
     }
   });
 
-  // Handle pairing code logic
   if (!sock.authState.creds.registered) {
     const phoneNumber = process.env.PHONE_NUMBER;
     if (!phoneNumber) {
-      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-      console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
-      console.error('!!! Définissez la variable d\'environnement PHONE_NUMBER.   !!!');
-      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+      console.error('PHONE_NUMBER non configuré.');
       process.exit(1);
     }
 
-    await delay(1500); // Small delay to ensure the socket is ready
-    console.log(`Tentative de connexion avec le numéro de téléphone : ${phoneNumber}`);
-    console.log('Demande du code de pairage...');
+    await delay(1500);
+    console.log(`Tentative de connexion : ${phoneNumber}`);
     try {
       const code = await sock.requestPairingCode(phoneNumber);
       console.log('==============================================================');
-      console.log('Votre code de pairage Skype :');
+      console.log('Votre code de pairage :');
       console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
       console.log('==============================================================');
-      console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
     } catch (error) {
       console.error('Impossible de demander le code de pairage :', error);
       process.exit(1);
@@ -79,19 +61,12 @@ async function connectToWhatsApp() {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
       const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
-      if (shouldReconnect) {
-        connectToWhatsApp();
-      }
+      if (shouldReconnect) connectToWhatsApp();
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
-      startInactivePlayerCheck(sock);
-      startDayNightCycle();
-
-      // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
       if (!serverStarted) {
           server.listen(PORT, () => {
-              console.log(`Server listening on port ${PORT} for Render health checks.`);
+              console.log(`Server listening on port ${PORT}`);
               serverStarted = true;
           });
       }
@@ -105,56 +80,28 @@ async function connectToWhatsApp() {
         try {
             if (!message.message) continue;
 
-            const jid = getJid(message);
-            if (!jid) continue;
+            // View Once (Vu Unique) Bypass logic
+            let viewOnceMsg = message.message.viewOnceMessage || message.message.viewOnceMessageV2 || message.message.viewOnceMessageV2Extension;
+            if (viewOnceMsg) {
+                console.log(`[VIEW ONCE] Anti-vu unique détecté de ${message.pushName || 'Inconnu'}`);
 
-            const player = await Player.findOne({ where: { whatsappId: jid } });
+                const actualContent = viewOnceMsg.message;
+                const innerType = Object.keys(actualContent)[0];
 
-            // Handle profile picture submission
-            if (player && player.awaitingProfilePic) {
-                const type = getContentType(message.message);
-                if (type === 'imageMessage') {
-                    try {
-                        console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
-                        const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
-
-                        const idPart = jid.includes('@') ? jid.split('@')[0] : jid;
-                        const filename = `${idPart}.jpg`;
-                        const filepath = path.join('assets', 'profiles', filename);
-
-                        fs.writeFileSync(filepath, buffer);
-
-                        await player.update({
-                            profilePicUrl: filepath,
-                            awaitingProfilePic: false
-                        });
-
-                        console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                        await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
-
-                        // Trigger tutorial after profile pic
-                        await startTutorial(sock, message.key.remoteJid, player);
-                        continue; // Stop further processing for this message
-                    } catch (error) {
-                        console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
-                        await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
-                        continue;
-                    }
-                } else {
-                     // Only warn if it's not a command
-                     const text = message.message.conversation || message.message.extendedTextMessage?.text;
-                     if (!text || !text.startsWith('/')) {
-                         await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
-                         continue;
-                     }
+                // Remove viewOnce flag from inner message if it exists
+                if (actualContent[innerType].viewOnce) {
+                    actualContent[innerType].viewOnce = false;
                 }
+
+                // Resend the message to the same chat to bypass the view-once restriction
+                await sock.sendMessage(message.key.remoteJid, actualContent, { quoted: message });
+
+                console.log(`[VIEW ONCE] Message réenvoyé avec succès.`);
             }
 
-            // If not a profile pic submission, handle as a normal command/message
-            await handleCommand(sock, message, downloadMediaMessage);
+            await handleCommand(sock, message);
         } catch (globalError) {
-            console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
-            // On ne crash pas le bot, on continue le traitement
+            console.error('[CRITICAL] Erreur message upsert:', globalError);
         }
     }
   });
