@@ -928,6 +928,24 @@ async function setupDatabase() {
                 slot: 'weapon',
                 statBonuses: { agility: 22, luck: 5 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Lambent_Light.png'
+            },
+            {
+                name: 'Manteau de l\'Épéiste Noir',
+                description: 'Une longue veste en cuir noir, élégante et mystérieuse. Le fan service à l\'état pur.',
+                price: 5000,
+                type: 'armor',
+                slot: 'chest',
+                statBonuses: { agility: 15, luck: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c8/Black_wyrm_coat.png'
+            },
+            {
+                name: 'Uniforme de la Confrérie (Version Elite)',
+                description: 'Une tenue blanche et rouge ajustée, portée par les plus grands héros.',
+                price: 6000,
+                type: 'armor',
+                slot: 'chest',
+                statBonuses: { strength: 10, defense: 20 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Knights_of_the_Blood_Uniform.png'
             }
         ];
 
@@ -1111,7 +1129,9 @@ async function setupDatabase() {
             { name: 'Nasir', role: 'Vendeur d\'Épices', description: 'Un marchand jovial qui connaît toutes les routes du désert.', location: 'Sahra’Zul' },
             { name: 'Zara', role: 'Danseuse de Lame', description: 'Une guerrière agile protégeant les caravanes d\'Azrak.', location: 'Sahra’Zul' },
             { name: 'Capitaine Nemo', role: 'Explorateur Sous-marin', description: 'Un marin excentrique possédant un navire capable de plonger.', location: 'Nereïs' },
-            { name: 'Lia', role: 'Chanteuse de Mer', description: 'Une jeune femme dont le chant dit-on peut calmer les tempêtes.', location: 'Nereïs' }
+            { name: 'Lia', role: 'Chanteuse de Mer', description: 'Une jeune femme dont le chant dit-on peut calmer les tempêtes.', location: 'Nereïs' },
+            { name: 'Rias', role: 'Présidente du Club Occulte', description: 'Une jeune femme charismatique aux cheveux rouges, mystérieuse et protectrice (Archétype Onee-san).', location: 'Académie Impériale' },
+            { name: 'Taiga', role: 'Élève Rebelle', description: 'Petite de taille mais avec un caractère volcanique. Elle manie un sabre de bois avec une rage surprenante (Archétype Tsundere).', location: 'Académie Impériale' }
         ]);
         console.log('NPCs seeded.');
     }
