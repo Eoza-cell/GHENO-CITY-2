@@ -56,17 +56,21 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
 async function callOpenRouter(systemPrompt, userPrompt) {
     const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-        model: "openai/gpt-oss-20b:free",
+        model: "meta-llama/llama-3.1-8b-instruct:free", // Using a highly capable free model
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
-        ]
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7
     }, {
         headers: {
             "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://heyputer.com",
+            "X-Title": "Arise RPG Bot"
         },
-        timeout: 25000
+        timeout: 30000
     });
 
     return response.data?.choices?.[0]?.message?.content;
