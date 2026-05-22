@@ -14,101 +14,96 @@ function initPuter() {
 }
 
 /**
- * Calls the best available AI provider.
- * Priority: Puter.js -> OpenRouter -> Pollinations.ai
+ * Calls the best available AI provider with retries.
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
-    if (depth > 3) {
-        throw new Error("Récursion AI trop profonde détectée.");
+    if (depth > 2) {
+        throw new Error("Récursion AI trop profonde.");
     }
 
-    // 1. Try Puter.js (Wrapped in a try-catch to prevent stack overflow crashes)
-    const puterInstance = initPuter();
-    if (puterInstance) {
-        try {
-            console.log("[AI] Tentative avec Puter.js (Claude 3.5 Sonnet)...");
+    const providers = [];
 
-            // Promise wrapper with timeout for Puter.js
-            const puterPromise = puterInstance.ai.chat(
-                "claude-3-5-sonnet",
-                {
-                    system: systemPrompt,
-                    prompt: userPrompt,
-                    stream: false,
-                }
-            );
-
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Puter.js Timeout (30s)")), 30000)
-            );
-
-            const response = await Promise.race([puterPromise, timeoutPromise]);
-            return response.toString();
-        } catch (error) {
-            console.error("[AI] Erreur Puter.js:", error.message);
-            // If Puter.js crashes with a RangeError (Stack overflow), we MUST continue to fallbacks
-        }
-    }
-
-    // 2. Try OpenRouter (Free model requested)
+    // Priority: OpenRouter (if key exists) -> Puter -> Pollinations
     if (process.env.OPENROUTER_API_KEY) {
-        try {
-            console.log("[AI] Tentative avec OpenRouter (GPT-OSS 20B)...");
-            const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-                model: "openai/gpt-oss-20b:free",
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt }
-                ],
-                route: "fallback"
-            }, {
-                headers: {
-                    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                timeout: 30000
-            });
+        providers.push({ name: 'OpenRouter', fn: callOpenRouter });
+    }
+    providers.push({ name: 'Puter', fn: callPuter });
+    providers.push({ name: 'Pollinations', fn: callPollinations });
 
-            if (response.data && response.data.choices && response.data.choices[0]) {
-                return response.data.choices[0].message.content;
+    for (const provider of providers) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                console.log(`[AI] Tentative ${attempt} avec ${provider.name}...`);
+                const result = await provider.fn(systemPrompt, userPrompt);
+                if (result) return result;
+            } catch (error) {
+                console.error(`[AI] Échec ${provider.name} (Tentative ${attempt}):`, error.message);
+                if (error.message.includes('Maximum call stack size exceeded')) {
+                    console.error("[CRITICAL] Puter SDK Stack Overflow detected. Skipping provider.");
+                    break; // Skip to next provider immediately on stack overflow
+                }
+                await new Promise(r => setTimeout(r, 1000));
             }
-        } catch (error) {
-            console.error("[AI] Erreur OpenRouter:", error.response?.data || error.message);
         }
     }
 
-    // 3. Fallback to Pollinations.ai (Using a more robust method)
-    try {
-        console.log("[AI] Tentative avec Pollinations.ai (Flux-compatible text)...");
-        const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
-        const response = await axios.post('https://text.pollinations.ai/', {
-            messages: [
-                { role: 'user', content: combinedPrompt }
-            ],
-            model: 'openai', // Force a more stable model
-            json: true
-        }, { timeout: 40000 });
-
-        let content = "";
-        if (typeof response.data === 'string') {
-            content = response.data;
-        } else if (response.data && response.data.choices && response.data.choices[0]) {
-            content = response.data.choices[0].message.content;
-        } else {
-            content = JSON.stringify(response.data);
-        }
-
-        return content;
-    } catch (error) {
-        console.error("[AI] Erreur Pollinations.ai:", error.response?.data || error.message);
-
-        // 4. Ultimate Fallback: Return a static narrative if AI is totally down
-        console.warn("[AI] TOUS LES FOURNISSEURS ONT ÉCHOUÉ. Utilisation du secours statique.");
-        return JSON.stringify({
-            narrative: "Le flux magique d'Aetherys semble perturbé par une force mystérieuse... L'action n'a pas pu se matérialiser correctement, mais ton esprit reste focalisé sur ton objectif. (Erreur Serveur AI)",
-            actions: []
-        });
-    }
+    console.warn("[AI] TOUS LES FOURNISSEURS ONT ÉCHOUÉ. Utilisation du secours statique.");
+    return JSON.stringify({
+        narrative: "Le flux magique d'Aetherys semble perturbé... (Erreur Serveur AI)",
+        actions: []
+    });
 }
+
+async function callOpenRouter(systemPrompt, userPrompt) {
+    const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+        model: "openai/gpt-oss-20b:free",
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+        ]
+    }, {
+        headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json"
+        },
+        timeout: 25000
+    });
+
+    return response.data?.choices?.[0]?.message?.content;
+}
+
+async function callPuter(systemPrompt, userPrompt) {
+    const puterInstance = initPuter();
+    if (!puterInstance) return null;
+
+    const puterPromise = puterInstance.ai.chat(
+        "claude-3-5-sonnet",
+        {
+            system: systemPrompt,
+            prompt: userPrompt,
+            stream: false,
+        }
+    );
+
+    const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Puter.js Timeout")), 25000)
+    );
+
+    const response = await Promise.race([puterPromise, timeoutPromise]);
+    return response.toString();
+}
+
+async function callPollinations(systemPrompt, userPrompt) {
+    const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
+    const response = await axios.post('https://text.pollinations.ai/', {
+        messages: [{ role: 'user', content: combinedPrompt }],
+        model: 'openai',
+        json: true
+    }, { timeout: 30000 });
+
+    if (typeof response.data === 'string') return response.data;
+    return response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
+}
+
 
 module.exports = { callAI };

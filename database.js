@@ -70,7 +70,11 @@ const Player = sequelize.define('Player', {
     defaultValue: '[]',
     get() {
       const rawValue = this.getDataValue('inventory');
-      return rawValue ? JSON.parse(rawValue) : [];
+      try {
+          return rawValue ? JSON.parse(rawValue) : [];
+      } catch (e) {
+          return [];
+      }
     },
     set(value) {
       this.setDataValue('inventory', JSON.stringify(value));
@@ -308,6 +312,17 @@ const Conflict = sequelize.define('Conflict', {
     },
     involvedKingdoms: {
         type: DataTypes.TEXT, // JSON string of kingdom names
+        get() {
+            const rawValue = this.getDataValue('involvedKingdoms');
+            try {
+                return rawValue ? JSON.parse(rawValue) : [];
+            } catch (e) {
+                return [];
+            }
+        },
+        set(value) {
+            this.setDataValue('involvedKingdoms', JSON.stringify(value));
+        },
     },
     status: { // 'active', 'resolved'
         type: DataTypes.STRING,

@@ -486,7 +486,7 @@ commands.set('conflits', async (sock, message) => {
     let text = "--- 🛡️ ÉTAT DES CONFLITS --- \n\n";
     conflicts.forEach(c => {
         text += `*${c.title.toUpperCase()}*\n`;
-        const involved = JSON.parse(c.involvedKingdoms).join(', ');
+        const involved = Array.isArray(c.involvedKingdoms) ? c.involvedKingdoms.join(', ') : c.involvedKingdoms;
         text += `├ ⚔️ Belligérants: ${involved}\n`;
         text += `└ 📜 ${c.description}\n\n`;
     });
