@@ -25,6 +25,14 @@ async function sendWithImage(sock, jid, aiResponse) {
 
     if (imagePrompt) {
         try {
+            // Check if it's a local file
+            const fs = require('fs');
+            if (fs.existsSync(imagePrompt) && !imagePrompt.startsWith('http')) {
+                const imageBuffer = fs.readFileSync(imagePrompt);
+                await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
+                return;
+            }
+
             if (imagePrompt.startsWith('http')) {
                 const response = await axios.get(imagePrompt, {
                     responseType: 'arraybuffer',

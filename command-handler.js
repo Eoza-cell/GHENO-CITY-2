@@ -4,6 +4,7 @@ const axios = require('axios');
 const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./database');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
+const { generateProfileCard } = require('./profile-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
@@ -145,30 +146,62 @@ const profileCommand = async (sock, message) => {
     return;
   }
 
-  const healthBar = createStatusBar(player.health, player.maxHealth);
-  const manaBar = createStatusBar(player.mana, player.maxMana);
-  const xpNeeded = player.level * 100;
-  const xpBar = createStatusBar(player.xp, xpNeeded);
+  try {
+      const profileBuffer = await generateProfileCard(player);
+      const healthBar = createStatusBar(player.health, player.maxHealth);
+      const manaBar = createStatusBar(player.mana, player.maxMana);
+      const xpNeeded = player.level * 100;
+      const xpBar = createStatusBar(player.xp, xpNeeded);
 
-  const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
-                      `👤 *JOUEUR:* ${player.name}\n` +
-                      `🎭 *CLASSE:* ${player.class}\n` +
-                      `🎖️ *RANG:* ${player.rank}\n` +
-                      `📊 *NIVEAU:* ${player.level}\n\n` +
-                      `❤️ *VIE:*  [${healthBar}] ${player.health}/${player.maxHealth}\n` +
-                      `🔷 *MANA:* [${manaBar}] ${player.mana}/${player.maxMana}\n` +
-                      `✨ *XP:*   [${xpBar}] ${player.xp}/${xpNeeded}\n\n` +
-                      `--- ⚔️ STATISTIQUES --- \n` +
-                      `💪 Force: ${player.strength}\n` +
-                      `🏃 Agilité: ${player.agility}\n` +
-                      `🧠 Intelligence: ${player.intelligence}\n` +
-                      `🛡️ Défense: ${player.defense}\n` +
-                      `🍀 Chance: ${player.luck}\n` +
-                      `✨ *SP:* ${player.skillPoints}\n\n` +
-                      `💰 *COL:* ${player.col} 🪙\n` +
-                      `---------------------------`;
+      const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
+                          `👤 *JOUEUR:* ${player.name}\n` +
+                          `🎭 *CLASSE:* ${player.class}\n` +
+                          `🎖️ *RANG:* ${player.rank}\n` +
+                          `📊 *NIVEAU:* ${player.level}\n\n` +
+                          `❤️ *VIE:*  [${healthBar}] ${player.health}/${player.maxHealth}\n` +
+                          `🔷 *MANA:* [${manaBar}] ${player.mana}/${player.maxMana}\n` +
+                          `✨ *XP:*   [${xpBar}] ${player.xp}/${xpNeeded}\n\n` +
+                          `--- ⚔️ STATISTIQUES --- \n` +
+                          `💪 Force: ${player.strength}\n` +
+                          `🏃 Agilité: ${player.agility}\n` +
+                          `🧠 Intelligence: ${player.intelligence}\n` +
+                          `🛡️ Défense: ${player.defense}\n` +
+                          `🍀 Chance: ${player.luck}\n` +
+                          `✨ *SP:* ${player.skillPoints}\n\n` +
+                          `💰 *COL:* ${player.col} 🪙\n` +
+                          `---------------------------`;
 
-  await sock.sendMessage(replyJid, { text: profileText });
+      await sock.sendMessage(replyJid, {
+          image: profileBuffer,
+          caption: profileText
+      });
+  } catch (error) {
+      console.error("Erreur génération carte profil:", error);
+      const healthBar = createStatusBar(player.health, player.maxHealth);
+      const manaBar = createStatusBar(player.mana, player.maxMana);
+      const xpNeeded = player.level * 100;
+      const xpBar = createStatusBar(player.xp, xpNeeded);
+
+      const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
+                          `👤 *JOUEUR:* ${player.name}\n` +
+                          `🎭 *CLASSE:* ${player.class}\n` +
+                          `🎖️ *RANG:* ${player.rank}\n` +
+                          `📊 *NIVEAU:* ${player.level}\n\n` +
+                          `❤️ *VIE:*  [${healthBar}] ${player.health}/${player.maxHealth}\n` +
+                          `🔷 *MANA:* [${manaBar}] ${player.mana}/${player.maxMana}\n` +
+                          `✨ *XP:*   [${xpBar}] ${player.xp}/${xpNeeded}\n\n` +
+                          `--- ⚔️ STATISTIQUES --- \n` +
+                          `💪 Force: ${player.strength}\n` +
+                          `🏃 Agilité: ${player.agility}\n` +
+                          `🧠 Intelligence: ${player.intelligence}\n` +
+                          `🛡️ Défense: ${player.defense}\n` +
+                          `🍀 Chance: ${player.luck}\n` +
+                          `✨ *SP:* ${player.skillPoints}\n\n` +
+                          `💰 *COL:* ${player.col} 🪙\n` +
+                          `---------------------------`;
+
+      await sock.sendMessage(replyJid, { text: profileText });
+  }
 };
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
@@ -738,28 +771,30 @@ commands.set('menu', async (sock, message) => {
                    "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
                    "❓ `/help` - Guide de survie.";
 
-  // High quality SAO Menu Image
-  const saoMenuUrl = "https://images.alphacoders.com/264/264350.jpg";
-
+  // Try sending the local menu image first
   try {
-    const response = await axios.get(saoMenuUrl, {
-        responseType: 'arraybuffer',
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    const imageBuffer = Buffer.from(response.data, 'binary');
-
-    await sock.sendMessage(message.key.remoteJid, {
-      image: imageBuffer,
-      caption: menuText
-    });
-  } catch (error) {
-    console.error("Erreur envoi image menu (fallback local):", error.message);
-    try {
+    if (fs.existsSync('./menu_image.jpg')) {
         await sock.sendMessage(message.key.remoteJid, {
             image: fs.readFileSync('./menu_image.jpg'),
             caption: menuText
         });
-    } catch (localError) {
+    } else {
+        throw new Error("Local menu image not found");
+    }
+  } catch (error) {
+    console.warn("Erreur envoi image menu locale, tentative fallback URL:", error.message);
+    const saoMenuUrl = "https://images.alphacoders.com/264/264350.jpg";
+    try {
+        const response = await axios.get(saoMenuUrl, {
+            responseType: 'arraybuffer',
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        const imageBuffer = Buffer.from(response.data, 'binary');
+        await sock.sendMessage(message.key.remoteJid, {
+            image: imageBuffer,
+            caption: menuText
+        });
+    } catch (fallbackError) {
         await sock.sendMessage(message.key.remoteJid, { text: menuText });
     }
   }

@@ -356,7 +356,17 @@ async function handleFreeAction(sock, message, player, actionText) {
           if (parameters.intelligence_change) await target.increment('intelligence', { by: parameters.intelligence_change });
           if (parameters.defense_change) await target.increment('defense', { by: parameters.defense_change });
           if (parameters.luck_change) await target.increment('luck', { by: parameters.luck_change });
-          if (parameters.new_location) await target.update({ location: parameters.new_location });
+          if (parameters.new_location) {
+              await target.update({ location: parameters.new_location });
+              // Check if there is a local image for this location
+              const locationImages = {
+                  'Académie Impériale': 'assets/locations/academy.jpg',
+                  'Eldoria': 'assets/locations/eldoria.jpg', // if it exists
+              };
+              if (locationImages[parameters.new_location] && !aiResponse.imagePrompt) {
+                  aiResponse.imagePrompt = locationImages[parameters.new_location];
+              }
+          }
           if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
           if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
           if (parameters.academicGrade_change) await target.increment('academicGrade', { by: parameters.academicGrade_change });
