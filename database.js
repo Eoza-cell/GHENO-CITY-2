@@ -961,6 +961,51 @@ async function setupDatabase() {
                 slot: 'chest',
                 statBonuses: { strength: 10, defense: 20 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Knights_of_the_Blood_Uniform.png'
+            },
+            {
+                name: 'Queen\'s Knightsword',
+                description: 'Une rapière d\'une beauté royale, héritée d\'une lignée de guerrières.',
+                price: 4800,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 20, intelligence: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/bf/Queen%27s_Knightsword.png'
+            },
+            {
+                name: 'Starless Night',
+                description: 'Une épée noire comme le vide, absorbant la lumière ambiante.',
+                price: 5500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 25, agility: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a1/Starless_Night.png'
+            },
+            {
+                name: 'Black Lily Sword',
+                description: 'Une épée fine et noire, dont la lame semble faite de pétales de lys sombres.',
+                price: 6500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 28, luck: 12 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e4/Black_Lily_Sword.png'
+            },
+            {
+                name: 'Mirage Blade',
+                description: 'Une épée dont la lame semble onduler comme un mirage, rendant ses trajectoires imprévisibles.',
+                price: 3900,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { agility: 15, luck: 20 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Wind_Fleuret.png'
+            },
+            {
+                name: 'Elven King\'s Sword',
+                description: 'Une lame ancienne ornée de runes elfiques, brillant d\'une aura verte.',
+                price: 7200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { intelligence: 30, strength: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/25/Anneal_Blade.png'
             }
         ];
 

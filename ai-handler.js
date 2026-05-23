@@ -115,9 +115,9 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: {
           rank: { [Op.in]: ['F', 'E', 'D', 'C', 'B', 'A', 'S'].slice(Math.max(0, currentRankIndex - 1), currentRankIndex + 2) }
       },
-      limit: 3
+      limit: 5 // Increased limit
   });
-  const monsterState = "Monstres:\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank})`).join('\n');
+  const monsterState = "Monstres:\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}) [PV: ${m.health}, STR: ${m.strength}, DEF: ${m.defense}, AGI: ${m.agility}]`).join('\n');
 
   const schools = await School.findAll({ limit: 3 });
   const schoolState = "Écoles et Académies:\n" + schools.map(s => `- ${s.name} (${s.specialty}): ${s.description}`).join('\n');
@@ -173,12 +173,15 @@ async function handleFreeAction(sock, message, player, actionText) {
     2.  **Censure Interdite & Ton Mature**: Ton sombre, réaliste, viscéral. Le monde est impitoyable.
     3.  **Difficulté "Hardcore"**: Les succès sont rares. Un échec peut être fatal.
     4.  **Impact des Statistiques & Létalité (CRUCIAL)**:
-        - **PHILOSOPHIE**: Laisse le joueur décrire ses actions. Ton rôle est d'arbitrer le résultat selon ses stats.
+        - **PHILOSOPHIE**: Laisse le joueur décrire ses actions. Ton rôle est d'arbitrer le résultat selon ses statistiques précises et celles de l'ennemi.
+        - **VÉRIFICATION DES STATS**: Avant chaque action de combat, COMPARE la Force, l'Agilité et la Défense du joueur avec celles du monstre.
         - **LÉTALITÉ EXTRÊME**: Le monde est dangereux. Si un joueur fait un mauvais contre, manque de vitesse (Agilité) ou de force, l'ennemi peut le blesser gravement, voire le TUER sur le coup, sans qu'il ne puisse riposter. Pas de pitié.
         - **LOGIQUE**: Si les stats sont insuffisantes, l'action échoue violemment.
-        - **RÈGLES DE COMBAT**:
-            * Dégâts = (Force de l'attaquant * 2) - (Défense du défenseur). Minimum 5 dégâts.
-            * Esquive/Contre = Basé sur l'Agilité. Si l'Agilité est trop basse par rapport à l'ennemi, l'esquive échoue et le joueur encaisse plein pot.
+        - **RÈGLES DE COMBAT (STRICTES)**:
+            * **Dégâts infligés au monstre** = (Force du Joueur * 2) - (Défense du Monstre).
+            * **Dégâts reçus par le joueur** = (Force du Monstre * 2) - (Défense du Joueur).
+            * **Esquive** = Impossible si l'Agilité du joueur < (Agilité du Monstre / 1.5).
+            * **Succès Critique** = Si Chance > 20, 10% de chance de doubler les dégâts.
         - **COMBAT TERRE À TERRE**: Décris les impacts, les os qui craquent, la fatigue. Pas seulement de la magie brillante, mais de la douleur réelle.
         - Utilise explicitement les chiffres dans la narration (ex: "Tu encaisses 50 dégâts, ton bras est brisé !").
     5.  **Compétences & Progression (STRICT)**:
@@ -219,7 +222,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
     Exemple: {"narrative": "...", "actions": [{"type": "update_player", "parameters": {...}}, {"type": "add_item", "parameters": {...}}]}
 
-    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant, "schoolName": "nom_ecole", "academicGrade_change": montant, "sp_gain": montant}
+    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant, "schoolName": "nom_ecole", "academicGrade_change": montant, "sp_gain": montant, "monster_damage": montant, "monster_name": "nom_du_monstre"}
     - "type": "add_skill", "parameters": {"target_name": "nom_optionnel", "skillName": "nom_de_la_competence"}
     - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
@@ -293,6 +296,17 @@ async function handleFreeAction(sock, message, player, actionText) {
 
       switch (type) {
         case 'update_player':
+          if (parameters.monster_name && parameters.monster_damage) {
+              const monster = await Monster.findOne({ where: { name: parameters.monster_name } });
+              if (monster) {
+                  console.log(`[COMBAT] ${monster.name} subit ${parameters.monster_damage} dégâts.`);
+                  // Here we could track monster HP in a session or temp table if needed,
+                  // but for now we follow the AI's narrative verdict.
+                  if (parameters.monster_damage >= monster.health) {
+                      console.log(`[COMBAT] ${monster.name} est vaincu !`);
+                  }
+              }
+          }
           if (parameters.col_change) await target.increment('col', { by: parameters.col_change });
           if (parameters.xp_gain) {
               await target.increment('xp', { by: parameters.xp_gain });
