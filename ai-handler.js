@@ -2,6 +2,7 @@ const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Con
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
+const { careerJobs } = require('./jobs');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -9,6 +10,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerState = `
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
+    - Âge: ${player.age} ans ${player.isStudent ? '(Étudiant)' : ''}
+    - Job: ${player.job} (Salaire: ${player.salary} $)
     - Description: ${player.characterDescription}
     - Classe: ${player.class}
     - Points de Compétence (SP): ${player.skillPoints}
@@ -121,14 +124,15 @@ async function handleFreeAction(sock, message, player, actionText) {
   const schools = await School.findAll({ limit: 3 });
   const schoolState = "Centres de formation / Planques:\n" + schools.map(s => `- ${s.name} (${s.specialty}): ${s.description}`).join('\n');
 
-  // Time Logic: 1 month real = 1 year RP
+  // Time Logic: 1 week IRL = 1 month RP
   // Reference date: Jan 1st 2024
   const startDate = new Date('2024-01-01').getTime();
   const now = Date.now();
   const elapsedMs = now - startDate;
-  const elapsedMonths = elapsedMs / (1000 * 60 * 60 * 24 * 30);
-  const rpYears = Math.floor(elapsedMonths);
-  const rpMonth = Math.floor((elapsedMonths % 1) * 12) + 1;
+  const msPerWeek = 1000 * 60 * 60 * 24 * 7;
+  const elapsedRpMonths = elapsedMs / msPerWeek;
+  const rpYears = Math.floor(elapsedRpMonths / 12);
+  const rpMonth = Math.floor(elapsedRpMonths % 12) + 1;
   const rpYearString = `An ${rpYears + 1}, Mois ${rpMonth}`;
 
     // Mini-Event Trigger (20% chance)
@@ -159,7 +163,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     LOGIQUE TEMPORELLE & GÉOPOLITIQUE:
     - Date actuelle en RP: ${rpYearString}.
-    - Échelle: 1 mois réel = 1 an RP. Les saisons passent, les pouvoirs changent.
+    - Échelle: 1 semaine réelle = 1 mois RP. Les saisons passent, les pouvoirs changent.
+    - **SCOLARITÉ & CARRIÈRE**: Les mineurs (< 18 ans) sont OBLIGATOIREMENT au Lycée. S'ils échouent (moyenne < 10/20), ils deviennent des Gangsters par défaut. S'ils réussissent l'examen final (10 questions posées par toi le MJ), ils accèdent à une réserve de 100 métiers légaux. Tu dois poser les questions une par une et valider les réponses.
+    - **MÉTIERS DISPONIBLES**: ${careerJobs.map(j => j.title).join(', ')}.
     - **CYCLE URBAIN**: Des événements comme des guerres de territoires, des raids de police ou des marchés noirs apparaissent périodiquement.
     - **INTERDICTION DE TIME-SKIP**: Il est strictement INTERDIT de faire des sauts dans le temps narratifs. Tout doit être vécu en temps réel.
 
@@ -224,7 +230,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
     Exemple: {"narrative": "...", "actions": [{"type": "update_player", "parameters": {...}}, {"type": "add_item", "parameters": {...}}]}
 
-    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant, "schoolName": "nom_ecole", "academicGrade_change": montant, "sp_gain": montant, "monster_damage": montant, "monster_name": "nom_du_monstre"}
+    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant, "schoolName": "nom_ecole", "academicGrade_change": montant, "sp_gain": montant, "monster_damage": montant, "monster_name": "nom_du_monstre", "job": "nouveau_job", "salary": montant, "careerPath": "Legal/Illegal"}
     - "type": "add_skill", "parameters": {"target_name": "nom_optionnel", "skillName": "nom_de_la_competence"}
     - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
@@ -359,6 +365,9 @@ async function handleFreeAction(sock, message, player, actionText) {
           if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
           if (parameters.academicGrade_change) await target.increment('academicGrade', { by: parameters.academicGrade_change });
           if (parameters.sp_gain) await target.increment('skillPoints', { by: parameters.sp_gain });
+          if (parameters.job) await target.update({ job: parameters.job });
+          if (parameters.salary) await target.update({ salary: parameters.salary });
+          if (parameters.careerPath) await target.update({ careerPath: parameters.careerPath });
           break;
 
         case 'add_skill':

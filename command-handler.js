@@ -151,8 +151,9 @@ const profileCommand = async (sock, message) => {
   const xpBar = createStatusBar(player.xp, xpNeeded);
 
   const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
-                      `👤 *JOUEUR:* ${player.name}\n` +
+                      `👤 *JOUEUR:* ${player.name} (${player.age} ans)\n` +
                       `🎭 *RÔLE:* ${player.class}\n` +
+                      `💼 *JOB:* ${player.job} (${player.salary} $/mois)\n` +
                       `🎖️ *NOTORIÉTÉ:* ${player.rank}\n` +
                       `📊 *NIVEAU:* ${player.level}\n\n` +
                       `❤️ *VIE:*  [${healthBar}] ${player.health}/${player.maxHealth}\n` +
@@ -785,7 +786,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       if (player.registrationStep === 'awaiting_name') {
           const playerName = messageText.trim();
           if (playerName.length > 2 && playerName.length <= 20 && !playerName.startsWith('/')) {
-              await player.update({ name: playerName, registrationStep: 'awaiting_description' });
+              await player.update({ name: playerName, registrationStep: 'awaiting_age' });
 
               // Create a bank account if not exists
               await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
@@ -796,10 +797,29 @@ async function handleCommand(sock, message, downloadMediaMessage) {
                   await player.addQuest(startingQuest, { through: { status: 'not_started' } });
               }
 
-              await sock.sendMessage(replyJid, { text: `Ok, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un braqueur expérimenté et silencieux", "un pilote de rue prêt à tout pour la gagne").` });
+              await sock.sendMessage(replyJid, { text: `Ok, ${playerName}. Quel âge as-tu ?` });
           } else {
               await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
           }
+      } else if (player.registrationStep === 'awaiting_age') {
+        const age = parseInt(messageText.trim());
+        if (!isNaN(age) && age > 5 && age < 100) {
+            const isStudent = age < 18;
+            await player.update({
+                age: age,
+                isStudent: isStudent,
+                schoolName: isStudent ? 'Lycée de Gheno City' : 'Aucune',
+                registrationStep: 'awaiting_description'
+            });
+            let reply = `D'accord, ${age} ans. `;
+            if (isStudent) {
+                reply += "Comme tu es mineur, tu es inscrit d'office au *Lycée de Gheno City*. Tes résultats scolaires détermineront ton avenir.\n\n";
+            }
+            reply += "Maintenant, décris ton personnage en une phrase (ex: 'un jeune ambitieux des quartiers sud' ou 'un ancien pro du volant').";
+            await sock.sendMessage(replyJid, { text: reply });
+        } else {
+            await sock.sendMessage(replyJid, { text: "Âge invalide. Entre un nombre entre 6 et 99." });
+        }
       } else if (player.registrationStep === 'awaiting_description') {
         const description = messageText.trim();
         if (description.length > 10 && description.length <= 150) {

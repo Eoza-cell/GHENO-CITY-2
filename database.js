@@ -128,6 +128,26 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 0, // Score out of 100
   },
+  age: {
+    type: DataTypes.INTEGER,
+    defaultValue: 18,
+  },
+  job: {
+    type: DataTypes.STRING,
+    defaultValue: 'Sans emploi',
+  },
+  salary: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  isStudent: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  careerPath: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucune', // Legal, Illegal, etc.
+  },
   tutorialStep: {
     type: DataTypes.INTEGER,
     defaultValue: 0, // 0: not started, 1: class choice, 2: combat training, 3: completed
@@ -713,6 +733,7 @@ async function setupDatabase() {
     if (schoolCount === 0) {
         console.log('Seeding Centers...');
         await School.bulkCreate([
+            { name: 'Lycée de Gheno City', specialty: 'Éducation Générale', description: 'Le passage obligé pour les mineurs de la ville.', kingdomName: 'Downtown' },
             { name: 'Stand de tir d\'Ammu-Nation', specialty: 'Armes à feu', description: 'Le meilleur endroit pour s\'entraîner au tir.', kingdomName: 'LSPD' },
             { name: 'Garage de Benny', specialty: 'Mécanique & Conduite', description: 'Apprends à piloter et à tuner tes bolides.', kingdomName: 'Families' },
             { name: 'Cyber Café DarkNet', specialty: 'Hacking & Tech', description: 'Un lieu discret pour apprendre l\'informatique souterraine.', kingdomName: 'Gangs Locaux' }
@@ -835,5 +856,6 @@ module.exports = {
   Monster,
   PlayerSkill,
   RPMessage,
+  School,
   setupDatabase,
 };
