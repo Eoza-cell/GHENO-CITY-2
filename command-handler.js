@@ -34,7 +34,7 @@ commands.set('start', async (sock, message) => {
         whatsappId: jid,
         registrationStep: 'awaiting_name'
     });
-    await sock.sendMessage(replyJid, { text: "*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\nHélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.\n\nLe temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énemies... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est votre nom, aventurier ?" });
+    await sock.sendMessage(replyJid, { text: "*Bienvenue à Gheno City, l'endroit où tout est possible si tu as le cran et le flingue pour...*\n\nIci, la rue ne pardonne pas. Que tu sois un petit malfrat de Little Sicily ou que tu vises le sommet de la tour de l'Union Depository, tu vas devoir te faire un nom. Les gangs se battent pour chaque centimètre d'asphalte, le LSPD est partout, et l'argent est le seul dieu reconnu.\n\n*Prépare-toi... la ville t'attend.*\n\n*3... 2... 1... GO!*\n\nPour commencer, quel est ton nom de rue, petit ?" });
   } else if (player.registrationStep) {
     // Resume registration
     if (player.registrationStep === 'awaiting_name') {
@@ -62,19 +62,19 @@ commands.set('competences', async (sock, message) => {
     const skills = player.Skills;
 
     if (!skills || skills.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !" });
+        await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune spécialité pour le moment. Entraîne-toi dans les centres de formation pour en apprendre !" });
         return;
     }
 
-    let skillText = `*Compétences de ${player.name}:*\n\n`;
+    let skillText = `*Spécialités de ${player.name}:*\n\n`;
 
     const activeSkills = skills.filter(s => s.type === 'active' || s.type === 'spell' || s.type === 'sword_technique');
     const passiveSkills = skills.filter(s => s.type === 'passive');
 
     if (activeSkills.length > 0) {
-        skillText += "*Capacités Actives & Sorts:*\n";
+        skillText += "*Capacités Actives:*\n";
         activeSkills.forEach(s => {
-            skillText += `- *${s.name}* (${s.manaCost} PM): ${s.description}\n`;
+            skillText += `- *${s.name}* (${s.manaCost} Énergie): ${s.description}\n`;
         });
         skillText += "\n";
     }
@@ -108,7 +108,7 @@ commands.set('quests', async (sock, message) => {
         return;
     }
 
-    let questText = '--- 📜 JOURNAL DE QUÊTES --- \n\n';
+    let questText = '--- 📜 LISTE DES CONTRATS --- \n\n';
     if (activeQuests.length > 0) {
         questText += '*⚔️ En Cours:*\n' + activeQuests.map(q => `├ ${q.title}\n└ ${q.description}`).join('\n\n') + '\n\n';
     }
@@ -117,7 +117,7 @@ commands.set('quests', async (sock, message) => {
     }
 
     if (activeQuests.length === 0 && notStartedQuests.length === 0) {
-        questText += "Aucune quête à l'horizon. Explore le monde !";
+        questText += "Aucun contrat à l'horizon. Fais-toi discret ou cherche du boulot !";
     }
 
     await sock.sendMessage(replyJid, { text: questText });
@@ -152,20 +152,20 @@ const profileCommand = async (sock, message) => {
 
   const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                       `👤 *JOUEUR:* ${player.name}\n` +
-                      `🎭 *CLASSE:* ${player.class}\n` +
-                      `🎖️ *RANG:* ${player.rank}\n` +
+                      `🎭 *RÔLE:* ${player.class}\n` +
+                      `🎖️ *NOTORIÉTÉ:* ${player.rank}\n` +
                       `📊 *NIVEAU:* ${player.level}\n\n` +
                       `❤️ *VIE:*  [${healthBar}] ${player.health}/${player.maxHealth}\n` +
-                      `🔷 *MANA:* [${manaBar}] ${player.mana}/${player.maxMana}\n` +
+                      `⚡ *ÉNERGIE:* [${manaBar}] ${player.mana}/${player.maxMana}\n` +
                       `✨ *XP:*   [${xpBar}] ${player.xp}/${xpNeeded}\n\n` +
-                      `--- ⚔️ STATISTIQUES --- \n` +
+                      `--- ⚔️ CAPACITÉS --- \n` +
                       `💪 Force: ${player.strength}\n` +
                       `🏃 Agilité: ${player.agility}\n` +
                       `🧠 Intelligence: ${player.intelligence}\n` +
                       `🛡️ Défense: ${player.defense}\n` +
                       `🍀 Chance: ${player.luck}\n` +
                       `✨ *SP:* ${player.skillPoints}\n\n` +
-                      `💰 *COL:* ${player.col} 🪙\n` +
+                      `💰 *DOLLARS:* ${player.col} $\n` +
                       `---------------------------`;
 
   await sock.sendMessage(replyJid, { text: profileText });
@@ -197,14 +197,14 @@ commands.set('inspecter', async (sock, message) => {
     const xpBar = createStatusBar(targetPlayer.xp, xpNeeded);
 
     const profileText = `--- 🔍 INSPECTION - ${targetPlayer.name} --- \n\n` +
-                        `🎭 *CLASSE:* ${targetPlayer.class}\n` +
-                        `🎖️ *RANG:* ${targetPlayer.rank}\n` +
+                        `🎭 *RÔLE:* ${targetPlayer.class}\n` +
+                        `🎖️ *NOTORIÉTÉ:* ${targetPlayer.rank}\n` +
                         `📊 *NIVEAU:* ${targetPlayer.level}\n\n` +
                         `❤️ *VIE:*  [${healthBar}] ${targetPlayer.health}/${targetPlayer.maxHealth}\n` +
-                        `🔷 *MANA:* [${manaBar}] ${targetPlayer.mana}/${targetPlayer.maxMana}\n` +
+                        `⚡ *ÉNERGIE:* [${manaBar}] ${targetPlayer.mana}/${targetPlayer.maxMana}\n` +
                         `✨ *XP:*   [${xpBar}] ${targetPlayer.xp}/${xpNeeded}\n\n` +
                         `📜 *BIO:* ${targetPlayer.characterDescription || 'Aucune description.'}\n\n` +
-                        `--- ⚔️ STATISTIQUES --- \n` +
+                        `--- ⚔️ CAPACITÉS --- \n` +
                         `💪 Force: ${targetPlayer.strength}\n` +
                         `🏃 Agilité: ${targetPlayer.agility}\n` +
                         `🧠 Intelligence: ${targetPlayer.intelligence}\n` +
@@ -249,11 +249,11 @@ commands.set('map', async (sock, message) => {
     }
 
     const dungeons = await Dungeon.findAll();
-    const mapText = `--- 🗺️ CARTE D'AETHERYS --- \n\n` +
-                    `📍 *POSITION:* ${player.location}\n\n` +
-                    `🏰 *DONJONS DÉCOUVERTS:* \n` +
-                    dungeons.map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
-                    `\n\n_Le monde est vaste. Déplace-toi via le mode /action._`;
+    const mapText = `--- 🗺️ CARTE DE GHENO CITY --- \n\n` +
+                    `📍 *QUARTIER:* ${player.location}\n\n` +
+                    `🏰 *TERRITOIRES & POINTS D'INTÉRÊT:* \n` +
+                    dungeons.map(d => `├ ${d.name} (Difficulté ${d.rank})`).join('\n') +
+                    `\n\n_La ville est immense. Déplace-toi via le mode /action._`;
 
     await sock.sendMessage(replyJid, { text: mapText });
 });
@@ -269,10 +269,10 @@ commands.set('boutique', async (sock, message) => {
         return;
     }
 
-    let boutiqueText = "--- ⚔️ FORGE DE BROKK --- \n\n";
+    let boutiqueText = "--- ⚔️ AMMU-NATION --- \n\n";
     items.forEach(item => {
         boutiqueText += `*${item.name.toUpperCase()}*\n`;
-        boutiqueText += `├ 💰 Prix: ${item.price} 🪙\n`;
+        boutiqueText += `├ 💰 Prix: ${item.price} $\n`;
         const bonuses = item.statBonuses;
         const bonusStrings = Object.entries(bonuses).map(([stat, value]) => `${stat}: +${value}`);
         if (bonusStrings.length > 0) {
@@ -349,12 +349,12 @@ commands.set('royaumes', async (sock, message) => {
     const { Kingdom } = require('./database');
     const kingdoms = await Kingdom.findAll();
 
-    let text = "--- 🏰 ROYAUMES D'AETHERYS --- \n\n";
+    let text = "--- 🏰 FACTIONS DE GHENO CITY --- \n\n";
     kingdoms.forEach(k => {
         text += `*${k.name.toUpperCase()}*\n`;
-        text += `├ 👑 Leader: ${k.leader}\n`;
-        text += `├ ⚔️ Force Militaire: ${k.militaryPower}\n`;
-        text += `├ 📊 Influence: ${k.influence}\n`;
+        text += `├ 👑 Boss: ${k.leader}\n`;
+        text += `├ ⚔️ Puissance de feu: ${k.militaryPower}\n`;
+        text += `├ 📊 Influence urbaine: ${k.influence}\n`;
         text += `└ 📜 ${k.description}\n\n`;
     });
 
@@ -367,11 +367,11 @@ commands.set('ecoles', async (sock, message) => {
     const { School } = require('./database');
     const schools = await School.findAll();
 
-    let text = "--- 🏫 ACADÉMIES D'AETHERYS --- \n\n";
+    let text = "--- 🏫 CENTRES DE FORMATION --- \n\n";
     schools.forEach(s => {
         text += `*${s.name.toUpperCase()}*\n`;
         text += `├ 🧪 Spécialité: ${s.specialty}\n`;
-        text += `├ 📍 Royaume: ${s.kingdomName}\n`;
+        text += `├ 📍 Quartier: ${s.kingdomName}\n`;
         text += `└ 📜 ${s.description}\n\n`;
     });
 
@@ -459,10 +459,10 @@ commands.set('god', async (sock, message, args) => {
             }
             break;
         case 'col':
-            const amount = parseInt(args[0]);
-            if (!isNaN(amount)) {
-                await targetPlayer.increment('col', { by: amount });
-                await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${amount} Col de la part du créateur.` });
+            const amountCol = parseInt(args[0]);
+            if (!isNaN(amountCol)) {
+                await targetPlayer.increment('col', { by: amountCol });
+                await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${amountCol} $ de la part du créateur.` });
             }
             break;
     }
@@ -472,11 +472,11 @@ commands.set('god', async (sock, message, args) => {
 commands.set('tournoi', async (sock, message) => {
     const replyJid = message.key.remoteJid;
 
-    let text = "--- 🏆 GRAND TOURNOI D'AETHERYS --- \n\n";
-    text += "Le Tournoi Inter-Écoles a lieu une fois par an (chaque mois réel).\n\n";
-    text += "⚔️ *Format:* Duels 1v1 par rangs.\n";
-    text += "🎁 *Récompenses:* Équipement légendaire, Col, et titres de noblesse.\n\n";
-    text += "_Les inscriptions s'ouvriront bientôt auprès du Directeur de ton école._";
+    let text = "--- 🏆 L'ARENE DES GANGS --- \n\n";
+    text += "Le Grand Tournoi de la Ville a lieu une fois par an (chaque mois réel).\n\n";
+    text += "⚔️ *Format:* Duels 1v1 ou Guerres de Gangs.\n";
+    text += "🎁 *Récompenses:* Armes de collection, Dollars, et contrôle de quartiers.\n\n";
+    text += "_Les inscriptions s'ouvriront bientôt auprès de tes contacts._";
 
     await sock.sendMessage(replyJid, { text: text });
 });
@@ -516,11 +516,11 @@ commands.set('bank', async (sock, message) => {
 
     const [bank, created] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
 
-    const bankText = `--- 🏦 BANQUE D'ELION --- \n\n` +
-                     `💳 *SOLDE:* ${bank.balance} 🪙\n\n` +
+    const bankText = `--- 🏦 BANQUE DE MAZE BANK --- \n\n` +
+                     `💳 *SOLDE:* ${bank.balance} $\n\n` +
                      `--------------------------- \n` +
                      `_Pour déposer ou retirer, utilise le mode /action._\n` +
-                     `_Ex: "Je dépose 50 col à la banque"_`;
+                     `_Ex: "Je dépose 50 $ à la banque"_`;
 
     await sock.sendMessage(replyJid, { text: bankText });
 });
@@ -555,24 +555,24 @@ commands.set('donner', async (sock, message, args) => {
 
     const amountIndex = args.findIndex(arg => !isNaN(parseInt(arg)));
     const amount = amountIndex !== -1 ? parseInt(args[amountIndex]) : 0;
-    const isCol = args.some(arg => arg.toLowerCase() === 'col' || arg.toLowerCase() === 'cols');
+    const isCol = args.some(arg => arg.toLowerCase() === 'col' || arg.toLowerCase() === 'cols' || arg.toLowerCase() === '$' || arg.toLowerCase() === 'dollars');
 
     if (isCol && amount > 0) {
         if (player.col < amount) {
-            await sock.sendMessage(replyJid, { text: "Tu n'as pas assez de Col." });
+            await sock.sendMessage(replyJid, { text: "Tu n'as pas assez d'argent." });
             return;
         }
 
         await player.decrement('col', { by: amount });
         await targetPlayer.increment('col', { by: amount });
 
-        await sock.sendMessage(replyJid, { text: `Tu as donné ${amount} Col à ${targetPlayer.name}.` });
-        await sock.sendMessage(mentionedJid, { text: `💰 ${player.name} t'a donné ${amount} Col !` });
+        await sock.sendMessage(replyJid, { text: `Tu as donné ${amount} $ à ${targetPlayer.name}.` });
+        await sock.sendMessage(mentionedJid, { text: `💰 ${player.name} t'a donné ${amount} $ !` });
         return;
     }
 
     // Giving items
-    const itemName = args.filter(arg => isNaN(parseInt(arg)) && !['col', 'cols'].includes(arg.toLowerCase()) && !arg.startsWith('@')).join(' ');
+    const itemName = args.filter(arg => isNaN(parseInt(arg)) && !['col', 'cols', '$', 'dollars'].includes(arg.toLowerCase()) && !arg.startsWith('@')).join(' ');
     if (itemName) {
         let inventory = [...player.inventory];
         const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === itemName.toLowerCase());
@@ -660,13 +660,13 @@ commands.set('statut', async (sock, message) => {
 
     try {
         const imageBuffer = await generateEquipmentStatusImage(equipped);
-        let caption = `*État de l'équipement de ${player.name}*\n\n`;
-        caption += `🟢 Protégé | ⚪ Non protégé\n\n`;
-        caption += `${equipped.head ? '🟢' : '⚪'} Tête\n`;
-        caption += `${equipped.chest ? '🟢' : '⚪'} Torse\n`;
-        caption += `${equipped.arms ? '🟢' : '⚪'} Bras\n`;
-        caption += `${equipped.legs ? '🟢' : '⚪'} Jambes\n`;
-        caption += `${equipped.weapon ? '⚔️' : '⚪'} Arme\n`;
+        let caption = `*État de l'équipement tactique de ${player.name}*\n\n`;
+        caption += `🟢 Équipé | ⚪ Vide\n\n`;
+        caption += `${equipped.head ? '🟢' : '⚪'} Casque\n`;
+        caption += `${equipped.chest ? '🟢' : '⚪'} Gilet\n`;
+        caption += `${equipped.arms ? '🟢' : '⚪'} Gants\n`;
+        caption += `${equipped.legs ? '🟢' : '⚪'} Jambières\n`;
+        caption += `${equipped.weapon ? '🔫' : '⚪'} Arme\n`;
 
         await sock.sendMessage(replyJid, {
             image: imageBuffer,
@@ -718,31 +718,31 @@ commands.set('menu', async (sock, message) => {
     await player.update({ mode: 'normal' });
   }
 
-  const menuText = "🌐 *GHENO CITY 2: LINK START* 🌐\n\n" +
-                   "Que souhaites-tu faire, voyageur ?\n\n" +
+  const menuText = "🌐 *GHENO CITY 2: URBAN CRIME* 🌐\n\n" +
+                   "Quoi de neuf aujourd'hui, boss ?\n\n" +
                    "🎮 `/action` - Entrer dans la matrice (RP).\n" +
-                   "👤 `/profil` - Ton profil de joueur.\n" +
-                   "📋 `/quests` - Liste de tes objectifs.\n" +
-                   "🗺️ `/map` - Carte du monde & Donjons.\n" +
-                   "💰 `/bank` - Gestion de tes Col (🪙).\n" +
-                   "🛡️ `/statut` - État de ton équipement.\n" +
-                   "✨ `/competences` - Sorts & Techniques.\n" +
-                   "🛒 `/boutique` - Boutique d'objets.\n" +
-                   "👥 `/joueurs` - Joueurs aux alentours.\n" +
+                   "👤 `/profil` - Ton profil de malfrat.\n" +
+                   "📋 `/quests` - Tes contrats en cours.\n" +
+                   "🗺️ `/map` - Carte de la ville & Territoires.\n" +
+                   "💰 `/bank` - Gestion de ton blanchiment (Maze Bank).\n" +
+                   "🛡️ `/statut` - État de ton équipement tactique.\n" +
+                   "✨ `/competences` - Spécialités & Capacités.\n" +
+                   "🛒 `/boutique` - Ammu-Nation.\n" +
+                   "👥 `/joueurs` - Rivaux aux alentours.\n" +
                    "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
-                   "🤝 `/donner @joueur ...` - Échange d'objets.\n" +
-                   "🏰 `/royaumes` - Géopolitique mondiale.\n" +
-                   "🛡️ `/conflits` - Guerres en cours.\n" +
-                   "🏫 `/ecoles` - Liste des académies.\n" +
-                   "📝 `/examens` - Ton dossier scolaire.\n" +
-                   "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
-                   "❓ `/help` - Guide de survie.";
+                   "🤝 `/donner @joueur ...` - Échange illégal.\n" +
+                   "🏰 `/royaumes` - Factions de la ville.\n" +
+                   "🛡️ `/conflits` - Guerres de gangs.\n" +
+                   "🏫 `/ecoles` - Centres de formation.\n" +
+                   "📝 `/examens` - Ton casier judiciaire.\n" +
+                   "🏆 `/tournoi` - L'arène des gangs.\n" +
+                   "❓ `/help` - Manuel du crime.";
 
-  // High quality SAO Menu Image
-  const saoMenuUrl = "https://images.alphacoders.com/264/264350.jpg";
+  // GTA V Style Menu Image
+  const menuImageUrl = "https://media-rockstargames-com.akamaized.net/rockstargames-newsite/img/global/games/fob/640/V.jpg";
 
   try {
-    const response = await axios.get(saoMenuUrl, {
+    const response = await axios.get(menuImageUrl, {
         responseType: 'arraybuffer',
         headers: { 'User-Agent': 'Mozilla/5.0' }
     });
@@ -791,12 +791,12 @@ async function handleCommand(sock, message, downloadMediaMessage) {
               await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
 
               // Assign starting quests
-              const startingQuest = await Quest.findOne({ where: { title: 'La Chasse aux Gobelins' } });
+              const startingQuest = await Quest.findOne({ where: { title: 'Initiation au vol' } });
               if (startingQuest) {
                   await player.addQuest(startingQuest, { through: { status: 'not_started' } });
               }
 
-              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
+              await sock.sendMessage(replyJid, { text: `Ok, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un braqueur expérimenté et silencieux", "un pilote de rue prêt à tout pour la gagne").` });
           } else {
               await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
           }
@@ -818,6 +818,21 @@ async function handleCommand(sock, message, downloadMediaMessage) {
 
   if (!player && !messageText.startsWith('/start')) {
     await sock.sendMessage(replyJid, { text: "Utilise /start pour commencer." });
+    return;
+  }
+
+  // Handle driving mode
+  if (player?.mode === 'driving' && !messageText.startsWith('/')) {
+    try {
+        const { handleDrivingAction } = require('./driving-handler');
+        await handleDrivingAction(sock, message, player, messageText);
+    } catch (error) {
+        console.error('Erreur mode conduite:', error);
+        await sock.sendMessage(replyJid, { text: "Problème avec le véhicule. Mode normal rétabli." });
+        await player.update({ mode: 'normal' });
+    } finally {
+        await player.update({ lastActivity: new Date() });
+    }
     return;
   }
 

@@ -90,7 +90,7 @@ const Player = sequelize.define('Player', {
   },
   location: {
     type: DataTypes.STRING,
-    defaultValue: 'Eldoria',
+    defaultValue: 'Little Sicily',
   },
   mode: {
     type: DataTypes.STRING,
@@ -409,6 +409,47 @@ const Duel = sequelize.define('Duel', {
     }
 });
 
+const Vehicle = sequelize.define('Vehicle', {
+    name: {
+        type: DataTypes.STRING,
+        unique: true,
+    },
+    description: {
+        type: DataTypes.TEXT,
+    },
+    price: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+    },
+    topSpeed: {
+        type: DataTypes.INTEGER,
+        defaultValue: 150,
+    },
+    acceleration: {
+        type: DataTypes.INTEGER,
+        defaultValue: 10,
+    },
+    brakePower: {
+        type: DataTypes.INTEGER,
+        defaultValue: 10,
+    },
+    imageUrl: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    }
+});
+
+const PlayerVehicle = sequelize.define('PlayerVehicle', {
+    damage: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+    },
+    currentSpeed: {
+        type: DataTypes.FLOAT,
+        defaultValue: 0,
+    }
+});
+
 const Monster = sequelize.define('Monster', {
     name: {
         type: DataTypes.STRING,
@@ -451,6 +492,11 @@ Quest.belongsToMany(Player, { through: PlayerQuest });
 Player.belongsToMany(Skill, { through: PlayerSkill });
 Skill.belongsToMany(Player, { through: PlayerSkill });
 
+Player.hasMany(PlayerVehicle);
+PlayerVehicle.belongsTo(Player);
+Vehicle.hasMany(PlayerVehicle);
+PlayerVehicle.belongsTo(Vehicle);
+
 
 async function setupDatabase() {
   try {
@@ -462,554 +508,128 @@ async function setupDatabase() {
     // Seed initial game data
     const dungeonCount = await Dungeon.count();
     if (dungeonCount === 0) {
-        console.log('Seeding Dungeons for Aetherys...');
+        console.log('Seeding Territories for Gheno City...');
         await Dungeon.bulkCreate([
-            // Rang E-D : Donjons Débutants
-            { name: 'Forêt des Gobelins', description: 'Une forêt dense infestée de gobelins.', rank: 'E', floors: 5 },
-            { name: 'Mine de Cobalt', description: 'Ancienne mine de minerai rare, refuge des kobolds.', rank: 'D', floors: 10 },
-            { name: 'Jardin des Murmures', description: 'Un labyrinthe végétal où les fleurs murmurent des secrets.', rank: 'D', floors: 8 },
+            // Rang E-D : Débuts dans le crime
+            { name: 'Épicerie de 24/7', description: 'Un petit braquage facile pour se faire la main.', rank: 'E', floors: 1 },
+            { name: 'Entrepôt Abandonné', description: 'Un squat servant de point de deal.', rank: 'D', floors: 3 },
+            { name: 'Parking Souterrain', description: 'Idéal pour les échanges louches.', rank: 'D', floors: 2 },
 
-            // Rang C-B : Zones Mortelles
-            { name: 'Caverne des Ombres', description: 'Une grotte obscure habitée par des spectres.', rank: 'C', floors: 15 },
-            { name: 'Ruines de Xanadu', description: 'Les vestiges d\'une cité antique hantée.', rank: 'C', floors: 18 },
-            { name: 'Forteresse de Fer', description: 'Une citadelle imprenable gardée par des golems.', rank: 'B', floors: 25 },
-            { name: 'Montagnes du Tonnerre', description: 'Sommets perpétuellement frappés par la foudre.', rank: 'B', floors: 22 },
-            { name: 'Crypte des Rois Oubliés', description: 'Tombeau des anciens souverains d\'Aetherys.', rank: 'B', floors: 18 },
-            { name: 'Labyrinthe d\'Aincrad', description: 'Un défi complexe de 100 étages flottant dans le ciel.', rank: 'B', floors: 100 },
+            // Rang C-B : Crime Organisé
+            { name: 'Bijouterie Vangelico', description: 'Des vitrines pleines de diamants, mais bien gardées.', rank: 'C', floors: 2 },
+            { name: 'Banque de Fleeca', description: 'Une petite agence bancaire de province.', rank: 'C', floors: 1 },
+            { name: 'Villa d\'un Parrain', description: 'Protection rapprochée et caméras partout.', rank: 'B', floors: 4 },
+            { name: 'Port de Gheno City', description: 'Trafic de containers et douaniers corrompus.', rank: 'B', floors: 5 },
 
-            // Rang A-S : Catastrophes Vivantes
-            { name: 'Volcan d\'Ignis', description: 'Le coeur brûlant d\'Aetherys, domaine des dragons.', rank: 'A', floors: 30 },
-            { name: 'Tour des Épreuves', description: 'Une tour s\'élevant vers les cieux, testant les héros.', rank: 'A', floors: 50 },
-            { name: 'Citadelle de Cristal', description: 'Forteresse translucide aux pouvoirs magiques intenses.', rank: 'A', floors: 30 },
-            { name: 'Donjon du Destin', description: 'Un donjon imprévisible dont personne n\'est revenu.', rank: 'S', floors: 50 },
-            { name: 'Porte du Néant', description: 'La frontière finale protégeant le monde de l\'annihilation.', rank: 'S', floors: 1 },
-            { name: 'Abysse de l\'Oubli', description: 'Un gouffre sans fond situé dans le Dominion Noir.', rank: 'S', floors: 50 },
-            { name: 'Nécropole de Granit', description: 'Cité des morts-vivants sculptée dans la roche.', rank: 'S', floors: 45 }
+            // Rang A-S : Légendes de la Rue
+            { name: 'Casino Diamond', description: 'Le coffre-fort le plus sécurisé de la ville.', rank: 'A', floors: 10 },
+            { name: 'Union Depository', description: 'La banque centrale, des lingots d\'or par milliers.', rank: 'S', floors: 15 },
+            { name: 'Base Militaire Fort Zancudo', description: 'Accès restreint. On y trouve le meilleur matos.', rank: 'S', floors: 5 }
         ]);
-        console.log('Dungeons seeded.');
+        console.log('Territories seeded.');
     }
 
     console.log('Synchronisation du contenu du jeu...');
     const itemsToSeed = [
             {
-                name: 'Elucidator',
-                description: 'Une épée noire obsidienne d\'une puissance incroyable.',
+                name: 'Pistolet de combat',
+                description: 'Une arme de poing fiable et précise.',
+                price: 500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 5, agility: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/gtawiki/images/7/70/CombatPistol-GTAV.png'
+            },
+            {
+                name: 'Carabine spéciale',
+                description: 'Fusil d\'assaut polyvalent avec une cadence de tir élevée.',
+                price: 2500,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 15, agility: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/gtawiki/images/3/30/SpecialCarbine-GTAV.png'
+            },
+            {
+                name: 'Fusil à pompe',
+                description: 'Dévastateur à courte portée.',
+                price: 1200,
+                type: 'weapon',
+                slot: 'weapon',
+                statBonuses: { strength: 20 },
+                imageUrl: 'https://static.wikia.nocookie.net/gtawiki/images/4/4e/PumpShotgun-GTAV.png'
+            },
+            {
+                name: 'Fusil de précision',
+                description: 'Pour éliminer vos cibles à distance.',
                 price: 5000,
                 type: 'weapon',
                 slot: 'weapon',
-                statBonuses: { strength: 25, agility: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/5/53/Elucidator.png'
+                statBonuses: { intelligence: 20, luck: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/gtawiki/images/4/40/SniperRifle-GTAV.png'
             },
             {
-                name: 'Dark Repulser',
-                description: 'Une épée forgée à partir d\'un cristal rare, compagne de l\'Elucidator.',
-                price: 4500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 20, agility: 15 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/82/Dark_Repulser.png'
-            },
-            {
-                name: 'Lambent Light',
-                description: 'Une rapière élégante et rapide comme l\'éclair.',
-                price: 4000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 25, luck: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Lambent_Light.png'
-            },
-            {
-                name: 'Blue Rose Sword',
-                description: 'Une épée gravée d\'une rose bleue, capable de geler les ennemis.',
-                price: 6000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { intelligence: 20, defense: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/1/1a/Blue_Rose_Sword.png'
-            },
-            {
-                name: 'Night Sky Sword',
-                description: 'Une épée forgée à partir d\'une branche de l\'Arbre du Destin.',
-                price: 7000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 30, intelligence: 15 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/f/f6/Night_Sky_Sword.png'
-            },
-            // Armures
-            {
-                name: 'Plastron de la Confrérie',
-                description: 'L\'armure emblématique des Chevaliers du Sang.',
-                price: 3000,
+                name: 'Gilet pare-balles léger',
+                description: 'Une protection de base contre les tirs.',
+                price: 300,
                 type: 'armor',
                 slot: 'chest',
-                statBonuses: { defense: 20, strength: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Knights_of_the_Blood_Uniform.png'
-            },
-            {
-                name: 'Heaume de Fer',
-                description: 'Un casque solide offrant une protection basique.',
-                price: 800,
-                type: 'armor',
-                slot: 'head',
                 statBonuses: { defense: 10 },
             },
             {
-                name: 'Gantelets de Combat',
-                description: 'Des gantelets renforçant les coups et la garde.',
-                price: 600,
-                type: 'armor',
-                slot: 'arms',
-                statBonuses: { defense: 5, strength: 3 },
-            },
-            {
-                name: 'Jambières de Vitesse',
-                description: 'Des bottes légères favorisant le mouvement.',
-                price: 1200,
-                type: 'armor',
-                slot: 'legs',
-                statBonuses: { defense: 8, agility: 10 },
-            },
-            {
-                name: 'Arc Elfique',
-                description: 'Un arc élégant sculpté dans du bois de lothlorien.',
-                price: 2500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 15, luck: 5 },
-            },
-            {
-                name: 'Bouclier en Os de Dragon',
-                description: 'Un bouclier massif forgé à partir des restes d\'un dragon ancien.',
-                price: 3500,
-                type: 'armor',
-                slot: 'arms',
-                statBonuses: { defense: 25, strength: 10 },
-            },
-            {
-                name: 'Tunique de Soie Magique',
-                description: 'Une tunique légère imprégnée de mana.',
-                price: 1800,
+                name: 'Gilet pare-balles lourd',
+                description: 'Protection maximale pour les braquages.',
+                price: 1000,
                 type: 'armor',
                 slot: 'chest',
-                statBonuses: { intelligence: 15, defense: 5 },
+                statBonuses: { defense: 25, agility: -5 },
             },
             {
-                name: 'Fragrant Olive Sword',
-                description: 'L\'épée divine d\'Alice, capable de se diviser en mille pétales.',
-                price: 8000,
+                name: 'Casque de moto',
+                description: 'Protège la tête et donne du style.',
+                price: 150,
+                type: 'armor',
+                slot: 'head',
+                statBonuses: { defense: 5 },
+            },
+            {
+                name: 'Batte de baseball',
+                description: 'Classique et efficace pour le corps à corps.',
+                price: 50,
                 type: 'weapon',
                 slot: 'weapon',
-                statBonuses: { strength: 35, defense: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/43/Fragrant_Olive_Sword.png'
+                statBonuses: { strength: 10 },
             },
             {
-                name: 'Heaven Piercing Sword',
-                description: 'L\'épée de Fanatio, dont la lumière peut tout transpercer.',
-                price: 7500,
+                name: 'Poing américain',
+                description: 'Pour donner plus de punch à vos patates.',
+                price: 100,
                 type: 'weapon',
                 slot: 'weapon',
-                statBonuses: { intelligence: 30, agility: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/7/77/Heaven_Piercing_Sword.png'
+                statBonuses: { strength: 15 },
             },
             {
-                name: 'Liberator',
-                description: 'L\'épée et le bouclier massifs de Heathcliff.',
-                price: 10000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 20, defense: 40 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/d/df/Liberator_Shield.png'
-            },
-            {
-                name: 'Kagemitsu G4',
-                description: 'Un sabre laser (Photon Sword) extrêmement léger et tranchant.',
-                price: 5500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 30, strength: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e0/Kagemitsu_G4_Design.png'
-            },
-            {
-                name: 'Wind Fleuret',
-                description: 'Une rapière de haut niveau pour les joueurs agiles.',
-                price: 1500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 12 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Wind_Fleuret.png'
-            },
-            {
-                name: 'Anneal Blade',
-                description: 'Une épée droite à une main obtenue lors d\'une quête difficile.',
-                price: 1200,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 10, agility: 2 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/25/Anneal_Blade.png'
-            },
-            {
-                name: 'Excalibur',
-                description: 'L\'épée la plus puissante d\'ALfheim Online.',
-                price: 15000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 50, intelligence: 30, agility: 20 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4e/Excalibur.png'
-            },
-            {
-                name: 'Object Eraser',
-                description: 'Une épée de MJ capable d\'effacer n\'importe quel objet du monde virtuel.',
-                price: 50000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 100, intelligence: 100 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a8/Object_Eraser.png'
-            },
-            {
-                name: 'Infracheur de Ciel',
-                description: 'Une épée lourde capable de briser les défenses les plus solides.',
-                price: 3200,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 22, defense: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b5/Sky_Piercing_Sword.png'
-            },
-            {
-                name: 'Rapière de Fleur de Givre',
-                description: 'Une rapière imprégnée de l\'élément glace.',
-                price: 2800,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 18, intelligence: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e0/Frost_Flower_Rapier.png'
-            },
-            {
-                name: 'Épée de l\'Arbre du Destin',
-                description: 'Forgée à partir du bois sacré, elle résonne avec la nature.',
-                price: 4800,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { intelligence: 25, luck: 15 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e7/Gigas_Cedar.png'
-            },
-            {
-                name: 'Karakurenai',
-                description: 'Le katana courbe de Klein, capable de trancher l\'acier.',
-                price: 3500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 18, agility: 12 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/bc/Karakurenai.png'
-            },
-            {
-                name: 'Mate-Chopper',
-                description: 'Un hachoir terrifiant utilisé par le chef des Laughing Coffin.',
-                price: 4200,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 28, luck: -5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4c/Mate_Chopper_Design.png'
-            },
-            {
-                name: 'Gram',
-                description: 'L\'épée à deux mains de Sigurd, imprégnée d\'une aura de vide.',
-                price: 5200,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 30, intelligence: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/2a/Gram.png'
-            },
-            {
-                name: 'Tyrant Dragon',
-                description: 'La hache massive d\'Agil, capable de briser n\'importe quelle garde.',
-                price: 3800,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 35, defense: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/3/36/Tyrant_Dragon.png'
-            },
-            {
-                name: 'Shadow Dagger',
-                description: 'Une dague rapide et empoisonnée utilisée par Silica.',
-                price: 2200,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 20, luck: 8 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/87/Shadow_Dagger.png'
-            },
-            {
-                name: 'Radiant Light',
-                description: 'La rapière divine de Stacia, émettant une lumière pure.',
-                price: 9000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 35, intelligence: 20 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/23/Radiant_Light.png'
-            },
-            {
-                name: 'Time Splitting Sword',
-                description: 'L\'épée de Bercouli, capable de trancher le passé et le futur.',
-                price: 12000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 40, intelligence: 30 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4e/Time_Splitting_Sword.png'
-            },
-            {
-                name: 'Conflagrant Flame Bow',
-                description: 'L\'arc de Deusolbert, décochant des flèches de feu inextinguibles.',
-                price: 6500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 25, intelligence: 15 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/6/6d/Conflagrant_Flame_Bow.png'
-            },
-            {
-                name: 'Frostscale Whip',
-                description: 'Le fouet d\'Eldrie, se transformant en serpent de givre.',
-                price: 5800,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 22, intelligence: 18 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e1/Frostscale_Whip.png'
-            },
-            {
-                name: 'Anneau de Céleste',
-                description: 'Un anneau augmentant la régénération de mana.',
+                name: 'Téléphone crypté',
+                description: 'Indispensable pour les communications sécurisées.',
                 price: 2000,
                 type: 'accessory',
                 slot: 'none',
-                statBonuses: { intelligence: 15, luck: 5 }
+                statBonuses: { intelligence: 15 },
             },
             {
-                name: 'Épée de la Forêt',
-                description: 'Une épée de base pour les nouveaux aventuriers.',
-                price: 300,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Anneal_Blade.png'
-            },
-            {
-                name: 'Rapière de Fer',
-                description: 'Une arme légère pour frapper vite.',
-                price: 450,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 6 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Wind_Fleuret.png'
-            },
-            {
-                name: 'Cape de l\'Ombre',
-                description: 'Une cape favorisant la discrétion et l\'agilité.',
+                name: 'Scanner de police',
+                description: 'Permet d\'écouter les fréquences du LSPD.',
                 price: 1500,
-                type: 'armor',
-                slot: 'chest',
-                statBonuses: { agility: 12, defense: 3 }
-            },
-            {
-                name: 'Amulette de Fortune',
-                description: 'Une amulette bénie qui attire la chance.',
-                price: 3000,
                 type: 'accessory',
                 slot: 'none',
-                statBonuses: { luck: 25 }
+                statBonuses: { intelligence: 10, luck: 10 },
             },
             {
-                name: 'Bottes de Sept Lieues',
-                description: 'Des bottes magiques permettant de parcourir de grandes distances.',
-                price: 4000,
-                type: 'armor',
-                slot: 'legs',
-                statBonuses: { agility: 30 }
-            },
-            {
-                name: 'Livre des Sorts Anciens',
-                description: 'Un grimoire contenant des connaissances oubliées.',
-                price: 5000,
+                name: 'Kit de crochetage',
+                description: 'Pour ouvrir les voitures et les portes fermées.',
+                price: 200,
                 type: 'item',
                 slot: 'none',
-                statBonuses: { intelligence: 40 }
-            },
-            {
-                name: 'Anneau de Kirito',
-                description: 'Un anneau légendaire augmentant tous les sens.',
-                price: 25000,
-                type: 'accessory',
-                slot: 'none',
-                statBonuses: { strength: 10, agility: 10, intelligence: 10, luck: 10, defense: 10 }
-            },
-            {
-                name: 'Manteau de Minuit',
-                description: 'Le manteau emblématique de Kirito, favorisant la discrétion.',
-                price: 12000,
-                type: 'armor',
-                slot: 'chest',
-                statBonuses: { agility: 25, defense: 15 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c8/Black_wyrm_coat.png'
-            },
-            {
-                name: 'Heroic Promise',
-                description: 'Une épée courte et puissante, symbole de courage.',
-                price: 4500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 15, luck: 15 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/8d/Heroic_Promise.png'
-            },
-            {
-                name: 'Unity Vow',
-                description: 'Une épée forgée pour l\'unité et la protection des alliés.',
-                price: 5500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { defense: 20, strength: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/0/07/Unity_Vow.png'
-            },
-            {
-                name: 'The Eclipse',
-                description: 'Un set de deux épées représentant l\'ombre et la lumière.',
-                price: 20000,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 40, agility: 40, luck: 20 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/1/1a/Dual_Blades_Anime.png'
-            },
-            {
-                name: 'Amulette d\'Yuna',
-                description: 'Un bijou mélodieux augmentant les capacités magiques.',
-                price: 7000,
-                type: 'accessory',
-                slot: 'none',
-                statBonuses: { intelligence: 30, mana: 50 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Yuna%27s_Necklace.png'
-            },
-            {
-                name: 'Guilty Thorn',
-                description: 'Une dague rouge sang créée par un forgeron de génie pour les assassins.',
-                price: 2500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 18, luck: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Guilty_Thorn.png'
-            },
-            {
-                name: 'Ebon Dagger',
-                description: 'Une dague noire discrète et équilibrée.',
-                price: 1200,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 10, luck: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/43/Ebon_Dagger.png'
-            },
-            {
-                name: 'Stout Brand',
-                description: 'Une épée à deux mains massive privilégiant la force brute.',
-                price: 3800,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 28, defense: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/87/Stout_Brand.png'
-            },
-            {
-                name: 'Advancer',
-                description: 'Une épée équilibrée utilisée par les éclaireurs de l\'armée impériale.',
-                price: 1800,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 12, agility: 8 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4c/Advancer.png'
-            },
-            {
-                name: 'Osmanthus Blade',
-                description: 'Une épée divine aux pétales dorés, symbole de pureté et de force.',
-                price: 8500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 32, intelligence: 12 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/43/Fragrant_Olive_Sword.png'
-            },
-            {
-                name: 'Black Iron Greatsword',
-                description: 'Une épée massive et lourde, capable de briser les armures.',
-                price: 3200,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 30, agility: -5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/0/07/Unity_Vow.png'
-            },
-            {
-                name: 'Silverlight Rapier',
-                description: 'Une rapière d\'une finesse exceptionnelle, brillant sous la lune.',
-                price: 2400,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 22, luck: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Lambent_Light.png'
-            },
-            {
-                name: 'Manteau de l\'Épéiste Noir',
-                description: 'Une longue veste en cuir noir, élégante et mystérieuse. Le fan service à l\'état pur.',
-                price: 5000,
-                type: 'armor',
-                slot: 'chest',
-                statBonuses: { agility: 15, luck: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c8/Black_wyrm_coat.png'
-            },
-            {
-                name: 'Uniforme de la Confrérie (Version Elite)',
-                description: 'Une tenue blanche et rouge ajustée, portée par les plus grands héros.',
-                price: 6000,
-                type: 'armor',
-                slot: 'chest',
-                statBonuses: { strength: 10, defense: 20 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Knights_of_the_Blood_Uniform.png'
-            },
-            {
-                name: 'Queen\'s Knightsword',
-                description: 'Une rapière d\'une beauté royale, héritée d\'une lignée de guerrières.',
-                price: 4800,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 20, intelligence: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/bf/Queen%27s_Knightsword.png'
-            },
-            {
-                name: 'Starless Night',
-                description: 'Une épée noire comme le vide, absorbant la lumière ambiante.',
-                price: 5500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { strength: 25, agility: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a1/Starless_Night.png'
-            },
-            {
-                name: 'Black Lily Sword',
-                description: 'Une épée fine et noire, dont la lame semble faite de pétales de lys sombres.',
-                price: 6500,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 28, luck: 12 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e4/Black_Lily_Sword.png'
-            },
-            {
-                name: 'Mirage Blade',
-                description: 'Une épée dont la lame semble onduler comme un mirage, rendant ses trajectoires imprévisibles.',
-                price: 3900,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { agility: 15, luck: 20 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/a/a2/Wind_Fleuret.png'
-            },
-            {
-                name: 'Elven King\'s Sword',
-                description: 'Une lame ancienne ornée de runes elfiques, brillant d\'une aura verte.',
-                price: 7200,
-                type: 'weapon',
-                slot: 'weapon',
-                statBonuses: { intelligence: 30, strength: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/25/Anneal_Blade.png'
+                statBonuses: { agility: 5, intelligence: 5 },
             }
         ];
 
@@ -1026,193 +646,115 @@ async function setupDatabase() {
 
     const questCount = await Quest.count();
     if (questCount === 0) {
-        console.log('Seeding Quests...');
+        console.log('Seeding Missions for Gheno City...');
         await Quest.bulkCreate([
-            { title: 'La Chasse aux Gobelins', description: 'Éliminez 10 gobelins dans la Forêt des Gobelins.', type: 'side', rank_required: 'E', reward_col: 50, reward_xp: 100 },
-            { title: 'Le Fléau des Kobolds', description: 'Venez à bout du chef des kobolds dans la Mine de Cobalt.', type: 'main', rank_required: 'D', reward_col: 200, reward_xp: 300 },
-            { title: 'L\'Énigme d\'Aincrad', description: 'Explorez le premier palier du labyrinthe et trouvez la stèle ancienne.', type: 'main', rank_required: 'C', reward_col: 500, reward_xp: 1000 },
-            { title: 'Larmes de Glace', description: 'Récupérez 5 cristaux de givre dans la Forêt de Glace.', type: 'side', rank_required: 'B', reward_col: 800, reward_xp: 1500 },
-            { title: 'Le Duel des Maîtres', description: 'Affrontez un épéiste légendaire pour prouver votre valeur.', type: 'main', rank_required: 'A', reward_col: 2000, reward_xp: 5000 },
-            { title: 'La Menace Volante', description: 'Éliminez les wyvernes qui terrorisent les caravanes marchandes.', type: 'side', rank_required: 'B', reward_col: 1200, reward_xp: 2000 },
-            { title: 'Le Secret du Forgeron', description: 'Aidez le forgeron de la ville de départ à retrouver son marteau volé.', type: 'side', rank_required: 'D', reward_col: 300, reward_xp: 500 },
-            { title: 'Le Trésor Oublié', description: 'Une légende parle d\'un trésor caché au fond des Mines de Cobalt.', type: 'side', rank_required: 'D', reward_col: 600, reward_xp: 800 },
-            { title: 'Invasion de Monstres', description: 'Repoussez l\'attaque soudaine de monstres sur le village de pêcheurs.', type: 'side', rank_required: 'C', reward_col: 1000, reward_xp: 2000 },
-            { title: 'L\'Héritage du Désert', description: 'Retrouvez l\'amulette de l\'ancien pharaon dans le Désert de la Mort.', type: 'main', rank_required: 'C', reward_col: 700, reward_xp: 1200 },
-            { title: 'Le Chant des Sirènes', description: 'Calmez la tempête mystique qui frappe l\'Océan de Corail.', type: 'side', rank_required: 'B', reward_col: 900, reward_xp: 1800 },
-            { title: 'L\'Ascension Finale', description: 'Atteignez le 50ème étage de la Tour des Épreuves.', type: 'main', rank_required: 'A', reward_col: 3000, reward_xp: 10000 },
-            { title: 'Le Cœur de Feu', description: 'Récupérez une écaille du Dragon d\'Ignis au sommet du volcan.', type: 'main', rank_required: 'S', reward_col: 10000, reward_xp: 50000 },
-            { title: 'Le Mystère de la Citadelle', description: 'Enquêtez sur les disparitions inexpliquées dans la Citadelle de Cristal.', type: 'side', rank_required: 'A', reward_col: 2500, reward_xp: 4000 },
-            { title: 'Herboriste de l\'Ombre', description: 'Collectez des plantes rares dans les Marais Empoisonnés.', type: 'side', rank_required: 'C', reward_col: 800, reward_xp: 1200 },
-            { title: 'Chasseur de Tonnerre', description: 'Capturez l\'essence de la foudre au sommet des Montagnes du Tonnerre.', type: 'main', rank_required: 'B', reward_col: 1500, reward_xp: 2500 },
-            { title: 'Le Repos des Rois', description: 'Purifiez la Crypte des Rois Oubliés de son influence maléfique.', type: 'main', rank_required: 'B', reward_col: 2000, reward_xp: 3500 },
-            { title: 'Murmures de Fleurs', description: 'Écoutez et rapportez les secrets du Jardin des Murmures.', type: 'side', rank_required: 'D', reward_col: 400, reward_xp: 600 },
-            { title: 'Sentinelle du Néant', description: 'Gardez la Porte du Néant contre une vague d\'envahisseurs.', type: 'main', rank_required: 'S', reward_col: 20000, reward_xp: 75000 },
-            { title: 'Perles de l\'Océan', description: 'Plongez dans le Récif des Sirènes pour trouver les perles de lune.', type: 'side', rank_required: 'B', reward_col: 1100, reward_xp: 1900 },
-            { title: 'Mirage de Sel', description: 'Survivez à une traversée du Désert de Sel sans perdre la raison.', type: 'side', rank_required: 'C', reward_col: 1300, reward_xp: 2200 },
-            { title: 'Éclat d\'Émeraude', description: 'Protégez l\'Arbre de Vie au cœur de la Forêt d\'Émeraude.', type: 'main', rank_required: 'A', reward_col: 4500, reward_xp: 8000 },
+            { title: 'Initiation au vol', description: 'Vole une voiture et ramène-la au garage clandestin.', type: 'main', rank_required: 'F', reward_col: 200, reward_xp: 100 },
+            { title: 'Règlement de comptes', description: 'Donne une leçon à un petit revendeur qui ne paie pas sa taxe.', type: 'side', rank_required: 'E', reward_col: 500, reward_xp: 250 },
+            { title: 'Le casse de l\'épicerie', description: 'Braque l\'épicerie du coin et échappe à la police.', type: 'main', rank_required: 'D', reward_col: 1000, reward_xp: 500 },
+            { title: 'Livraison à haut risque', description: 'Transporte une cargaison suspecte à travers la ville sans te faire arrêter.', type: 'side', rank_required: 'C', reward_col: 2000, reward_xp: 1000 },
+            { title: 'Braquage de la Bijouterie', description: 'Organise et exécute le vol de la bijouterie Vangelico.', type: 'main', rank_required: 'B', reward_col: 10000, reward_xp: 5000 },
+            { title: 'Infiltration au LSPD', description: 'Récupère des dossiers compromettants au commissariat central.', type: 'main', rank_required: 'A', reward_col: 15000, reward_xp: 8000 },
+            { title: 'Le Coup du Siècle', description: 'Braque l\'Union Depository.', type: 'main', rank_required: 'S', reward_col: 100000, reward_xp: 50000 },
         ]);
-        console.log('Quests seeded.');
+        console.log('Missions seeded.');
     }
 
     const skillCount = await Skill.count();
     if (skillCount === 0) {
         console.log('Seeding Skills...');
         await Skill.bulkCreate([
-            // Techniques d'épée
-            { name: 'Vertical Square', description: 'Un enchaînement de 4 coups d\'épée verticaux ultra-rapides.', type: 'sword_technique', manaCost: 20 },
-            { name: 'Sonic Leap', description: 'Une charge fulgurante vers l\'ennemi.', type: 'sword_technique', manaCost: 15, statBonuses: { agility: 5 } },
-            { name: 'Starburst Stream', description: 'La technique ultime à deux épées (50 coups).', type: 'sword_technique', manaCost: 100, statBonuses: { strength: 20, agility: 20 } },
-            // Sorts
-            { name: 'Fireball', description: 'Projette une boule de feu explosive.', type: 'spell', manaCost: 30, statBonuses: { intelligence: 10 } },
-            { name: 'Healing Breeze', description: 'Un vent doux qui soigne les blessures légères.', type: 'spell', manaCost: 25 },
-            { name: 'Ice Spikes', description: 'Fait jaillir des pics de glace du sol.', type: 'spell', manaCost: 35, statBonuses: { intelligence: 12 } },
-            // Passifs
-            { name: 'Regen', description: 'Restaure lentement la santé au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
-            { name: 'Senseur de Mana', description: 'Permet de détecter les créatures magiques à proximité.', type: 'passive', statBonuses: { intelligence: 15 } },
-            { name: 'Force d\'Hercule', description: 'Augmente de manière permanente la force brute.', type: 'passive', statBonuses: { strength: 15 } },
+            // Techniques de Combat
+            { name: 'Tir de précision', description: 'Augmente les chances de toucher les points vitaux.', type: 'active', manaCost: 20, statBonuses: { luck: 5 } },
+            { name: 'Rafale contrôlée', description: 'Tire plusieurs balles avec une précision accrue.', type: 'active', manaCost: 30, statBonuses: { strength: 5 } },
+            { name: 'Coup de crosse', description: 'Une attaque de mêlée puissante avec votre arme.', type: 'active', manaCost: 15, statBonuses: { strength: 8 } },
 
-            // Compétences de Base (Académie)
-            // Guerrier
-            { name: 'Tranchant Brise-Roc', description: 'Une attaque puissante capable de fendre les défenses les plus solides.', type: 'sword_technique', manaCost: 25, statBonuses: { strength: 5 } },
-            { name: 'Cri de Guerre', description: 'Augmente temporairement la défense et intimide les ennemis.', type: 'active', manaCost: 15, statBonuses: { defense: 5 } },
+            // Conduite et Technologie
+            { name: 'Pilote de course', description: 'Améliore la maniabilité et la vitesse de pointe des véhicules.', type: 'passive', statBonuses: { agility: 15 } },
+            { name: 'Hacking express', description: 'Permet de pirater des terminaux simples rapidement.', type: 'active', manaCost: 25, statBonuses: { intelligence: 10 } },
+            { name: 'As du volant', description: 'Réduit les dégâts subis lors des collisions en véhicule.', type: 'passive', statBonuses: { defense: 10 } },
 
-            // Mage
-            { name: 'Flèche de Mana', description: 'Un projectile de pur mana, rapide et précis.', type: 'spell', manaCost: 15, statBonuses: { intelligence: 3 } },
-            { name: 'Bouclier Arcanique', description: 'Crée une barrière magique absorbant les dégâts.', type: 'spell', manaCost: 40, statBonuses: { defense: 8 } },
+            // Passifs et Survie
+            { name: 'Peau dure', description: 'Augmente la résistance physique aux coups.', type: 'passive', statBonuses: { defense: 15 } },
+            { name: 'Sang-froid', description: 'Réduit la consommation d\'énergie lors des actions stressantes.', type: 'passive', statBonuses: { luck: 10 } },
+            { name: 'Réflexes d\'acier', description: 'Augmente l\'agilité de manière permanente.', type: 'passive', statBonuses: { agility: 10 } },
 
-            // Assassin
-            { name: 'Pas Fantôme', description: 'Une technique de déplacement rendant l\'utilisateur quasi-invisible.', type: 'active', manaCost: 20, statBonuses: { agility: 5 } },
-            { name: 'Frappe Venimeuse', description: 'Une attaque ciblée sur les points vitaux.', type: 'sword_technique', manaCost: 30, statBonuses: { luck: 5 } },
-
-            // Archer
-            { name: 'Tir de Précision', description: 'Prend le temps de viser pour infliger des dégâts critiques.', type: 'active', manaCost: 10, statBonuses: { luck: 8 } },
-            { name: 'Pluie de Flèches', description: 'Décoche une salve de flèches sur une large zone.', type: 'active', manaCost: 45, statBonuses: { agility: 3 } },
-
-            // Prêtre
-            { name: 'Lumière Divine', description: 'Soigne les blessures et purifie les poisons.', type: 'spell', manaCost: 30, statBonuses: { intelligence: 5 } },
-            { name: 'Bénédiction', description: 'Augmente toutes les statistiques d\'un allié temporairement.', type: 'spell', manaCost: 50, statBonuses: { luck: 10 } }
+            // Spécialités
+            { name: 'Discrétion urbaine', description: 'Permet de se fondre dans la foule ou les ombres.', type: 'active', manaCost: 20, statBonuses: { agility: 5 } },
+            { name: 'Premier secours', description: 'Connaissances de base pour soigner des blessures légères.', type: 'active', manaCost: 35, statBonuses: { intelligence: 5 } }
         ]);
         console.log('Skills seeded.');
     }
 
     const kingdomCount = await Kingdom.count();
     if (kingdomCount === 0) {
-        console.log('Seeding Kingdoms for Aetherys...');
+        console.log('Seeding Factions for Gheno City...');
         await Kingdom.bulkCreate([
-            { name: 'Empire Impérial d\'Elion', description: 'Puissant royaume central, symbole du dragon doré. Capitale: Lux Aeterna.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
-            { name: 'Royaume Nordique de Valkyrr', description: 'Nation glaciale, guerriers aux runes et dompteurs de loups.', status: 'truce', influence: 75, militaryPower: 85, leader: 'Reine Freya' },
-            { name: 'Sultanat d\'Azrak', description: 'Empire du désert, maîtres des artefacts anciens. Capitale: Sahra’Zul.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Sultan Malek' },
-            { name: 'République Maritime de Nereïs', description: 'Puissance navale du sud, maîtres explorateurs des mers.', status: 'peace', influence: 85, militaryPower: 65, leader: 'Amiral Kael' },
-            { name: 'Dominion Noir de Vharos', description: 'Royaume de nécromancie et de morts-vivants. Ennemi de tous.', status: 'war', influence: 60, militaryPower: 95, leader: 'Lich Lord Vharos' },
-            { name: 'Santuaires d\'Élysée', description: 'Terres sacrées protégées par des barrières magiques, foyer des prêtres et guérisseurs.', status: 'peace', influence: 40, militaryPower: 30, leader: 'Grande Prêtresse Selene' },
-            { name: 'Terres Sauvages de Kormak', description: 'Territoires sans loi habités par des tribus barbares et des monstres.', status: 'war', influence: 20, militaryPower: 50, leader: 'Chef de Guerre Grom' }
+            { name: 'LSPD', description: 'Le Los Santos Police Department. Ils essaient de maintenir l\'ordre, ou du moins les apparences.', status: 'peace', influence: 90, militaryPower: 80, leader: 'Chef de police Goodwin' },
+            { name: 'Cartel de Medellin', description: 'Importateurs massifs de drogue, basés dans le nord de la ville.', status: 'war', influence: 70, militaryPower: 90, leader: 'El Patrón' },
+            { name: 'La Famille Leone', description: 'Mafia italienne traditionnelle contrôlant Little Sicily.', status: 'peace', influence: 85, militaryPower: 75, leader: 'Don Salvatore' },
+            { name: 'Ballas', description: 'Gang de rue dominant les quartiers sud, reconnaissables à leurs vêtements violets.', status: 'war', influence: 50, militaryPower: 60, leader: 'Big T' },
+            { name: 'The Lost MC', description: 'Club de motards hors-la-loi, rois de la route et du trafic d\'armes.', status: 'truce', influence: 40, militaryPower: 70, leader: 'Billy Grey' }
         ]);
-        console.log('Kingdoms seeded.');
+        console.log('Factions seeded.');
     }
 
     const conflictCount = await Conflict.count();
     if (conflictCount === 0) {
         console.log('Seeding Conflicts...');
         await Conflict.bulkCreate([
-            { title: 'La Croisade du Néant', description: 'Le Dominion Noir de Vharos lance des assauts massifs sur les frontières d\'Elion.', involvedKingdoms: JSON.stringify(['Empire Impérial d\'Elion', 'Dominion Noir de Vharos']), status: 'active' },
-            { title: 'Guerre de la Route de Soie', description: 'Des tensions éclatent entre Azrak et Nereïs pour le contrôle des routes commerciales.', involvedKingdoms: JSON.stringify(['Sultanat d\'Azrak', 'République Maritime de Nereïs']), status: 'active' },
-            { title: 'Incursion Barbare', description: 'Les tribus de Kormak pillent les villages frontaliers de Valkyrr.', involvedKingdoms: JSON.stringify(['Royaume Nordique de Valkyrr', 'Terres Sauvages de Kormak']), status: 'active' }
+            { title: 'Guerre de territoire au Sud', description: 'Les Ballas tentent de reprendre du terrain aux Families.', involvedKingdoms: JSON.stringify(['Ballas', 'Families']), status: 'active' },
+            { title: 'Opération Clean City', description: 'Le LSPD lance une offensive majeure contre le Cartel de Medellin.', involvedKingdoms: JSON.stringify(['LSPD', 'Cartel de Medellin']), status: 'active' },
+            { title: 'Tensions à Little Sicily', description: 'La Famille Leone fait face à une insurrection de petits gangs locaux.', involvedKingdoms: JSON.stringify(['La Famille Leone', 'Gangs Locaux']), status: 'active' }
         ]);
         console.log('Conflicts seeded.');
     }
 
     const schoolCount = await School.count();
     if (schoolCount === 0) {
-        console.log('Seeding Schools...');
+        console.log('Seeding Centers...');
         await School.bulkCreate([
-            { name: 'Académie Impériale d\'Elion', specialty: 'Polyvalente', description: 'La plus prestigieuse école du continent, formant l\'élite de l\'Empire.', kingdomName: 'Empire Impérial d\'Elion' },
-            { name: 'Institut des Runes de Valkyrr', specialty: 'Magie Runique', description: 'Une école austère nichée dans les montagnes, spécialisée dans les glyphes de puissance.', kingdomName: 'Royaume Nordique de Valkyrr' },
-            { name: 'Madrasa d\'Al-Kimiya', specialty: 'Alchimie & Artefacts', description: 'Un centre de savoir doré au milieu du désert, maître des secrets de la matière.', kingdomName: 'Sultanat d\'Azrak' }
+            { name: 'Stand de tir d\'Ammu-Nation', specialty: 'Armes à feu', description: 'Le meilleur endroit pour s\'entraîner au tir.', kingdomName: 'LSPD' },
+            { name: 'Garage de Benny', specialty: 'Mécanique & Conduite', description: 'Apprends à piloter et à tuner tes bolides.', kingdomName: 'Families' },
+            { name: 'Cyber Café DarkNet', specialty: 'Hacking & Tech', description: 'Un lieu discret pour apprendre l\'informatique souterraine.', kingdomName: 'Gangs Locaux' }
         ]);
-        console.log('Schools seeded.');
+        console.log('Centers seeded.');
     }
 
     const npcCount = await NPC.count();
     if (npcCount === 0) {
-        console.log('Seeding NPCs for Eldoria & Elion...');
+        console.log('Seeding NPCs for Gheno City...');
         await NPC.bulkCreate([
-            { name: 'Directeur Magnus', role: 'Directeur de l\'Académie d\'Elion', description: 'Un mage légendaire supervisant la formation des recrues.', location: 'Académie Impériale' },
-            { name: 'Forgeron Brokk', role: 'Maître de la Forge Impériale', description: 'Un artisan capable de forger les armes les plus résistantes.', location: 'Eldoria' },
-            { name: 'Aubergiste Silas', role: 'Propriétaire du Griffon Rouge', description: 'Toujours au courant des dernières rumeurs.', location: 'Eldoria' },
-            { name: 'Capitaine Valerius', role: 'Commandant de la Garde d\'Elion', description: 'Un guerrier austère et dévoué à l\'Empereur.', location: 'Lux Aeterna' },
-            { name: 'Reine Freya', role: 'Souveraine de Valkyrr', description: 'Une dirigeante sage et puissante, protectrice des terres gelées.', location: 'Valkyrr' },
-            { name: 'Sultan Malek', role: 'Maître d\'Azrak', description: 'Un collectionneur d\'artefacts mystérieux et richissime.', location: 'Sahra’Zul' },
-            { name: 'Amiral Kael', role: 'Protecteur de Nereïs', description: 'Un marin aguerri qui connaît tous les secrets de l\'océan.', location: 'Nereïs' },
-            { name: 'Lich Lord Vharos', role: 'Souverain du Dominion Noir', description: 'Une entité ancienne cherchant à plonger le monde dans le néant.', location: 'Citadelle de Cristal' },
-            { name: 'Argo', role: 'L\'Informatrice', description: 'Une informatrice agile qui vend des secrets pour quelques Col.', location: 'Eldoria' },
-            { name: 'Agil', role: 'Marchand Costaud', description: 'Un ancien guerrier tenant une boutique d\'objets rares.', location: 'Eldoria' },
-            { name: 'Klein', role: 'Chef de guilde', description: 'Un samouraï jovial menant la guilde Fuurinkazan.', location: 'Eldoria' },
-            { name: 'Sachi', role: 'Membre des Chats Noirs', description: 'Une jeune fille douce cherchant à surmonter sa peur du combat.', location: 'Eldoria' },
-            { name: 'Heathcliff', role: 'Grand Maître', description: 'Le chef de la Confrérie des Chevaliers du Sang.', location: 'Lux Aeterna' },
-            { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, célèbre pour sa rapidité.', location: 'Lux Aeterna' },
-            { name: 'Silica', role: 'Dresseuse de Dragon', description: 'Une jeune fille accompagnée de son petit dragon Plume.', location: 'Eldoria' },
-            { name: 'Lisbeth', role: 'Maître Forgeronne', description: 'Propriétaire d\'une boutique de forge renommée, amie d\'Asuna.', location: 'Lux Aeterna' },
-            { name: 'Sinon', role: 'Archère de Précision', description: 'Une tireuse d\'élite calme et déterminée.', location: 'Valkyrr' },
-            { name: 'Leafa', role: 'Guerrière Sylphide', description: 'Une épéiste talentueuse maîtrisant la magie du vent.', location: 'Lux Aeterna' },
-            { name: 'Yui', role: 'Navigation Pixie', description: 'Une petite fée IA qui aide les voyageurs égarés.', location: 'Académie Impériale' },
-
-            // Éducateurs et Personnel de l'Académie
-            { name: 'Maître Ghyran', role: 'Instructeur de Combat', description: 'Un vétéran balafré qui ne tolère aucune paresse.', location: 'Académie Impériale' },
-            { name: 'Professeur Elena', role: 'Enseignante de Magie', description: 'Experte en manipulation du mana et en sorts élémentaires.', location: 'Académie Impériale' },
-            { name: 'Bibliothécaire Otho', role: 'Gardien du Savoir', description: 'Un vieil homme qui en sait plus qu\'il ne veut bien le dire.', location: 'Académie Impériale' },
-            { name: 'Infirmière Joy', role: 'Guérisseuse', description: 'Douce mais ferme, elle soigne les blessures des entraînements.', location: 'Académie Impériale' },
-
-            // Élèves de l'Académie - Rang F (Débutants)
-            { name: 'Léo', role: 'Élève (Guerrier)', description: 'Toujours enthousiaste, il rêve de devenir un Chevalier du Sang.', location: 'Académie Impériale' },
-            { name: 'Mia', role: 'Élève (Mage)', description: 'Studieuse, elle passe ses nuits à la bibliothèque.', location: 'Académie Impériale' },
-            { name: 'Kenji', role: 'Élève (Assassin)', description: 'Silencieux et discret, il observe tout depuis les ombres.', location: 'Académie Impériale' },
-            { name: 'Toby', role: 'Élève (Guerrier)', description: 'Un peu maladroit mais possède une force brute surprenante.', location: 'Académie Impériale' },
-
-            // Élèves de l'Académie - Rang E-D
-            { name: 'Sora', role: 'Élève (Épéiste)', description: 'Un prodige arrogant qui se croit déjà au-dessus des autres.', location: 'Académie Impériale' },
-            { name: 'Lyra', role: 'Élève (Archère)', description: 'Calme et précise, elle ne rate jamais sa cible au champ de tir.', location: 'Académie Impériale' },
-            { name: 'Ryu', role: 'Élève (Moine)', description: 'S\'entraîne pieds nus sous la cascade de l\'Académie.', location: 'Académie Impériale' },
-            { name: 'Emi', role: 'Élève (Prêtresse)', description: 'Dévouée à la Lumière, elle aide les nouveaux élèves.', location: 'Académie Impériale' },
-
-            // Élèves de l'Académie - Rang C-B (Élites)
-            { name: 'Jax', role: 'Élève (Chevalier)', description: 'Le meilleur de sa promotion, respecté de tous.', location: 'Académie Impériale' },
-            { name: 'Zelda', role: 'Élève (Invocatrice)', description: 'Capable de matérialiser de petites créatures de mana.', location: 'Académie Impériale' },
-            { name: 'Kaelith', role: 'Élève (Lame-Sort)', description: 'Fusionne la magie et le fer avec une grâce mortelle.', location: 'Académie Impériale' },
-
-            // Institut des Runes de Valkyrr
-            { name: 'Maître Vorgrim', role: 'Directeur de Valkyrr', description: 'Un géant taciturne gravant des runes sur sa propre peau.', location: 'Institut des Runes' },
-            { name: 'Hilda', role: 'Élève (Guerrière Runique)', description: 'Manie une hache gravée de glyphes de givre.', location: 'Institut des Runes' },
-            { name: 'Bjorn', role: 'Élève (Sculpteur)', description: 'Spécialiste dans la création de totems défensifs.', location: 'Institut des Runes' },
-
-            // Madrasa d'Al-Kimiya
-            { name: 'Vizir Jaffar', role: 'Directeur d\'Al-Kimiya', description: 'Un alchimiste brillant dont les yeux brillent d\'une lueur dorée.', location: 'Madrasa d\'Al-Kimiya' },
-            { name: 'Zuleika', role: 'Élève (Artificière)', description: 'Manipule des poudres explosives et des golems d\'argile.', location: 'Madrasa d\'Al-Kimiya' },
-            { name: 'Omar', role: 'Élève (Potioniste)', description: 'Toujours en train de concocter des breuvages aux effets imprévisibles.', location: 'Madrasa d\'Al-Kimiya' },
-
-            // Azrak & Nereïs
-            { name: 'Nasir', role: 'Vendeur d\'Épices', description: 'Un marchand jovial qui connaît toutes les routes du désert.', location: 'Sahra’Zul' },
-            { name: 'Zara', role: 'Danseuse de Lame', description: 'Une guerrière agile protégeant les caravanes d\'Azrak.', location: 'Sahra’Zul' },
-            { name: 'Capitaine Nemo', role: 'Explorateur Sous-marin', description: 'Un marin excentrique possédant un navire capable de plonger.', location: 'Nereïs' },
-            { name: 'Lia', role: 'Chanteuse de Mer', description: 'Une jeune femme dont le chant dit-on peut calmer les tempêtes.', location: 'Nereïs' },
-            { name: 'Rias', role: 'Présidente du Club Occulte', description: 'Une jeune femme charismatique aux cheveux rouges, mystérieuse et protectrice (Archétype Onee-san).', location: 'Académie Impériale' },
-            { name: 'Taiga', role: 'Élève Rebelle', description: 'Petite de taille mais avec un caractère volcanique. Elle manie un sabre de bois avec une rage surprenante (Archétype Tsundere).', location: 'Académie Impériale' }
+            { name: 'Don Salvatore', role: 'Parrain de la Famille Leone', description: 'Un vieil homme autoritaire qui dirige Little Sicily.', location: 'Little Sicily' },
+            { name: 'Lamar Davis', role: 'Contact de rue', description: 'Un gars marrant qui a toujours des plans foireux.', location: 'Downtown' },
+            { name: 'Inspecteur Tenpenny', role: 'Flic corrompu', description: 'Il gère la ville avec une main de fer et un compte en banque bien rempli.', location: 'LSPD' },
+            { name: 'Benny', role: 'Mécano de génie', description: 'Si tu as besoin de booster ta caisse, c\'est lui qu\'il faut voir.', location: 'Strawberry' },
+            { name: 'El Patrón', role: 'Chef du Cartel', description: 'Personne ne connaît son vrai visage, mais tout le monde craint son nom.', location: 'Industrial Zone' },
+            { name: 'Paige Harris', role: 'Hacker experte', description: 'Elle peut faire tomber n\'importe quel pare-feu pour le bon prix.', location: 'Vinewood' },
+            { name: 'Trevor Philips', role: 'Psychopathe notoire', description: 'Instable, dangereux, et possède sa propre entreprise d\'armes.', location: 'Sandy Shores' },
+            { name: 'Franklin Clinton', role: 'Chauffeur d\'élite', description: 'Il connaît toutes les ruelles de la ville par cœur.', location: 'Little Sicily' },
+            { name: 'Michael De Santa', role: 'Cerveau des braquages', description: 'Un pro à la retraite qui s\'ennuie dans sa villa.', location: 'Vinewood' },
+            { name: 'Lester Crest', role: 'Organisateur', description: 'Le génie derrière les plus gros coups de la ville.', location: 'Downtown' },
+            { name: 'Argo', role: 'Informatrice', description: 'Elle vend des secrets sur les mouvements de police.', location: 'Downtown' },
+            { name: 'Agil', role: 'Vendeur d\'armes', description: 'Un colosse qui tient une boutique Ammu-Nation.', location: 'Little Sicily' },
+            { name: 'Sachi', role: 'Vendeuse de café', description: 'Une jeune femme douce qui entend beaucoup de choses dans son café.', location: 'Little Sicily' },
+            { name: 'Asuna', role: 'Lieutenant de gang', description: 'Aussi rapide avec un pistolet qu\'avec ses poings.', location: 'Downtown' },
+            { name: 'Silica', role: 'Livreuse', description: 'Elle parcourt la ville sur son scooter pour livrer des paquets mystérieux.', location: 'Downtown' },
+            { name: 'Lisbeth', role: 'Armurière', description: 'Spécialiste dans la modification d\'armes à feu.', location: 'Little Sicily' }
         ]);
         console.log('NPCs seeded.');
     }
 
     const monstersToSeed = [
-            { name: 'Gobelin', rank: 'F', health: 50, strength: 5, defense: 2, agility: 5, xp_reward: 20, col_reward: 10 },
-            { name: 'Loup Sauvage', rank: 'F', health: 40, strength: 8, defense: 1, agility: 12, xp_reward: 25, col_reward: 5 },
-            { name: 'Kobold Mineur', rank: 'E', health: 100, strength: 12, defense: 8, agility: 10, xp_reward: 50, col_reward: 30 },
-            { name: 'Slime Géant', rank: 'E', health: 150, strength: 10, defense: 15, agility: 2, xp_reward: 45, col_reward: 20 },
-            { name: 'Orc Guerrier', rank: 'D', health: 300, strength: 25, defense: 15, agility: 10, xp_reward: 150, col_reward: 80 },
-            { name: 'Spectre des Ruines', rank: 'C', health: 200, strength: 30, defense: 50, agility: 20, xp_reward: 400, col_reward: 150 },
-            { name: 'Golem de Fer', rank: 'B', health: 1000, strength: 60, defense: 80, agility: 5, xp_reward: 1500, col_reward: 500 },
-            { name: 'Dragon d\'Ignis', rank: 'A', health: 5000, strength: 150, defense: 120, agility: 80, xp_reward: 10000, col_reward: 5000 },
-            { name: 'Le Faucheur', rank: 'S', health: 20000, strength: 400, defense: 300, agility: 500, xp_reward: 100000, col_reward: 50000 },
+            { name: 'Petit malfrat', rank: 'F', health: 50, strength: 5, defense: 2, agility: 5, xp_reward: 20, col_reward: 10 },
+            { name: 'Chien de garde', rank: 'F', health: 40, strength: 8, defense: 1, agility: 12, xp_reward: 25, col_reward: 5 },
+            { name: 'Dealer de rue', rank: 'E', health: 100, strength: 12, defense: 8, agility: 10, xp_reward: 50, col_reward: 30 },
+            { name: 'Membre de gang', rank: 'D', health: 300, strength: 25, defense: 15, agility: 10, xp_reward: 150, col_reward: 80 },
+            { name: 'Patrouille du LSPD', rank: 'C', health: 200, strength: 30, defense: 50, agility: 20, xp_reward: 400, col_reward: 150 },
+            { name: 'Unité d\'élite NOOSE', rank: 'B', health: 1000, strength: 60, defense: 80, agility: 5, xp_reward: 1500, col_reward: 500 },
+            { name: 'Agent du FIB', rank: 'A', health: 2000, strength: 100, defense: 100, agility: 40, xp_reward: 5000, col_reward: 1000 },
             // Bosses
             {
-                name: 'Illfang the Kobold Lord',
+                name: 'Big T',
                 rank: 'D',
                 health: 800,
                 strength: 40,
@@ -1220,10 +762,10 @@ async function setupDatabase() {
                 agility: 25,
                 xp_reward: 2000,
                 col_reward: 1000,
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/f/f6/Illfang_the_Kobold_Lord_Full.png'
+                imageUrl: 'https://static.wikia.nocookie.net/gtawiki/images/4/41/BigT-GTAV.png'
             },
             {
-                name: 'The Gleam Eyes',
+                name: 'Le Boucher du Cartel',
                 rank: 'A',
                 health: 12000,
                 strength: 180,
@@ -1231,10 +773,9 @@ async function setupDatabase() {
                 agility: 100,
                 xp_reward: 25000,
                 col_reward: 15000,
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/e/e4/The_Gleam_Eyes_Anime.png'
             },
             {
-                name: 'The Skull Reaper',
+                name: 'Inspecteur Tenpenny (Boss)',
                 rank: 'S',
                 health: 45000,
                 strength: 350,
@@ -1242,39 +783,6 @@ async function setupDatabase() {
                 agility: 400,
                 xp_reward: 150000,
                 col_reward: 80000,
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/9/91/The_Skull_Reaper_Anime.png'
-            },
-            {
-                name: 'Fatalis Elion',
-                rank: 'S',
-                health: 100000,
-                strength: 600,
-                defense: 500,
-                agility: 300,
-                xp_reward: 500000,
-                col_reward: 200000,
-            },
-            {
-                name: 'Nicholas the Renegade',
-                rank: 'A',
-                health: 15000,
-                strength: 200,
-                defense: 120,
-                agility: 90,
-                xp_reward: 40000,
-                col_reward: 20000,
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/b/b3/Nicholas_the_Renegade.png'
-            },
-            {
-                name: 'The Fatal Scythe',
-                rank: 'S',
-                health: 35000,
-                strength: 400,
-                defense: 200,
-                agility: 350,
-                xp_reward: 120000,
-                col_reward: 50000,
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/2/23/The_Fatal_Scythe.png'
             }
         ];
 
@@ -1289,6 +797,19 @@ async function setupDatabase() {
     }
     console.log('Monsters synchronisés.');
 
+    const vehicleCount = await Vehicle.count();
+    if (vehicleCount === 0) {
+        console.log('Seeding Vehicles...');
+        await Vehicle.bulkCreate([
+            { name: 'Bravado Gauntlet', description: 'Une muscle car américaine classique.', price: 32000, topSpeed: 180, acceleration: 12, brakePower: 8 },
+            { name: 'Pegassi Zentorno', description: 'Une supercar ultra-rapide.', price: 725000, topSpeed: 340, acceleration: 25, brakePower: 15 },
+            { name: 'Karin Kuruma (Blindée)', description: 'Indispensable pour les braquages.', price: 525000, topSpeed: 240, acceleration: 18, brakePower: 12 },
+            { name: 'Bati 801', description: 'Une moto de sport agile et rapide.', price: 15000, topSpeed: 210, acceleration: 20, brakePower: 10 },
+            { name: 'Vapid Sandking XL', description: 'Un tout-terrain massif.', price: 45000, topSpeed: 140, acceleration: 8, brakePower: 6 }
+        ]);
+        console.log('Vehicles seeded.');
+    }
+
   } catch (error) {
     console.error('Unable to connect to the database:', error);
   }
@@ -1297,6 +818,8 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   Player,
+  Vehicle,
+  PlayerVehicle,
   Dungeon,
   Quest,
   PlayerQuest,
