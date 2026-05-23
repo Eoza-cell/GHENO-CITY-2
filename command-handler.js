@@ -284,8 +284,8 @@ commands.set('boutique', async (sock, message) => {
 
     boutiqueText += "🛒 *Achat:* Utilise `/action` -> 'Je veux acheter [Objet]'.";
 
-    // Show top-tier item image (Excalibur or Elucidator)
-    const featuredItem = items.find(i => i.name === 'Excalibur') || items.find(i => i.name === 'Elucidator') || items.find(i => i.imageUrl);
+    // Show top-tier item image
+    const featuredItem = items.find(i => i.name === 'Carabine spéciale') || items.find(i => i.name === 'Fusil de précision') || items.find(i => i.imageUrl);
 
     if (featuredItem && featuredItem.imageUrl) {
         try {
@@ -407,7 +407,7 @@ commands.set('god', async (sock, message, args) => {
     // Handle claiming God status with code
     if (args[0] === '201148') {
         await player.update({ isGod: true });
-        await sock.sendMessage(replyJid, { text: "Lien établi. Tu es désormais reconnu comme une entité divine dans la matrice d'Aetherys." });
+        await sock.sendMessage(replyJid, { text: "Lien établi. Tu es désormais reconnu comme une entité divine dans la matrice de Gheno City." });
         return;
     }
 
@@ -762,30 +762,29 @@ commands.set('menu', async (sock, message) => {
                    "🏆 `/tournoi` - L'arène des gangs.\n" +
                    "❓ `/help` - Manuel du crime.";
 
-  // GTA V Style Menu Image
-  const menuImageUrl = "https://media-rockstargames-com.akamaized.net/rockstargames-newsite/img/global/games/fob/640/V.jpg";
+  // GTA V Style Menu Image - Check for local assets first
+  let imageBuffer = null;
+  const localMenuPath = path.join(__dirname, 'menu_image.jpg');
 
   try {
-    const response = await axios.get(menuImageUrl, {
-        responseType: 'arraybuffer',
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    const imageBuffer = Buffer.from(response.data, 'binary');
+    if (fs.existsSync(localMenuPath)) {
+        imageBuffer = fs.readFileSync(localMenuPath);
+    } else {
+        const menuImageUrl = "https://media-rockstargames-com.akamaized.net/rockstargames-newsite/img/global/games/fob/640/V.jpg";
+        const response = await axios.get(menuImageUrl, {
+            responseType: 'arraybuffer',
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        imageBuffer = Buffer.from(response.data, 'binary');
+    }
 
     await sock.sendMessage(message.key.remoteJid, {
       image: imageBuffer,
       caption: menuText
     });
   } catch (error) {
-    console.error("Erreur envoi image menu (fallback local):", error.message);
-    try {
-        await sock.sendMessage(message.key.remoteJid, {
-            image: fs.readFileSync('./menu_image.jpg'),
-            caption: menuText
-        });
-    } catch (localError) {
-        await sock.sendMessage(message.key.remoteJid, { text: menuText });
-    }
+    console.error("Erreur envoi image menu:", error.message);
+    await sock.sendMessage(message.key.remoteJid, { text: menuText });
   }
 });
 

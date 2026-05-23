@@ -64,7 +64,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             }
             return;
         } else {
-            await sock.sendMessage(jid, { text: "Instructeur : 'Concentrate-toi ! Tu dois choisir une classe : Guerrier, Mage ou Assassin.'" });
+            await sock.sendMessage(jid, { text: "Don Salvatore : 'Concentrate-toi ! Tu dois choisir un rôle : Braqueur, Pilote ou Hacker.'" });
             return;
         }
     }

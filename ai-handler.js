@@ -64,7 +64,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: {
           [Op.or]: [
               { price: { [Op.lte]: player.col + 300 } }, // Items the player can almost afford
-              { name: ['Elucidator', 'Lambent Light'] } // Only 2 featured items
+              { name: ['Carabine spéciale', 'Pistolet de combat'] } // Only 2 featured items
           ]
       },
       limit: 5
@@ -105,7 +105,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: {
           [Op.or]: [
               { location: { [Op.like]: `%${player.location}%` } },
-              { name: ['Directeur Magnus', 'Heathcliff', 'Asuna'] } // Reduced key NPCs
+              { name: ['Lester Crest', 'Trevor Philips', 'Michael De Santa'] } // Reduced key NPCs
           ]
       },
       limit: 6

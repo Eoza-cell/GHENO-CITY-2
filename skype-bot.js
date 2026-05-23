@@ -130,7 +130,7 @@ async function connectToWhatsApp() {
                         });
 
                         console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                        await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
+                        await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Gheno City.` });
 
                         // Trigger tutorial after profile pic
                         await startTutorial(sock, message.key.remoteJid, player);

@@ -823,12 +823,12 @@ async function setupDatabase() {
             { name: 'Franklin Clinton', role: 'Chauffeur d\'élite', description: 'Il connaît toutes les ruelles de la ville par cœur.', location: 'Little Sicily' },
             { name: 'Michael De Santa', role: 'Cerveau des braquages', description: 'Un pro à la retraite qui s\'ennuie dans sa villa.', location: 'Vinewood' },
             { name: 'Lester Crest', role: 'Organisateur', description: 'Le génie derrière les plus gros coups de la ville.', location: 'Downtown' },
-            { name: 'Argo', role: 'Informatrice', description: 'Elle vend des secrets sur les mouvements de police.', location: 'Downtown' },
-            { name: 'Agil', role: 'Vendeur d\'armes', description: 'Un colosse qui tient une boutique Ammu-Nation.', location: 'Little Sicily' },
-            { name: 'Sachi', role: 'Vendeuse de café', description: 'Une jeune femme douce qui entend beaucoup de choses dans son café.', location: 'Little Sicily' },
-            { name: 'Asuna', role: 'Lieutenant de gang', description: 'Aussi rapide avec un pistolet qu\'avec ses poings.', location: 'Downtown' },
-            { name: 'Silica', role: 'Livreuse', description: 'Elle parcourt la ville sur son scooter pour livrer des paquets mystérieux.', location: 'Downtown' },
-            { name: 'Lisbeth', role: 'Armurière', description: 'Spécialiste dans la modification d\'armes à feu.', location: 'Little Sicily' }
+            { name: 'Simeon Yetarian', role: 'Concessionnaire', description: 'Un homme d\'affaires qui a toujours besoin de "récupérer" des véhicules.', location: 'Downtown' },
+            { name: 'Gerald', role: 'Contact de rue', description: 'Il gère les affaires de drogue dans les quartiers sud.', location: 'Strawberry' },
+            { name: 'Martin Madrazo', role: 'Chef de Cartel', description: 'Un homme puissant et dangereux qui n\'aime pas qu\'on le trahisse.', location: 'Vinewood' },
+            { name: 'Patricia Madrazo', role: 'Femme de Martin', description: 'Une femme douce qui en sait beaucoup plus qu\'elle n\'en a l\'air.', location: 'Vinewood' },
+            { name: 'Ron Jakowski', role: 'Bras droit de Trevor', description: 'Un théoricien du complot qui gère les affaires de Trevor Philips Enterprises.', location: 'Sandy Shores' },
+            { name: 'Lester Crest (Hack)', role: 'Organisateur', description: 'Le cerveau derrière les plus gros coups de la ville.', location: 'Downtown' }
         ]);
         console.log('NPCs seeded.');
     }

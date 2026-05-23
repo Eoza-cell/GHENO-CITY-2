@@ -49,7 +49,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     console.warn("[AI] TOUS LES FOURNISSEURS ONT ÉCHOUÉ. Utilisation du secours statique.");
     return JSON.stringify({
-        narrative: "Le flux magique d'Aetherys semble perturbé... (Erreur Serveur AI)",
+        narrative: "Le réseau de Gheno City semble perturbé... (Erreur Serveur AI)",
         actions: []
     });
 }
