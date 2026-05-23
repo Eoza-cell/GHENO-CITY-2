@@ -699,6 +699,25 @@ commands.set('help', async (sock, message) => {
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
 });
 
+// Command: /mode
+commands.set('mode', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    const newMode = args[0]?.toLowerCase();
+    if (newMode === 'story' || newMode === 'open') {
+        const modeName = newMode === 'story' ? 'story' : 'open_world';
+        await player.update({ rpMode: modeName });
+        const displayMode = modeName === 'story' ? '📖 MODE HISTOIRE' : '🌎 MODE OPEN WORLD';
+        await sock.sendMessage(replyJid, { text: `Mode de jeu changé pour : *${displayMode}*.\n\n${modeName === 'story' ? 'Tu te concentres désormais sur ton ascension personnelle et les missions principales.' : 'Tu es maintenant plongé dans le chaos de la ville avec les autres joueurs.'}` });
+    } else {
+        await sock.sendMessage(replyJid, { text: "Usage: /mode [story/open]\n\n📖 *Mode Histoire*: Focus sur ta narration et tes quêtes solo.\n🌎 *Open World*: Interaction multijoueur, guerres de territoires et événements globaux." });
+    }
+});
+
 // Command: /action
 commands.set('action', async (sock, message) => {
   const jid = getJid(message);
@@ -719,9 +738,13 @@ commands.set('menu', async (sock, message) => {
     await player.update({ mode: 'normal' });
   }
 
+  const currentMode = player.rpMode === 'story' ? '📖 Histoire' : '🌎 Open World';
   const menuText = "🌐 *GHENO CITY 2: URBAN CRIME* 🌐\n\n" +
+                   `📍 MODE ACTUEL: *${currentMode}*\n` +
+                   "---------------------------\n" +
                    "Quoi de neuf aujourd'hui, boss ?\n\n" +
                    "🎮 `/action` - Entrer dans la matrice (RP).\n" +
+                   "🔄 `/mode [story/open]` - Changer de mode.\n" +
                    "👤 `/profil` - Ton profil de malfrat.\n" +
                    "📋 `/quests` - Tes contrats en cours.\n" +
                    "🗺️ `/map` - Carte de la ville & Territoires.\n" +

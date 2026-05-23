@@ -148,6 +148,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'Aucune', // Legal, Illegal, etc.
   },
+  rpMode: {
+    type: DataTypes.STRING,
+    defaultValue: 'story', // 'story' or 'open_world'
+  },
   tutorialStep: {
     type: DataTypes.INTEGER,
     defaultValue: 0, // 0: not started, 1: class choice, 2: combat training, 3: completed

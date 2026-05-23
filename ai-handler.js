@@ -10,6 +10,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerState = `
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
+    - Mode de jeu: ${player.rpMode === 'story' ? 'MODE HISTOIRE (Solo Focus)' : 'MODE OPEN WORLD (Multiplayer/Chaos)'}
     - Âge: ${player.age} ans ${player.isStudent ? '(Étudiant)' : ''}
     - Job: ${player.job} (Salaire: ${player.salary} $)
     - Description: ${player.characterDescription}
@@ -147,6 +148,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     **LOGIQUE & HISTOIRE**:
     - La narration doit suivre une LOGIQUE implacable de monde ouvert urbain. Pas de miracles. Chaque événement est la conséquence directe d'une action ou du contexte (police, gangs, argent).
+    - **MODES DE JEU**:
+        *   **MODE HISTOIRE**: Focus sur le joueur. La narration est centrée sur son évolution personnelle, ses quêtes principales et son immersion solo. Les autres joueurs sont moins présents dans la narration sauf s'ils interfèrent directement.
+        *   **MODE OPEN WORLD**: Le chaos total. La narration met l'accent sur les interactions avec les autres joueurs, les guerres de factions en cours, et les événements globaux de la ville. Encourage la coopération ou la trahison.
     - Respecte scrupuleusement l'histoire de Gheno City (Guerres de gangs, corruption policière, trafic de drogue et d'armes).
 
     **ATMOSPHÈRE SOMBRE & RÉALISME URBAIN**:
