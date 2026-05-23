@@ -7,11 +7,11 @@ const { callAI } = require('./ai-utils');
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
 
-    const welcomeText = "--- ⚔️ *START: LINK START!* --- \n\n" +
-                        "Un homme à la carrure imposante et aux cheveux rouges se tient devant toi, une aura de puissance écrasante se dégageant de lui. Il s'agit de ton instructeur.\n\n" +
-                        "Instructeur : 'Alors comme ça, un nouveau visage apparaît dans ce monde condamné ? Voyons si tu as la flamme d'un héros ou si tu n'es qu'une erreur de la matrice.'\n\n" +
-                        "Il te tend trois parchemins anciens entourés d'éclairs de mana.\n\n" +
-                        "'Choisis ton destin, ton arme et ton âme. *Quelle est ta classe ?*'";
+    const welcomeText = "--- 🔫 *INITIATION À GHENO CITY* --- \n\n" +
+                        "Un homme d'un certain âge, vêtu d'un costume italien impeccable, te dévisage dans la pénombre d'une ruelle de Little Sicily. C'est Don Salvatore.\n\n" +
+                        "Don Salvatore : 'Alors comme ça, on veut se faire une place au soleil à Gheno City ? On va voir si tu as les tripes pour ça ou si tu finiras dans le port avec des chaussures en béton.'\n\n" +
+                        "Il pose trois dossiers sur le capot d'une voiture de luxe.\n\n" +
+                        "'Choisis ton rôle, petit. C'est ça qui décidera si tu finis riche ou à la morgue. *Quel est ton rôle ?*'";
 
     try {
         const imageBuffer = await generateClassSelectionImage();
@@ -21,7 +21,7 @@ async function startTutorial(sock, jid, player) {
         });
     } catch (error) {
         console.error("Erreur démarrage tutoriel:", error);
-        await sock.sendMessage(jid, { text: welcomeText + "\n\n(Désolé, l'image n'a pas pu être générée. Choisis entre : Guerrier, Mage ou Assassin)" });
+        await sock.sendMessage(jid, { text: welcomeText + "\n\n(Désolé, l'image n'a pas pu être générée. Choisis entre : Braqueur, Pilote ou Hacker)" });
     }
 }
 
@@ -34,24 +34,24 @@ async function handleTutorialAction(sock, message, player, actionText) {
         const lowerAction = actionText.toLowerCase();
         let chosenClass = null;
 
-        if (lowerAction.includes('guerrier')) chosenClass = 'Guerrier';
-        else if (lowerAction.includes('mage')) chosenClass = 'Mage';
-        else if (lowerAction.includes('assassin')) chosenClass = 'Assassin';
+        if (lowerAction.includes('braqueur')) chosenClass = 'Braqueur';
+        else if (lowerAction.includes('hacker')) chosenClass = 'Hacker';
+        else if (lowerAction.includes('pilote')) chosenClass = 'Pilote';
 
         if (chosenClass) {
             await player.update({
                 class: chosenClass,
                 tutorialStep: 2,
-                strength: chosenClass === 'Guerrier' ? 20 : 10,
-                intelligence: chosenClass === 'Mage' ? 20 : 10,
-                agility: chosenClass === 'Assassin' ? 20 : 10
+                strength: chosenClass === 'Braqueur' ? 20 : 10,
+                intelligence: chosenClass === 'Hacker' ? 20 : 10,
+                agility: chosenClass === 'Pilote' ? 20 : 10
             });
 
-            const nextText = `Instructeur : 'Un ${chosenClass}, hein ? *DODODO!* Un choix qui en dit long sur ton tempérament. Passons maintenant à la destruction !'\n\n` +
-                             "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre.\n\n" +
-                             "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
-                             "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
-                             "Décris tes attaques avec passion (ex: 'Je concentre mon mana dans ma lame et je lance une entaille fulgurante !') pour maximiser tes dégâts.";
+            const nextText = `Don Salvatore : 'Un ${chosenClass}, hein ? Pas mal. On a toujours besoin de gens comme toi. Mais voyons si tu sais te servir de tes mains !'\n\n` +
+                             "Il fait un signe de tête et un de ses gorilles s'avance, les poings serrés.\n\n" +
+                             "'Montre-moi ce que tu vaux ! Frappe fort, ou dégage de ma ville !'\n\n" +
+                             "--- 💡 *CONSEIL DE RUE* --- \n" +
+                             "Décris tes actions avec précision (ex: 'Je lui envoie un uppercut dévastateur au menton avant de m'écarter !') pour maximiser l'impact.";
 
             try {
                 const bossImage = fs.readFileSync(path.join('assets', 'tutorial_boss.jpg'));
@@ -72,14 +72,14 @@ async function handleTutorialAction(sock, message, player, actionText) {
     if (player.tutorialStep === 2) {
         // Combat training logic powered by AI
         const systemPrompt = `
-            Tu es l'Instructeur, un maître d'armes légendaire dans GHENO CITY 2. Ton but est d'évaluer et de former le nouveau joueur dans un duel d'entraînement épique de style ANIME (Ufotable/MAPPA style).
+            Tu es Don Salvatore, le parrain de la ville. Ton but est d'évaluer le nouveau joueur dans une petite altercation de rue pour voir ce qu'il a dans le ventre.
             Le joueur est un ${player.class} (FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}).
 
-            RÈGLES DU TUTORIEL (STYLE ANIME):
-            1.  **Narration Épique**: Décris les impacts avec des onomatopées (*BOOM*, *ZING*), des effets de lumière et des ralentis dramatiques.
-            2.  **Réaction Dynamique**: Décris précisément l'impact de l'attaque du joueur en fonction de ses stats. Si le joueur a beaucoup de force, le sol doit se fissurer.
+            RÈGLES DU TUTORIEL (STYLE GTA / URBAIN):
+            1.  **Narration Urbaine**: Décris les coups, les bruits de la rue, l'odeur de l'essence et de la poussière.
+            2.  **Réaction Dynamique**: Décris précisément l'impact de l'action du joueur en fonction de ses stats. Si le joueur est un braqueur puissant, il doit bousculer violemment son adversaire.
             3.  **Instruction Rapide**: Le tutoriel doit être court (1-2 échanges).
-            4.  **Ton Mentor Anime**: Tu es un mentor sévère mais respectueux. Utilise des répliques comme "Pas mal, mais trop lent !" ou "Ressens le flux du mana !".
+            4.  **Ton Mentor Gritty**: Tu es un parrain respecté et dur. Utilise des répliques comme "C'est tout ce que tu as ?" ou "Apprends à viser, gamin.".
             5.  **Fin du Tutoriel**: Dès que tu juges que le joueur a compris, passe "tutorial_complete" à true.
             6.  **Format JSON**: Retourne UNIQUEMENT un objet JSON avec les clés "narrative" (string) et "tutorial_complete" (boolean).
         `;
@@ -100,7 +100,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
                  console.error("Échec extraction JSON tutoriel. Contenu brut:", content);
-                 await sock.sendMessage(jid, { text: "Instructeur : 'Impressionnant ! Tu apprends vite. Le tutoriel est terminé.'\n\n*Utilise /menu pour commencer.*" });
+                 await sock.sendMessage(jid, { text: "Don Salvatore : 'Impressionnant ! Tu apprends vite. Bienvenue dans la famille.'\n\n*Utilise /menu pour commencer ton ascension.*" });
                  await player.update({ tutorialStep: 3, mode: 'normal' });
                  return;
             }
@@ -109,14 +109,14 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
             if (aiResponse.tutorial_complete) {
                 await player.update({ tutorialStep: 3, mode: 'normal' });
-                aiResponse.narrative += "\n\n*FÉLICITATIONS ! Tu as terminé le tutoriel. Utilise /menu pour commencer.*";
+                aiResponse.narrative += "\n\n*BIENVENUE DANS LA RUE ! Tu as terminé l'initiation. Utilise /menu pour commencer ton ascension.*";
             }
 
             await sendWithImage(sock, jid, aiResponse);
         } catch (error) {
             console.error("Erreur AI tutoriel:", error);
             // Fallback to avoid blocking the user
-            await sock.sendMessage(jid, { text: "Instructeur : 'Pas mal ! C'est suffisant pour aujourd'hui. Bienvenue dans Skype.'\n\n*Utilise /menu pour commencer.*" });
+            await sock.sendMessage(jid, { text: "Don Salvatore : 'Pas mal ! C'est suffisant pour aujourd'hui. Bienvenue à Gheno City.'\n\n*Utilise /menu pour commencer.*" });
             await player.update({ tutorialStep: 3, mode: 'normal' });
         }
     }

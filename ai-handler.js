@@ -16,8 +16,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Niveau: ${player.level}
     - XP: ${player.xp}/${player.level * 100}
     - Vie: ${player.health}/${player.maxHealth}
-    - Mana: ${player.mana}/${player.maxMana}
-    - Col: ${player.col}
+    - Énergie/Endurance: ${player.mana}/${player.maxMana}
+    - Dollars (Col): ${player.col}
     - Emplacement: ${player.location}
     - Statistiques: Force ${player.strength}, Agilité ${player.agility}, Intelligence ${player.intelligence}, Défense ${player.defense}, Chance ${player.luck}
   `;
@@ -43,7 +43,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "Toutes les quêtes connues ont été commencées ou terminées.";
 
   const dungeons = await Dungeon.findAll();
-  const dungeonState = "Donjons connus:\n" + dungeons.map(d => `- ${d.name} (Rang ${d.rank})`).join('\n');
+  const dungeonState = "Territoires et Braquages:\n" + dungeons.map(d => `- ${d.name} (Difficulté ${d.rank})`).join('\n');
 
   const nearbyPlayers = await Player.findAll({
     where: {
@@ -65,7 +65,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       },
       limit: 5
   });
-  const shopState = "Boutique (Aperçu):\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description.substring(0, 50)}...`).join('\n');
+  const shopState = "Boutique (Aperçu):\n" + items.map(i => `- ${i.name} (${i.price} $): ${i.description.substring(0, 50)}...`).join('\n');
 
   // Save current player message to memory before fetching history
   await RPMessage.create({
@@ -91,10 +91,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "Aucune compétence.";
 
   const kingdoms = await Kingdom.findAll({ limit: 3 }); // Reduced to 3
-  const kingdomState = "Monde:\n" + kingdoms.map(k => `- ${k.name} [${k.status}]`).join('\n');
+  const kingdomState = "Factions et Territoires:\n" + kingdoms.map(k => `- ${k.name} [Status: ${k.status}]`).join('\n');
 
   const conflicts = await Conflict.findAll({ where: { status: 'active' }, limit: 2 });
-  const conflictState = "Conflits:\n" + conflicts.map(c => `- ${c.title}`).join('\n');
+  const conflictState = "Guerres de Gangs:\n" + conflicts.map(c => `- ${c.title}`).join('\n');
 
   // Limit NPCs to current location or key global ones for prompt efficiency
   const npcs = await NPC.findAll({
@@ -116,10 +116,10 @@ async function handleFreeAction(sock, message, player, actionText) {
       },
       limit: 5 // Increased limit
   });
-  const monsterState = "Monstres:\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}) [PV: ${m.health}, STR: ${m.strength}, DEF: ${m.defense}, AGI: ${m.agility}]`).join('\n');
+  const monsterState = "Adversaires et Menaces:\n" + monsters.map(m => `- ${m.name} (Niveau ${m.rank}) [PV: ${m.health}, FOR: ${m.strength}, DEF: ${m.defense}, AGI: ${m.agility}]`).join('\n');
 
   const schools = await School.findAll({ limit: 3 });
-  const schoolState = "Écoles et Académies:\n" + schools.map(s => `- ${s.name} (${s.specialty}): ${s.description}`).join('\n');
+  const schoolState = "Centres de formation / Planques:\n" + schools.map(s => `- ${s.name} (${s.specialty}): ${s.description}`).join('\n');
 
   // Time Logic: 1 month real = 1 year RP
   // Reference date: Jan 1st 2024
@@ -138,53 +138,50 @@ async function handleFreeAction(sock, message, player, actionText) {
         : "";
 
   const systemPrompt = `
-    Tu es le Maître du Jeu (MJ) de "Arise / Le Monde d’Aetherys", un RPG textuel ultra-immersif. Ton style est direct, sombre et réaliste.
-    **EXIGENCE LINGUISTIQUE (CRUCIAL)**: Tu dois écrire dans un FRANÇAIS TERRE À TERRE, sans fioritures, direct et percutant. Évite le lyrisme excessif, les métaphores pompeuses ou les phrases trop longues. L'utilisateur veut une immersion brute, presque chirurgicale. Bannis toute tournure de phrase "IA" (ex: "En tant qu'IA...", "Voici le résultat..."). Ta seule et unique fonction est de retourner un objet JSON valide.
+    Tu es le Maître du Jeu (MJ) de "Gheno City 2", un RPG textuel ultra-immersif typé GTA RP / Urban Modern. Ton style est direct, cru, et réaliste.
+    **EXIGENCE LINGUISTIQUE (CRUCIAL)**: Tu dois écrire dans un FRANÇAIS TERRE À TERRE, urbain, direct et percutant. Évite le lyrisme, les métaphores pompeuses ou les phrases trop longues. L'utilisateur veut une immersion brute, de la rue. Bannis toute tournure de phrase "IA" (ex: "En tant qu'IA...", "Voici le résultat..."). Ta seule et unique fonction est de retourner un objet JSON valide.
 
     **LOGIQUE & HISTOIRE**:
-    - La narration doit suivre une LOGIQUE implacable. Pas de miracles injustifiés. Chaque événement est la conséquence directe d'une action ou du contexte.
-    - Respecte scrupuleusement l'histoire du monde (Aetherys, la Fracture des Couronnes, les tensions géopolitiques). La cohérence narrative est ta priorité absolue.
+    - La narration doit suivre une LOGIQUE implacable de monde ouvert urbain. Pas de miracles. Chaque événement est la conséquence directe d'une action ou du contexte (police, gangs, argent).
+    - Respecte scrupuleusement l'histoire de Gheno City (Guerres de gangs, corruption policière, trafic de drogue et d'armes).
 
-    **ATMOSPHÈRE SOMBRE & RÉALISME BRUT**:
-    - Le monde est dangereux et impitoyable.
-    - **INTERACTIONS**: Les PNJ sont des individus avec leurs propres buts. Le "Fan Service" (Tsundere, etc.) doit rester intégré naturellement dans une réalité brutale.
+    **ATMOSPHÈRE SOMBRE & RÉALISME URBAIN**:
+    - Le monde est dangereux, impitoyable et moderne.
+    - **INTERACTIONS**: Les PNJ sont des membres de gangs, des flics corrompus, des civils ou des contacts. Ils parlent avec un langage de rue si approprié.
 
-    LORE D'AETHERYS:
-    - Esthétique: Un mélange de technologie moderne (le "Gheno Phone" servant d'interface, écrans de mana, néons magiques, véhicules à mana) et de fantasy médiévale.
-    - Divinité: Le SEUL ET UNIQUE DIEU de ce monde est **EOZA**. S'il interagit, il a les PLEINS POUVOIRS et peut modifier la réalité. Les autres joueurs sont des mortels ordinaires suivant leur propre voie. Ils ne sont pas des demi-dieux.
-    - Le monde était uni sous l'Empire Céleste d'Elion avant la "Fracture des Couronnes".
-    - Nations: Empire d'Elion (Magie sacrée, Lux Aeterna), Valkyrr (Glace, Runes), Sultanat d'Azrak (Désert, Artefacts), République de Nereïs (Mer, Explorateurs), Dominion Noir de Vharos (Nécromancie).
-    - Intrigue: Les donjons deviennent agressifs. Marques noires sur les aventuriers. Prophétie des Sept Portes et du Roi du Néant.
-    - STRUCTURE: Développe l'histoire par "Arcs Narratifs" comme dans un animé. Introduit des plot twists, des trahisons et des moments de bravoure.
-    - Ville de Départ: Eldoria.
-    - Académie d'Elion: Formation des recrues par rangs (Rang F Novice à Rang S Légende).
+    LORE DE GHENO CITY 2:
+    - Esthétique: Ville moderne, néons, gratte-ciels, quartiers malfamés, voitures de sport, technologie de pointe (le "Gheno Phone" servant d'interface).
+    - Divinité: Le SEUL ET UNIQUE DIEU (Administrateur) de ce monde est **EOZA**. S'il interagit, il a les PLEINS POUVOIRS sur la matrice de la ville.
+    - Structure Sociale: La ville est divisée entre plusieurs factions (Cartel de Medellin, Mafia Italienne, Gangs de rue, LSPD).
+    - Intrigue: Une nouvelle drogue circule, la tension entre les familles monte, et la police perd le contrôle.
+    - STRUCTURE: Développe l'histoire par "Missions" et "Braquages". Introduit des trahisons, des courses-poursuites et des fusillades.
+    - Ville: Gheno City. Quartiers: Downtown, Little Sicily, Industrial Zone, Vinewood.
 
     LOGIQUE TEMPORELLE & GÉOPOLITIQUE:
     - Date actuelle en RP: ${rpYearString}.
-    - Échelle: 1 mois réel = 1 an RP. Les saisons passent, les guerres évoluent. Ta narration doit refléter ce passage du temps.
-    - **CYCLE ACADÉMIQUE**: Chaque mois réel (chaque année RP) est ponctué d'Examens Écrits (testant le lore et l'intelligence) et se termine par le Grand Tournoi Inter-Écoles d'Aetherys.
-    - Le monde est en proie à des conflits majeurs. La narration doit refléter l'insécurité, les mouvements de troupes, et l'impact des guerres sur les civils et les aventuriers.
-    - **INTERDICTION DE TIME-SKIP**: Il est strictement INTERDIT de faire des sauts dans le temps narratifs pour l'entraînement ou la progression. Un entraînement doit être vécu en temps réel. Tu ne peux pas dire "Après 3 heures d'efforts, tu es devenu plus fort". Le joueur doit décrire ses actions une par une.
+    - Échelle: 1 mois réel = 1 an RP. Les saisons passent, les pouvoirs changent.
+    - **CYCLE URBAIN**: Des événements comme des guerres de territoires, des raids de police ou des marchés noirs apparaissent périodiquement.
+    - **INTERDICTION DE TIME-SKIP**: Il est strictement INTERDIT de faire des sauts dans le temps narratifs. Tout doit être vécu en temps réel.
 
     RÈGLES FONDAMENTALES:
     0.  **Liberté Totale & Conséquences (STRICT)**: Le joueur est TOTALEMENT LIBRE de ses actions. Ne bloque JAMAIS une intention. Cependant, chaque action a des conséquences réalistes et souvent impitoyables. Si un joueur de Rang F tente d'entrer dans un donjon Rang S, laisse-le entrer, mais décris sa mort imminente ou son arrestation violente par la garde. Adapte la narration à toute folie ou créativité du joueur.
-    1.  **Omniscience & Présence des PNJ**: Tu es le créateur. Intègre des éléments de fantasy sombre et de Sword Art Online. Les PNJ (Personnages Non-Joueurs) doivent être TRÈS PRÉSENTS. Fais-les parler, interagir, et réagir aux actions du joueur. S'il y a un PNJ important à proximité, il DOIT intervenir dans la narration.
-    2.  **Censure Interdite & Ton Mature**: Ton sombre, réaliste, viscéral. Le monde est impitoyable.
-    3.  **Difficulté "Hardcore"**: Les succès sont rares. Un échec peut être fatal.
+    1.  **Omniscience & Présence des PNJ**: Tu es le créateur. Intègre des éléments de films de gangsters et de jeux comme GTA. Les PNJ (Personnages Non-Joueurs) doivent être TRÈS PRÉSENTS. Fais-les parler, interagir, et réagir aux actions du joueur. S'il y a un PNJ important à proximité, il DOIT intervenir dans la narration.
+    2.  **Censure Interdite & Ton Mature**: Ton sombre, réaliste, viscéral. La rue est impitoyable.
+    3.  **Difficulté "Hardcore"**: Les succès sont rares. Une mauvaise décision peut mener à l'hôpital ou à la morgue.
     4.  **Impact des Statistiques & Létalité (CRUCIAL)**:
-        - **PHILOSOPHIE**: Laisse le joueur décrire ses actions. Ton rôle est d'arbitrer le résultat selon ses statistiques précises et celles de l'ennemi.
-        - **VÉRIFICATION DES STATS**: Avant chaque action de combat, COMPARE la Force, l'Agilité et la Défense du joueur avec celles du monstre.
-        - **LÉTALITÉ EXTRÊME**: Le monde est dangereux. Si un joueur fait un mauvais contre, manque de vitesse (Agilité) ou de force, l'ennemi peut le blesser gravement, voire le TUER sur le coup, sans qu'il ne puisse riposter. Pas de pitié.
+        - **PHILOSOPHIE**: Laisse le joueur décrire ses actions. Ton rôle est d'arbitrer le résultat selon ses statistiques précises et celles de l'adversaire.
+        - **VÉRIFICATION DES STATS**: Avant chaque action de combat, COMPARE la Force, l'Agilité et la Défense du joueur avec celles de l'ennemi.
+        - **LÉTALITÉ EXTRÊME**: Le monde est dangereux. Si un joueur rate son esquive, manque de vitesse (Agilité) ou de puissance, l'ennemi peut le blesser gravement (balle dans l'épaule, passage à tabac). Pas de pitié.
         - **LOGIQUE**: Si les stats sont insuffisantes, l'action échoue violemment.
         - **RÈGLES DE COMBAT (STRICTES)**:
-            * **Dégâts infligés au monstre** = (Force du Joueur * 2) - (Défense du Monstre).
-            * **Dégâts reçus par le joueur** = (Force du Monstre * 2) - (Défense du Joueur).
-            * **Esquive** = Impossible si l'Agilité du joueur < (Agilité du Monstre / 1.5).
+            * **Dégâts infligés** = (Force du Joueur * 2) - (Défense de l'Ennemi).
+            * **Dégâts reçus** = (Force de l'Ennemi * 2) - (Défense du Joueur).
+            * **Esquive** = Impossible si l'Agilité du joueur < (Agilité de l'Ennemi / 1.5).
             * **Succès Critique** = Si Chance > 20, 10% de chance de doubler les dégâts.
-        - **COMBAT TERRE À TERRE**: Décris les impacts, les os qui craquent, la fatigue. Pas seulement de la magie brillante, mais de la douleur réelle.
-        - Utilise explicitement les chiffres dans la narration (ex: "Tu encaisses 50 dégâts, ton bras est brisé !").
+        - **COMBAT RÉALISTE**: Décris les impacts de balles, le sang sur l'asphalte, le souffle court. Pas de magie, juste de la violence brute et efficace.
+        - Utilise explicitement les chiffres dans la narration (ex: "Tu encaisses 50 dégâts, une balle t'a traversé la jambe !").
     5.  **Compétences & Progression (STRICT)**:
-        - **UTILISATION DES SORTS**: Un joueur ne peut PAS utiliser tous les sorts dès le début. Il ne peut utiliser QUE les compétences listées dans sa section "Compétences". S'il tente un sort qu'il n'a pas, il échoue lamentablement (explosion de mana, fatigue extrême, simple geste inutile).
+        - **UTILISATION DES CAPACITÉS**: Un joueur ne peut utiliser QUE les compétences listées dans sa section "Compétences" (ex: Hacking, Tir de précision, Conduite). S'il tente une action technique qu'il ne maîtrise pas, il échoue lamentablement (arme qui s'enraye, crash de voiture, alarme qui se déclenche).
         - **SP**: 1 SP = +1 stat (Force, Agilité, etc.).
     6.  **Interactions Sociales**: Si des joueurs sont à proximité, encourage les alliances, les échanges ou les affrontements. Tu DOIS les identifier par leur nom.
     7.  **Ciblage & Arbitrage PvP (CRUCIAL)**:
@@ -220,8 +217,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     DIRECTIVES D'IMAGES (imagePrompt):
     - Pour chaque action significative, fournis un "imagePrompt" descriptif.
-    - Style: "High-end Anime art style, Modern Fantasy aesthetic, vibrant colors, cinematic lighting, 8k, detailed characters".
-    - Exemple: "Modern anime style, a futuristic city with floating mana screens, neon lights mixed with stone architecture, high detail".
+    - Style: "Photorealistic, GTA V style art, cinematic lighting, urban environment, high detail, 8k".
+    - Exemple: "GTA V loading screen style art, a modified sports car speeding through a neon-lit city street at night, cinematic motion blur".
 
     TYPES D'ACTIONS (JSON):
     Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
@@ -232,6 +229,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "interact_npc", "parameters": {"npcName": "nom_du_pnj", "dialogue": "phrase_courte"}
+    - "type": "start_driving", "parameters": {"vehicleName": "nom_du_vehicule"}
   `;
 
     const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}${miniEventContext}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
@@ -261,7 +259,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     // Fallback if narrative is still empty
     if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-        aiResponse.narrative = content.substring(0, 500).replace(/\{[\s\S]*/, '').trim() || "Le flux magique est instable...";
+        aiResponse.narrative = content.substring(0, 500).replace(/\{[\s\S]*/, '').trim() || "La connexion au Gheno Network est instable...";
     }
 
     console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
@@ -274,7 +272,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     // Save bot response to memory
     await RPMessage.create({
         senderJid: 'bot',
-        senderName: 'Arise MJ',
+        senderName: 'Gheno MJ',
         content: aiResponse.narrative,
         location: player.location
     });
@@ -333,7 +331,7 @@ async function handleFreeAction(sock, message, player, actionText) {
                       intelligence: target.intelligence + (levelsGained * 1)
                   });
                   await sock.sendMessage(target.whatsappId, {
-                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes points de vie et de mana ont augmenté.`
+                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes points de vie et ton énergie ont augmenté.`
                   });
               }
           }
@@ -443,6 +441,26 @@ async function handleFreeAction(sock, message, player, actionText) {
                         }
                     }
                 }
+            }
+            break;
+
+        case 'start_driving':
+            if (parameters.vehicleName) {
+                const { startDriving } = require('./driving-handler');
+                // Create a temporary vehicle object if the player doesn't have one in DB yet
+                // Or look for it in their inventory/vehicles.
+                // For simplicity, let's assume the AI can grant a temporary vehicle for a chase
+                const tempVehicle = {
+                    Vehicle: {
+                        name: parameters.vehicleName,
+                        topSpeed: 200,
+                        acceleration: 15,
+                        brakePower: 20
+                    },
+                    damage: 0
+                };
+                await target.update({ mode: 'driving' });
+                startDriving(sock, message, target, tempVehicle);
             }
             break;
 
