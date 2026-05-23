@@ -24,7 +24,7 @@ const missions = {
         objective: "Rends-toi à la planque du caïd pour recevoir tes instructions.",
         reward: {
           xp: 50,
-          money: 1000,
+          col: 1000,
         },
         completionCondition: (player) => player.location === 'hideout',
         narrativeOnComplete: "Le caïd te jauge du regard. 'J'aime ton ambition,' dit-il. 'J'ai un petit boulot pour toi. Fais ça bien, et il y en aura d'autres.' Il te tend une liasse de billets.",
@@ -32,25 +32,25 @@ const missions = {
       },
       3: {
         title: "Le sale boulot",
-        objective: "Le caïd veut que tu sois équipé. Va à l'Ammu-Nation à Downtown et achète un pistolet.",
+        objective: "Le caïd veut que tu sois équipé. Va à l'Ammu-Nation à Downtown et achète un pistolet de combat.",
         reward: {
             xp: 75,
         },
         completionCondition: (player) => {
             const inventory = player.inventory;
-            return inventory.some(item => item.name === 'Pistolet');
+            return inventory.some(item => item.name === 'Pistolet de combat');
         },
         narrativeOnComplete: "Le poids de l'arme dans ta main est une sensation nouvelle. Tu es maintenant prêt pour le vrai travail.",
         nextQuest: 4,
       },
       4: {
         title: "Livraison Spéciale",
-        objective: "Apporte le pistolet que tu as acheté à la planque du caïd. C'est un test de confiance.",
+        objective: "Apporte le pistolet de combat que tu as acheté à la planque du caïd. C'est un test de confiance.",
         reward: {
             xp: 150,
         },
         completionCondition: (player) => {
-            const hasPistol = player.inventory.some(item => item.name === 'Pistolet');
+            const hasPistol = player.inventory.some(item => item.name === 'Pistolet de combat');
             const atHideout = player.location === 'hideout';
             return hasPistol && atHideout;
         },
@@ -64,7 +64,7 @@ const missions = {
             xp: 200,
         },
         completionCondition: (player) => {
-            return player.money >= 2000;
+            return player.col >= 2000;
         },
         narrativeOnComplete: "Tu as l'argent. Tu as prouvé que tu savais te débrouiller en ville. Tu as officiellement ta place dans l'organisation.",
         nextQuest: null, // Fin du chapitre pour l'instant
@@ -96,12 +96,12 @@ async function checkMissionCompletion(sock, player, message) {
         console.log(`Mission ${player.quest} du chapitre ${player.chapter} terminée pour le joueur ${player.name}.`);
 
         // Apply rewards
-        player.money += currentMission.reward.money || 0;
+        player.col += currentMission.reward.col || 0;
         player.xp += currentMission.reward.xp || 0;
 
         // Special case for the delivery quest: remove the pistol from inventory
         if (player.chapter === 1 && player.quest === 4) {
-            player.inventory = player.inventory.filter(item => item.name !== 'Pistolet');
+            player.inventory = player.inventory.filter(item => item.name !== 'Pistolet de combat');
         }
 
 

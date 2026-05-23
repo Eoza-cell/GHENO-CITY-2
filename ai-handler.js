@@ -144,7 +144,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const systemPrompt = `
     Tu es le Maître du Jeu (MJ) de "Gheno City 2", un RPG textuel ultra-immersif typé GTA RP / Urban Modern. Ton style est direct, cru, et réaliste.
-    **EXIGENCE LINGUISTIQUE (CRUCIAL)**: Tu dois écrire dans un FRANÇAIS TERRE À TERRE, urbain, direct et percutant. Évite le lyrisme, les métaphores pompeuses ou les phrases trop longues. L'utilisateur veut une immersion brute, de la rue. Bannis toute tournure de phrase "IA" (ex: "En tant qu'IA...", "Voici le résultat..."). Ta seule et unique fonction est de retourner un objet JSON valide.
+    **EXIGENCE LINGUISTIQUE (CRUCIAL)**: Tu dois écrire dans un FRANÇAIS TERRE À TERRE, urbain, direct et percutant. Évite le lyrisme, les métaphores pompeuses ou les phrases trop longues. L'utilisateur veut une immersion brute, de la rue. Bannis toute tournure de phrase "IA" (ex: "En tant qu'IA...", "Voici le résultat...").
+
+    **OUTPUT FORMAT (MANDATORY)**: Tu dois TOUJOURS répondre EXCLUSIVEMENT avec un objet JSON valide. Ne fournis aucune explication avant ou après le JSON.
 
     **LOGIQUE & HISTOIRE**:
     - La narration doit suivre une LOGIQUE implacable de monde ouvert urbain. Pas de miracles. Chaque événement est la conséquence directe d'une action ou du contexte (police, gangs, argent).
@@ -253,18 +255,35 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     // Robust JSON extraction
     let aiResponse = { narrative: "", actions: [] };
-    let jsonMatch = content.match(/\{[\s\S]*\}/);
+
+    // Attempt to fix common AI truncation or formatting errors
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/```json\s*|\s*```/g, '');
+    } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/```\s*|\s*```/g, '');
+    }
+
+    let jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
 
     if (jsonMatch) {
         try {
             aiResponse = JSON.parse(jsonMatch[0]);
         } catch (e) {
-            console.error("[AI ERROR] JSON Parse failed, extracting narrative only.");
-            aiResponse.narrative = content.replace(/\{[\s\S]*\}/, '').trim();
+            console.error("[AI ERROR] JSON Parse failed. Content snippet:", cleanContent.substring(0, 100));
+            // If JSON parsing fails but it looks like JSON, try a more aggressive approach
+            try {
+                // If the JSON is truncated (common in small contexts), try adding the closing brace
+                if (!cleanContent.endsWith('}')) {
+                    aiResponse = JSON.parse(jsonMatch[0] + '}');
+                }
+            } catch (e2) {
+                aiResponse.narrative = cleanContent.replace(/\{[\s\S]*\}/, '').trim() || cleanContent.substring(0, 500);
+            }
         }
     } else {
         console.warn("[AI WARNING] No JSON found, using raw content as narrative.");
-        aiResponse.narrative = content.trim();
+        aiResponse.narrative = cleanContent;
     }
 
     // Fallback if narrative is still empty

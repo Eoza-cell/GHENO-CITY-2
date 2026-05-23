@@ -380,7 +380,7 @@ commands.set('ecoles', async (sock, message) => {
 });
 
 // Command: /examens
-commands.set('examens', async (sock, message) => {
+const examensCommand = async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
@@ -394,7 +394,9 @@ commands.set('examens', async (sock, message) => {
     text += `_Participe aux cours via /action pour améliorer tes notes et passer les examens._`;
 
     await sock.sendMessage(replyJid, { text: text });
-});
+};
+commands.set('examen', examensCommand);
+commands.set('examens', examensCommand);
 
 // Command: /god
 commands.set('god', async (sock, message, args) => {
@@ -764,11 +766,14 @@ commands.set('menu', async (sock, message) => {
 
   // GTA V Style Menu Image - Check for local assets first
   let imageBuffer = null;
-  const localMenuPath = path.join(__dirname, 'menu_image.jpg');
+  // Use the specific user-provided background
+  const localMenuPath = path.join(__dirname, 'assets', 'Screenshot_20260523-230447.jpg');
 
   try {
     if (fs.existsSync(localMenuPath)) {
         imageBuffer = fs.readFileSync(localMenuPath);
+    } else if (fs.existsSync(path.join(__dirname, 'menu_image.jpg'))) {
+        imageBuffer = fs.readFileSync(path.join(__dirname, 'menu_image.jpg'));
     } else {
         const menuImageUrl = "https://media-rockstargames-com.akamaized.net/rockstargames-newsite/img/global/games/fob/640/V.jpg";
         const response = await axios.get(menuImageUrl, {

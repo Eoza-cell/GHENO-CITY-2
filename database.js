@@ -148,6 +148,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'Aucune', // Legal, Illegal, etc.
   },
+  chapter: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1,
+  },
+  quest: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1,
+  },
   rpMode: {
     type: DataTypes.STRING,
     defaultValue: 'story', // 'story' or 'open_world'
