@@ -7,9 +7,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
   const senderJid = message.key.remoteJid.endsWith('@g.us') ? message.key.participant : message.key.remoteJid;
 
-  const isGod = player.whatsappId === '48198576038116@s.whatsapp.net';
   const playerState = `
-    - Nom: ${player.name} ${isGod ? '(DIEU SUPRÊME)' : ''}
+    - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
     - Description: ${player.characterDescription}
     - Classe: ${player.class}
     - Points de Compétence (SP): ${player.skillPoints}
@@ -152,7 +151,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     LORE D'AETHERYS:
     - Esthétique: Un mélange de technologie moderne (le "Gheno Phone" servant d'interface, écrans de mana, néons magiques, véhicules à mana) et de fantasy médiévale.
-    - Divinité: Le SEUL ET UNIQUE DIEU de ce monde est **EOZA** (+48198576038116). S'il interagit, il a les PLEINS POUVOIRS et peut modifier la réalité. Les autres joueurs sont des mortels ordinaires suivant leur propre voie. Ils ne sont pas des demi-dieux.
+    - Divinité: Le SEUL ET UNIQUE DIEU de ce monde est **EOZA**. S'il interagit, il a les PLEINS POUVOIRS et peut modifier la réalité. Les autres joueurs sont des mortels ordinaires suivant leur propre voie. Ils ne sont pas des demi-dieux.
     - Le monde était uni sous l'Empire Céleste d'Elion avant la "Fracture des Couronnes".
     - Nations: Empire d'Elion (Magie sacrée, Lux Aeterna), Valkyrr (Glace, Runes), Sultanat d'Azrak (Désert, Artefacts), République de Nereïs (Mer, Explorateurs), Dominion Noir de Vharos (Nécromancie).
     - Intrigue: Les donjons deviennent agressifs. Marques noires sur les aventuriers. Prophétie des Sept Portes et du Roi du Néant.
@@ -202,7 +201,13 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Narration DIRECTE, BRUTE et EFFICACE.
     - **LANGUE**: Français simple, vocabulaire du quotidien, phrases courtes. Pas de jargon poétique.
     - **TON**: Sérieux, menaçant. Le danger doit se ressentir dans chaque mot.
-    - **DESCRIPTION**: Concentre-toi sur les sensations physiques (douleur, froid, odeur de sang, poids de l'arme) plutôt que sur des effets visuels magiques abstraits.
+    - **STYLE DE COMBAT (MANGA/ANIME)**: Les combats doivent être VIVANTS et CINÉMATIQUES.
+        * Décris des ENCHAÎNEMENTS de coups rapides (combos).
+        * Utilise des onomatopées ou des descriptions de sons explosifs (BOOM, SHING, CRACK).
+        * Décris les impacts qui soulèvent la poussière, brisent le sol ou créent des ondes de choc.
+        * Mets l'accent sur la vitesse, les reflets sur les lames et les mouvements "Sakuga".
+        * Exemple: "Il lance une série de trois entailles rapides avant de pivoter pour un coup de pied circulaire dévastateur qui projette l'ennemi contre un mur."
+    - **DESCRIPTION**: Concentre-toi sur les sensations physiques (douleur, froid, odeur de sang, poids de l'arme) ET sur l'intensité visuelle du combat.
     - IMMERSION: Le "Gheno Phone" est un outil technologique, décris son interface froide.
     - Utilise des en-têtes simples.
     - Description des mouvements: Précis, sans exagération héroïque injustifiée.

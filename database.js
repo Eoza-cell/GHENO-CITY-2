@@ -112,6 +112,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  isGod: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
   profilePicUrl: {
     type: DataTypes.STRING,
     allowNull: true,

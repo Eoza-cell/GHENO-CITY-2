@@ -20,7 +20,6 @@ function getJid(message) {
   return message.key.remoteJid || null;
 }
 
-const GOD_NUMBER = '48198576038116@s.whatsapp.net';
 
 const commands = new Map();
 
@@ -400,9 +399,19 @@ commands.set('examens', async (sock, message) => {
 commands.set('god', async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
 
-    if (jid !== GOD_NUMBER) {
-        await sock.sendMessage(replyJid, { text: "Seul le Dieu Eoza possède ces pouvoirs." });
+    if (!player) return;
+
+    // Handle claiming God status with code
+    if (args[0] === '201148') {
+        await player.update({ isGod: true });
+        await sock.sendMessage(replyJid, { text: "Lien établi. Tu es désormais reconnu comme une entité divine dans la matrice d'Aetherys." });
+        return;
+    }
+
+    if (!player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les êtres supérieurs possèdent ces pouvoirs. Utilise le code d'accès si tu en as un." });
         return;
     }
 

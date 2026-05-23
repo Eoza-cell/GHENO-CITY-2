@@ -56,7 +56,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
 async function callOpenRouter(systemPrompt, userPrompt) {
     const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-        model: "meta-llama/llama-3.1-8b-instruct:free", // Using a highly capable free model
+        model: "google/gemini-2.0-flash-exp:free", // Improved model for better RP and instructions following
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
