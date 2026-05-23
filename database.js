@@ -668,13 +668,77 @@ async function setupDatabase() {
     if (questCount === 0) {
         console.log('Seeding Missions for Gheno City...');
         await Quest.bulkCreate([
+            // Rang F - Débutants
             { title: 'Initiation au vol', description: 'Vole une voiture et ramène-la au garage clandestin.', type: 'main', rank_required: 'F', reward_col: 200, reward_xp: 100 },
+            { title: 'Livraison express', description: 'Livre ce paquet suspect à l\'autre bout de Little Sicily.', type: 'side', rank_required: 'F', reward_col: 100, reward_xp: 50 },
+            { title: 'Tags de gang', description: 'Recouvre les tags des Ballas dans le quartier.', type: 'side', rank_required: 'F', reward_col: 150, reward_xp: 75 },
+            { title: 'Collecte de dettes', description: 'Va voir le vieux Joe et récupère ce qu\'il doit à la Famille.', type: 'side', rank_required: 'F', reward_col: 300, reward_xp: 120 },
+            { title: 'Guetteur', description: 'Surveille l\'angle de la rue pendant une transaction.', type: 'side', rank_required: 'F', reward_col: 120, reward_xp: 60 },
+
+            // Rang E - Petite Frappe
             { title: 'Règlement de comptes', description: 'Donne une leçon à un petit revendeur qui ne paie pas sa taxe.', type: 'side', rank_required: 'E', reward_col: 500, reward_xp: 250 },
+            { title: 'Vol à l\'arraché', description: 'Vole le sac de cette dame riche près du café.', type: 'side', rank_required: 'E', reward_col: 400, reward_xp: 200 },
+            { title: 'Sabotage de véhicule', description: 'Crève les pneus de la voiture de l\'inspecteur.', type: 'side', rank_required: 'E', reward_col: 600, reward_xp: 300 },
+            { title: 'Transport de "sucre"', description: 'Déplace 5kg de poudre blanche vers la planque.', type: 'side', rank_required: 'E', reward_col: 800, reward_xp: 400 },
+            { title: 'Protection de commerce', description: 'Assure-toi que personne n\'ennuie le gérant du bar ce soir.', type: 'side', rank_required: 'E', reward_col: 700, reward_xp: 350 },
+
+            // Rang D - Criminel Confirmé
             { title: 'Le casse de l\'épicerie', description: 'Braque l\'épicerie du coin et échappe à la police.', type: 'main', rank_required: 'D', reward_col: 1000, reward_xp: 500 },
-            { title: 'Livraison à haut risque', description: 'Transporte une cargaison suspecte à travers la ville sans te faire arrêter.', type: 'side', rank_required: 'C', reward_col: 2000, reward_xp: 1000 },
-            { title: 'Braquage de la Bijouterie', description: 'Organise et exécute le vol de la bijouterie Vangelico.', type: 'main', rank_required: 'B', reward_col: 10000, reward_xp: 5000 },
-            { title: 'Infiltration au LSPD', description: 'Récupère des dossiers compromettants au commissariat central.', type: 'main', rank_required: 'A', reward_col: 15000, reward_xp: 8000 },
-            { title: 'Le Coup du Siècle', description: 'Braque l\'Union Depository.', type: 'main', rank_required: 'S', reward_col: 100000, reward_xp: 50000 },
+            { title: 'Go-Fast urbain', description: 'Traverse la ville en moins de 3 minutes avec la marchandise.', type: 'side', rank_required: 'D', reward_col: 1500, reward_xp: 700 },
+            { title: 'Passage à tabac', description: 'Le cousin du Don a été insulté. Occupe-toi du coupable.', type: 'side', rank_required: 'D', reward_col: 1200, reward_xp: 600 },
+            { title: 'Recel de bijoux', description: 'Récupère des bijoux volés chez un contact louche.', type: 'side', rank_required: 'D', reward_col: 2000, reward_xp: 1000 },
+            { title: 'Incendie criminel', description: 'Brûle l\'entrepôt concurrent dans la zone industrielle.', type: 'side', rank_required: 'D', reward_col: 2500, reward_xp: 1200 },
+
+            // Rang C - Lieutenant de Gang
+            { title: 'Livraison à haut risque', description: 'Transporte une cargaison suspecte à travers la ville sans te faire arrêter.', type: 'side', rank_required: 'C', reward_col: 3000, reward_xp: 1500 },
+            { title: 'Braquage de fourgon blindé', description: 'Intercepte le convoi de la Gruppe Sechs.', type: 'main', rank_required: 'C', reward_col: 5000, reward_xp: 2500 },
+            { title: 'Évasion orchestrée', description: 'Aide un membre du gang à s\'échapper du transport de prisonniers.', type: 'side', rank_required: 'C', reward_col: 4500, reward_xp: 2200 },
+            { title: 'Assassinat discret', description: 'Élimine un témoin gênant sans attirer l\'attention.', type: 'side', rank_required: 'C', reward_col: 6000, reward_xp: 3000 },
+            { title: 'Pillage de conteneur', description: 'Infiltre-toi sur les docks et vole le contenu du conteneur 402.', type: 'side', rank_required: 'C', reward_col: 4000, reward_xp: 2000 },
+
+            // Rang B - Bras Droit
+            { title: 'Braquage de la Bijouterie', description: 'Organise et exécute le vol de la bijouterie Vangelico.', type: 'main', rank_required: 'B', reward_col: 12000, reward_xp: 6000 },
+            { title: 'Guerre de territoire', description: 'Prends le contrôle du quartier sud en éliminant les leaders locaux.', type: 'main', rank_required: 'B', reward_col: 15000, reward_xp: 7500 },
+            { title: 'Kidnapping de VIP', description: 'Enlève le fils du maire pour demander une rançon.', type: 'side', rank_required: 'B', reward_col: 20000, reward_xp: 10000 },
+            { title: 'Blanchiment massif', description: 'Trouve un moyen de rendre "propre" 50 000 $ de billets marqués.', type: 'side', rank_required: 'B', reward_col: 10000, reward_xp: 5000 },
+            { title: 'Infiltration du Cartel', description: 'Deviens membre infiltré pour le compte de la Famille.', type: 'main', rank_required: 'B', reward_col: 18000, reward_xp: 9000 },
+
+            // Rang A - Cerveau Criminel
+            { title: 'Infiltration au LSPD', description: 'Récupère des dossiers compromettants au commissariat central.', type: 'main', rank_required: 'A', reward_col: 30000, reward_xp: 15000 },
+            { title: 'Le casse du Casino', description: 'Vide les coffres du Diamond Casino.', type: 'main', rank_required: 'A', reward_col: 50000, reward_xp: 25000 },
+            { title: 'Attentat politique', description: 'Élimine le candidat gênant avant les élections.', type: 'side', rank_required: 'A', reward_col: 45000, reward_xp: 20000 },
+            { title: 'Trafic d\'armes international', description: 'Organise l\'arrivée d\'un cargo d\'armes au port.', type: 'main', rank_required: 'A', reward_col: 60000, reward_xp: 30000 },
+            { title: 'Cyber-attaque majeure', description: 'Fais tomber le réseau bancaire de la ville pendant 1 heure.', type: 'side', rank_required: 'A', reward_col: 40000, reward_xp: 18000 },
+
+            // Rang S - Légende Urbaine
+            { title: 'Le Coup du Siècle', description: 'Braque l\'Union Depository.', type: 'main', rank_required: 'S', reward_col: 200000, reward_xp: 100000 },
+            { title: 'Putsch urbain', description: 'Prends le contrôle total des infrastructures de la ville.', type: 'main', rank_required: 'S', reward_col: 500000, reward_xp: 250000 },
+            { title: 'Infiltration Fort Zancudo', description: 'Vole un prototype de char d\'assaut dans la base militaire.', type: 'side', rank_required: 'S', reward_col: 300000, reward_xp: 150000 },
+            { title: 'Assassinat du Don', description: 'Élimine Salvatore Leone pour prendre sa place.', type: 'main', rank_required: 'S', reward_col: 1000000, reward_xp: 500000 },
+            { title: 'Chute de l\'Empire', description: 'Détruis définitivement l\'influence du Cartel à Gheno City.', type: 'main', rank_required: 'S', reward_col: 750000, reward_xp: 350000 },
+
+            // Missions supplémentaires - Diversification
+            { title: 'Lavage de voiture', description: 'Nettoie les voitures de luxe au car wash pour quelques dollars.', type: 'side', rank_required: 'F', reward_col: 50, reward_xp: 20 },
+            { title: 'Vente de journaux', description: 'Distribue les gazettes de Gheno City aux coins de rues.', type: 'side', rank_required: 'F', reward_col: 80, reward_xp: 30 },
+            { title: 'Récupération de ferraille', description: 'Ramasse des métaux dans la décharge industrielle.', type: 'side', rank_required: 'F', reward_col: 120, reward_xp: 50 },
+            { title: 'Serveur de fast-food', description: 'Prends les commandes chez Burger Shot pendant le rush.', type: 'side', rank_required: 'E', reward_col: 300, reward_xp: 150 },
+            { title: 'Vandalisme', description: 'Casse les vitrines du concessionnaire concurrent.', type: 'side', rank_required: 'E', reward_col: 450, reward_xp: 200 },
+            { title: 'Escorte de "travailleuse"', description: 'Protège une fille de joie pendant son service de nuit.', type: 'side', rank_required: 'E', reward_col: 550, reward_xp: 250 },
+            { title: 'Prêt usuraire', description: 'Va rappeler les termes du contrat à un joueur de casino malchanceux.', type: 'side', rank_required: 'D', reward_col: 1100, reward_xp: 550 },
+            { title: 'Vol de fret', description: 'Détourne un camion de livraison de matériel électronique.', type: 'side', rank_required: 'D', reward_col: 2200, reward_xp: 1100 },
+            { title: 'Nettoyage de preuves', description: 'Fais disparaître une voiture "chaude" dans la broyeuse.', type: 'side', rank_required: 'D', reward_col: 1800, reward_xp: 900 },
+            { title: 'Racket de chantier', description: 'Impressionne le chef de chantier pour qu\'il paie sa cotisation.', type: 'side', rank_required: 'C', reward_col: 3500, reward_xp: 1600 },
+            { title: 'Intimidation de jurés', description: 'Rends visite aux jurés du procès de la Famille Leone.', type: 'side', rank_required: 'C', reward_col: 5500, reward_xp: 2800 },
+            { title: 'Piratage de DAB', description: 'Installe des skimmers sur les distributeurs de Downtown.', type: 'side', rank_required: 'C', reward_col: 4200, reward_xp: 2100 },
+            { title: 'Corruption policière', description: 'Dépose une mallette dans le casier du sergent corrompu.', type: 'side', rank_required: 'B', reward_col: 8000, reward_xp: 4000 },
+            { title: 'Hold-up de supérette en série', description: 'Braque 5 magasins en une seule nuit.', type: 'side', rank_required: 'B', reward_col: 14000, reward_xp: 7000 },
+            { title: 'Assaut de laboratoire', description: 'Détruis le labo de meth clandestin des Lost MC.', type: 'side', rank_required: 'B', reward_col: 16000, reward_xp: 8500 },
+            { title: 'Vol de données gouvernementales', description: 'Infiltre l\'antenne locale de l\'IAA.', type: 'main', rank_required: 'A', reward_col: 35000, reward_xp: 18000 },
+            { title: 'Contrebande aérienne', description: 'Fais atterrir un avion de drogue sur une piste de fortune.', type: 'side', rank_required: 'A', reward_col: 55000, reward_xp: 26000 },
+            { title: 'Sabotage de pipeline', description: 'Provoque une fuite majeure pour faire chuter les actions pétrolières.', type: 'side', rank_required: 'A', reward_col: 48000, reward_xp: 22000 },
+            { title: 'Dernière volonté du Parrain', description: 'Exécute le testament sanglant de Salvatore.', type: 'main', rank_required: 'S', reward_col: 400000, reward_xp: 200000 },
+            { title: 'Le Siège du LSPD', description: 'Mène une attaque frontale contre le commissariat central.', type: 'main', rank_required: 'S', reward_col: 600000, reward_xp: 300000 },
+            { title: 'Élimination du FIB', description: 'Traque et élimine les agents fédéraux qui te surveillent.', type: 'side', rank_required: 'S', reward_col: 350000, reward_xp: 180000 },
         ]);
         console.log('Missions seeded.');
     }
