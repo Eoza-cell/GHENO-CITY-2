@@ -46,7 +46,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Quêtes disponibles dans le monde:\n" + availableQuests.map(q => `- ${q.title}: ${q.description} (Requis: Rang ${q.rank_required})`).join('\n')
     : "Toutes les quêtes connues ont été commencées ou terminées.";
 
-  const dungeons = await Dungeon.findAll();
+  const dungeons = await Dungeon.findAll({ limit: 5 });
   const dungeonState = "Territoires et Braquages:\n" + dungeons.map(d => `- ${d.name} (Difficulté ${d.rank})`).join('\n');
 
   const nearbyPlayers = await Player.findAll({
@@ -105,20 +105,20 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: {
           [Op.or]: [
               { location: { [Op.like]: `%${player.location}%` } },
-              { name: ['Lester Crest', 'Trevor Philips', 'Michael De Santa'] } // Reduced key NPCs
+              { name: ['Lester Crest', 'Michael De Santa'] } // Further reduced
           ]
       },
-      limit: 6
+      limit: 4
   });
-  const npcState = "PNJ à proximité:\n" + npcs.map(n => `- ${n.name} (${n.role}): ${n.description.substring(0, 60)}...`).join('\n');
+  const npcState = "PNJ à proximité:\n" + npcs.map(n => `- ${n.name} (${n.role}): ${n.description.substring(0, 40)}...`).join('\n');
 
   // Limit monsters to those of similar rank to the player
   const currentRankIndex = ['F', 'E', 'D', 'C', 'B', 'A', 'S'].indexOf(player.rank);
   const monsters = await Monster.findAll({
       where: {
-          rank: { [Op.in]: ['F', 'E', 'D', 'C', 'B', 'A', 'S'].slice(Math.max(0, currentRankIndex - 1), currentRankIndex + 2) }
+          rank: { [Op.in]: ['F', 'E', 'D', 'C', 'B', 'A', 'S'].slice(Math.max(0, currentRankIndex), currentRankIndex + 1) } // Only same or next rank
       },
-      limit: 5 // Increased limit
+      limit: 3
   });
   const monsterState = "Adversaires et Menaces:\n" + monsters.map(m => `- ${m.name} (Niveau ${m.rank}) [PV: ${m.health}, FOR: ${m.strength}, DEF: ${m.defense}, AGI: ${m.agility}]`).join('\n');
 
@@ -267,18 +267,31 @@ async function handleFreeAction(sock, message, player, actionText) {
     let jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
 
     if (jsonMatch) {
+        let jsonStr = jsonMatch[0];
         try {
-            aiResponse = JSON.parse(jsonMatch[0]);
+            aiResponse = JSON.parse(jsonStr);
         } catch (e) {
-            console.error("[AI ERROR] JSON Parse failed. Content snippet:", cleanContent.substring(0, 100));
-            // If JSON parsing fails but it looks like JSON, try a more aggressive approach
+            console.error("[AI ERROR] JSON Parse failed. Trying to fix...");
+
+            // Try to fix truncation by counting braces
+            let openBraces = (jsonStr.match(/\{/g) || []).length;
+            let closeBraces = (jsonStr.match(/\}/g) || []).length;
+            while (openBraces > closeBraces) {
+                jsonStr += '}';
+                closeBraces++;
+            }
+
             try {
-                // If the JSON is truncated (common in small contexts), try adding the closing brace
-                if (!cleanContent.endsWith('}')) {
-                    aiResponse = JSON.parse(jsonMatch[0] + '}');
-                }
+                aiResponse = JSON.parse(jsonStr);
             } catch (e2) {
-                aiResponse.narrative = cleanContent.replace(/\{[\s\S]*\}/, '').trim() || cleanContent.substring(0, 500);
+                console.error("[AI ERROR] Second JSON Parse attempt failed.");
+                // Fallback: Extract narrative if possible
+                const narrativeMatch = cleanContent.match(/"narrative"\s*:\s*"([\s\S]*?)"/);
+                if (narrativeMatch) {
+                    aiResponse.narrative = narrativeMatch[1];
+                } else {
+                    aiResponse.narrative = cleanContent.replace(/\{[\s\S]*\}/, '').trim() || cleanContent.substring(0, 500);
+                }
             }
         }
     } else {

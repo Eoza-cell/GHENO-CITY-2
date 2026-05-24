@@ -98,15 +98,29 @@ async function callPuter(systemPrompt, userPrompt) {
 }
 
 async function callPollinations(systemPrompt, userPrompt) {
-    const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
-    const response = await axios.post('https://text.pollinations.ai/', {
-        messages: [{ role: 'user', content: combinedPrompt }],
-        model: 'openai',
-        json: true
-    }, { timeout: 30000 });
+    const models = ['openai', 'mistral', 'p1'];
+    let lastError = null;
 
-    if (typeof response.data === 'string') return response.data;
-    return response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
+    for (const model of models) {
+        try {
+            console.log(`[AI] Tentative Pollinations avec le modèle: ${model}...`);
+            const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
+            const response = await axios.post('https://text.pollinations.ai/', {
+                messages: [{ role: 'user', content: combinedPrompt }],
+                model: model,
+                json: true
+            }, { timeout: 45000 });
+
+            if (response.data) {
+                if (typeof response.data === 'string') return response.data;
+                return response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
+            }
+        } catch (e) {
+            console.warn(`[AI] Échec Pollinations (${model}):`, e.message);
+            lastError = e;
+        }
+    }
+    throw lastError || new Error("Pollinations failed after trying all models.");
 }
 
 
