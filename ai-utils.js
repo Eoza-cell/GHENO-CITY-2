@@ -23,7 +23,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     const providers = [];
 
-    // Priority: OpenRouter (if key exists) -> Puter -> Pollinations
+    // Priority: Ollama -> OpenRouter -> Puter -> Pollinations
+    providers.push({ name: 'Ollama', fn: callOllama });
     if (process.env.OPENROUTER_API_KEY) {
         providers.push({ name: 'OpenRouter', fn: callOpenRouter });
     }
@@ -119,6 +120,24 @@ async function callPuter(systemPrompt, userPrompt) {
 
     const response = await Promise.race([puterPromise, timeoutPromise]);
     return response.toString();
+}
+
+async function callOllama(systemPrompt, userPrompt) {
+    try {
+        const response = await axios.post("http://localhost:11434/api/chat", {
+            model: "llama3", // Default model, user can change via env if needed
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            stream: false,
+            format: "json"
+        }, { timeout: 45000 });
+
+        return response.data?.message?.content;
+    } catch (error) {
+        throw new Error(`Ollama connection failed: ${error.message}`);
+    }
 }
 
 async function callPollinations(systemPrompt, userPrompt) {

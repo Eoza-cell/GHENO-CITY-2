@@ -14,12 +14,33 @@ function initPuter() {
 }
 
 /**
+ * Sends a loading sequence that modifies itself before the final response.
+ */
+async function sendLoadingSequence(sock, jid) {
+    const steps = [
+        "🌐 Connexion au Gheno Network...",
+        "📡 Synchronisation du GPS urbain...",
+        "🗂️ Analyse de la base de données criminelle...",
+        "🔋 MJ en cours de réflexion..."
+    ];
+
+    let { key } = await sock.sendMessage(jid, { text: steps[0] });
+
+    for (let i = 1; i < steps.length; i++) {
+        await new Promise(r => setTimeout(r, 800));
+        await sock.sendMessage(jid, { edit: key, text: steps[i] });
+    }
+
+    return key;
+}
+
+/**
  * Sends a message with an optional AI-generated image.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
  */
-async function sendWithImage(sock, jid, aiResponse) {
+async function sendWithImage(sock, jid, aiResponse, editKey = null) {
     const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
     const imagePrompt = aiResponse.imagePrompt;
 
@@ -72,8 +93,12 @@ async function sendWithImage(sock, jid, aiResponse) {
     }
 
     if (narrative) {
-        await sock.sendMessage(jid, { text: narrative });
+        if (editKey) {
+            await sock.sendMessage(jid, { edit: editKey, text: narrative });
+        } else {
+            await sock.sendMessage(jid, { text: narrative });
+        }
     }
 }
 
-module.exports = { sendWithImage };
+module.exports = { sendWithImage, sendLoadingSequence };

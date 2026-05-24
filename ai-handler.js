@@ -1,5 +1,5 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, sendLoadingSequence } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const { careerJobs } = require('./jobs');
@@ -175,15 +175,23 @@ async function handleFreeAction(sock, message, player, actionText) {
     - **CYCLE URBAIN**: Des événements comme des guerres de territoires, des raids de police ou des marchés noirs apparaissent périodiquement.
     - **INTERDICTION DE TIME-SKIP**: Il est strictement INTERDIT de faire des sauts dans le temps narratifs. Tout doit être vécu en temps réel.
 
+    **MODE CONDUITE & POURSUITES**:
+    - Lorsqu'un joueur entre dans un véhicule, le mode conduite s'active.
+    - C'est TOI, le MJ, qui décris la conduite, les virages, la vitesse et les obstacles.
+    - Utilise l'Agilité du joueur pour déterminer ses réflexes au volant.
+    - En cas de poursuite policière (LSPD), décris l'intensité, les sirènes et les manœuvres d'évasion.
+    - Si le joueur échoue une manœuvre (Agilité trop basse ou mauvaise décision), décris le crash et les dégâts subis par le véhicule et le joueur.
+
     RÈGLES FONDAMENTALES:
     0.  **Liberté Totale & Conséquences (STRICT)**: Le joueur est TOTALEMENT LIBRE de ses actions. Ne bloque JAMAIS une intention. Cependant, chaque action a des conséquences réalistes et souvent impitoyables. Si un joueur de Rang F tente d'entrer dans un donjon Rang S, laisse-le entrer, mais décris sa mort imminente ou son arrestation violente par la garde. Adapte la narration à toute folie ou créativité du joueur.
     1.  **Omniscience & Présence des PNJ**: Tu es le créateur. Intègre des éléments de films de gangsters et de jeux comme GTA. Les PNJ (Personnages Non-Joueurs) doivent être TRÈS PRÉSENTS. Fais-les parler, interagir, et réagir aux actions du joueur. S'il y a un PNJ important à proximité, il DOIT intervenir dans la narration.
     2.  **Censure Interdite & Ton Mature**: Ton sombre, réaliste, viscéral. La rue est impitoyable.
     3.  **Difficulté "Hardcore"**: Les succès sont rares. Une mauvaise décision peut mener à l'hôpital ou à la morgue.
-    4.  **Impact des Statistiques & Létalité (CRUCIAL)**:
+    4.  **Impact des Statistiques & Létalité (ULTRA-REALISTE)**:
         - **PHILOSOPHIE**: Laisse le joueur décrire ses actions. Ton rôle est d'arbitrer le résultat selon ses statistiques précises et celles de l'adversaire.
         - **VÉRIFICATION DES STATS**: Avant chaque action de combat, COMPARE la Force, l'Agilité et la Défense du joueur avec celles de l'ennemi.
-        - **LÉTALITÉ EXTRÊME**: Le monde est dangereux. Si un joueur rate son esquive, manque de vitesse (Agilité) ou de puissance, l'ennemi peut le blesser gravement (balle dans l'épaule, passage à tabac). Pas de pitié.
+        - **LÉTALITÉ EXTRÊME & ONE-SHOT**: Si un joueur provoque quelqu'un d'armé (flingue, fusil) alors qu'il est vulnérable, ou si l'ennemi tire dans la TÊTE (Headshot), le joueur est MORT INSTANTANÉMENT. Pas de barre de vie dans ce cas précis : c'est la morgue direct.
+        - **HÔPITAL (RESPAWN)**: En cas de mort, le joueur respawn à l'Hôpital Central. Il perd une partie de son argent (frais médicaux) et peut-être des objets illégaux. Utilise le type d'action "respawn_player".
         - **LOGIQUE**: Si les stats sont insuffisantes, l'action échoue violemment.
         - **RÈGLES DE COMBAT (STRICTES)**:
             * **Dégâts infligés** = (Force du Joueur * 2) - (Défense de l'Ennemi).
@@ -241,10 +249,12 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
     - "type": "interact_npc", "parameters": {"npcName": "nom_du_pnj", "dialogue": "phrase_courte"}
-    - "type": "start_driving", "parameters": {"vehicleName": "nom_du_vehicule"}
+    - "type": "respawn_player", "parameters": {"reason": "cause_du_deces", "penalty_col": montant}
   `;
 
     const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}${miniEventContext}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
+
+  const loadingKey = await sendLoadingSequence(sock, jid);
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -489,23 +499,19 @@ async function handleFreeAction(sock, message, player, actionText) {
             }
             break;
 
-        case 'start_driving':
-            if (parameters.vehicleName) {
-                const { startDriving } = require('./driving-handler');
-                // Create a temporary vehicle object if the player doesn't have one in DB yet
-                // Or look for it in their inventory/vehicles.
-                // For simplicity, let's assume the AI can grant a temporary vehicle for a chase
-                const tempVehicle = {
-                    Vehicle: {
-                        name: parameters.vehicleName,
-                        topSpeed: 200,
-                        acceleration: 15,
-                        brakePower: 20
-                    },
-                    damage: 0
-                };
-                await target.update({ mode: 'driving' });
-                startDriving(sock, message, target, tempVehicle);
+        case 'respawn_player':
+            await target.update({
+                health: target.maxHealth,
+                mana: target.maxMana,
+                location: 'Hôpital Central',
+                mode: 'normal'
+            });
+            if (parameters.penalty_col) {
+                await target.decrement('col', { by: parameters.penalty_col });
+            }
+            // Clear driving mode if any
+            if (target.mode === 'driving') {
+                await target.update({ mode: 'normal' });
             }
             break;
 
@@ -529,7 +535,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
     }
 
-    await sendWithImage(sock, jid, aiResponse);
+    await sendWithImage(sock, jid, aiResponse, loadingKey);
 
   } catch (error) {
     console.error('Erreur avec l\'API Puter.js:', error);

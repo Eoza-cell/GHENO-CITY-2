@@ -741,28 +741,35 @@ commands.set('menu', async (sock, message) => {
   }
 
   const currentMode = player.rpMode === 'story' ? '📖 Histoire' : '🌎 Open World';
-  const menuText = "🌐 *GHENO CITY 2: URBAN CRIME* 🌐\n\n" +
-                   `📍 MODE ACTUEL: *${currentMode}*\n` +
-                   "---------------------------\n" +
-                   "Quoi de neuf aujourd'hui, boss ?\n\n" +
-                   "🎮 `/action` - Entrer dans la matrice (RP).\n" +
-                   "🔄 `/mode [story/open]` - Changer de mode.\n" +
-                   "👤 `/profil` - Ton profil de malfrat.\n" +
-                   "📋 `/quests` - Tes contrats en cours.\n" +
-                   "🗺️ `/map` - Carte de la ville & Territoires.\n" +
-                   "💰 `/bank` - Gestion de ton blanchiment (Maze Bank).\n" +
-                   "🛡️ `/statut` - État de ton équipement tactique.\n" +
-                   "✨ `/competences` - Spécialités & Capacités.\n" +
-                   "🛒 `/boutique` - Ammu-Nation.\n" +
-                   "👥 `/joueurs` - Rivaux aux alentours.\n" +
-                   "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
-                   "🤝 `/donner @joueur ...` - Échange illégal.\n" +
-                   "🏰 `/royaumes` - Factions de la ville.\n" +
-                   "🛡️ `/conflits` - Guerres de gangs.\n" +
-                   "🏫 `/ecoles` - Centres de formation.\n" +
-                   "📝 `/examens` - Ton casier judiciaire.\n" +
-                   "🏆 `/tournoi` - L'arène des gangs.\n" +
-                   "❓ `/help` - Manuel du crime.";
+  const menuText = "🌆 *GHENO CITY 2: THE UNDERWORLD* 🌆\n" +
+                   "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                   `📍 *SESSION:* ${currentMode}\n` +
+                   `👤 *IDENTITÉ:* ${player.name}\n` +
+                   "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                   "🎮 *DÉMARRAGE*\n" +
+                   "└ `/action` - Entrer dans la matrice RP\n" +
+                   "└ `/mode` - Changer de type de session\n\n" +
+                   "📊 *DÉPARTEMENT CRIMINEL*\n" +
+                   "├ `/profil` - Dossier complet\n" +
+                   "├ `/statut` - Équipement tactique\n" +
+                   "└ `/competences` - Spécialités\n\n" +
+                   "🗺️ *NAVIGATION & CRIMES*\n" +
+                   "├ `/map` - Territoires & Planques\n" +
+                   "├ `/quests` - Contrats actifs\n" +
+                   "└ `/boutique` - Ammu-Nation\n\n" +
+                   "🏦 *FINANCES*\n" +
+                   "└ `/bank` - Maze Bank Management\n\n" +
+                   "🏙️ *CITY LIFE*\n" +
+                   "├ `/joueurs` - Rivaux à proximité\n" +
+                   "├ `/royaumes` - Factions & Gangs\n" +
+                   "└ `/conflits` - Guerres en cours\n\n" +
+                   "🎓 *FORMATION*\n" +
+                   "├ `/ecoles` - Centres d'entraînement\n" +
+                   "└ `/examens` - Casier & Études\n\n" +
+                   "🏆 *ÉVÉNEMENTS*\n" +
+                   "└ `/tournoi` - L'arène souterraine\n\n" +
+                   "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                   "❓ `/help` - Manuel de survie urbaine";
 
   // GTA V Style Menu Image - Check for local assets first
   let imageBuffer = null;
@@ -868,15 +875,13 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     return;
   }
 
-  // Handle driving mode
+  // Handle driving mode (now integrated with AI MJ)
   if (player?.mode === 'driving' && !messageText.startsWith('/')) {
     try {
-        const { handleDrivingAction } = require('./driving-handler');
-        await handleDrivingAction(sock, message, player, messageText);
+        await handleFreeAction(sock, message, player, messageText);
     } catch (error) {
-        console.error('Erreur mode conduite:', error);
-        await sock.sendMessage(replyJid, { text: "Problème avec le véhicule. Mode normal rétabli." });
-        await player.update({ mode: 'normal' });
+        console.error('Erreur mode conduite AI:', error);
+        await sock.sendMessage(replyJid, { text: "La connexion au véhicule est perdue." });
     } finally {
         await player.update({ lastActivity: new Date() });
     }
