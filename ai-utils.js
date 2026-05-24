@@ -55,25 +55,49 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 }
 
 async function callOpenRouter(systemPrompt, userPrompt) {
-    const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-        model: "google/gemini-2.0-flash-exp:free", // Improved model for better RP and instructions following
-        messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.7
-    }, {
-        headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://heyputer.com",
-            "X-Title": "Arise RPG Bot"
-        },
-        timeout: 30000
-    });
+    const models = [
+        "google/gemini-2.0-flash-exp:free",
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-chat:free"
+    ];
 
-    return response.data?.choices?.[0]?.message?.content;
+    let lastError = null;
+    for (const model of models) {
+        try {
+            console.log(`[AI] Tentative OpenRouter avec le modèle: ${model}...`);
+            const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+                model: model,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt }
+                ],
+                response_format: { type: "json_object" },
+                temperature: 0.7
+            }, {
+                headers: {
+                    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com/Eoza-cell/GHENO-CITY-2",
+                    "X-Title": "Gheno City 2 Bot"
+                },
+                timeout: 30000
+            });
+
+            const content = response.data?.choices?.[0]?.message?.content;
+            if (content) return content;
+        } catch (error) {
+            console.warn(`[AI] Échec OpenRouter (${model}):`, error.response?.data?.error?.message || error.message);
+            lastError = error;
+            // Si c'est un quota ou une limite de débit, on passe au modèle suivant rapidement
+            if (error.response?.status === 429 || error.response?.status === 402) {
+                continue;
+            }
+            // Sinon on attend un tout petit peu
+            await new Promise(r => setTimeout(r, 500));
+        }
+    }
+    throw lastError || new Error("OpenRouter failed after trying all models.");
 }
 
 async function callPuter(systemPrompt, userPrompt) {
