@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { generateRaceSelectionImage } = require('./race-visualizer');
 const { sendWithImage } = require('./message-handler');
 const { callAI } = require('./ai-utils');
 
@@ -13,14 +12,14 @@ async function startTutorial(sock, jid, player) {
                         "'Avant de commencer, dis-moi... à quelle race appartiens-tu ? (Humain, Saiyan, Namek, Démon du Froid, Majin)'";
 
     try {
-        const imageBuffer = await generateRaceSelectionImage();
+        const raceImage = fs.readFileSync(path.join('assets', 'race_selection.jpg'));
         await sock.sendMessage(jid, {
-            image: imageBuffer,
+            image: raceImage,
             caption: welcomeText
         });
     } catch (error) {
-        console.error("Erreur démarrage tutoriel:", error);
-        await sock.sendMessage(jid, { text: welcomeText + "\n\n(Désolé, l'image n'a pas pu être générée. Choisis entre : Guerrier, Mage ou Assassin)" });
+        console.error("Erreur démarrage tutoriel (image selection):", error);
+        await sock.sendMessage(jid, { text: welcomeText });
     }
 }
 
