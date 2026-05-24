@@ -23,7 +23,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     const providers = [];
 
-    // Priority: OpenRouter (if key exists) -> Puter -> Pollinations
+    // Priority: Ollama (Local) -> OpenRouter (if key exists) -> Puter -> Pollinations
+    providers.push({ name: 'Ollama', fn: callOllama });
     if (process.env.OPENROUTER_API_KEY) {
         providers.push({ name: 'OpenRouter', fn: callOpenRouter });
     }
@@ -52,6 +53,25 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         narrative: "Une perturbation dans le Ki mondial empêche toute action... (Erreur Serveur AI)",
         actions: []
     });
+}
+
+async function callOllama(systemPrompt, userPrompt) {
+    try {
+        const response = await axios.post("http://localhost:11434/api/chat", {
+            model: "llama3", // Defaulting to llama3, can be adjusted
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            stream: false,
+            format: "json"
+        }, { timeout: 45000 });
+
+        return response.data?.message?.content;
+    } catch (error) {
+        // If Ollama is not running, this will throw and move to next provider
+        throw error;
+    }
 }
 
 async function callOpenRouter(systemPrompt, userPrompt) {

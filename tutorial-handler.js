@@ -65,7 +65,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             }
             return;
         } else {
-            await sock.sendMessage(jid, { text: "Instructeur : 'Concentrate-toi ! Tu dois choisir une classe : Guerrier, Mage ou Assassin.'" });
+            await sock.sendMessage(jid, { text: "Maître Roshi : 'Concentrate-toi ! Tu dois choisir une race : Humain, Saiyan, Namek, Démon du Froid ou Majin.'" });
             return;
         }
     }
