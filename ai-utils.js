@@ -49,7 +49,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     console.warn("[AI] TOUS LES FOURNISSEURS ONT ÉCHOUÉ. Utilisation du secours statique.");
     return JSON.stringify({
-        narrative: "Le flux magique d'Aetherys semble perturbé... (Erreur Serveur AI)",
+        narrative: "Une perturbation dans le Ki mondial empêche toute action... (Erreur Serveur AI)",
         actions: []
     });
 }

@@ -65,7 +65,7 @@ async function connectToWhatsApp() {
     try {
       const code = await sock.requestPairingCode(phoneNumber);
       console.log('==============================================================');
-      console.log('Votre code de pairage Skype :');
+      console.log('Votre code de pairage Dragon Ball RP :');
       console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
       console.log('==============================================================');
       console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
@@ -130,7 +130,7 @@ async function connectToWhatsApp() {
                         });
 
                         console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                        await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
+                        await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Ton voyage de guerrier commence maintenant.` });
 
                         // Trigger tutorial after profile pic
                         await startTutorial(sock, message.key.remoteJid, player);

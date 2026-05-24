@@ -43,7 +43,7 @@ async function generateProfileCard(player) {
             <text x="210" y="301" class="text value">${player.schoolName || 'Aucune'}</text>
             <text x="210" y="334" class="text value">Rang ${player.rank}</text>
 
-            <text x="650" y="235" class="text value">${player.class}</text>
+            <text x="650" y="235" class="text value">${player.race}</text>
             <text x="650" y="268" class="text value">${player.level}</text>
             <text x="650" y="334" class="text value">Grade ${player.academicGrade}</text>
 
@@ -58,7 +58,7 @@ async function generateProfileCard(player) {
             <text x="350" y="810" class="text value">${player.inventory?.[1]?.quantity || ''}</text>
 
             <!-- Resources -->
-            <text x="150" y="650" class="text value">💰 ${player.col} Col</text>
+            <text x="150" y="650" class="text value">💰 ${player.zeni} Zeni</text>
         </svg>
     `;
 

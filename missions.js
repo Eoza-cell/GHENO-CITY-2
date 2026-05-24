@@ -1,73 +1,46 @@
 const { PlayerVehicle, Vehicle } = require('./database');
 const { sendWithImage } = require('./message-handler');
-const { startDriving } = require('./driving-handler');
 
 const missions = {
-  1: { // Chapter 1
-    title: "Les Racines de Little Sicily",
+  1: { // Chapter 1: Le début de l'aventure
+    title: "L'Héritage de Tortue Géniale",
     quests: {
       1: {
-        title: "Un nouveau départ",
-        objective: "Ton voyage commence ici, à Little Sicily. Pour te faire un nom, tu as besoin de roues, mais tu n'as pas un sou. Vole une voiture pour commencer à te déplacer.",
+        title: "Le premier entraînement",
+        objective: "Commence ton voyage en t'entraînant sur l'île de Tortue Géniale. Montre-lui ta détermination en faisant quelques pompes ou en méditant pour ressentir ton Ki.",
         reward: {
           xp: 100,
+          zeni: 500,
         },
         completionCondition: async (player) => {
-          const vehicleCount = await PlayerVehicle.count({ where: { PlayerWhatsappId: player.whatsappId } });
-          return vehicleCount > 0;
+          return player.xp >= 100;
         },
-        narrativeOnComplete: "Félicitations, tu as tes premières roues. La ville s'ouvre à toi, mais les dangers aussi. Ce vol a attiré l'attention du caïd local, qui a entendu parler de ton arrivée et veut te rencontrer. Va voir ce qu'il te veut.",
+        narrativeOnComplete: "Maître Roshi est impressionné par ton ardeur. 'Pas mal, petit ! Mais l'entraînement ne fait que commencer. Tu as besoin de plus d'énergie.'",
         nextQuest: 2,
       },
       2: {
-        title: "Le message du Caïd",
-        objective: "Rends-toi à la planque du caïd pour recevoir tes instructions.",
+        title: "La quête des Dragon Balls",
+        objective: "Bulma a détecté une Dragon Ball à proximité. Elle se trouve dans le Désert de Yamcha. Va la chercher !",
         reward: {
-          xp: 50,
-          money: 1000,
+          xp: 200,
+          zeni: 1000,
         },
-        completionCondition: (player) => player.location === 'hideout',
-        narrativeOnComplete: "Le caïd te jauge du regard. 'J'aime ton ambition,' dit-il. 'J'ai un petit boulot pour toi. Fais ça bien, et il y en aura d'autres.' Il te tend une liasse de billets.",
+        completionCondition: (player) => player.location === 'Désert de Yamcha',
+        narrativeOnComplete: "Tu as atteint le désert. La chaleur est étouffante, mais le signal du Dragon Radar est de plus en plus fort.",
         nextQuest: 3,
       },
       3: {
-        title: "Le sale boulot",
-        objective: "Le caïd veut que tu sois équipé. Va à l'Ammu-Nation à Downtown et achète un pistolet.",
+        title: "Le voleur du désert",
+        objective: "Un bandit nommé Yamcha semble garder la Dragon Ball. Récupère-la, par la force ou par la ruse.",
         reward: {
-            xp: 75,
+            xp: 500,
         },
         completionCondition: (player) => {
             const inventory = player.inventory;
-            return inventory.some(item => item.name === 'Pistolet');
+            return inventory.some(item => item.name === 'Dragon Ball');
         },
-        narrativeOnComplete: "Le poids de l'arme dans ta main est une sensation nouvelle. Tu es maintenant prêt pour le vrai travail.",
+        narrativeOnComplete: "Tu as récupéré la Dragon Ball ! Son éclat orange est magnifique avec ses quatre petites étoiles rouges.",
         nextQuest: 4,
-      },
-      4: {
-        title: "Livraison Spéciale",
-        objective: "Apporte le pistolet que tu as acheté à la planque du caïd. C'est un test de confiance.",
-        reward: {
-            xp: 150,
-        },
-        completionCondition: (player) => {
-            const hasPistol = player.inventory.some(item => item.name === 'Pistolet');
-            const atHideout = player.location === 'hideout';
-            return hasPistol && atHideout;
-        },
-        narrativeOnComplete: "Le caïd prend le pistolet et l'inspecte. 'Bien,' dit-il simplement. 'Tu es fiable. Maintenant, montre-moi que tu sais faire de l'argent.'",
-        nextQuest: 5,
-      },
-      5: {
-        title: "Le Droit d'Entrée",
-        objective: "Le respect se gagne, mais il s'achète aussi. Prouve ta valeur en accumulant 2000$.",
-        reward: {
-            xp: 200,
-        },
-        completionCondition: (player) => {
-            return player.money >= 2000;
-        },
-        narrativeOnComplete: "Tu as l'argent. Tu as prouvé que tu savais te débrouiller en ville. Tu as officiellement ta place dans l'organisation.",
-        nextQuest: null, // Fin du chapitre pour l'instant
       },
     },
   },
@@ -81,7 +54,7 @@ function getMission(chapter, questId) {
 }
 
 async function checkMissionCompletion(sock, player, message) {
-    if (!player || !player.chapter || !player.quest || !message) { // Ensure message is present
+    if (!player || !player.chapter || !player.quest) {
         return;
     }
 
@@ -96,46 +69,26 @@ async function checkMissionCompletion(sock, player, message) {
         console.log(`Mission ${player.quest} du chapitre ${player.chapter} terminée pour le joueur ${player.name}.`);
 
         // Apply rewards
-        player.money += currentMission.reward.money || 0;
+        player.zeni += currentMission.reward.zeni || 0;
         player.xp += currentMission.reward.xp || 0;
-
-        // Special case for the delivery quest: remove the pistol from inventory
-        if (player.chapter === 1 && player.quest === 4) {
-            player.inventory = player.inventory.filter(item => item.name !== 'Pistolet');
-        }
-
 
         // Advance to the next quest
         if (currentMission.nextQuest) {
             player.quest = currentMission.nextQuest;
         } else {
-            player.chapter += 1; // Or handle game completion
-            player.quest = 1; // Start of the next chapter
+            player.chapter += 1;
+            player.quest = 1;
         }
 
         await player.save();
 
         // Notify the player
-        await sendWithImage(sock, player.whatsappId, currentMission.narrativeOnComplete);
-
-        if (player.chapter === 1 && player.quest === 2) {
-            const playerVehicle = await PlayerVehicle.findOne({
-                where: { PlayerWhatsappId: player.whatsappId },
-                include: [{ model: Vehicle }]
-            });
-
-            if (playerVehicle) {
-                console.log(`[DEBUG] Démarrage automatique du mini-jeu de conduite pour ${player.name}.`);
-                await player.update({ mode: 'driving' });
-                startDriving(sock, message, player, playerVehicle);
-                return;
-            }
-        }
+        await sendWithImage(sock, player.whatsappId, { narrative: currentMission.narrativeOnComplete });
 
         const newMission = getMission(player.chapter, player.quest);
         if (newMission) {
             const newObjectiveText = `*Nouvel objectif:*\n${newMission.objective}`;
-            await sendWithImage(sock, player.whatsappId, newObjectiveText);
+            await sendWithImage(sock, player.whatsappId, { narrative: newObjectiveText });
         }
     }
 }

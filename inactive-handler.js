@@ -32,7 +32,7 @@ function startInactivePlayerCheck(sock) {
             if (inactivePlayers.length > 0) {
                 console.log(`[InactiveHandler] ${inactivePlayers.length} joueur(s) inactif(s) trouvé(s).`);
                 for (const player of inactivePlayers) {
-                    const message = `Le monde de Gheno City continue d'évoluer sans toi, ${player.name}. Tu es considéré comme immobile. Envoie une commande ou une action pour te réveiller.`;
+                    const message = `L'univers de Dragon Ball continue de vibrer sans toi, ${player.name}. Ton Ki s'affaiblit par manque d'activité. Envoie une commande ou une action pour te réveiller !`;
                     await sendWithImage(sock, player.whatsappId, message);
 
                     // Update the timestamp to avoid sending another message right away
