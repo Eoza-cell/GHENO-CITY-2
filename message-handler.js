@@ -19,8 +19,32 @@ function initPuter() {
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
  */
-async function sendWithImage(sock, jid, aiResponse) {
-    const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+async function sendLoadingSequence(sock, jid) {
+    try {
+        const { key } = await sock.sendMessage(jid, { text: "⏳ *Synchronisation avec le monde...*" });
+        await delay(800);
+        await sock.sendMessage(jid, { text: "📡 *Détection des signaux de Ki...*", edit: key });
+        await delay(800);
+        await sock.sendMessage(jid, { text: "🐉 *Appel du Dragon...*", edit: key });
+        return key;
+    } catch (e) {
+        console.error("Erreur loading sequence:", e);
+        return null;
+    }
+}
+
+async function sendWithImage(sock, jid, aiResponse, loadingKey = null) {
+    let narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null);
+
+    // Safety check: if narrative is still missing but we have actions, don't show the JSON
+    if (!narrative && aiResponse.actions && aiResponse.actions.length > 0) {
+        narrative = "L'action s'accomplit dans un éclat de lumière...";
+    }
+
+    if (!narrative) narrative = "Le silence retombe sur le monde.";
+
     const imagePrompt = aiResponse.imagePrompt;
 
     if (imagePrompt) {
@@ -80,8 +104,12 @@ async function sendWithImage(sock, jid, aiResponse) {
     }
 
     if (narrative) {
-        await sock.sendMessage(jid, { text: narrative });
+        if (loadingKey) {
+            await sock.sendMessage(jid, { text: narrative, edit: loadingKey });
+        } else {
+            await sock.sendMessage(jid, { text: narrative });
+        }
     }
 }
 
-module.exports = { sendWithImage };
+module.exports = { sendWithImage, sendLoadingSequence };

@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, sendLoadingSequence } = require('./message-handler');
 const { callAI } = require('./ai-utils');
 
 async function startTutorial(sock, jid, player) {
@@ -26,6 +26,7 @@ async function startTutorial(sock, jid, player) {
 
 async function handleTutorialAction(sock, message, player, actionText) {
     const jid = message.key.remoteJid;
+    const loadingKey = (player.tutorialStep === 2) ? await sendLoadingSequence(sock, jid) : null;
 
     if (player.tutorialStep === 1) {
         // Race selection logic
@@ -97,21 +98,34 @@ async function handleTutorialAction(sock, message, player, actionText) {
             }
 
             const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                 console.error("Échec extraction JSON tutoriel. Contenu brut:", content);
-                 await sock.sendMessage(jid, { text: "Instructeur : 'Impressionnant ! Tu apprends vite. Le tutoriel est terminé.'\n\n*Utilise /menu pour commencer.*" });
+            let aiResponse = { narrative: "", tutorial_complete: false };
+
+            if (jsonMatch) {
+                try {
+                    aiResponse = JSON.parse(jsonMatch[0]);
+                    if (!aiResponse.narrative) {
+                        aiResponse.narrative = content.replace(jsonMatch[0], '').trim();
+                    }
+                } catch (e) {
+                    aiResponse.narrative = content.replace(/\{[\s\S]*\}/, '').trim();
+                }
+            } else {
+                aiResponse.narrative = content.trim();
+            }
+
+            if (!aiResponse.narrative) {
+                 console.error("Échec extraction texte tutoriel. Contenu brut:", content);
+                 await sock.sendMessage(jid, { text: "Maître Roshi : 'Impressionnant ! Tu apprends vite. Le tutoriel est terminé.'\n\n*Utilise /menu pour commencer.*" });
                  await player.update({ tutorialStep: 3, mode: 'normal' });
                  return;
             }
-
-            const aiResponse = JSON.parse(jsonMatch[0]);
 
             if (aiResponse.tutorial_complete) {
                 await player.update({ tutorialStep: 3, mode: 'normal' });
                 aiResponse.narrative += "\n\n*FÉLICITATIONS ! Tu es prêt pour l'aventure. Utilise /menu pour explorer l'univers.*";
             }
 
-            await sendWithImage(sock, jid, aiResponse);
+            await sendWithImage(sock, jid, aiResponse, loadingKey);
         } catch (error) {
             console.error("Erreur AI tutoriel:", error);
             // Fallback to avoid blocking the user

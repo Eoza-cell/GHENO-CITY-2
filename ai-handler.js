@@ -1,10 +1,11 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, sendLoadingSequence } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
+  const loadingKey = await sendLoadingSequence(sock, jid);
   const senderJid = message.key.remoteJid.endsWith('@g.us') ? message.key.participant : message.key.remoteJid;
 
   const playerState = `
@@ -161,6 +162,15 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (jsonMatch) {
         try {
             aiResponse = JSON.parse(jsonMatch[0]);
+            // If it's a top-level action object rather than a list of actions
+            if (!aiResponse.actions && (aiResponse.type || aiResponse.update_player)) {
+                 aiResponse = { narrative: aiResponse.narrative, actions: [aiResponse] };
+            }
+
+            // If parsed JSON has no narrative, use the rest of the text
+            if (!aiResponse.narrative) {
+                aiResponse.narrative = content.replace(jsonMatch[0], '').trim();
+            }
         } catch (e) {
             aiResponse.narrative = content.replace(/\{[\s\S]*\}/, '').trim();
         }
@@ -168,14 +178,22 @@ async function handleFreeAction(sock, message, player, actionText) {
         aiResponse.narrative = content.trim();
     }
 
+    if (!aiResponse.narrative || aiResponse.narrative === "" || aiResponse.narrative.includes("L'énergie du monde vacille")) {
+         // Attempt to clean up JSON from narrative if it was used as fallback
+         aiResponse.narrative = content.replace(/\{[\s\S]*\}/, '').trim() || content.trim();
+    }
     if (!aiResponse.narrative) aiResponse.narrative = "L'énergie du monde vacille...";
 
-    await RPMessage.create({
-        senderJid: 'bot',
-        senderName: 'Dragon Ball MJ',
-        content: aiResponse.narrative,
-        location: player.location
-    });
+    try {
+        await RPMessage.create({
+            senderJid: 'bot',
+            senderName: 'Dragon Ball MJ',
+            content: aiResponse.narrative,
+            location: player.location
+        });
+    } catch (dbError) {
+        console.error("Erreur enregistrement message RP:", dbError.message);
+    }
 
     const actions = aiResponse.actions || [];
     for (const actionObj of actions) {
@@ -271,7 +289,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
     }
 
-    await sendWithImage(sock, jid, aiResponse);
+    await sendWithImage(sock, jid, aiResponse, loadingKey);
 
   } catch (error) {
     console.error('Erreur AI:', error);

@@ -65,7 +65,7 @@ async function callOllama(systemPrompt, userPrompt) {
             ],
             stream: false,
             format: "json"
-        }, { timeout: 45000 });
+        }, { timeout: 5000 }); // Fast timeout if not running locally
 
         return response.data?.message?.content;
     } catch (error) {
@@ -119,14 +119,24 @@ async function callPuter(systemPrompt, userPrompt) {
 
 async function callPollinations(systemPrompt, userPrompt) {
     const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
-    const response = await axios.post('https://text.pollinations.ai/', {
-        messages: [{ role: 'user', content: combinedPrompt }],
-        model: 'openai',
-        json: true
-    }, { timeout: 30000 });
 
-    if (typeof response.data === 'string') return response.data;
-    return response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
+    try {
+        const response = await axios.get('https://text.pollinations.ai/' + encodeURIComponent(combinedPrompt), { timeout: 40000 });
+        if (typeof response.data === 'string') return response.data;
+        if (response.data && response.data.narrative) return JSON.stringify(response.data);
+        return JSON.stringify(response.data);
+    } catch (e) {
+        // Fallback to POST if GET fails
+        const response = await axios.post('https://text.pollinations.ai/', {
+            messages: [{ role: 'user', content: combinedPrompt }],
+            model: 'openai',
+            json: true
+        }, { timeout: 30000 });
+
+        if (typeof response.data === 'string') return response.data;
+        if (response.data && response.data.narrative) return JSON.stringify(response.data);
+        return response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
+    }
 }
 
 
