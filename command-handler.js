@@ -7,6 +7,7 @@ const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
+const { getMission } = require('./missions');
 const { Op } = require('sequelize');
 
 /**
@@ -45,6 +46,34 @@ commands.set('start', async (sock, message) => {
   } else {
     await sock.sendMessage(replyJid, { text: `Content de te revoir, ${player.name} ! Utilise /quests pour voir tes objectifs.` });
   }
+});
+
+// Command: /mission
+commands.set('mission', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
+        return;
+    }
+
+    const currentMission = getMission(player.chapter, player.quest);
+
+    if (!currentMission) {
+        await sock.sendMessage(replyJid, { text: "Tu as terminé tous les contrats de l'histoire pour le moment. Reste à l'écoute pour de nouveaux coups !" });
+        return;
+    }
+
+    const missionText = `--- 💼 DOSSIER DE MISSION --- \n\n` +
+                        `📌 *TITRE:* ${currentMission.title}\n` +
+                        `📋 *OBJECTIF:* ${currentMission.objective}\n\n` +
+                        `💰 *RÉCOMPENSE:* ${currentMission.reward.col || 0} $ | ✨ ${currentMission.reward.xp || 0} XP\n\n` +
+                        `--------------------------- \n` +
+                        `_Utilise /action pour progresser dans cette mission._`;
+
+    await sock.sendMessage(replyJid, { text: missionText });
 });
 
 // Command: /quests
@@ -747,7 +776,8 @@ commands.set('menu', async (sock, message) => {
                    `👤 *IDENTITÉ:* ${player.name}\n` +
                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
                    "🎮 *DÉMARRAGE*\n" +
-                   "└ `/action` - Entrer dans la matrice RP\n" +
+                   "├ `/action` - Entrer dans la matrice RP\n" +
+                   "├ `/mission` - Ton objectif principal\n" +
                    "└ `/mode` - Changer de type de session\n\n" +
                    "📊 *DÉPARTEMENT CRIMINEL*\n" +
                    "├ `/profil` - Dossier complet\n" +

@@ -3,6 +3,7 @@ const { sendWithImage, sendLoadingSequence } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const { careerJobs } = require('./jobs');
+const { getMission, checkMissionCompletion } = require('./missions');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -93,6 +94,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   const skillState = playerSkills.length > 0
     ? "Compétences:\n" + playerSkills.map(s => `- ${s.name}: ${s.description.substring(0, 40)}...`).join('\n')
     : "Aucune compétence.";
+
+  const currentMission = getMission(player.chapter, player.quest);
+  const storylineState = currentMission
+    ? `MISSION D'HISTOIRE ACTUELLE: ${currentMission.title}\nObjectif: ${currentMission.objective}`
+    : "Pas de mission d'histoire active.";
 
   const kingdoms = await Kingdom.findAll({ limit: 3 }); // Reduced to 3
   const kingdomState = "Factions et Territoires:\n" + kingdoms.map(k => `- ${k.name} [Status: ${k.status}]`).join('\n');
@@ -252,7 +258,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - "type": "respawn_player", "parameters": {"reason": "cause_du_deces", "penalty_col": montant}
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}${miniEventContext}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
+    const fullPrompt = `CONTEXTE:\n${playerState}\n${storylineState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}${miniEventContext}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
 
   const loadingKey = await sendLoadingSequence(sock, jid);
 
@@ -536,6 +542,9 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
 
     await sendWithImage(sock, jid, aiResponse, loadingKey);
+
+    // After the action is processed, check if a storyline mission was completed
+    await checkMissionCompletion(sock, player, message);
 
   } catch (error) {
     console.error('Erreur avec l\'API Puter.js:', error);

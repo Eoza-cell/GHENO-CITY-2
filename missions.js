@@ -1,6 +1,5 @@
 const { PlayerVehicle, Vehicle } = require('./database');
 const { sendWithImage } = require('./message-handler');
-const { startDriving } = require('./driving-handler');
 
 const missions = {
   1: { // Chapter 1
@@ -119,17 +118,9 @@ async function checkMissionCompletion(sock, player, message) {
         await sendWithImage(sock, player.whatsappId, currentMission.narrativeOnComplete);
 
         if (player.chapter === 1 && player.quest === 2) {
-            const playerVehicle = await PlayerVehicle.findOne({
-                where: { PlayerWhatsappId: player.whatsappId },
-                include: [{ model: Vehicle }]
-            });
-
-            if (playerVehicle) {
-                console.log(`[DEBUG] Démarrage automatique du mini-jeu de conduite pour ${player.name}.`);
-                await player.update({ mode: 'driving' });
-                startDriving(sock, message, player, playerVehicle);
-                return;
-            }
+            // Trigger AI-driven driving mode
+            await player.update({ mode: 'driving' });
+            await sock.sendMessage(player.whatsappId, { text: "🚗 *MODE CONDUITE ACTIVÉ*\n\nLe moteur gronde. Tu es maintenant au volant. Décris tes manœuvres (accélérer, tourner, esquiver) et laisse le MJ guider la route !" });
         }
 
         const newMission = getMission(player.chapter, player.quest);
