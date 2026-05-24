@@ -13,10 +13,10 @@ async function generateProfileCard(player) {
 
     const stats = [
         { name: 'Force', value: player.strength, max: 100, y: 412 },
-        { name: 'Dextérité', value: player.agility, max: 100, y: 445 },
-        { name: 'Intelligence', value: player.intelligence, max: 100, y: 478 },
-        { name: 'Endurance', value: player.defense, max: 100, y: 511 },
-        { name: 'Charisme', value: player.luck, max: 100, y: 544 }, // Using luck for charisma in template
+        { name: 'Agilité', value: player.agility, max: 100, y: 445 },
+        { name: 'Contrôle Ki', value: player.intelligence, max: 100, y: 478 },
+        { name: 'Résistance', value: player.defense, max: 100, y: 511 },
+        { name: 'Potentiel', value: player.luck, max: 100, y: 544 },
         { name: 'Chance', value: player.luck, max: 100, y: 577 }
     ];
 

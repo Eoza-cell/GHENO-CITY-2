@@ -35,7 +35,17 @@ commands.set('start', async (sock, message) => {
         whatsappId: jid,
         registrationStep: 'awaiting_name'
     });
-    await sock.sendMessage(replyJid, { text: "*BIENVENUE DANS DRAGON BALL RP !*\n\nL'univers est vaste et rempli de guerriers surpuissants. Que tu sois un Saiyan assoiffé de combat ou un Humain cherchant à protéger la Terre, ton voyage commence ici. Rassemble les Dragon Balls, entraîne-toi sans relâche et dépasse tes limites !\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est ton nom, jeune guerrier ?" });
+
+    const startText = "*BIENVENUE DANS DRAGON BALL RP !*\n\nL'univers est vaste et rempli de guerriers surpuissants. Que tu sois un Saiyan assoiffé de combat ou un Humain cherchant à protéger la Terre, ton voyage commence ici. Rassemble les Dragon Balls, entraîne-toi sans relâche et dépasse tes limites !\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est ton nom, jeune guerrier ?";
+
+    if (fs.existsSync('./assets/start_image.jpg')) {
+        await sock.sendMessage(replyJid, {
+            image: fs.readFileSync('./assets/start_image.jpg'),
+            caption: startText
+        });
+    } else {
+        await sock.sendMessage(replyJid, { text: startText });
+    }
   } else if (player.registrationStep) {
     // Resume registration
     if (player.registrationStep === 'awaiting_name') {
@@ -747,9 +757,9 @@ commands.set('menu', async (sock, message) => {
     }
   } catch (error) {
     console.warn("Erreur envoi image menu locale, tentative fallback URL:", error.message);
-    const saoMenuUrl = "https://images.alphacoders.com/264/264350.jpg";
+    const dbzMenuUrl = "https://wallpaperaccess.com/full/18927.jpg"; // DBZ Wallpaper
     try {
-        const response = await axios.get(saoMenuUrl, {
+        const response = await axios.get(dbzMenuUrl, {
             responseType: 'arraybuffer',
             headers: { 'User-Agent': 'Mozilla/5.0' }
         });

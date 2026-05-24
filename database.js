@@ -90,7 +90,7 @@ const Player = sequelize.define('Player', {
   },
   location: {
     type: DataTypes.STRING,
-    defaultValue: 'Eldoria',
+    defaultValue: 'Mont Paozu',
   },
   mode: {
     type: DataTypes.STRING,
@@ -131,6 +131,14 @@ const Player = sequelize.define('Player', {
   tutorialStep: {
     type: DataTypes.INTEGER,
     defaultValue: 0, // 0: not started, 1: class choice, 2: combat training, 3: completed
+  },
+  chapter: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1,
+  },
+  quest: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1,
   },
   strength: {
     type: DataTypes.INTEGER,
