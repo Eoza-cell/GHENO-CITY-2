@@ -65,7 +65,7 @@ async function callOllama(systemPrompt, userPrompt) {
             ],
             stream: false,
             format: "json"
-        }, { timeout: 5000 }); // Fast timeout if not running locally
+        }, { timeout: 15000 }); // Increased timeout for Ollama
 
         return response.data?.message?.content;
     } catch (error) {

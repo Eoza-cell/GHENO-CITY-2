@@ -24,13 +24,11 @@
     "@whiskeysockets/baileys": "^7.0.0-rc10",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
+    "mongoose": "^9.6.2",
     "p-queue": "^6.6.2",
     "p-retry": "^4.6.2",
     "pino": "^10.1.0",
-    "pocketbase": "^0.27.0",
     "random": "^5.4.1",
-    "sequelize": "^6.37.7",
-    "sharp": "^0.34.5",
-    "sqlite3": "^5.1.7"
+    "sharp": "^0.34.5"
   }
 }

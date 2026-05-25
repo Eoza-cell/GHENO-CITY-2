@@ -1,5 +1,4 @@
-const { Player } = require('./database');
-const { Op } = require('sequelize');
+const { Player, Op } = require('./database');
 const { sendWithImage } = require('./message-handler');
 
 const INACTIVITY_THRESHOLD_MINUTES = 30;

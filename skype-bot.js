@@ -8,7 +8,6 @@ const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASo
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
-const { Sequelize } = require('sequelize');
 const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');

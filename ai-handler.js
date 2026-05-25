@@ -1,6 +1,6 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
+const { Player, Dungeon, Quest, Bank, Item, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
 const { sendWithImage, sendLoadingSequence } = require('./message-handler');
-const { Op } = require('sequelize');
+const { Op } = require('./database');
 const { callAI } = require('./ai-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {

@@ -2,13 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./database');
+const { Player, Dungeon, Quest, Bank, Item, Skill } = require('./database');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
-const { Op } = require('sequelize');
+const { Op } = require('./database');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
