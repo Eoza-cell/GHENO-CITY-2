@@ -68,9 +68,11 @@ const PlayerSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Emulate Sequelize methods
-PlayerSchema.methods.update = function(data) {
+const updateMethod = function(data) {
     return this.set(data).save();
 };
+
+PlayerSchema.methods.update = updateMethod;
 
 PlayerSchema.methods.increment = function(field, { by }) {
     this[field] = (this[field] || 0) + by;
@@ -219,7 +221,7 @@ const MonsterSchema = new mongoose.Schema({
     defense: Number,
     agility: Number,
     xp_reward: Number,
-    col_reward: Number,
+    zeni_reward: Number,
     imageUrl: String
 });
 
@@ -227,6 +229,8 @@ const CredsSchema = new mongoose.Schema({
     key: { type: String, unique: true },
     value: String
 });
+
+CredsSchema.methods.update = updateMethod;
 
 // --- MODELS ---
 
@@ -473,12 +477,12 @@ async function setupDatabase() {
         }
 
         const monstersToSeed = [
-            { name: 'Saibaman', rank: 'F', health: 100, strength: 20, defense: 10, agility: 20, xp_reward: 50, col_reward: 20 },
-            { name: 'Soldat de Freezer', rank: 'E', health: 250, strength: 40, defense: 30, agility: 30, xp_reward: 150, col_reward: 100 },
-            { name: 'Dinosaure Sauvage', rank: 'F', health: 150, strength: 25, defense: 15, agility: 10, xp_reward: 60, col_reward: 0 },
-            { name: 'Nappa', rank: 'B', health: 4000, strength: 200, defense: 150, agility: 120, xp_reward: 5000, col_reward: 1000 },
-            { name: 'Cell Junior', rank: 'A', health: 8000, strength: 400, defense: 300, agility: 450, xp_reward: 20000, col_reward: 5000 },
-            { name: 'Majin Buu', rank: 'S', health: 50000, strength: 1000, defense: 800, agility: 600, xp_reward: 100000, col_reward: 0 },
+            { name: 'Saibaman', rank: 'F', health: 100, strength: 20, defense: 10, agility: 20, xp_reward: 50, zeni_reward: 20 },
+            { name: 'Soldat de Freezer', rank: 'E', health: 250, strength: 40, defense: 30, agility: 30, xp_reward: 150, zeni_reward: 100 },
+            { name: 'Dinosaure Sauvage', rank: 'F', health: 150, strength: 25, defense: 15, agility: 10, xp_reward: 60, zeni_reward: 0 },
+            { name: 'Nappa', rank: 'B', health: 4000, strength: 200, defense: 150, agility: 120, xp_reward: 5000, zeni_reward: 1000 },
+            { name: 'Cell Junior', rank: 'A', health: 8000, strength: 400, defense: 300, agility: 450, xp_reward: 20000, zeni_reward: 5000 },
+            { name: 'Majin Buu', rank: 'S', health: 50000, strength: 1000, defense: 800, agility: 600, xp_reward: 100000, zeni_reward: 0 },
         ];
 
         for (const monster of monstersToSeed) {

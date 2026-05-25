@@ -549,7 +549,7 @@ commands.set('donner', async (sock, message, args) => {
 
     const mentionedJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
     if (!mentionedJid) {
-        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur pour lui donner quelque chose (ex: /donner @joueur 100 col)." });
+        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un joueur pour lui donner quelque chose (ex: /donner @joueur 100 zeni)." });
         return;
     }
 
