@@ -31,11 +31,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   const allQuests = await Quest.findAll();
   const playerQuests = await player.getQuests();
 
-  const activeQuestNames = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress').map(q => q.title);
-  const completedQuestNames = playerQuests.filter(q => q.PlayerQuest.status === 'completed').map(q => q.title);
+  const activeQuestNames = playerQuests.filter(q => q.status === 'in_progress' || q.PlayerQuest?.status === 'in_progress').map(q => q.title);
+  const completedQuestNames = playerQuests.filter(q => q.status === 'completed' || q.PlayerQuest?.status === 'completed').map(q => q.title);
 
   const questState = playerQuests.length > 0
-    ? "Tes Quêtes:\n" + playerQuests.map(q => `- ${q.title} [${q.PlayerQuest.status}]`).join('\n')
+    ? "Tes Quêtes:\n" + playerQuests.map(q => `- ${q.title} [${q.status || q.PlayerQuest?.status || '...'}]`).join('\n')
     : "Tu n'as commencé aucune quête.";
 
   const availableQuests = allQuests.filter(q => !activeQuestNames.includes(q.title) && !completedQuestNames.includes(q.title));

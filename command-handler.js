@@ -63,14 +63,14 @@ commands.set('start', async (sock, message) => {
 commands.set('competences', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid }, include: Skill });
+    const player = await Player.findOne({ where: { whatsappId: jid } });
 
     if (!player) {
         await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
         return;
     }
 
-    const skills = player.Skills;
+    const skills = await player.getSkills();
 
     if (!skills || skills.length === 0) {
         await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune technique pour le moment. Entraîne-toi avec Maître Roshi pour en apprendre !" });
@@ -103,15 +103,16 @@ commands.set('competences', async (sock, message) => {
 commands.set('quests', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid }, include: Quest });
+    const player = await Player.findOne({ where: { whatsappId: jid } });
 
     if (!player) {
         await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
         return;
     }
 
-    const activeQuests = player.Quests.filter(q => q.PlayerQuest.status === 'in_progress');
-    const notStartedQuests = player.Quests.filter(q => q.PlayerQuest.status === 'not_started');
+    const quests = await player.getQuests();
+    const activeQuests = quests.filter(q => q.status === 'in_progress' || q.PlayerQuest?.status === 'in_progress');
+    const notStartedQuests = quests.filter(q => q.status === 'not_started' || q.PlayerQuest?.status === 'not_started');
 
 
     if (activeQuests.length === 0 && notStartedQuests.length === 0) {
@@ -778,8 +779,8 @@ commands.set('menu', async (sock, message) => {
 async function handleCommand(sock, message, downloadMediaMessage) {
   if (message.key.fromMe) return;
 
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
-  if (!messageText) return;
+  const messageText = (message.message.conversation || message.message.extendedTextMessage?.text || message.message.imageMessage?.caption) || "";
+  if (!messageText && !message.message.imageMessage) return;
 
   const jid = getJid(message);
   const replyJid = message.key.remoteJid;

@@ -69,18 +69,25 @@ async function checkMissionCompletion(sock, player, message) {
         console.log(`Mission ${player.quest} du chapitre ${player.chapter} terminée pour le joueur ${player.name}.`);
 
         // Apply rewards
-        player.zeni += currentMission.reward.zeni || 0;
-        player.xp += currentMission.reward.xp || 0;
+        const zeni = (player.zeni || 0) + (currentMission.reward.zeni || 0);
+        const xp = (player.xp || 0) + (currentMission.reward.xp || 0);
 
         // Advance to the next quest
+        let nextQuest = player.quest;
+        let nextChapter = player.chapter;
         if (currentMission.nextQuest) {
-            player.quest = currentMission.nextQuest;
+            nextQuest = currentMission.nextQuest;
         } else {
-            player.chapter += 1;
-            player.quest = 1;
+            nextChapter += 1;
+            nextQuest = 1;
         }
 
-        await player.save();
+        await player.update({
+            zeni: zeni,
+            xp: xp,
+            quest: nextQuest,
+            chapter: nextChapter
+        });
 
         // Notify the player
         await sendWithImage(sock, player.whatsappId, { narrative: currentMission.narrativeOnComplete });

@@ -1,471 +1,233 @@
-const { Sequelize, DataTypes } = require('sequelize');
+const PocketBase = require('pocketbase/cjs');
+require('dotenv').config();
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: 'dragon-ball.sqlite',
-  logging: false,
-});
+const pb = new PocketBase(process.env.POCKETBASE_URL || 'http://127.0.0.1:8090');
 
-const Creds = sequelize.define('Creds', {
-  key: {
-    type: DataTypes.STRING,
-    primaryKey: true,
-  },
-  value: {
-    type: DataTypes.TEXT,
-  },
-});
+const Op = {
+    ne: Symbol('ne'),
+    or: Symbol('or'),
+    lte: Symbol('lte'),
+    like: Symbol('like'),
+    in: Symbol('in'),
+    lt: Symbol('lt')
+};
 
-const Player = sequelize.define('Player', {
-  whatsappId: {
-    type: DataTypes.STRING,
-    primaryKey: true,
-  },
-  name: {
-    type: DataTypes.STRING,
-    defaultValue: 'Bêta testeur',
-  },
-  rank: {
-    type: DataTypes.STRING,
-    defaultValue: 'F',
-  },
-  race: {
-    type: DataTypes.STRING,
-    defaultValue: 'Humain',
-  },
-  skillPoints: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-  },
-  level: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1,
-  },
-  xp: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
-  },
-  zeni: { // Changed from col
-    type: DataTypes.INTEGER,
-    defaultValue: 100,
-  },
-  health: {
-    type: DataTypes.INTEGER,
-    defaultValue: 100,
-  },
-  maxHealth: {
-    type: DataTypes.INTEGER,
-    defaultValue: 100,
-  },
-  ki: { // Changed from mana
-    type: DataTypes.INTEGER,
-    defaultValue: 100,
-  },
-  maxKi: {
-    type: DataTypes.INTEGER,
-    defaultValue: 100,
-  },
-  inventory: {
-    type: DataTypes.TEXT,
-    defaultValue: '[]',
-    get() {
-      const rawValue = this.getDataValue('inventory');
-      try {
-          return rawValue ? JSON.parse(rawValue) : [];
-      } catch (e) {
-          return [];
-      }
-    },
-    set(value) {
-      this.setDataValue('inventory', JSON.stringify(value));
-    },
-  },
-  lastActivity: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-  },
-  lastInactiveMessageSentAt: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-  location: {
-    type: DataTypes.STRING,
-    defaultValue: 'Mont Paozu',
-  },
-  mode: {
-    type: DataTypes.STRING,
-    defaultValue: 'normal', // Can be 'normal' or 'action'
-  },
-  characterDescription: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-  },
-  currentDungeonId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-  registrationStep: {
-    type: DataTypes.STRING,
-    allowNull: true, // null means registered, or use 'completed'
-  },
-  awaitingProfilePic: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
-  },
-  isGod: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
-  },
-  profilePicUrl: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  schoolName: {
-    type: DataTypes.STRING,
-    defaultValue: 'Aucune',
-  },
-  academicGrade: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0, // Score out of 100
-  },
-  tutorialStep: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0, // 0: not started, 1: class choice, 2: combat training, 3: completed
-  },
-  chapter: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1,
-  },
-  quest: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1,
-  },
-  strength: {
-    type: DataTypes.INTEGER,
-    defaultValue: 10,
-  },
-  agility: {
-    type: DataTypes.INTEGER,
-    defaultValue: 10,
-  },
-  intelligence: {
-    type: DataTypes.INTEGER,
-    defaultValue: 10,
-  },
-  luck: {
-    type: DataTypes.INTEGER,
-    defaultValue: 5,
-  },
-  defense: {
-    type: DataTypes.INTEGER,
-    defaultValue: 10,
-  },
-});
-
-const Item = sequelize.define('Item', {
-  name: {
-    type: DataTypes.STRING,
-    unique: true,
-  },
-  description: {
-    type: DataTypes.TEXT,
-  },
-  price: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
-  },
-  type: { // weapon, armor, consumable, etc.
-    type: DataTypes.STRING,
-  },
-  slot: { // head, chest, arms, legs, weapon, none
-    type: DataTypes.STRING,
-    defaultValue: 'none',
-  },
-  statBonuses: {
-    type: DataTypes.TEXT,
-    defaultValue: '{}',
-    get() {
-      const rawValue = this.getDataValue('statBonuses');
-      return rawValue ? JSON.parse(rawValue) : {};
-    },
-    set(value) {
-      this.setDataValue('statBonuses', JSON.stringify(value));
-    },
-  },
-  imageUrl: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-});
-
-const Dungeon = sequelize.define('Dungeon', {
-    name: {
-        type: DataTypes.STRING,
-        unique: true,
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    rank: {
-        type: DataTypes.STRING,
-    },
-    floors: {
-        type: DataTypes.INTEGER,
-        defaultValue: 1,
+// Auth as admin if credentials provided
+async function authAdmin() {
+    if (process.env.POCKETBASE_EMAIL && process.env.POCKETBASE_PASSWORD) {
+        try {
+            await pb.admins.authWithPassword(process.env.POCKETBASE_EMAIL, process.env.POCKETBASE_PASSWORD);
+        } catch (e) {
+            console.error("[PocketBase] Admin auth failed:", e.message);
+        }
     }
-});
+}
 
-const Quest = sequelize.define('Quest', {
-    title: {
-        type: DataTypes.STRING,
-        unique: true,
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    type: { // 'main' or 'side'
-        type: DataTypes.STRING,
-        defaultValue: 'side',
-    },
-    rank_required: {
-        type: DataTypes.STRING,
-        defaultValue: 'E',
-    },
-    reward_col: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-    },
-    reward_xp: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-    },
-});
+function buildFilter(where) {
+    if (!where) return '';
+    const parts = [];
 
-const PlayerQuest = sequelize.define('PlayerQuest', {
-    status: {
-        type: DataTypes.STRING,
-        defaultValue: 'not_started', // in_progress, completed
-    },
-});
+    const parseCondition = (key, val) => {
+        if (val === null) return `${key}=null`;
+        if (typeof val === 'object' && !Array.isArray(val)) {
+            const operator = Object.getOwnPropertySymbols(val)[0];
+            const operand = val[operator];
+            switch (operator) {
+                case Op.ne: return `${key}!="${operand}"`;
+                case Op.lte: return `${key}<=${operand}`;
+                case Op.lt: return `${key}<${operand}`;
+                case Op.like: return `${key}~"${operand.replace(/%/g, '')}"`;
+                case Op.in:
+                    if (Array.isArray(operand)) {
+                        return '(' + operand.map(v => `${key}="${v}"`).join(' || ') + ')';
+                    }
+                    return `${key}="${operand}"`;
+                default: return `${key}="${val}"`;
+            }
+        }
+        return `${key}="${val}"`;
+    };
 
-const Bank = sequelize.define('Bank', {
-    balance: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
+    for (const key in where) {
+        if (key === Op.or && Array.isArray(where[key])) {
+            parts.push('(' + where[key].map(cond => {
+                const subParts = [];
+                for (const subKey in cond) {
+                    subParts.push(parseCondition(subKey, cond[subKey]));
+                }
+                return subParts.join(' && ');
+            }).join(' || ') + ')');
+        } else {
+            parts.push(parseCondition(key, where[key]));
+        }
     }
-});
+    return parts.join(' && ');
+}
 
-const Skill = sequelize.define('Skill', {
-    name: {
-        type: DataTypes.STRING,
-        unique: true,
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    type: { // 'active', 'passive', 'spell', 'sword_technique'
-        type: DataTypes.STRING,
-    },
-    manaCost: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0,
-    },
-    statBonuses: {
-        type: DataTypes.TEXT,
-        defaultValue: '{}',
-        get() {
-            const rawValue = this.getDataValue('statBonuses');
-            return rawValue ? JSON.parse(rawValue) : {};
-        },
-        set(value) {
-            this.setDataValue('statBonuses', JSON.stringify(value));
-        },
-    }
-});
-
-const PlayerSkill = sequelize.define('PlayerSkill', {
-    level: {
-        type: DataTypes.INTEGER,
-        defaultValue: 1,
-    }
-});
-
-const Kingdom = sequelize.define('Kingdom', {
-    name: {
-        type: DataTypes.STRING,
-        unique: true,
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    status: { // 'peace', 'war', 'truce'
-        type: DataTypes.STRING,
-        defaultValue: 'peace',
-    },
-    influence: {
-        type: DataTypes.INTEGER,
-        defaultValue: 50,
-    },
-    militaryPower: {
-        type: DataTypes.INTEGER,
-        defaultValue: 50,
-    },
-    leader: {
-        type: DataTypes.STRING,
-    }
-});
-
-const Conflict = sequelize.define('Conflict', {
-    title: {
-        type: DataTypes.STRING,
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    involvedKingdoms: {
-        type: DataTypes.TEXT, // JSON string of kingdom names
-        get() {
-            const rawValue = this.getDataValue('involvedKingdoms');
+// Wrapper for collection to mimic some Sequelize methods
+const collection = (name) => {
+    return {
+        async findOne(options) {
             try {
-                return rawValue ? JSON.parse(rawValue) : [];
+                const filter = buildFilter(options.where);
+                const result = await pb.collection(name).getFirstListItem(filter);
+                return wrapRecord(name, result);
+            } catch (e) {
+                return null;
+            }
+        },
+        async findAll(options = {}) {
+            try {
+                const filter = buildFilter(options.where);
+                const result = await pb.collection(name).getFullList({
+                    filter: filter,
+                    sort: options.order ? (options.order[0][1] === 'DESC' ? '-' : '') + options.order[0][0] : ''
+                });
+                return result.map(r => wrapRecord(name, r));
             } catch (e) {
                 return [];
             }
         },
-        set(value) {
-            this.setDataValue('involvedKingdoms', JSON.stringify(value));
+        async create(data) {
+            // Handle JSON fields that might be strings in Sequelize but should be objects in PB
+            const sanitizedData = { ...data };
+            if (typeof sanitizedData.inventory === 'string') sanitizedData.inventory = JSON.parse(sanitizedData.inventory);
+            if (typeof sanitizedData.statBonuses === 'string') sanitizedData.statBonuses = JSON.parse(sanitizedData.statBonuses);
+            if (typeof sanitizedData.involvedKingdoms === 'string') sanitizedData.involvedKingdoms = JSON.parse(sanitizedData.involvedKingdoms);
+
+            const result = await pb.collection(name).create(sanitizedData);
+            return wrapRecord(name, result);
         },
-    },
-    status: { // 'active', 'resolved'
-        type: DataTypes.STRING,
-        defaultValue: 'active',
-    }
-});
+        async count(options = {}) {
+            try {
+                const filter = buildFilter(options.where);
+                const result = await pb.collection(name).getList(1, 1, { filter });
+                return result.totalItems;
+            } catch (e) {
+                return 0;
+            }
+        },
+        async bulkCreate(dataList) {
+            const results = [];
+            for (const data of dataList) {
+                results.push(await this.create(data));
+            }
+            return results;
+        },
+        async findOrCreate(options) {
+            let record = await this.findOne(options);
+            if (record) return [record, false];
+            record = await this.create(options.defaults || options.where);
+            return [record, true];
+        }
+    };
+};
 
-const School = sequelize.define('School', {
-    name: {
-        type: DataTypes.STRING,
-        unique: true,
-    },
-    specialty: {
-        type: DataTypes.STRING, // e.g., 'Combat', 'Magic', 'Alchemy'
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    kingdomName: {
-        type: DataTypes.STRING,
-    }
-});
+function wrapRecord(collectionName, record) {
+    if (!record) return null;
 
-const RPMessage = sequelize.define('RPMessage', {
-    senderJid: {
-        type: DataTypes.STRING,
-    },
-    senderName: {
-        type: DataTypes.STRING,
-    },
-    content: {
-        type: DataTypes.TEXT,
-    },
-    location: {
-        type: DataTypes.STRING,
-    },
-    timestamp: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-    }
-});
+    // Add Sequelize-like methods
+    record.update = async function(data) {
+        const updated = await pb.collection(collectionName).update(this.id, data);
+        Object.assign(this, updated);
+        return this;
+    };
 
-const NPC = sequelize.define('NPC', {
-    name: {
-        type: DataTypes.STRING,
-        unique: true,
-    },
-    role: {
-        type: DataTypes.STRING,
-    },
-    description: {
-        type: DataTypes.TEXT,
-    },
-    location: {
-        type: DataTypes.STRING,
-    }
-});
+    record.increment = async function(field, { by }) {
+        const currentVal = this[field] || 0;
+        const updated = await pb.collection(collectionName).update(this.id, {
+            [field]: currentVal + by
+        });
+        Object.assign(this, updated);
+        return this;
+    };
 
-const Duel = sequelize.define('Duel', {
-    playerAJid: {
-        type: DataTypes.STRING,
-    },
-    playerBJid: {
-        type: DataTypes.STRING,
-    },
-    startTime: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-    },
-    lastActionTime: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-    },
-    status: { // 'active', 'finished'
-        type: DataTypes.STRING,
-        defaultValue: 'active',
-    },
-    location: {
-        type: DataTypes.STRING,
-    }
-});
+    record.decrement = async function(field, { by }) {
+        const currentVal = this[field] || 0;
+        const updated = await pb.collection(collectionName).update(this.id, {
+            [field]: currentVal - by
+        });
+        Object.assign(this, updated);
+        return this;
+    };
 
-const Monster = sequelize.define('Monster', {
-    name: {
-        type: DataTypes.STRING,
-        unique: true,
-    },
-    rank: {
-        type: DataTypes.STRING,
-    },
-    health: {
-        type: DataTypes.INTEGER,
-    },
-    strength: {
-        type: DataTypes.INTEGER,
-    },
-    defense: {
-        type: DataTypes.INTEGER,
-    },
-    agility: {
-        type: DataTypes.INTEGER,
-    },
-    xp_reward: {
-        type: DataTypes.INTEGER,
-    },
-    col_reward: {
-        type: DataTypes.INTEGER,
-    },
-    imageUrl: {
-        type: DataTypes.STRING,
-        allowNull: true,
-    }
-});
+    record.save = async function() {
+        const { id, collectionId, collectionName: cName, created, updated, ...data } = this;
+        const saved = await pb.collection(collectionName).update(this.id, data);
+        Object.assign(this, saved);
+        return this;
+    };
 
-// Relationships
-Player.hasOne(Bank);
-Bank.belongsTo(Player);
+    record.reload = async function() {
+        const reloaded = await pb.collection(collectionName).getOne(this.id);
+        Object.assign(this, reloaded);
+        return this;
+    };
 
-Player.belongsToMany(Quest, { through: PlayerQuest });
-Quest.belongsToMany(Player, { through: PlayerQuest });
+    // Helper for many-to-many
+    record.getQuests = async function() {
+        // Implementation depends on how you store relationships in PB
+        // Assuming 'quests' is a relation field on players
+        if (!this.quests) return [];
+        const quests = [];
+        for (const id of this.quests) {
+            const q = await pb.collection('quests').getOne(id);
+            quests.push(wrapRecord('quests', q));
+        }
+        return quests;
+    };
+    record.getSkills = async function() {
+        if (!this.skills) return [];
+        const skills = [];
+        for (const id of this.skills) {
+            const s = await pb.collection('skills').getOne(id);
+            skills.push(wrapRecord('skills', s));
+        }
+        return skills;
+    };
+    record.addSkill = async function(skill) {
+        const skills = this.skills || [];
+        if (!skills.includes(skill.id)) {
+            skills.push(skill.id);
+            await this.update({ skills });
+        }
+    };
+    record.addQuest = async function(quest, options = {}) {
+        const quests = this.quests || [];
+        if (!quests.includes(quest.id)) {
+            quests.push(quest.id);
+            await this.update({ quests });
+        }
+        // Handle options like { through: { status: 'not_started' } } if needed
+        // This would require a junction collection or a JSON field in player
+    };
+    record.hasSkill = async function(skill) {
+        const skills = this.skills || [];
+        return skills.includes(skill.id);
+    };
 
-Player.belongsToMany(Skill, { through: PlayerSkill });
-Skill.belongsToMany(Player, { through: PlayerSkill });
+    return record;
+}
 
+const Player = collection('players');
+const Item = collection('items');
+const Dungeon = collection('dungeons');
+const Quest = collection('quests');
+const Bank = collection('banks');
+const Skill = collection('skills');
+const Kingdom = collection('kingdoms');
+const Conflict = collection('conflicts');
+const School = collection('schools');
+const RPMessage = collection('rp_messages');
+const NPC = collection('npcs');
+const Duel = collection('duels');
+const Monster = collection('monsters');
+const Creds = collection('creds');
 
 async function setupDatabase() {
   try {
-    await sequelize.authenticate();
-    console.log('Connection to the database has been established successfully.');
-    await sequelize.sync({ alter: true });
-    console.log('Database synchronized.');
+    await authAdmin();
+    console.log('Connected to PocketBase.');
 
     // Seed initial game data
     const dungeonCount = await Dungeon.count();
@@ -532,13 +294,10 @@ async function setupDatabase() {
         ];
 
     for (const item of itemsToSeed) {
-        const [dbItem, created] = await Item.findOrCreate({
+        await Item.findOrCreate({
             where: { name: item.name },
             defaults: item
         });
-        if (!created) {
-            await dbItem.update(item);
-        }
     }
     console.log('Items synchronisés.');
 
@@ -546,11 +305,11 @@ async function setupDatabase() {
     if (questCount === 0) {
         console.log('Seeding Quests...');
         await Quest.bulkCreate([
-            { title: 'Entraînement de Tortue Géniale', description: 'Livrez le lait et labourez la terre à mains nues.', type: 'main', rank_required: 'F', reward_col: 100, reward_xp: 200 },
-            { title: 'La Menace de l\'Armée du Ruban Rouge', description: 'Infiltrez une base du Ruban Rouge.', type: 'main', rank_required: 'E', reward_col: 500, reward_xp: 1000 },
-            { title: 'À la recherche des Dragon Balls', description: 'Trouvez une Dragon Ball dans le désert.', type: 'side', rank_required: 'D', reward_col: 1000, reward_xp: 2000 },
-            { title: 'Le 21ème Tenkaichi Budokai', description: 'Participez au tournoi mondial des arts martiaux.', type: 'main', rank_required: 'C', reward_col: 5000, reward_xp: 5000 },
-            { title: 'L\'arrivée des Saiyans', description: 'Préparez-vous à l\'arrivée de Nappa et Vegeta.', type: 'main', rank_required: 'B', reward_col: 10000, reward_xp: 20000 },
+            { title: 'Entraînement de Tortue Géniale', description: 'Livrez le lait et labourez la terre à mains nues.', type: 'main', rank_required: 'F', reward_zeni: 100, reward_xp: 200 },
+            { title: 'La Menace de l\'Armée du Ruban Rouge', description: 'Infiltrez une base du Ruban Rouge.', type: 'main', rank_required: 'E', reward_zeni: 500, reward_xp: 1000 },
+            { title: 'À la recherche des Dragon Balls', description: 'Trouvez une Dragon Ball dans le désert.', type: 'side', rank_required: 'D', reward_zeni: 1000, reward_xp: 2000 },
+            { title: 'Le 21ème Tenkaichi Budokai', description: 'Participez au tournoi mondial des arts martiaux.', type: 'main', rank_required: 'C', reward_zeni: 5000, reward_xp: 5000 },
+            { title: 'L\'arrivée des Saiyans', description: 'Préparez-vous à l\'arrivée de Nappa et Vegeta.', type: 'main', rank_required: 'B', reward_zeni: 10000, reward_xp: 20000 },
         ]);
         console.log('Quests seeded.');
     }
@@ -605,27 +364,24 @@ async function setupDatabase() {
         ];
 
     for (const monster of monstersToSeed) {
-        const [dbMonster, created] = await Monster.findOrCreate({
+        await Monster.findOrCreate({
             where: { name: monster.name },
             defaults: monster
         });
-        if (!created) {
-            await dbMonster.update(monster);
-        }
     }
     console.log('Ennemis synchronisés.');
 
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
+    console.error('[PocketBase] Setup failed:', error.message);
   }
 }
 
 module.exports = {
-  sequelize,
+  pb,
+  Op,
   Player,
   Dungeon,
   Quest,
-  PlayerQuest,
   Bank,
   Item,
   Creds,
@@ -636,7 +392,6 @@ module.exports = {
   Duel,
   NPC,
   Monster,
-  PlayerSkill,
   RPMessage,
   setupDatabase,
 };
