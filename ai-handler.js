@@ -20,18 +20,46 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
-  // Get active match (Penalty session)
+  // Get active match (Penalty session) - Updated to find match where player is in teamA or teamB
   const match = await Match.findOne({
-      where: { [Op.or]: [{ playerAJid: player.whatsappId }, { playerBJid: player.whatsappId }], status: 'active' },
+      where: {
+          [Op.and]: [
+              { status: 'active' },
+              {
+                  [Op.or]: [
+                      { playerAJid: player.whatsappId },
+                      { playerBJid: player.whatsappId },
+                      { teamA: { [Op.like]: `%${player.whatsappId}%` } },
+                      { teamB: { [Op.like]: `%${player.whatsappId}%` } }
+                  ]
+              }
+          ]
+      },
       order: [['createdAt', 'DESC']]
   });
+
+  let participantsState = "";
+  if (match) {
+      const teamA = JSON.parse(match.teamA || "[]");
+      const teamB = JSON.parse(match.teamB || "[]");
+      participantsState = "PARTICIPANTS:\n";
+      for (const jid of teamA) {
+          const p = await Player.findOne({ where: { whatsappId: jid } });
+          participantsState += `- Équipe A: ${p?.name} (@${jid.split('@')[0]})\n`;
+      }
+      for (const jid of teamB) {
+          const p = await Player.findOne({ where: { whatsappId: jid } });
+          participantsState += `- Équipe B: ${p?.name} (@${jid.split('@')[0]})\n`;
+      }
+  }
 
   const matchState = match ? `
     SÉANCE EN COURS:
     - Lieu: ${match.location}
     - Score: ${match.scoreA} - ${match.scoreB}
     - Tour: ${match.round}
-    - C'est au tour de: ${match.turn === 'A' ? 'Joueur (Tire)' : 'IA (Tire)'}
+    - C'est au tour de: ${match.turn === 'A' ? 'Équipe A' : 'Équipe B'}
+    ${participantsState}
   ` : "Hors terrain.";
 
   const history = await RPMessage.findAll({
@@ -48,11 +76,12 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Très descriptif sur la tension, le regard du tireur, le souffle, le mouvement du gardien.
 
     RÈGLES DU RP PENALTY:
-    1. FORMAT: Séance de 3 à 5 tirs alternés.
-    2. STATS: Utilise Shoot/Power/Precision pour le tireur vs Diving/Reflexes pour le gardien.
+    1. FORMAT: Séance de 3 tirs par équipe (3v3). Les joueurs d'une même équipe tirent à tour de rôle.
+    2. STATS: Utilise Shoot/Power/Precision pour le tireur vs Diving/Reflexes pour le gardien de l'équipe adverse.
     3. DIRECTIONS: Les joueurs choisissent (Gauche, Milieu, Droite) + (Haut, Bas).
     4. RÉSULTAT: Si le tireur et le gardien choisissent la même direction, le gardien a une grande chance d'arrêter (selon les stats). Sinon, c'est but (sauf si Precision/Power est trop faible).
-    5. SIGNATURE SKILLS: Intègre les compétences spéciales (ex: "Siuuuu Strike", "Araignée Noire") dans la narration.
+    5. MULTIJOUEUR: Identifie quel joueur de l'équipe doit tirer ou arrêter. TAGUE le joueur concerné (@JID) pour qu'il sache que c'est à lui de jouer.
+    6. SIGNATURE SKILLS: Intègre les compétences spéciales (ex: "Siuuuu Strike", "Araignée Noire") dans la narration.
 
     INTERFACE OBLIGATOIRE:
     🥅 SCORE: [Joueur] [ScoreA] - [ScoreB] [IA/Adversaire]

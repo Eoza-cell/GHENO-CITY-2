@@ -124,6 +124,14 @@ const Team = sequelize.define('Team', {
 const Match = sequelize.define('Match', {
   playerAJid: { type: DataTypes.STRING },
   playerBJid: { type: DataTypes.STRING, allowNull: true }, // 'IA' or JID
+  teamA: {
+    type: DataTypes.TEXT, // JSON array of JIDs
+    defaultValue: '[]',
+  },
+  teamB: {
+    type: DataTypes.TEXT, // JSON array of JIDs
+    defaultValue: '[]',
+  },
   scoreA: { type: DataTypes.INTEGER, defaultValue: 0 },
   scoreB: { type: DataTypes.INTEGER, defaultValue: 0 },
   round: { type: DataTypes.INTEGER, defaultValue: 1 },

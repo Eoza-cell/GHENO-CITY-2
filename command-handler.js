@@ -17,6 +17,12 @@ function getJid(message) {
 const GOD_NUMBER = '48198576038116@s.whatsapp.net';
 const commands = new Map();
 
+// Temporary storage for team registration
+const pendingTeams = {
+    team1: [],
+    team2: []
+};
+
 // Command: /start
 commands.set('start', async (sock, message) => {
   const jid = getJid(message);
@@ -148,6 +154,34 @@ commands.set('menu', async (sock, message) => {
   await sock.sendMessage(message.key.remoteJid, { text: menuText });
 });
 
+// Command: /team1
+commands.set('team1', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const mentionedJids = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+
+    if (mentionedJids.length === 0) {
+        await sock.sendMessage(replyJid, { text: "Mentionne les 3 joueurs de l'équipe 1 (ex: /team1 @joueur1 @joueur2 @joueur3)." });
+        return;
+    }
+
+    pendingTeams.team1 = mentionedJids.slice(0, 3);
+    await sock.sendMessage(replyJid, { text: `✅ Équipe 1 enregistrée : ${pendingTeams.team1.length} joueurs. Utilise /team2 pour l'adversaire.` });
+});
+
+// Command: /team2
+commands.set('team2', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const mentionedJids = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+
+    if (mentionedJids.length === 0) {
+        await sock.sendMessage(replyJid, { text: "Mentionne les 3 joueurs de l'équipe 2." });
+        return;
+    }
+
+    pendingTeams.team2 = mentionedJids.slice(0, 3);
+    await sock.sendMessage(replyJid, { text: `✅ Équipe 2 enregistrée : ${pendingTeams.team2.length} joueurs. Utilise /match pour commencer la séance 3v3 !` });
+});
+
 // Command: /penalty
 commands.set('penalty', async (sock, message) => {
     const jid = getJid(message);
@@ -156,21 +190,57 @@ commands.set('penalty', async (sock, message) => {
 
     if (!player) return;
 
-    const activeMatch = await Match.findOne({ where: { [Op.or]: [{ playerAJid: jid }, { playerBJid: jid }], status: 'active' } });
+    const activeMatch = await Match.findOne({
+        where: {
+            [Op.and]: [
+                { status: 'active' },
+                {
+                    [Op.or]: [
+                        { playerAJid: jid },
+                        { playerBJid: jid },
+                        { teamA: { [Op.like]: `%${jid}%` } },
+                        { teamB: { [Op.like]: `%${jid}%` } }
+                    ]
+                }
+            ]
+        }
+    });
 
     if (activeMatch) {
         await sock.sendMessage(replyJid, { text: "Tu es déjà dans une séance ! Utilise /action pour tirer." });
         return;
     }
 
-    await Match.create({
-        playerAJid: jid,
-        playerBJid: 'IA',
-        location: 'Wembley Stadium'
-    });
+    if (pendingTeams.team1.length > 0 && pendingTeams.team2.length > 0) {
+        // Multi-player match
+        await Match.create({
+            playerAJid: pendingTeams.team1[0],
+            playerBJid: pendingTeams.team2[0],
+            teamA: JSON.stringify(pendingTeams.team1),
+            teamB: JSON.stringify(pendingTeams.team2),
+            location: 'Stade de France'
+        });
 
-    await player.update({ mode: 'action' });
-    await sock.sendMessage(replyJid, { text: "🥅 *SÉANCE DE TIRS AU BUT DÉMARRÉE !* 🥅\n\nLieu: Wembley Stadium\nFormat: 3 vs 3 (Tirs alternés)\n\nC'est à toi de tirer en premier. Décris ton tir ou choisis une direction (gauche, milieu, droite) !" });
+        // Notify everyone
+        const allParticipants = [...pendingTeams.team1, ...pendingTeams.team2];
+        for (const p of allParticipants) {
+            await Player.update({ mode: 'action' }, { where: { whatsappId: p } });
+            await sock.sendMessage(p, { text: "🥅 *DÉBUT DE LA SÉANCE 3v3 !* 🥅\nTon équipe est sur le terrain. Le match commence !" });
+        }
+
+        // Clear pending
+        pendingTeams.team1 = [];
+        pendingTeams.team2 = [];
+    } else {
+        // Solo vs IA
+        await Match.create({
+            playerAJid: jid,
+            playerBJid: 'IA',
+            location: 'Wembley Stadium'
+        });
+        await player.update({ mode: 'action' });
+        await sock.sendMessage(replyJid, { text: "🥅 *SÉANCE SOLO DÉMARRÉE !* 🥅\n\nC'est à toi de tirer !" });
+    }
 });
 
 // Main handleCommand
@@ -203,4 +273,4 @@ async function handleCommand(sock, message) {
   }
 }
 
-module.exports = { handleCommand, getJid };
+module.exports = { handleCommand, getJid, pendingTeams };
