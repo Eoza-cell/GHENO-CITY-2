@@ -27,40 +27,39 @@ commands.set('start', async (sock, message) => {
     player = await Player.create({
         whatsappId: jid,
         gems: 300,
-        registrationStep: 'completed' // Skipping complex registration for now to be fluid
+        registrationStep: 'completed'
     });
 
-    // Give 1 starter team (generic players or low rank)
-    const starterCards = await Card.findAll({ where: { rarity: 'B' }, limit: 4 });
+    // Give 1 starter team (2 shooters, 1 GK)
+    const starterShooters = await Card.findAll({ where: { rarity: 'B', diving: { [Op.lt]: 50 } }, limit: 2 });
+    const starterGK = await Card.findOne({ where: { rarity: 'B', diving: { [Op.gt]: 50 } } });
     const guaranteedA = await Card.findOne({ where: { rarity: 'A' }, order: sequelize.random() });
 
-    const allStarterCards = [...starterCards, guaranteedA];
+    const cardsToGive = [...starterShooters, starterGK, guaranteedA];
 
-    for (const card of allStarterCards) {
+    for (const card of cardsToGive) {
         await PlayerCard.create({ PlayerWhatsappId: jid, CardId: card.id });
     }
 
-    // Initialize Team
+    // Initialize Team (3 players)
     const playerCards = await PlayerCard.findAll({ where: { PlayerWhatsappId: jid }, include: Card });
     await Team.create({
         PlayerWhatsappId: jid,
-        pgId: playerCards[0].id,
-        sgId: playerCards[1].id,
-        sfId: playerCards[2].id,
-        pfId: playerCards[3].id,
-        cId: playerCards[4].id,
+        shooter1Id: playerCards[0].id,
+        shooter2Id: playerCards[1].id,
+        goalkeeperId: playerCards[2].id,
     });
 
-    const welcomeMsg = `🏀 *BIENVENUE DANS GHENO BASKETBALL GACHA !* 🏀\n\n` +
-                       `Tu viens de recevoir ton équipe de départ et *300 Gems* ! 💎\n\n` +
-                       `C'est ton heure de gloire. Recrute les meilleures stars NBA & FIBA, gère ton roster et domine les parquets.\n\n` +
-                       `*Ton équipe de départ :*\n` +
-                       allStarterCards.map(c => `- ${c.name} (Rang ${c.rarity})`).join('\n') +
-                       `\n\nUtilise /profil pour voir tes stats ou /boutique pour tes premières invocations !`;
+    const welcomeMsg = `⚽ *BIENVENUE DANS GHENO FOOTBALL PENALTY !* ⚽\n\n` +
+                       `Tu viens de recevoir ton équipe de départ (3 joueurs) et *300 Gems* ! 💎\n\n` +
+                       `Ton but : marquer un maximum de pénaltys et devenir une légende du foot.\n\n` +
+                       `*Ton équipe :*\n` +
+                       cardsToGive.map(c => `- ${c.name} (Rang ${c.rarity})`).join('\n') +
+                       `\n\nUtilise /profil pour voir ton équipe ou /penalty pour tirer !`;
 
     await sock.sendMessage(replyJid, { text: welcomeMsg });
   } else {
-    await sock.sendMessage(replyJid, { text: `Content de te revoir sur le parquet, ${player.name} !` });
+    await sock.sendMessage(replyJid, { text: `De retour sur le point de penalty, ${player.name} ?` });
   }
 });
 
@@ -74,23 +73,20 @@ commands.set('profil', async (sock, message) => {
 
   const team = await Team.findOne({ where: { PlayerWhatsappId: jid } });
 
-  let profileText = `--- 🏀 GHENO PHONE - BASKETBALL --- \n\n` +
+  let profileText = `--- ⚽ GHENO PHONE - FOOTBALL --- \n\n` +
                       `👤 *JOUEUR:* ${player.name}\n` +
                       `📊 *NIVEAU:* ${player.level}\n` +
-                      `💎 *GEMS:* ${player.gems}\n` +
-                      `⚡ *ÉNERGIE:* ${player.energy}/${player.maxEnergy}\n\n` +
-                      `--- 📋 LINEUP ACTUEL --- \n`;
+                      `💎 *GEMS:* ${player.gems}\n\n` +
+                      `--- 📋 TON ÉQUIPE (3 JOUEURS) --- \n`;
 
   if (team) {
-      const positions = ['pgId', 'sgId', 'sfId', 'pfId', 'cId'];
-      const labels = ['PG', 'SG', 'SF', 'PF', 'C'];
-      for(let i=0; i<positions.length; i++) {
-          const pcId = team[positions[i]];
+      const roles = ['shooter1Id', 'shooter2Id', 'goalkeeperId'];
+      const labels = ['Tireur 1', 'Tireur 2', 'Gardien'];
+      for(let i=0; i<roles.length; i++) {
+          const pcId = team[roles[i]];
           if (pcId) {
               const pc = await PlayerCard.findByPk(pcId, { include: Card });
-              profileText += `${labels[i]}: ${pc.Card.name} (Lv.${pc.level})\n`;
-          } else {
-              profileText += `${labels[i]}: vide\n`;
+              profileText += `${labels[i]}: ${pc.Card.name} [${pc.Card.rarity}]\n`;
           }
       }
   }
@@ -99,16 +95,11 @@ commands.set('profil', async (sock, message) => {
   await sock.sendMessage(replyJid, { text: profileText });
 });
 
-// Command: /inventory -> Renamed to /cards
+// Command: /cards
 commands.set('cards', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const playerCards = await PlayerCard.findAll({ where: { PlayerWhatsappId: jid }, include: Card });
-
-    if (playerCards.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Tu n'as pas encore de cartes." });
-        return;
-    }
 
     let cardsText = `--- 🎴 TA COLLECTION --- \n\n`;
     playerCards.forEach(pc => {
@@ -118,14 +109,14 @@ commands.set('cards', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: cardsText });
 });
 
-// Command: /boutique (Gacha)
+// Command: /boutique
 commands.set('boutique', async (sock, message) => {
     const replyJid = message.key.remoteJid;
-    const gachaText = `--- 🎰 BASKETBALL GACHA 🎰 --- \n\n` +
+    const gachaText = `--- 🎰 FOOTBALL GACHA 🎰 --- \n\n` +
                       `💎 *Invocation Simple:* 100 Gems\n` +
                       `💎 *Multi (10 cartes):* 900 Gems\n\n` +
-                      `*Raretés:* B (60%), A (30%), S (7%), SS (2.5%), ULT (0.5%)\n\n` +
-                      `_Utilise /action pour invoquer (ex: "Je fais une multi")_`;
+                      `*ULT:* 0.5% | *SS:* 2.5% | *S:* 7% | *A:* 30% | *B:* 60%\n\n` +
+                      `_Invoque en mode /action (ex: "multi")_`;
 
     await sock.sendMessage(replyJid, { text: gachaText });
 });
@@ -136,7 +127,7 @@ commands.set('action', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player) {
       await player.update({ mode: 'action' });
-      await sock.sendMessage(message.key.remoteJid, { text: "Mode action RP activé. Décris tes mouvements sur le parquet." });
+      await sock.sendMessage(message.key.remoteJid, { text: "Mode action activé. Décris ton tir ou ton arrêt." });
   }
 });
 
@@ -146,42 +137,40 @@ commands.set('menu', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player) await player.update({ mode: 'normal' });
 
-  const menuText = "🏀 *GHENO BASKETBALL GACHA* 🏀\n\n" +
+  const menuText = "⚽ *GHENO FOOTBALL PENALTY* ⚽\n\n" +
                    "🎮 `/action` - Entrer sur le terrain (RP).\n" +
                    "👤 `/profil` - Ton équipe & Stats.\n" +
                    "🎴 `/cards` - Ta collection de joueurs.\n" +
                    "🎰 `/boutique` - Invocations Gacha.\n" +
-                   "🏟️ `/match` - Démarrer un match (IA/PvP).\n" +
+                   "🥅 `/penalty` - Séance de tirs au but.\n" +
                    "❓ `/help` - Aide.";
 
   await sock.sendMessage(message.key.remoteJid, { text: menuText });
 });
 
-// Command: /match
-commands.set('match', async (sock, message) => {
+// Command: /penalty
+commands.set('penalty', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
 
     if (!player) return;
 
-    // Check if there's an active match
     const activeMatch = await Match.findOne({ where: { [Op.or]: [{ playerAJid: jid }, { playerBJid: jid }], status: 'active' } });
 
     if (activeMatch) {
-        await sock.sendMessage(replyJid, { text: "Tu es déjà dans un match ! Utilise /action pour jouer." });
+        await sock.sendMessage(replyJid, { text: "Tu es déjà dans une séance ! Utilise /action pour tirer." });
         return;
     }
 
-    // Start a new match against IA for now
     await Match.create({
         playerAJid: jid,
         playerBJid: 'IA',
-        location: 'Madison Square Garden'
+        location: 'Wembley Stadium'
     });
 
     await player.update({ mode: 'action' });
-    await sock.sendMessage(replyJid, { text: "🏀 MATCH DÉMARRÉ ! 🏀\n\nLieu: Madison Square Garden\nFormat: 5v5 - 4 Quarters\n\nLe match commence. Tu as la balle. Que fais-tu ?" });
+    await sock.sendMessage(replyJid, { text: "🥅 *SÉANCE DE TIRS AU BUT DÉMARRÉE !* 🥅\n\nLieu: Wembley Stadium\nFormat: 3 vs 3 (Tirs alternés)\n\nC'est à toi de tirer en premier. Décris ton tir ou choisis une direction (gauche, milieu, droite) !" });
 });
 
 // Main handleCommand

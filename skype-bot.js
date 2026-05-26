@@ -13,7 +13,7 @@ const { handleCommand, getJid } = require('./command-handler');
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Basketball Gacha Bot is running');
+    res.end('Football Penalty Gacha Bot is running');
 });
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
