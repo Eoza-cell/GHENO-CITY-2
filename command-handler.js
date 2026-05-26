@@ -17,11 +17,15 @@ function getJid(message) {
 const GOD_NUMBER = '48198576038116@s.whatsapp.net';
 const commands = new Map();
 
-// Temporary storage for team registration
-const pendingTeams = {
-    team1: [],
-    team2: []
-};
+// Temporary storage for team registration per chat
+const pendingTeams = {};
+
+function getPendingTeams(chatId) {
+    if (!pendingTeams[chatId]) {
+        pendingTeams[chatId] = { team1: [], team2: [] };
+    }
+    return pendingTeams[chatId];
+}
 
 // Command: /start
 commands.set('start', async (sock, message) => {
@@ -159,13 +163,14 @@ commands.set('team1', async (sock, message) => {
     const replyJid = message.key.remoteJid;
     const mentionedJids = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
 
-    if (mentionedJids.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Mentionne les 3 joueurs de l'équipe 1 (ex: /team1 @joueur1 @joueur2 @joueur3)." });
+    if (mentionedJids.length < 3) {
+        await sock.sendMessage(replyJid, { text: "Mentionne les 3 joueurs de l'équipe 1 (ex: /team1 @joueur1 @joueur2 @joueur3). Le 3ème sera le gardien." });
         return;
     }
 
-    pendingTeams.team1 = mentionedJids.slice(0, 3);
-    await sock.sendMessage(replyJid, { text: `✅ Équipe 1 enregistrée : ${pendingTeams.team1.length} joueurs. Utilise /team2 pour l'adversaire.` });
+    const chatTeams = getPendingTeams(replyJid);
+    chatTeams.team1 = mentionedJids.slice(0, 3);
+    await sock.sendMessage(replyJid, { text: `✅ Équipe 1 enregistrée : ${chatTeams.team1.length} joueurs. Utilise /team2 pour l'adversaire.` });
 });
 
 // Command: /team2
@@ -173,13 +178,14 @@ commands.set('team2', async (sock, message) => {
     const replyJid = message.key.remoteJid;
     const mentionedJids = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
 
-    if (mentionedJids.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Mentionne les 3 joueurs de l'équipe 2." });
+    if (mentionedJids.length < 3) {
+        await sock.sendMessage(replyJid, { text: "Mentionne les 3 joueurs de l'équipe 2. Le 3ème sera le gardien." });
         return;
     }
 
-    pendingTeams.team2 = mentionedJids.slice(0, 3);
-    await sock.sendMessage(replyJid, { text: `✅ Équipe 2 enregistrée : ${pendingTeams.team2.length} joueurs. Utilise /match pour commencer la séance 3v3 !` });
+    const chatTeams = getPendingTeams(replyJid);
+    chatTeams.team2 = mentionedJids.slice(0, 3);
+    await sock.sendMessage(replyJid, { text: `✅ Équipe 2 enregistrée : ${chatTeams.team2.length} joueurs. Utilise /match pour commencer la séance 3v3 !` });
 });
 
 // Command: /penalty
@@ -192,55 +198,174 @@ commands.set('penalty', async (sock, message) => {
 
     const activeMatch = await Match.findOne({
         where: {
-            [Op.and]: [
-                { status: 'active' },
-                {
-                    [Op.or]: [
-                        { playerAJid: jid },
-                        { playerBJid: jid },
-                        { teamA: { [Op.like]: `%${jid}%` } },
-                        { teamB: { [Op.like]: `%${jid}%` } }
-                    ]
-                }
+            status: 'active',
+            [Op.or]: [
+                { teamA: { [Op.like]: `%${jid}%` } },
+                { teamB: { [Op.like]: `%${jid}%` } }
             ]
         }
     });
 
     if (activeMatch) {
-        await sock.sendMessage(replyJid, { text: "Tu es déjà dans une séance ! Utilise /action pour tirer." });
+        await sock.sendMessage(replyJid, { text: "Tu es déjà dans une séance ! Utilise /tir." });
         return;
     }
 
-    if (pendingTeams.team1.length > 0 && pendingTeams.team2.length > 0) {
-        // Multi-player match
-        await Match.create({
-            playerAJid: pendingTeams.team1[0],
-            playerBJid: pendingTeams.team2[0],
-            teamA: JSON.stringify(pendingTeams.team1),
-            teamB: JSON.stringify(pendingTeams.team2),
-            location: 'Stade de France'
+    const chatTeams = getPendingTeams(replyJid);
+    if (chatTeams.team1.length >= 3 && chatTeams.team2.length >= 3) {
+        const match = await Match.create({
+            playerAJid: chatTeams.team1[0],
+            playerBJid: chatTeams.team2[0],
+            teamA: JSON.stringify(chatTeams.team1),
+            teamB: JSON.stringify(chatTeams.team2),
+            location: 'Stade de France',
+            turn: 'A',
+            phase: 'shoot'
         });
 
-        // Notify everyone
-        const allParticipants = [...pendingTeams.team1, ...pendingTeams.team2];
-        for (const p of allParticipants) {
-            await Player.update({ mode: 'action' }, { where: { whatsappId: p } });
-            await sock.sendMessage(p, { text: "🥅 *DÉBUT DE LA SÉANCE 3v3 !* 🥅\nTon équipe est sur le terrain. Le match commence !" });
-        }
+        const msg = `🥅 *DÉBUT DE LA SÉANCE 3v3 !* 🥅\n\n` +
+                    `Équipe 1: @${chatTeams.team1[0].split('@')[0]}, @${chatTeams.team1[1].split('@')[0]}, @${chatTeams.team1[2].split('@')[0]}\n` +
+                    `Équipe 2: @${chatTeams.team2[0].split('@')[0]}, @${chatTeams.team2[1].split('@')[0]}, @${chatTeams.team2[2].split('@')[0]}\n\n` +
+                    `*Phase:* Équipe 1 tire.\n` +
+                    `Tireur: @${chatTeams.team1[0].split('@')[0]}\n` +
+                    `Gardien adverse: @${chatTeams.team2[2].split('@')[0]}\n\n` +
+                    `Tireur, utilise /tir [gauche/milieu/droite]`;
 
-        // Clear pending
-        pendingTeams.team1 = [];
-        pendingTeams.team2 = [];
+        await sock.sendMessage(replyJid, { text: msg, mentions: [...chatTeams.team1, ...chatTeams.team2] });
+
+        chatTeams.team1 = [];
+        chatTeams.team2 = [];
     } else {
-        // Solo vs IA
-        await Match.create({
-            playerAJid: jid,
-            playerBJid: 'IA',
-            location: 'Wembley Stadium'
-        });
-        await player.update({ mode: 'action' });
-        await sock.sendMessage(replyJid, { text: "🥅 *SÉANCE SOLO DÉMARRÉE !* 🥅\n\nC'est à toi de tirer !" });
+        await sock.sendMessage(replyJid, { text: "Il faut 3 joueurs par équipe pour lancer (/team1 et /team2)." });
     }
+});
+
+commands.set('tir', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const direction = args[0]?.toLowerCase();
+
+    if (!['gauche', 'milieu', 'droite'].includes(direction)) {
+        await sock.sendMessage(replyJid, { text: "Utilise: /tir gauche, /tir milieu ou /tir droite." });
+        return;
+    }
+
+    const match = await Match.findOne({
+        where: {
+            status: 'active',
+            phase: 'shoot',
+            [Op.or]: [
+                { teamA: { [Op.like]: `%${jid}%` } },
+                { teamB: { [Op.like]: `%${jid}%` } }
+            ]
+        }
+    });
+
+    if (!match) return;
+
+    const teamA = JSON.parse(match.teamA);
+    const teamB = JSON.parse(match.teamB);
+    const isTeamA = match.turn === 'A';
+    const currentTeam = isTeamA ? teamA : teamB;
+    const enemyTeam = isTeamA ? teamB : teamA;
+    const shooterJid = currentTeam[match.currentShooterIndex % 3];
+    const goalkeeperJid = enemyTeam[2]; // Fixed GK as 3rd player
+
+    if (jid !== shooterJid) {
+        await sock.sendMessage(replyJid, { text: `Ce n'est pas ton tour de tirer ! C'est à @${shooterJid.split('@')[0]}.`, mentions: [shooterJid] });
+        return;
+    }
+
+    await match.update({
+        lastShotDirection: direction,
+        phase: 'arret'
+    });
+
+    await sock.sendMessage(replyJid, {
+        text: `⚽ @${shooterJid.split('@')[0]} a tiré !\n\nGardien (@${goalkeeperJid.split('@')[0]}), choisis où plonger avec /arret [direction] !`,
+        mentions: [shooterJid, goalkeeperJid]
+    });
+});
+
+commands.set('arret', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const dive = args[0]?.toLowerCase();
+
+    if (!['gauche', 'milieu', 'droite'].includes(dive)) {
+        await sock.sendMessage(replyJid, { text: "Utilise: /arret gauche, /arret milieu ou /arret droite." });
+        return;
+    }
+
+    const match = await Match.findOne({
+        where: {
+            status: 'active',
+            phase: 'arret',
+            [Op.or]: [
+                { teamA: { [Op.like]: `%${jid}%` } },
+                { teamB: { [Op.like]: `%${jid}%` } }
+            ]
+        }
+    });
+
+    if (!match) return;
+
+    const teamA = JSON.parse(match.teamA);
+    const teamB = JSON.parse(match.teamB);
+    const isTeamA = match.turn === 'A';
+    const shooterTeam = isTeamA ? teamA : teamB;
+    const gkTeam = isTeamA ? teamB : teamA;
+    const shooterJid = shooterTeam[match.currentShooterIndex % 3];
+    const goalkeeperJid = gkTeam[2];
+
+    if (jid !== goalkeeperJid) {
+        await sock.sendMessage(replyJid, { text: "Tu n'es pas le gardien !" });
+        return;
+    }
+
+    let resultMsg = `🧤 @${goalkeeperJid.split('@')[0]} plonge à *${dive}*...\n` +
+                    `⚽ Le tir était à *${match.lastShotDirection}*...\n\n`;
+
+    if (dive === match.lastShotDirection) {
+        resultMsg += `🛑 *ARRÊT MAGNIFIQUE !* Pas de but.`;
+    } else {
+        resultMsg += `🥅 *BUT !!!* Le filet tremble.`;
+        if (isTeamA) match.scoreA += 1; else match.scoreB += 1;
+    }
+
+    // Prepare next turn
+    let nextTurn = isTeamA ? 'B' : 'A';
+    let nextRound = match.round;
+    let nextIndex = match.currentShooterIndex;
+
+    if (!isTeamA) {
+        nextRound += 1;
+        nextIndex += 1;
+    }
+
+    if (nextRound > 3) {
+        resultMsg += `\n\n🏁 *FIN DE LA SÉANCE !*\n🏆 Score Final: ${match.scoreA} - ${match.scoreB}\n`;
+        if (match.scoreA > match.scoreB) resultMsg += "Équipe 1 GAGNE !";
+        else if (match.scoreB > match.scoreA) resultMsg += "Équipe 2 GAGNE !";
+        else resultMsg += "ÉGALITÉ !";
+
+        await match.update({ status: 'finished', scoreA: match.scoreA, scoreB: match.scoreB });
+    } else {
+        const nextShooter = (nextTurn === 'A' ? teamA : teamB)[nextIndex % 3];
+        resultMsg += `\n\n🎯 *TOUR ${nextRound}*\nScore: ${match.scoreA} - ${match.scoreB}\n` +
+                     `Au tour de @${nextShooter.split('@')[0]} de tirer !`;
+
+        await match.update({
+            turn: nextTurn,
+            round: nextRound,
+            currentShooterIndex: nextIndex,
+            phase: 'shoot',
+            scoreA: match.scoreA,
+            scoreB: match.scoreB
+        });
+    }
+
+    await sock.sendMessage(replyJid, { text: resultMsg, mentions: [goalkeeperJid, ...teamA, ...teamB] });
 });
 
 // Main handleCommand
@@ -259,6 +384,23 @@ async function handleCommand(sock, message) {
   }
 
   if (player?.mode === 'action' && !messageText.startsWith('/')) {
+      // Check if player is in an active penalty match
+      const activeMatch = await Match.findOne({
+          where: {
+              status: 'active',
+              [Op.or]: [
+                  { teamA: { [Op.like]: `%${jid}%` } },
+                  { teamB: { [Op.like]: `%${jid}%` } }
+              ]
+          }
+      });
+
+      if (activeMatch) {
+          // If in penalty match, ignore non-command messages or remind them to use /tir or /arret
+          await sock.sendMessage(replyJid, { text: "Utilise les commandes /tir ou /arret pour jouer la séance !" });
+          return;
+      }
+
       await handleFreeAction(sock, message, player, messageText);
       return;
   }

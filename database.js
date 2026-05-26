@@ -122,8 +122,8 @@ const Team = sequelize.define('Team', {
 });
 
 const Match = sequelize.define('Match', {
-  playerAJid: { type: DataTypes.STRING },
-  playerBJid: { type: DataTypes.STRING, allowNull: true }, // 'IA' or JID
+  playerAJid: { type: DataTypes.STRING }, // Captain A
+  playerBJid: { type: DataTypes.STRING, allowNull: true }, // Captain B
   teamA: {
     type: DataTypes.TEXT, // JSON array of JIDs
     defaultValue: '[]',
@@ -135,7 +135,10 @@ const Match = sequelize.define('Match', {
   scoreA: { type: DataTypes.INTEGER, defaultValue: 0 },
   scoreB: { type: DataTypes.INTEGER, defaultValue: 0 },
   round: { type: DataTypes.INTEGER, defaultValue: 1 },
-  turn: { type: DataTypes.STRING, defaultValue: 'A' }, // 'A' or 'B'
+  turn: { type: DataTypes.STRING, defaultValue: 'A' }, // 'A' or 'B' (Team currently shooting)
+  phase: { type: DataTypes.STRING, defaultValue: 'shoot' }, // 'shoot' or 'dive'
+  lastShotDirection: { type: DataTypes.STRING, allowNull: true }, // gauche, milieu, droite
+  currentShooterIndex: { type: DataTypes.INTEGER, defaultValue: 0 },
   status: { type: DataTypes.STRING, defaultValue: 'active' },
   location: { type: DataTypes.STRING, defaultValue: 'Stadium' },
 });
