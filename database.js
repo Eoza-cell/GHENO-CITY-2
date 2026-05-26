@@ -1,360 +1,234 @@
-const mongoose = require('mongoose');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 require('dotenv').config();
 
-const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/dragonballrp';
+// PostgreSQL connection via URL (e.g., from Neon, Supabase, Render, etc.)
+const databaseUrl = process.env.DATABASE_URL;
 
-const Op = {
-    ne: Symbol('ne'),
-    or: Symbol('or'),
-    lte: Symbol('lte'),
-    like: Symbol('like'),
-    in: Symbol('in'),
-    lt: Symbol('lt')
-};
+if (!databaseUrl) {
+    console.warn("WARNING: DATABASE_URL is not set. Using local SQLite as fallback.");
+}
 
-const OpMap = {
-    ne: '$ne',
-    or: '$or',
-    lte: '$lte',
-    like: '$regex',
-    in: '$in',
-    lt: '$lt'
-};
-
-// --- SCHEMAS ---
-
-const PlayerSchema = new mongoose.Schema({
-    whatsappId: { type: String, unique: true, required: true },
-    name: { type: String, default: 'Bêta testeur' },
-    rank: { type: String, default: 'F' },
-    race: { type: String, default: 'Humain' },
-    skillPoints: { type: Number, default: 0 },
-    level: { type: Number, default: 1 },
-    xp: { type: Number, default: 0 },
-    zeni: { type: Number, default: 100 },
-    health: { type: Number, default: 100 },
-    maxHealth: { type: Number, default: 100 },
-    ki: { type: Number, default: 100 },
-    maxKi: { type: Number, default: 100 },
-    inventory: { type: Array, default: [] },
-    lastActivity: { type: Date, default: Date.now },
-    lastInactiveMessageSentAt: { type: Date },
-    location: { type: String, default: 'Mont Paozu' },
-    mode: { type: String, default: 'normal' },
-    characterDescription: { type: String },
-    currentDungeonId: { type: String },
-    registrationStep: { type: String },
-    awaitingProfilePic: { type: Boolean, default: false },
-    isGod: { type: Boolean, default: false },
-    profilePicUrl: { type: String },
-    schoolName: { type: String, default: 'Aucune' },
-    academicGrade: { type: Number, default: 0 },
-    tutorialStep: { type: Number, default: 0 },
-    chapter: { type: Number, default: 1 },
-    quest: { type: Number, default: 1 },
-    strength: { type: Number, default: 10 },
-    agility: { type: Number, default: 10 },
-    intelligence: { type: Number, default: 10 },
-    luck: { type: Number, default: 5 },
-    defense: { type: Number, default: 10 },
-    skills: [{
-        skill: { type: mongoose.Schema.Types.ObjectId, ref: 'Skill' },
-        level: { type: Number, default: 1 }
-    }],
-    quests: [{
-        quest: { type: mongoose.Schema.Types.ObjectId, ref: 'Quest' },
-        status: { type: String, default: 'not_started' }
-    }]
-}, { timestamps: true });
-
-// Emulate Sequelize methods
-const updateMethod = function(data) {
-    return this.set(data).save();
-};
-
-PlayerSchema.methods.update = updateMethod;
-
-PlayerSchema.methods.increment = function(field, { by }) {
-    this[field] = (this[field] || 0) + by;
-    return this.save();
-};
-
-PlayerSchema.methods.decrement = function(field, { by }) {
-    this[field] = (this[field] || 0) - by;
-    return this.save();
-};
-
-PlayerSchema.methods.reload = async function() {
-    return await Player.findById(this._id);
-};
-
-PlayerSchema.methods.getQuests = async function() {
-    await this.populate('quests.quest');
-    return this.quests.map(pq => {
-        if (!pq.quest) return null;
-        const q = pq.quest.toObject();
-        q.PlayerQuest = { status: pq.status };
-        return q;
-    }).filter(q => q !== null);
-};
-
-PlayerSchema.methods.getSkills = async function() {
-    await this.populate('skills.skill');
-    return this.skills.map(ps => {
-        if (!ps.skill) return null;
-        const s = ps.skill.toObject();
-        s.PlayerSkill = { level: ps.level };
-        return s;
-    }).filter(s => s !== null);
-};
-
-PlayerSchema.methods.addSkill = async function(skill) {
-    if (!this.skills.find(s => s.skill.toString() === skill._id.toString())) {
-        this.skills.push({ skill: skill._id });
-        await this.save();
-    }
-};
-
-PlayerSchema.methods.addQuest = async function(quest, options = {}) {
-    if (!this.quests.find(q => q.quest.toString() === quest._id.toString())) {
-        const status = (options.through && options.through.status) || 'not_started';
-        this.quests.push({ quest: quest._id, status });
-        await this.save();
-    }
-};
-
-PlayerSchema.methods.hasSkill = async function(skill) {
-    return this.skills.some(s => s.skill.toString() === skill._id.toString());
-};
-
-const ItemSchema = new mongoose.Schema({
-    name: { type: String, unique: true },
-    description: String,
-    price: { type: Number, default: 0 },
-    type: String,
-    slot: { type: String, default: 'none' },
-    statBonuses: { type: Map, of: Number, default: {} },
-    imageUrl: String
-});
-
-const DungeonSchema = new mongoose.Schema({
-    name: { type: String, unique: true },
-    description: String,
-    rank: String,
-    floors: { type: Number, default: 1 }
-});
-
-const QuestSchema = new mongoose.Schema({
-    title: { type: String, unique: true },
-    description: String,
-    type: { type: String, default: 'side' },
-    rank_required: { type: String, default: 'E' },
-    reward_zeni: { type: Number, default: 0 },
-    reward_xp: { type: Number, default: 0 }
-});
-
-const BankSchema = new mongoose.Schema({
-    playerWhatsappId: String,
-    balance: { type: Number, default: 0 }
-});
-
-const SkillSchema = new mongoose.Schema({
-    name: { type: String, unique: true },
-    description: String,
-    type: String,
-    manaCost: { type: Number, default: 0 },
-    statBonuses: { type: Map, of: Number, default: {} }
-});
-
-const KingdomSchema = new mongoose.Schema({
-    name: { type: String, unique: true },
-    description: String,
-    status: { type: String, default: 'peace' },
-    influence: { type: Number, default: 50 },
-    militaryPower: { type: Number, default: 50 },
-    leader: String
-});
-
-const ConflictSchema = new mongoose.Schema({
-    title: String,
-    description: String,
-    involvedKingdoms: [String],
-    status: { type: String, default: 'active' }
-});
-
-const SchoolSchema = new mongoose.Schema({
-    name: { type: String, unique: true },
-    specialty: String,
-    description: String,
-    kingdomName: String
-});
-
-const RPMessageSchema = new mongoose.Schema({
-    senderJid: String,
-    senderName: String,
-    content: String,
-    location: String,
-    timestamp: { type: Date, default: Date.now }
-});
-
-const NPCSchema = new mongoose.Schema({
-    name: { type: String, unique: true },
-    role: String,
-    description: String,
-    location: String
-});
-
-const DuelSchema = new mongoose.Schema({
-    playerAJid: String,
-    playerBJid: String,
-    startTime: { type: Date, default: Date.now },
-    lastActionTime: { type: Date, default: Date.now },
-    status: { type: String, default: 'active' },
-    location: String
-});
-
-const MonsterSchema = new mongoose.Schema({
-    name: { type: String, unique: true },
-    rank: String,
-    health: Number,
-    strength: Number,
-    defense: Number,
-    agility: Number,
-    xp_reward: Number,
-    zeni_reward: Number,
-    imageUrl: String
-});
-
-const CredsSchema = new mongoose.Schema({
-    key: { type: String, unique: true },
-    value: String
-});
-
-CredsSchema.methods.update = updateMethod;
+const sequelize = databaseUrl
+  ? new Sequelize(databaseUrl, {
+      dialect: 'postgres',
+      logging: false,
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      }
+    })
+  : new Sequelize({
+      dialect: 'sqlite',
+      storage: './dragon-ball.sqlite',
+      logging: false
+    });
 
 // --- MODELS ---
 
-const Player = mongoose.model('Player', PlayerSchema);
-const Item = mongoose.model('Item', ItemSchema);
-const Dungeon = mongoose.model('Dungeon', DungeonSchema);
-const Quest = mongoose.model('Quest', QuestSchema);
-const Bank = mongoose.model('Bank', BankSchema);
-const Skill = mongoose.model('Skill', SkillSchema);
-const Kingdom = mongoose.model('Kingdom', KingdomSchema);
-const Conflict = mongoose.model('Conflict', ConflictSchema);
-const School = mongoose.model('School', SchoolSchema);
-const RPMessage = mongoose.model('RPMessage', RPMessageSchema);
-const NPC = mongoose.model('NPC', NPCSchema);
-const Duel = mongoose.model('Duel', DuelSchema);
-const Monster = mongoose.model('Monster', MonsterSchema);
-const Creds = mongoose.model('Creds', CredsSchema);
-
-// --- COMPATIBILITY WRAPPERS ---
-
-function wrapModel(model) {
-    return {
-        async findOne(options) {
-            const query = convertWhere(options.where);
-            const doc = await model.findOne(query);
-            return doc;
+const Player = sequelize.define('Player', {
+    whatsappId: { type: DataTypes.STRING, unique: true, allowNull: false },
+    name: { type: DataTypes.STRING, defaultValue: 'Guerrier' },
+    rank: { type: DataTypes.STRING, defaultValue: 'F' },
+    race: { type: DataTypes.STRING, defaultValue: 'Humain' },
+    skillPoints: { type: DataTypes.INTEGER, defaultValue: 0 },
+    level: { type: DataTypes.INTEGER, defaultValue: 1 },
+    xp: { type: DataTypes.INTEGER, defaultValue: 0 },
+    zeni: { type: DataTypes.INTEGER, defaultValue: 100 },
+    health: { type: DataTypes.INTEGER, defaultValue: 100 },
+    maxHealth: { type: DataTypes.INTEGER, defaultValue: 100 },
+    ki: { type: DataTypes.INTEGER, defaultValue: 100 },
+    maxKi: { type: DataTypes.INTEGER, defaultValue: 100 },
+    inventory: {
+        type: DataTypes.TEXT,
+        defaultValue: '[]',
+        get() {
+            const rawValue = this.getDataValue('inventory');
+            try { return JSON.parse(rawValue); } catch (e) { return []; }
         },
-        async findAll(options = {}) {
-            const query = convertWhere(options.where);
-            const mQuery = model.find(query);
-            if (options.order) {
-                const sort = {};
-                options.order.forEach(([field, dir]) => {
-                    sort[field] = dir === 'DESC' ? -1 : 1;
-                });
-                mQuery.sort(sort);
-            }
-            if (options.limit) {
-                mQuery.limit(options.limit);
-            }
-            return await mQuery.exec();
-        },
-        async create(data) {
-            return await model.create(data);
-        },
-        async count(options = {}) {
-            const query = convertWhere(options.where);
-            return await model.countDocuments(query);
-        },
-        async bulkCreate(dataList) {
-            return await model.insertMany(dataList);
-        },
-        async findOrCreate(options) {
-            let record = await this.findOne(options);
-            if (record) return [record, false];
-            record = await this.create(options.defaults || options.where);
-            return [record, true];
+        set(value) {
+            this.setDataValue('inventory', JSON.stringify(value));
         }
-    };
-}
+    },
+    location: { type: DataTypes.STRING, defaultValue: 'Mont Paozu' },
+    mode: { type: DataTypes.STRING, defaultValue: 'normal' },
+    characterDescription: { type: DataTypes.TEXT },
+    currentDungeonId: { type: DataTypes.STRING },
+    registrationStep: { type: DataTypes.STRING },
+    awaitingProfilePic: { type: DataTypes.BOOLEAN, defaultValue: false },
+    isGod: { type: DataTypes.BOOLEAN, defaultValue: false },
+    profilePicUrl: { type: DataTypes.STRING },
+    schoolName: { type: DataTypes.STRING, defaultValue: 'Aucune' },
+    academicGrade: { type: DataTypes.INTEGER, defaultValue: 0 },
+    tutorialStep: { type: DataTypes.INTEGER, defaultValue: 0 },
+    chapter: { type: DataTypes.INTEGER, defaultValue: 1 },
+    quest: { type: DataTypes.INTEGER, defaultValue: 1 },
+    strength: { type: DataTypes.INTEGER, defaultValue: 10 },
+    agility: { type: DataTypes.INTEGER, defaultValue: 10 },
+    intelligence: { type: DataTypes.INTEGER, defaultValue: 10 },
+    luck: { type: DataTypes.INTEGER, defaultValue: 5 },
+    defense: { type: DataTypes.INTEGER, defaultValue: 10 },
+    lastActivity: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    lastInactiveMessageSentAt: { type: DataTypes.DATE }
+});
 
-function convertWhere(where) {
-    if (!where) return {};
-    const mongoQuery = {};
-
-    // Handle top-level Op.or
-    const symbols = Object.getOwnPropertySymbols(where);
-    symbols.forEach(sym => {
-        if (sym === Op.or) {
-            mongoQuery['$or'] = where[sym].map(cond => convertWhere(cond));
+const Item = sequelize.define('Item', {
+    name: { type: DataTypes.STRING, unique: true },
+    description: DataTypes.TEXT,
+    price: { type: DataTypes.INTEGER, defaultValue: 0 },
+    type: DataTypes.STRING,
+    slot: { type: DataTypes.STRING, defaultValue: 'none' },
+    statBonuses: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const rawValue = this.getDataValue('statBonuses');
+            try { return JSON.parse(rawValue); } catch (e) { return {}; }
+        },
+        set(value) {
+            this.setDataValue('statBonuses', JSON.stringify(value));
         }
-    });
+    },
+    imageUrl: DataTypes.STRING
+});
 
-    for (const key in where) {
-        let val = where[key];
-        if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
-            const subSymbols = Object.getOwnPropertySymbols(val);
-            if (subSymbols.length > 0) {
-                const operatorSym = subSymbols[0];
-                const mOperator = OpMap[operatorSym.description] || operatorSym.description;
-                let mVal = val[operatorSym];
-                if (mOperator === '$regex' && typeof mVal === 'string') {
-                    mVal = new RegExp(mVal.replace(/%/g, ''), 'i');
-                }
-                mongoQuery[key] = { [mOperator]: mVal };
-            } else {
-                mongoQuery[key] = val;
-            }
-        } else {
-            if (Array.isArray(val)) {
-                mongoQuery[key] = { $in: val };
-            } else {
-                mongoQuery[key] = val;
-            }
+const Dungeon = sequelize.define('Dungeon', {
+    name: { type: DataTypes.STRING, unique: true },
+    description: DataTypes.TEXT,
+    rank: DataTypes.STRING,
+    floors: { type: DataTypes.INTEGER, defaultValue: 1 }
+});
+
+const Quest = sequelize.define('Quest', {
+    title: { type: DataTypes.STRING, unique: true },
+    description: DataTypes.TEXT,
+    type: { type: DataTypes.STRING, defaultValue: 'side' },
+    rank_required: { type: DataTypes.STRING, defaultValue: 'E' },
+    reward_zeni: { type: DataTypes.INTEGER, defaultValue: 0 },
+    reward_xp: { type: DataTypes.INTEGER, defaultValue: 0 }
+});
+
+const PlayerQuest = sequelize.define('PlayerQuest', {
+    status: { type: DataTypes.STRING, defaultValue: 'not_started' }
+});
+
+const Bank = sequelize.define('Bank', {
+    playerWhatsappId: DataTypes.STRING,
+    balance: { type: DataTypes.INTEGER, defaultValue: 0 }
+});
+
+const Skill = sequelize.define('Skill', {
+    name: { type: DataTypes.STRING, unique: true },
+    description: DataTypes.TEXT,
+    type: DataTypes.STRING,
+    manaCost: { type: DataTypes.INTEGER, defaultValue: 0 },
+    statBonuses: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const rawValue = this.getDataValue('statBonuses');
+            try { return JSON.parse(rawValue); } catch (e) { return {}; }
+        },
+        set(value) {
+            this.setDataValue('statBonuses', JSON.stringify(value));
         }
     }
-    return mongoQuery;
-}
+});
 
-const WrappedPlayer = wrapModel(Player);
-const WrappedItem = wrapModel(Item);
-const WrappedDungeon = wrapModel(Dungeon);
-const WrappedQuest = wrapModel(Quest);
-const WrappedBank = wrapModel(Bank);
-const WrappedSkill = wrapModel(Skill);
-const WrappedKingdom = wrapModel(Kingdom);
-const WrappedConflict = wrapModel(Conflict);
-const WrappedSchool = wrapModel(School);
-const WrappedRPMessage = wrapModel(RPMessage);
-const WrappedNPC = wrapModel(NPC);
-const WrappedDuel = wrapModel(Duel);
-const WrappedMonster = wrapModel(Monster);
-const WrappedCreds = wrapModel(Creds);
+const PlayerSkill = sequelize.define('PlayerSkill', {
+    level: { type: DataTypes.INTEGER, defaultValue: 1 }
+});
+
+const Kingdom = sequelize.define('Kingdom', {
+    name: { type: DataTypes.STRING, unique: true },
+    description: DataTypes.TEXT,
+    status: { type: DataTypes.STRING, defaultValue: 'peace' },
+    influence: { type: DataTypes.INTEGER, defaultValue: 50 },
+    militaryPower: { type: DataTypes.INTEGER, defaultValue: 50 },
+    leader: DataTypes.STRING
+});
+
+const Conflict = sequelize.define('Conflict', {
+    title: DataTypes.STRING,
+    description: DataTypes.TEXT,
+    involvedKingdoms: {
+        type: DataTypes.TEXT,
+        get() { return JSON.parse(this.getDataValue('involvedKingdoms') || '[]'); },
+        set(val) { this.setDataValue('involvedKingdoms', JSON.stringify(val)); }
+    },
+    status: { type: DataTypes.STRING, defaultValue: 'active' }
+});
+
+const School = sequelize.define('School', {
+    name: { type: DataTypes.STRING, unique: true },
+    specialty: DataTypes.STRING,
+    description: DataTypes.TEXT,
+    kingdomName: DataTypes.STRING
+});
+
+const RPMessage = sequelize.define('RPMessage', {
+    senderJid: DataTypes.STRING,
+    senderName: DataTypes.STRING,
+    content: DataTypes.TEXT,
+    location: DataTypes.STRING,
+    timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+});
+
+const NPC = sequelize.define('NPC', {
+    name: { type: DataTypes.STRING, unique: true },
+    role: DataTypes.STRING,
+    description: DataTypes.TEXT,
+    location: DataTypes.STRING
+});
+
+const Duel = sequelize.define('Duel', {
+    playerAJid: DataTypes.STRING,
+    playerBJid: DataTypes.STRING,
+    startTime: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    lastActionTime: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    status: { type: DataTypes.STRING, defaultValue: 'active' },
+    location: DataTypes.STRING
+});
+
+const Monster = sequelize.define('Monster', {
+    name: { type: DataTypes.STRING, unique: true },
+    rank: DataTypes.STRING,
+    health: DataTypes.INTEGER,
+    strength: DataTypes.INTEGER,
+    defense: DataTypes.INTEGER,
+    agility: DataTypes.INTEGER,
+    xp_reward: DataTypes.INTEGER,
+    zeni_reward: DataTypes.INTEGER,
+    imageUrl: DataTypes.STRING
+});
+
+const Creds = sequelize.define('Creds', {
+    key: { type: DataTypes.STRING, unique: true },
+    value: DataTypes.TEXT
+});
+
+// Associations
+Player.belongsToMany(Quest, { through: PlayerQuest });
+Quest.belongsToMany(Player, { through: PlayerQuest });
+
+Player.belongsToMany(Skill, { through: PlayerSkill });
+Skill.belongsToMany(Player, { through: PlayerSkill });
+
+// --- SETUP & SEEDING ---
 
 async function setupDatabase() {
     try {
-        await mongoose.connect(uri);
-        console.log('Connected to MongoDB.');
+        await sequelize.authenticate();
+        console.log('Connection to database established successfully.');
+        await sequelize.sync({ alter: true });
+        console.log('Database synced.');
 
         // Seed initial game data
-        const dungeonCount = await Dungeon.countDocuments();
+        const dungeonCount = await Dungeon.count();
         if (dungeonCount === 0) {
             console.log('Seeding Zones de Combat for Dragon Ball...');
-            await Dungeon.insertMany([
+            await Dungeon.bulkCreate([
                 { name: 'Plaines de la Terre', description: 'Un terrain d\'entraînement basique.', rank: 'F', floors: 1 },
                 { name: 'Désert de Yamcha', description: 'Un désert aride où rodent des bandits.', rank: 'E', floors: 3 },
                 { name: 'Mont Paozu', description: 'La montagne où Goku a grandi, remplie de bêtes sauvages.', rank: 'D', floors: 5 },
@@ -414,19 +288,18 @@ async function setupDatabase() {
             }
         ];
 
-        for (const item of itemsToSeed) {
-            await Item.findOneAndUpdate(
-                { name: item.name },
-                { $set: item },
-                { upsert: true, new: true }
-            );
+        for (const itemData of itemsToSeed) {
+            await Item.findOrCreate({
+                where: { name: itemData.name },
+                defaults: itemData
+            });
         }
         console.log('Items synchronisés.');
 
-        const questCount = await Quest.countDocuments();
+        const questCount = await Quest.count();
         if (questCount === 0) {
             console.log('Seeding Quests...');
-            await Quest.insertMany([
+            await Quest.bulkCreate([
                 { title: 'Entraînement de Tortue Géniale', description: 'Livrez le lait et labourez la terre à mains nues.', type: 'main', rank_required: 'F', reward_zeni: 100, reward_xp: 200 },
                 { title: 'La Menace de l\'Armée du Ruban Rouge', description: 'Infiltrez une base du Ruban Rouge.', type: 'main', rank_required: 'E', reward_zeni: 500, reward_xp: 1000 },
                 { title: 'À la recherche des Dragon Balls', description: 'Trouvez une Dragon Ball dans le désert.', type: 'side', rank_required: 'D', reward_zeni: 1000, reward_xp: 2000 },
@@ -436,10 +309,10 @@ async function setupDatabase() {
             console.log('Quests seeded.');
         }
 
-        const skillCount = await Skill.countDocuments();
+        const skillCount = await Skill.count();
         if (skillCount === 0) {
             console.log('Seeding Skills...');
-            await Skill.insertMany([
+            await Skill.bulkCreate([
                 { name: 'Kamehameha', description: 'Une puissante vague déferlante de Ki.', type: 'active', manaCost: 50, statBonuses: { intelligence: 20 } },
                 { name: 'Masenko', description: 'Une décharge de Ki rapide tirée au-dessus de la tête.', type: 'active', manaCost: 40, statBonuses: { agility: 10 } },
                 { name: 'Taiyoken', description: 'La morsure du soleil, aveugle temporairement l\'ennemi.', type: 'active', manaCost: 20 },
@@ -450,10 +323,10 @@ async function setupDatabase() {
             console.log('Skills seeded.');
         }
 
-        const kingdomCount = await Kingdom.countDocuments();
+        const kingdomCount = await Kingdom.count();
         if (kingdomCount === 0) {
             console.log('Seeding Locations for Dragon Ball...');
-            await Kingdom.insertMany([
+            await Kingdom.bulkCreate([
                 { name: 'Terre', description: 'La planète bleue, foyer des humains et de nombreux guerriers Z.', status: 'peace', influence: 100, militaryPower: 50, leader: 'Roi de la Terre' },
                 { name: 'Namek', description: 'La planète verte, foyer des Nameks et créatrice des Dragon Balls originales.', status: 'peace', influence: 50, militaryPower: 40, leader: 'Grand Chef' },
                 { name: 'Planète Vegeta', description: 'Le foyer ancestral des Saiyans (détruite dans certains timelines).', status: 'war', influence: 80, militaryPower: 100, leader: 'Roi Vegeta' },
@@ -462,10 +335,10 @@ async function setupDatabase() {
             console.log('Locations seeded.');
         }
 
-        const npcCount = await NPC.countDocuments();
+        const npcCount = await NPC.count();
         if (npcCount === 0) {
             console.log('Seeding NPCs for Dragon Ball...');
-            await NPC.insertMany([
+            await NPC.bulkCreate([
                 { name: 'Goku', role: 'Défenseur de la Terre', description: 'Un guerrier Saiyan toujours en quête de puissance.', location: 'Mont Paozu' },
                 { name: 'Vegeta', role: 'Prince des Saiyans', description: 'Un guerrier fier et puissant, rival de Goku.', location: 'Capsule Corp' },
                 { name: 'Tortue Géniale', role: 'Maître des Arts Martiaux', description: 'Le créateur du Kamehameha, vivant sur son île.', location: 'Kame House' },
@@ -485,36 +358,35 @@ async function setupDatabase() {
             { name: 'Majin Buu', rank: 'S', health: 50000, strength: 1000, defense: 800, agility: 600, xp_reward: 100000, zeni_reward: 0 },
         ];
 
-        for (const monster of monstersToSeed) {
-            await Monster.findOneAndUpdate(
-                { name: monster.name },
-                { $set: monster },
-                { upsert: true, new: true }
-            );
+        for (const monsterData of monstersToSeed) {
+            await Monster.findOrCreate({
+                where: { name: monsterData.name },
+                defaults: monsterData
+            });
         }
         console.log('Ennemis synchronisés.');
 
     } catch (error) {
-        console.error('[MongoDB] Setup failed:', error.message);
+        console.error('Unable to connect to the database:', error);
     }
 }
 
 module.exports = {
-    mongoose,
+    sequelize,
+    Player,
+    Item,
+    Dungeon,
+    Quest,
+    Bank,
+    Skill,
+    Kingdom,
+    Conflict,
+    School,
+    RPMessage,
+    NPC,
+    Duel,
+    Monster,
+    Creds,
     Op,
-    Player: WrappedPlayer,
-    Dungeon: WrappedDungeon,
-    Quest: WrappedQuest,
-    Bank: WrappedBank,
-    Item: WrappedItem,
-    Creds: WrappedCreds,
-    Skill: WrappedSkill,
-    Kingdom: WrappedKingdom,
-    Conflict: WrappedConflict,
-    School: WrappedSchool,
-    Duel: WrappedDuel,
-    NPC: WrappedNPC,
-    Monster: WrappedMonster,
-    RPMessage: WrappedRPMessage,
-    setupDatabase,
+    setupDatabase
 };

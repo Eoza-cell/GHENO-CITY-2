@@ -3,25 +3,25 @@ const { proto } = require('@whiskeysockets/baileys');
 const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
 
 /**
- * A MongoDB-backed authentication handler for Baileys.
+ * A Database-backed authentication handler for Baileys (Sequelize).
  *
  * @returns {Promise<{state: {creds: any, keys: {}}, saveCreds: () => Promise<void>}>}
  */
 const useDatabaseAuth = async () => {
     let creds;
 
-    // Helper function to read data from MongoDB
+    // Helper function to read data from DB
     const readData = async (key) => {
         try {
             const data = await Creds.findOne({ where: { key } });
             return data ? JSON.parse(data.value, BufferJSON.reviver) : null;
         } catch (error) {
-            console.error(`[MONGO-AUTH] Failed to read key "${key}"`, error.message);
+            console.error(`[DB-AUTH] Failed to read key "${key}"`, error.message);
             return null;
         }
     };
 
-    // Helper function to write data to MongoDB
+    // Helper function to write data to DB
     const writeData = async (key, data) => {
         try {
             const value = JSON.stringify(data, BufferJSON.replacer);
@@ -32,20 +32,16 @@ const useDatabaseAuth = async () => {
                 await Creds.create({ key, value });
             }
         } catch (error) {
-            console.error(`[MONGO-AUTH] Failed to write key "${key}"`, error.message);
+            console.error(`[DB-AUTH] Failed to write key "${key}"`, error.message);
         }
     };
 
-    // Helper function to remove data from MongoDB
+    // Helper function to remove data from DB
     const removeData = async (key) => {
         try {
-            const existing = await Creds.findOne({ where: { key } });
-            if (existing) {
-                // In MongoDB we can just delete
-                await existing.deleteOne();
-            }
+            await Creds.destroy({ where: { key } });
         } catch (error) {
-            console.error(`[MONGO-AUTH] Failed to remove key "${key}"`, error.message);
+            console.error(`[DB-AUTH] Failed to remove key "${key}"`, error.message);
         }
     };
 
