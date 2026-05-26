@@ -1,4 +1,3 @@
-const { PlayerVehicle, Vehicle } = require('./database');
 const { sendWithImage } = require('./message-handler');
 
 const missions = {
