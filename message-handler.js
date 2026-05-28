@@ -23,11 +23,30 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 
 async function sendLoadingSequence(sock, jid) {
     try {
-        const { key } = await sock.sendMessage(jid, { text: "⏳ *Synchronisation avec le monde...*" });
-        await delay(800);
-        await sock.sendMessage(jid, { text: "📡 *Détection des signaux de Ki...*", edit: key });
-        await delay(800);
-        await sock.sendMessage(jid, { text: "🐉 *Appel du Dragon...*", edit: key });
+        const steps = [
+            { label: "Synchronisation", progress: 10 },
+            { label: "Détection du Ki", progress: 30 },
+            { label: "Analyse environnementale", progress: 50 },
+            { label: "Appel du Dragon", progress: 80 },
+            { label: "Chargement terminé", progress: 100 }
+        ];
+
+        let { key } = await sock.sendMessage(jid, { text: "🐉 *Initialisation de la connexion...*" });
+
+        for (const step of steps) {
+            const barLength = 10;
+            const filled = Math.round((step.progress / 100) * barLength);
+            const bar = "▰".repeat(filled) + "▱".repeat(barLength - filled);
+
+            const message = `🐉 *GENETWORK RP*\n\n` +
+                          `⚙️ *${step.label}...*\n` +
+                          `[${bar}] ${step.progress}%\n\n` +
+                          `_Veuillez patienter..._`;
+
+            await sock.sendMessage(jid, { text: message, edit: key });
+            await delay(400);
+        }
+
         return key;
     } catch (e) {
         console.error("Erreur loading sequence:", e);

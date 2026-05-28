@@ -23,7 +23,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     const providers = [];
 
-    // Priority: Ollama (Local) -> OpenRouter (if key exists) -> Puter -> Pollinations
+    // Priority: Jan AI (Local) -> Ollama (Local) -> OpenRouter (if key exists) -> Puter -> Pollinations
+    providers.push({ name: 'Jan AI', fn: callJanAI });
     providers.push({ name: 'Ollama', fn: callOllama });
     if (process.env.OPENROUTER_API_KEY) {
         providers.push({ name: 'OpenRouter', fn: callOpenRouter });
@@ -53,6 +54,27 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         narrative: "Une perturbation dans le Ki mondial empêche toute action... (Erreur Serveur AI)",
         actions: []
     });
+}
+
+async function callJanAI(systemPrompt, userPrompt) {
+    try {
+        const response = await axios.post("http://localhost:1337/v1/chat/completions", {
+            model: "mistral-ins-7b-q4", // Default model for Jan, can be adjusted
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            stream: false,
+            response_format: { type: "json_object" },
+            stop: null,
+            temperature: 0.7
+        }, { timeout: 20000 });
+
+        return response.data?.choices?.[0]?.message?.content;
+    } catch (error) {
+        // If Jan AI is not running, this will throw and move to next provider
+        throw error;
+    }
 }
 
 async function callOllama(systemPrompt, userPrompt) {

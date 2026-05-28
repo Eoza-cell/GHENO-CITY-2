@@ -1,6 +1,28 @@
 const { sendWithImage } = require('./message-handler');
 
 const missions = {
+  0: { // Temporal Missions / Événements Temporels
+    title: "Failles Temporelles",
+    quests: {
+      1: {
+        title: "Soutien à Goku contre Raditz",
+        objective: "Une faille temporelle s'est ouverte ! Goku est en difficulté face à Raditz. Prête-lui main forte pour protéger la Terre.",
+        isTemporal: true,
+        reward: { xp: 1000, zeni: 2000 },
+        completionCondition: async (player) => {
+            // Logique de complétion via interaction narrative gérée par l'AI
+            return false; // Reste actif jusqu'à ce que l'AI décide du succès
+        }
+      },
+      2: {
+        title: "Le Combat sur Namek",
+        objective: "Goku arrive sur Namek mais il est épuisé. Aide-le à gagner du temps face à Freezer en attendant qu'il récupère dans la capsule de soins.",
+        isTemporal: true,
+        reward: { xp: 5000, zeni: 10000 },
+        completionCondition: async (player) => false
+      }
+    }
+  },
   1: { // Chapter 1: Le début de l'aventure
     title: "L'Héritage de Tortue Géniale",
     quests: {
