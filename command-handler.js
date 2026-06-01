@@ -314,8 +314,6 @@ commands.set('aller', async (sock, message, args) => {
     }
 });
 
-});
-
 // Command: /action
 commands.set('action', async (sock, message) => {
   const jid = getJid(message);

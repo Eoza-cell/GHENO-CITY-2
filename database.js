@@ -109,10 +109,6 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 0, // 0-100
   },
-  job: {
-    type: DataTypes.STRING,
-    defaultValue: 'Aucun',
-  },
   nationalTeam: {
     type: DataTypes.STRING,
     defaultValue: 'Aucune',
