@@ -6,103 +6,58 @@ const { callAI } = require('./ai-utils');
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
-  // Get Player Team (3 players)
-  const team = await Team.findOne({ where: { PlayerWhatsappId: player.whatsappId } });
-  let teamStats = "";
-  if (team) {
-      const roles = ['shooter1Id', 'shooter2Id', 'goalkeeperId'];
-      const labels = ['Tireur 1', 'Tireur 2', 'Gardien'];
-      for(let i=0; i<roles.length; i++) {
-          const pc = await PlayerCard.findByPk(team[roles[i]], { include: Card });
-          if (pc) {
-              teamStats += `- ${labels[i]}: ${pc.Card.name} (Rareté: ${pc.Card.rarity}, Shoot: ${pc.Card.shoot}, Power: ${pc.Card.power}, Precision: ${pc.Card.precision}, Diving: ${pc.Card.diving}, Reflexes: ${pc.Card.reflexes}, Skill: ${pc.Card.signatureSkillName})\n`;
-          }
-      }
-  }
-
-  // Get active match (Penalty session) - Updated to find match where player is in teamA or teamB
-  const match = await Match.findOne({
-      where: {
-          [Op.and]: [
-              { status: 'active' },
-              {
-                  [Op.or]: [
-                      { playerAJid: player.whatsappId },
-                      { playerBJid: player.whatsappId },
-                      { teamA: { [Op.like]: `%${player.whatsappId}%` } },
-                      { teamB: { [Op.like]: `%${player.whatsappId}%` } }
-                  ]
-              }
-          ]
-      },
-      order: [['createdAt', 'DESC']]
-  });
-
-  let participantsState = "";
-  if (match) {
-      const teamA = JSON.parse(match.teamA || "[]");
-      const teamB = JSON.parse(match.teamB || "[]");
-      participantsState = "PARTICIPANTS:\n";
-      for (const jid of teamA) {
-          const p = await Player.findOne({ where: { whatsappId: jid } });
-          participantsState += `- Équipe A: ${p?.name} (@${jid.split('@')[0]})\n`;
-      }
-      for (const jid of teamB) {
-          const p = await Player.findOne({ where: { whatsappId: jid } });
-          participantsState += `- Équipe B: ${p?.name} (@${jid.split('@')[0]})\n`;
-      }
-  }
-
-  const matchState = match ? `
-    SÉANCE EN COURS:
-    - Lieu: ${match.location}
-    - Score: ${match.scoreA} - ${match.scoreB}
-    - Tour: ${match.round}
-    - C'est au tour de: ${match.turn === 'A' ? 'Équipe A' : 'Équipe B'}
-    ${participantsState}
-  ` : "Hors terrain.";
-
   const history = await RPMessage.findAll({
-      where: match ? { matchId: match.id } : { senderJid: player.whatsappId },
+      where: { senderJid: player.whatsappId },
       order: [['id', 'DESC']],
-      limit: 8
+      limit: 10
   });
+
+  const remainingTime = player.matchEndTime ? Math.max(0, Math.round((player.matchEndTime - new Date()) / 1000)) : 0;
+  const minutes = Math.floor(remainingTime / 60);
+  const seconds = remainingTime % 60;
+  const timeStr = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
   const systemPrompt = `
-    Tu es le MJ expert de "GHENO FOOTBALL PENALTY", un RP de tirs au but ultra-immersif.
+    Tu es le MJ expert de "FOOTBALL CAREER RP", un RP où le joueur incarne un futur crack du football.
 
     TON STYLE:
-    - Commentateur sportif passionné (type Grégoire Margotton ou anime Blue Lock/Captain Tsubasa).
-    - Très descriptif sur la tension, le regard du tireur, le souffle, le mouvement du gardien.
+    - Commentateur sportif et Agent de joueur.
+    - Style dynamique, immersif, utilisant le jargon du foot (Roulette, Petit-pont, Lucarne, Pressing).
+    - Très descriptif sur l'ambiance du stade (Santiago Bernabéu) et la pression des recruteurs.
 
-    RÈGLES DU RP PENALTY:
-    1. FORMAT: Séance de 3 tirs par équipe (3v3). Les joueurs d'une même équipe tirent à tour de rôle.
-    2. STATS: Utilise Shoot/Power/Precision pour le tireur vs Diving/Reflexes pour le gardien de l'équipe adverse.
-    3. DIRECTIONS: Les joueurs choisissent (Gauche, Milieu, Droite) + (Haut, Bas).
-    4. RÉSULTAT: Si le tireur et le gardien choisissent la même direction, le gardien a une grande chance d'arrêter (selon les stats). Sinon, c'est but (sauf si Precision/Power est trop faible).
-    5. MULTIJOUEUR: Identifie quel joueur de l'équipe doit tirer ou arrêter. TAGUE le joueur concerné (@JID) pour qu'il sache que c'est à lui de jouer.
-    6. SIGNATURE SKILLS: Intègre les compétences spéciales (ex: "Siuuuu Strike", "Araignée Noire") dans la narration.
+    RÈGLES DU RP CARRIÈRE:
+    1. PROLOGUE: Le joueur joue contre le REAL MADRID. C'est sa seule chance d'être repéré.
+    2. CHANCE & DÉS: Pour chaque action (tir, passe, dribble), simule un jet de dé (1-20) et combine-le avec les statistiques du joueur (Shoot, Dribble, etc.).
+    3. RÉSULTAT:
+       - 1: Échec critique (chute, blessure légère, perte de balle ridicule).
+       - 2-10: Échec (le défenseur intercepte, le tir passe à côté).
+       - 11-18: Succès (belle passe, dribble réussi).
+       - 19-20: Succès critique (but magnifique, geste technique de classe mondiale).
+    4. TEMPS RÉEL: Le match dure 6 minutes IRL. S'il reste moins de 1 minute, augmente la tension dramatique.
+    5. OFFRES DE CLUBS: Si le joueur réalise une action exceptionnelle (but, passe décisive), mentionne qu'un recruteur (ex: scout de Manchester United, PSG, Bayern) prend des notes.
 
-    INTERFACE OBLIGATOIRE:
-    🥅 SCORE: [Joueur] [ScoreA] - [ScoreB] [IA/Adversaire]
-    🎯 TOUR: [Round]
-    🧤 Gardien adverse: [Nom]
+    INTERFACE RP:
+    ⚽ MATCH: [Joueur] vs REAL MADRID
+    ⏳ TEMPS RESTANT: ${timeStr}
+    🎲 DERNIER JET: [Résultat du Dé]
+    📢 COMMENTAIRE: [Ton récit]
 
-    ACTIONS JSON:
-    - "update_match": {scoreA_change, scoreB_change, round, next_turn}
-    - "update_player": {gems_change, xp_gain}
-    - "add_card": {cardName}
-    - "end_match": {}
+    ACTIONS JSON (OBLIGATOIRE):
+    Ta réponse doit être un JSON valide avec les clés "narrative" (ton récit) et "actions" (un tableau d'objets).
+    Actions possibles :
+    - {"type": "update_player", "parameters": {"shoot_change": n, "pass_change": n, "dribble_change": n, "market_change": n, "gems_change": n, "xp_gain": n}}
+    - {"type": "offer_club", "parameters": {"clubName": "Nom", "value": n}}
+    - {"type": "add_card", "parameters": {"cardName": "Nom"}}
   `;
 
   const fullPrompt = `
     JOUEUR: ${player.name}
-    TEAM (3 JOUEURS):
-    ${teamStats}
+    POSTE: ${player.position}
+    STATS: Shoot ${player.shoot}, Passe ${player.pass}, Dribble ${player.dribble}, Vitesse ${player.speed}, IQ ${player.iq}
+    STAGE: ${player.careerStage}
+    CLUB ACTUEL: ${player.currentClub}
 
-    ${matchState}
-
-    HISTORIQUE:
+    HISTORIQUE RÉCENT:
     ${history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')}
 
     ACTION DU JOUEUR: ${actionText}
@@ -122,29 +77,26 @@ async function handleFreeAction(sock, message, player, actionText) {
         senderJid: 'bot',
         senderName: 'Commentateur',
         content: aiResponse.narrative,
-        matchId: match ? match.id : null
     });
 
     if (aiResponse.actions) {
         for (const action of aiResponse.actions) {
-            if (action.type === 'update_match' && match) {
-                if (action.parameters.scoreA_change) await match.increment('scoreA', { by: action.parameters.scoreA_change });
-                if (action.parameters.scoreB_change) await match.increment('scoreB', { by: action.parameters.scoreB_change });
-                if (action.parameters.round) await match.update({ round: action.parameters.round });
-                if (action.parameters.next_turn) await match.update({ turn: action.parameters.next_turn });
-                await match.save();
-            }
             if (action.type === 'update_player') {
+                if (action.parameters.shoot_change) await player.increment('shoot', { by: action.parameters.shoot_change });
+                if (action.parameters.pass_change) await player.increment('pass', { by: action.parameters.pass_change });
+                if (action.parameters.market_change) await player.increment('marketValue', { by: action.parameters.market_change });
                 if (action.parameters.gems_change) await player.increment('gems', { by: action.parameters.gems_change });
+                if (action.parameters.xp_gain) await player.increment('xp', { by: action.parameters.xp_gain });
+            }
+            if (action.type === 'offer_club') {
+                // Handle recruitment logic - maybe store in a temporary field or send a special message
+                await sock.sendMessage(jid, { text: `📜 *OFFRE DE TRANSFERT* 📜\nLe club ${action.parameters.clubName} propose de te recruter pour ${action.parameters.value} € !\nUtilise /action pour répondre.` });
             }
             if (action.type === 'add_card') {
                 const card = await Card.findOne({ where: { name: { [Op.like]: `%${action.parameters.cardName}%` } } });
                 if (card) {
                     await PlayerCard.create({ PlayerWhatsappId: player.whatsappId, CardId: card.id });
                 }
-            }
-            if (action.type === 'end_match' && match) {
-                await match.update({ status: 'finished' });
             }
         }
     }
@@ -153,7 +105,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   } catch (error) {
     console.error("AI Handler Error:", error);
-    await sock.sendMessage(jid, { text: "Le ballon est crevé. Erreur MJ." });
+    await sock.sendMessage(jid, { text: "Le stade est plongé dans le noir. Erreur MJ." });
   }
 }
 

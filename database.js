@@ -25,6 +25,36 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'Rookie',
   },
+  // Character Stats (for Personal Player)
+  shoot: { type: DataTypes.INTEGER, defaultValue: 40 },
+  power: { type: DataTypes.INTEGER, defaultValue: 40 },
+  precision: { type: DataTypes.INTEGER, defaultValue: 40 },
+  pass: { type: DataTypes.INTEGER, defaultValue: 40 },
+  dribble: { type: DataTypes.INTEGER, defaultValue: 40 },
+  defense: { type: DataTypes.INTEGER, defaultValue: 40 },
+  speed: { type: DataTypes.INTEGER, defaultValue: 40 },
+  stamina: { type: DataTypes.INTEGER, defaultValue: 60 },
+  iq: { type: DataTypes.INTEGER, defaultValue: 40 },
+  position: {
+    type: DataTypes.STRING,
+    allowNull: true, // Attaquant, Milieu, Défenseur, Gardien
+  },
+  currentClub: {
+    type: DataTypes.STRING,
+    defaultValue: 'Sans club (Agent libre)',
+  },
+  marketValue: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  careerStage: {
+    type: DataTypes.STRING,
+    defaultValue: 'prologue', // prologue, pro, legend
+  },
+  matchEndTime: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
   gems: {
     type: DataTypes.INTEGER,
     defaultValue: 300,
@@ -79,14 +109,15 @@ const Card = sequelize.define('Card', {
     allowNull: true,
   },
   // Stats 0-100
-  shoot: { type: DataTypes.INTEGER },
-  power: { type: DataTypes.INTEGER },
-  precision: { type: DataTypes.INTEGER },
-  diving: { type: DataTypes.INTEGER },
-  reflexes: { type: DataTypes.INTEGER },
-  speed: { type: DataTypes.INTEGER },
-  stamina: { type: DataTypes.INTEGER },
-  iq: { type: DataTypes.INTEGER },
+  shoot: { type: DataTypes.INTEGER, defaultValue: 10 },
+  pass: { type: DataTypes.INTEGER, defaultValue: 10 },
+  dribble: { type: DataTypes.INTEGER, defaultValue: 10 },
+  defense: { type: DataTypes.INTEGER, defaultValue: 10 },
+  speed: { type: DataTypes.INTEGER, defaultValue: 10 },
+  stamina: { type: DataTypes.INTEGER, defaultValue: 50 },
+  iq: { type: DataTypes.INTEGER, defaultValue: 10 },
+  diving: { type: DataTypes.INTEGER, defaultValue: 5 },
+  reflexes: { type: DataTypes.INTEGER, defaultValue: 5 },
   signatureSkillName: { type: DataTypes.STRING },
   signatureSkillDesc: { type: DataTypes.TEXT },
 });
