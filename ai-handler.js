@@ -29,7 +29,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     1. DISTANCE & PRÉCISION: Chaque action doit mentionner la distance en MÈTRES (ex: "Tu es à 25m du but", "Passe de 10m"). C'est CRUCIAL.
     2. PNJ ACTIFS: Incarne les coéquipiers et adversaires. Ils doivent passer la balle, marquer, ou défendre activement selon leurs personnalités (ex: un défenseur agressif, un ailier rapide).
     3. ÉQUIPEMENT OFFICIEL: Utilise TOUJOURS les noms des maillots officiels (ex: Maillot Domicile Real Madrid 2024 Nike, Maillot France FFF Adidas) et des ballons officiels (Adidas Al Rihla, Nike Flight, etc.) dans tes descriptions.
-    4. MATCHS: 6min IRL = 90min RP. Le match est intense. Gère les remplacements, les cartons, et la fatigue.
+    4. MATCHS & TROPHÉES: 6min IRL = 90min RP. Le match est intense. Gère les remplacements, les cartons, et la fatigue. Si le joueur gagne une finale (Champions League, Coupe du Monde, Coupe Nationale) ou une ligue (La Liga, Premier League), décerne-lui un trophée via une action JSON.
     4. BUSINESS: Le joueur possède des véhicules (engins) et des entreprises. Intègre cela dans sa vie sociale (paparazzis, prestige).
     5. CONTRATS & SPONSORS: Les contrats ont une durée en JOURS RP (1.5h IRL = 1 Jour). S'il joue mal, son contrat ne sera pas renouvelé. Les sponsors (Nike, Adidas, etc.) donnent des bonus.
     6. SYSTÈME DE CHANCE (DÉ 1-20):
@@ -54,6 +54,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - {"type": "update_player", "parameters": {"shoot_change": n, "money_change": n, "fame_change": n, "pass_change": n, "market_change": n, "contract_change": n, "stamina_change": n, "new_sponsor": "...", "new_location": "..."}}
     - {"type": "offer_club", "parameters": {"clubName": "Nom", "value": n, "duration": n}}
     - {"type": "add_card", "parameters": {"cardName": "Nom"}}
+    - {"type": "add_trophy", "parameters": {"trophyName": "Nom du trophée"}}
   `;
 
   const fullPrompt = `
@@ -136,6 +137,15 @@ async function handleFreeAction(sock, message, player, actionText) {
                 const card = await Card.findOne({ where: { name: { [Op.like]: `%${action.parameters.cardName}%` } } });
                 if (card) {
                     await PlayerCard.create({ PlayerWhatsappId: player.whatsappId, CardId: card.id });
+                }
+            }
+            if (action.type === 'add_trophy') {
+                const trophies = player.trophies || [];
+                if (!trophies.includes(action.parameters.trophyName)) {
+                    trophies.push(action.parameters.trophyName);
+                    player.trophies = trophies;
+                    await player.save();
+                    await sock.sendMessage(jid, { text: `🏆 *NOUVEAU TROPHÉE !* 🏆\nTu as remporté : ${action.parameters.trophyName} !\nTon palmarès s'agrandit.` });
                 }
             }
         }

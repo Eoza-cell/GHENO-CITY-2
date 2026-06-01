@@ -92,6 +92,7 @@ commands.set('profil', async (sock, message) => {
                       `✨ DRIB: ${player.dribble}   🛡️ DÉF: ${player.defense}\n` +
                       `⚡ VIT: ${player.speed}      🧠 IQ: ${player.iq}\n` +
                       `▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱\n\n` +
+                      `🏆 *TROPHÉES:* ${player.trophies.length} remportés\n\n` +
                       `_Utilise /menu pour explorer le monde._`;
 
   if (player.appearanceImageUrl && fs.existsSync(player.appearanceImageUrl)) {
@@ -177,6 +178,24 @@ commands.set('contrat', async (sock, message) => {
     }
 });
 
+// Command: /trophées
+commands.set('trophées', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (player) {
+        const trophies = player.trophies || [];
+        let text = `🏆 *TON PALMARÈS* 🏆\n\n`;
+        if (trophies.length === 0) {
+            text += "Ton armoire à trophées est vide... Pour l'instant !";
+        } else {
+            trophies.forEach((t, i) => {
+                text += `${i+1}. 🥇 ${t}\n`;
+            });
+        }
+        await sock.sendMessage(message.key.remoteJid, { text: text });
+    }
+});
+
 // Command: /assets
 commands.set('assets', async (sock, message) => {
     const jid = getJid(message);
@@ -254,6 +273,7 @@ commands.set('menu', async (sock, message) => {
                    `🌍 \`/voyager\` - Voyager (Payant).\n` +
                    `💰 \`/achat\` - Acheter Biens/Entreprises.\n` +
                    `📜 \`/contrat\` - Contrat & Sponsor.\n` +
+                   `🏆 \`/trophées\` - Ton Palmarès.\n` +
                    `🏎️ \`/assets\` - Tes possessions.\n` +
                    `👤 \`/profil\` - Stats & Carrière.\n` +
                    `🎰 \`/boutique\` - Gacha Invocations.\n` +

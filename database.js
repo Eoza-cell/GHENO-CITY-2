@@ -89,6 +89,17 @@ const Player = sequelize.define('Player', {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
   },
+  trophies: {
+    type: DataTypes.TEXT,
+    defaultValue: '[]',
+    get() {
+      const rawValue = this.getDataValue('trophies');
+      return rawValue ? JSON.parse(rawValue) : [];
+    },
+    set(value) {
+      this.setDataValue('trophies', JSON.stringify(value));
+    },
+  },
   location: {
     type: DataTypes.STRING,
     defaultValue: 'Centre-ville',
