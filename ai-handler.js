@@ -69,10 +69,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
+    // True Chance System: Generate a dice roll here so the AI must respect it
+    const diceRoll = Math.floor(Math.random() * 20) + 1;
+    const finalPrompt = `${fullPrompt}\n\n🎲 RÉSULTAT DU DÉ IMPOSÉ POUR CETTE ACTION: ${diceRoll} (Tu DOIS baser ton récit sur ce chiffre)`;
+
     // Show loading sequence
     await sendLoadingSequence(sock, jid);
 
-    const content = await callAI(systemPrompt, fullPrompt);
+    const content = await callAI(systemPrompt, finalPrompt);
     let jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
         await sock.sendMessage(jid, { text: content });
@@ -92,6 +96,12 @@ async function handleFreeAction(sock, message, player, actionText) {
             if (action.type === 'update_player') {
                 if (action.parameters.shoot_change) await player.increment('shoot', { by: action.parameters.shoot_change });
                 if (action.parameters.pass_change) await player.increment('pass', { by: action.parameters.pass_change });
+                if (action.parameters.dribble_change) await player.increment('dribble', { by: action.parameters.dribble_change });
+                if (action.parameters.power_change) await player.increment('power', { by: action.parameters.power_change });
+                if (action.parameters.precision_change) await player.increment('precision', { by: action.parameters.precision_change });
+                if (action.parameters.defense_change) await player.increment('defense', { by: action.parameters.defense_change });
+                if (action.parameters.speed_change) await player.increment('speed', { by: action.parameters.speed_change });
+                if (action.parameters.iq_change) await player.increment('iq', { by: action.parameters.iq_change });
                 if (action.parameters.market_change) await player.increment('marketValue', { by: action.parameters.market_change });
                 if (action.parameters.money_change) await player.increment('money', { by: action.parameters.money_change });
                 if (action.parameters.fame_change) {

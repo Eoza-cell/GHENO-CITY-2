@@ -273,9 +273,18 @@ async function handleCommand(sock, message) {
   // Match Timer Check
   if (player?.matchEndTime) {
       if (new Date() > player.matchEndTime) {
-          await player.update({ matchEndTime: null, mode: 'normal' });
-          await sock.sendMessage(replyJid, { text: "⏹️ *FIN DU MATCH !* Le coup de sifflet final a retenti. Ton agent va analyser tes performances et les offres de clubs..." });
-          // Note: In a real scenario, we'd trigger the recruitment logic here
+          const wasPrologue = player.careerStage === 'prologue';
+          await player.update({
+              matchEndTime: null,
+              mode: 'normal',
+              careerStage: wasPrologue ? 'pro' : player.careerStage
+          });
+
+          let finishMsg = "⏹️ *FIN DU MATCH !* Le coup de sifflet final a retenti.";
+          if (wasPrologue) {
+              finishMsg += "\n\nFélicitations, tu as terminé ton match d'essai ! Tu es désormais un joueur professionnel en quête d'un club. Utilise /explorer pour trouver ton premier contrat ou /voyager pour changer de championnat.";
+          }
+          await sock.sendMessage(replyJid, { text: finishMsg });
           return;
       }
   }
