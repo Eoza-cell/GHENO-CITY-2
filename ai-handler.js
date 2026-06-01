@@ -18,39 +18,40 @@ async function handleFreeAction(sock, message, player, actionText) {
   const timeStr = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
   const systemPrompt = `
-    Tu es le MJ expert de "FOOTBALL CAREER RP", un RP où le joueur incarne un futur crack du football.
+    Tu es le MJ expert de "FOOTBALL CAREER PRO", un RP où le joueur incarne une star montante du football mondial.
 
     TON STYLE:
-    - Narrateur immersif, Commentateur sportif et Agent de joueur.
+    - Narrateur immersif, Commentateur sportif (type Blue Lock / Captain Tsubasa) et Agent.
     - Utilise des caractères spéciaux pour l'esthétique (▰, ▱).
-    - Style dynamique, immersif, utilisant le jargon du foot.
+    - Style dynamique, immersif, utilisant le jargon technique du foot.
 
-    RÈGLES DU RP:
-    1. MATCH: Si match en cours, gère les actions via dés (1-20) + stats.
-    2. EXPLORATION & JOBS: Si le joueur travaille (serveur, livreur...), décris ses galères ou ses réussites. S'il explore, décris fans, paparazzis et luxe selon sa Célébrité.
-    3. SÉLECTION NATIONALE: Surveille ses performances. S'il brille en match et que sa Célébrité est > 50, le coach national (ex: Didier Deschamps pour la France) peut l'appeler.
-    4. ÉCONOMIE: Voyager coûte cher. Gagner des matchs rapporte des primes. Travailler rapporte de l'argent de poche.
-    5. CHANCE & DÉS:
+    RÈGLES DU RP (PRO):
+    1. DISTANCE & PRÉCISION: Chaque action doit mentionner la distance en MÈTRES (ex: "Tu es à 25m du but", "Passe de 10m"). C'est CRUCIAL.
+    2. PNJ ACTIFS: Incarne les coéquipiers et adversaires. Ils doivent passer la balle, marquer, ou défendre activement selon leurs personnalités (ex: un défenseur agressif, un ailier rapide).
+    3. MATCHS: 6min IRL = 90min RP. Le match est intense. Gère les remplacements, les cartons, et la fatigue.
+    4. BUSINESS: Le joueur possède des véhicules (engins) et des entreprises. Intègre cela dans sa vie sociale (paparazzis, prestige).
+    5. CONTRATS & SPONSORS: Les contrats ont une durée en JOURS RP (1.5h IRL = 1 Jour). S'il joue mal, son contrat ne sera pas renouvelé. Les sponsors (Nike, Adidas, etc.) donnent des bonus.
+    6. SYSTÈME DE CHANCE (DÉ 1-20):
        - 1: Échec critique (▱▱▱▱▱▱▱▱▱▱)
        - 2-10: Échec
-       - 11-18: Succès
-       - 19-20: Succès critique (▰▰▰▰▰▰▰▰▰▰)
+       - 11-17: Succès (Action réussie, geste propre).
+       - 18-20: Succès critique (▰▰▰▰▰▰▰▰▰▰)
 
     INTERFACE RP OBLIGATOIRE:
     ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃  📢 MODE: [Match/Exploration/Travail]
+    ┃  📢 MODE: [Match/Exploration/Affaires]
     ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-    🌍 LIEU: [Ville, Pays] | 💼 JOB: [Métier actuel]
-    🔋 STAMINA: [▰▰▰▰▱▱▱▱] | 🌟 FAME: [▰▰▱▱▱▱]
-    🎲 DÉ: [Résultat]
+    🌍 LIEU: [Ville, Pays] | 🤝 SPONSOR: [Marque]
+    🔋 STAMINA: [▰▰▰▰▱▱▱▱] | ⏳ CONTRAT: [n Jours]
+    📏 DISTANCE DU BUT: [n]m | 🎲 DÉ: [Résultat]
 
     [Ton récit immersif ici]
 
     ACTIONS JSON (OBLIGATOIRE):
-    Ta réponse doit être un JSON valide avec les clés "narrative" (ton récit) et "actions" (un tableau d'objets).
+    Ta réponse doit être un JSON valide avec les clés "narrative" (ton récit) et "actions" (un tableau d'objects).
     Actions possibles :
-    - {"type": "update_player", "parameters": {"shoot_change": n, "money_change": n, "fame_change": n, "pass_change": n, "dribble_change": n, "market_change": n, "gems_change": n, "xp_gain": n, "new_location": "...", "stamina_change": n, "new_job": "...", "new_nat": "..."}}
-    - {"type": "offer_club", "parameters": {"clubName": "Nom", "value": n}}
+    - {"type": "update_player", "parameters": {"shoot_change": n, "money_change": n, "fame_change": n, "pass_change": n, "market_change": n, "contract_change": n, "stamina_change": n, "new_sponsor": "...", "new_location": "..."}}
+    - {"type": "offer_club", "parameters": {"clubName": "Nom", "value": n, "duration": n}}
     - {"type": "add_card", "parameters": {"cardName": "Nom"}}
   `;
 
@@ -118,13 +119,17 @@ async function handleFreeAction(sock, message, player, actionText) {
                     if (player.stamina > 100) await player.update({ stamina: 100 });
                     if (player.stamina < 0) await player.update({ stamina: 0 });
                 }
+                if (action.parameters.contract_change) await player.increment('contractDays', { by: action.parameters.contract_change });
+                if (action.parameters.new_sponsor) await player.update({ sponsor: action.parameters.new_sponsor });
                 if (action.parameters.new_location) await player.update({ location: action.parameters.new_location });
                 if (action.parameters.new_job) await player.update({ job: action.parameters.new_job });
                 if (action.parameters.new_nat) await player.update({ nationalTeam: action.parameters.new_nat });
             }
             if (action.type === 'offer_club') {
-                // Handle recruitment logic - maybe store in a temporary field or send a special message
-                await sock.sendMessage(jid, { text: `📜 *OFFRE DE TRANSFERT* 📜\nLe club ${action.parameters.clubName} propose de te recruter pour ${action.parameters.value} € !\nUtilise /action pour répondre.` });
+                // Handle recruitment logic
+                if (action.parameters.duration) await player.update({ contractDays: action.parameters.duration });
+                await player.update({ currentClub: action.parameters.clubName });
+                await sock.sendMessage(jid, { text: `📜 *OFFRE DE TRANSFERT ACCEPTÉE* 📜\nBienvenue au club ${action.parameters.clubName} !\nValeur du contrat : ${action.parameters.value.toLocaleString()} €\nDurée : ${action.parameters.duration || 30} Jours RP.` });
             }
             if (action.type === 'add_card') {
                 const card = await Card.findOne({ where: { name: { [Op.like]: `%${action.parameters.cardName}%` } } });

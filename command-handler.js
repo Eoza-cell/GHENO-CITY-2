@@ -140,27 +140,111 @@ commands.set('match', async (sock, message) => {
         const msg = `⚽ *PROLOGUE : LE MATCH DE TA VIE* ⚽\n\n` +
                     `Lieu : Santiago Bernabéu\n` +
                     `Adversaire : *Real Madrid*\n` +
-                    `Temps : *6 minutes* (Temps réel)\n\n` +
+                    `Temps : *6 minutes* IRL (Equivalent 90 min de match)\n\n` +
                     `Des recruteurs du monde entier sont dans les tribunes. Si tu marques, tu auras des offres de grands clubs !\n\n` +
                     `*Le coup d'envoi est donné !* Que fais-tu ?`;
 
         await sock.sendMessage(replyJid, { text: msg });
     } else {
-        await sock.sendMessage(replyJid, { text: "Tu es déjà professionnel. Tes matchs sont gérés par ton club." });
+        await sock.sendMessage(replyJid, { text: "Tu es déjà professionnel. Tes matchs sont gérés par ton club. Utilise /action pour demander à jouer." });
+    }
+});
+
+// Command: /contrat
+commands.set('contrat', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (player) {
+        const text = `📜 *DÉTAILS DU CONTRAT* 📜\n\n` +
+                     `🏠 *CLUB:* ${player.currentClub}\n` +
+                     `⏳ *DURÉE:* ${player.contractDays} Jours RP\n` +
+                     `🤝 *SPONSOR:* ${player.sponsor}\n` +
+                     `💰 *PRIME:* À négocier selon tes performances.`;
+        await sock.sendMessage(message.key.remoteJid, { text: text });
+    }
+});
+
+// Command: /assets
+commands.set('assets', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (player) {
+        const vehicles = player.vehicles || [];
+        const companies = player.companies || [];
+        const text = `🏎️ *TES BIENS & ASSETS* 🏎️\n\n` +
+                     `🚙 *VÉHICULES:* ${vehicles.length > 0 ? vehicles.join(', ') : 'Aucun'}\n` +
+                     `🏢 *ENTREPRISES:* ${companies.length > 0 ? companies.join(', ') : 'Aucune'}\n\n` +
+                     `_Utilise /achat pour investir ton argent._`;
+        await sock.sendMessage(message.key.remoteJid, { text: text });
+    }
+});
+
+// Command: /achat
+commands.set('achat', async (sock, message) => {
+    const items = [
+        { name: 'Moto Sportive', type: 'vehicle', cost: 15000 },
+        { name: 'Ferrari 488', type: 'vehicle', cost: 250000 },
+        { name: 'Jet Privé', type: 'vehicle', cost: 5000000 },
+        { name: 'Restaurant Local', type: 'company', cost: 500000 },
+        { name: 'Marque de Vêtements', type: 'company', cost: 2000000 },
+        { name: 'Chaîne d\'Hôtels', type: 'company', cost: 15000000 }
+    ];
+    let list = "💰 *MARKETPLACE DE LUXE* 💰\n\n";
+    items.forEach((it, i) => {
+        list += `${i+1}. *${it.name}* (${it.type}) : ${it.cost.toLocaleString()} €\n`;
+    });
+    list += `\n_Tape "/investir [nom]"_`;
+    await sock.sendMessage(message.key.remoteJid, { text: list });
+});
+
+commands.set('investir', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const itName = args.join(' ');
+
+    const catalog = [
+        { name: 'Moto Sportive', type: 'vehicle', cost: 15000 },
+        { name: 'Ferrari 488', type: 'vehicle', cost: 250000 },
+        { name: 'Jet Privé', type: 'vehicle', cost: 5000000 },
+        { name: 'Restaurant Local', type: 'company', cost: 500000 },
+        { name: 'Marque de Vêtements', type: 'company', cost: 2000000 },
+        { name: 'Chaîne d\'Hôtels', type: 'company', cost: 15000000 }
+    ];
+
+    const item = catalog.find(i => i.name.toLowerCase() === itName.toLowerCase());
+    if (player && item) {
+        if (player.money < item.cost) {
+            await sock.sendMessage(message.key.remoteJid, { text: `❌ Fonds insuffisants (${item.cost.toLocaleString()} € requis).` });
+            return;
+        }
+
+        await player.decrement('money', { by: item.cost });
+        if (item.type === 'vehicle') {
+            const v = player.vehicles || [];
+            v.push(item.name);
+            player.vehicles = v;
+        } else {
+            const c = player.companies || [];
+            c.push(item.name);
+            player.companies = c;
+        }
+        await player.save();
+        await sock.sendMessage(message.key.remoteJid, { text: `🎉 Félicitations ! Tu viens d'acquérir : *${item.name}* !` });
     }
 });
 
 // Command: /menu
 commands.set('menu', async (sock, message) => {
-  const menuText = `⚽ *FOOTBALL CAREER RP* ⚽\n\n` +
+  const menuText = `⚽ *FOOTBALL CAREER PRO* ⚽\n\n` +
                    `🎮 \`/action\` - Interaction RP.\n` +
-                   `🚶 \`/explorer\` - Se promener en ville.\n` +
-                   `💼 \`/travailler\` - Gagner de l'argent.\n` +
+                   `🏟️ \`/match\` - Match Pro.\n` +
                    `🌍 \`/voyager\` - Voyager (Payant).\n` +
-                   `👤 \`/profil\` - Ton dossier joueur.\n` +
-                   `🏟️ \`/match\` - Jouer un match.\n` +
-                   `🎰 \`/boutique\` - Gacha & Invocations.\n` +
-                   `❓ \`/help\` - Guide du joueur.`;
+                   `💰 \`/achat\` - Acheter Biens/Entreprises.\n` +
+                   `📜 \`/contrat\` - Contrat & Sponsor.\n` +
+                   `🏎️ \`/assets\` - Tes possessions.\n` +
+                   `👤 \`/profil\` - Stats & Carrière.\n` +
+                   `🎰 \`/boutique\` - Gacha Invocations.\n` +
+                   `❓ \`/help\` - Aide.`;
   await sock.sendMessage(message.key.remoteJid, { text: menuText });
 });
 
@@ -217,14 +301,6 @@ commands.set('aller', async (sock, message, args) => {
     }
 });
 
-// Command: /travailler
-commands.set('travailler', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (player) {
-        await player.update({ mode: 'action' });
-        await sock.sendMessage(message.key.remoteJid, { text: `💼 Tu cherches un petit job en ville pour financer ta carrière. Que veux-tu faire ? (Livreur, Serveur, Coach...)` });
-    }
 });
 
 // Command: /action

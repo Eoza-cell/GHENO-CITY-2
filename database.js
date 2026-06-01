@@ -51,6 +51,40 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'prologue', // prologue, pro, legend
   },
+  contractDays: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  sponsor: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucun',
+  },
+  vehicles: {
+    type: DataTypes.TEXT,
+    defaultValue: '[]',
+    get() {
+      const rawValue = this.getDataValue('vehicles');
+      return rawValue ? JSON.parse(rawValue) : [];
+    },
+    set(value) {
+      this.setDataValue('vehicles', JSON.stringify(value));
+    },
+  },
+  companies: {
+    type: DataTypes.TEXT,
+    defaultValue: '[]',
+    get() {
+      const rawValue = this.getDataValue('companies');
+      return rawValue ? JSON.parse(rawValue) : [];
+    },
+    set(value) {
+      this.setDataValue('companies', JSON.stringify(value));
+    },
+  },
+  startRpDate: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
   location: {
     type: DataTypes.STRING,
     defaultValue: 'Centre-ville',
