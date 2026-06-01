@@ -7,7 +7,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
   const history = await RPMessage.findAll({
-      where: { senderJid: player.whatsappId },
+      where: { [Op.or]: [{ senderJid: player.whatsappId }, { senderJid: 'bot' }] },
       order: [['id', 'DESC']],
       limit: 10
   });
@@ -28,7 +28,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     RÈGLES DU RP (PRO):
     1. DISTANCE & PRÉCISION: Chaque action doit mentionner la distance en MÈTRES (ex: "Tu es à 25m du but", "Passe de 10m"). C'est CRUCIAL.
     2. PNJ ACTIFS: Incarne les coéquipiers et adversaires. Ils doivent passer la balle, marquer, ou défendre activement selon leurs personnalités (ex: un défenseur agressif, un ailier rapide).
-    3. MATCHS: 6min IRL = 90min RP. Le match est intense. Gère les remplacements, les cartons, et la fatigue.
+    3. ÉQUIPEMENT OFFICIEL: Utilise TOUJOURS les noms des maillots officiels (ex: Maillot Domicile Real Madrid 2024 Nike, Maillot France FFF Adidas) et des ballons officiels (Adidas Al Rihla, Nike Flight, etc.) dans tes descriptions.
+    4. MATCHS: 6min IRL = 90min RP. Le match est intense. Gère les remplacements, les cartons, et la fatigue.
     4. BUSINESS: Le joueur possède des véhicules (engins) et des entreprises. Intègre cela dans sa vie sociale (paparazzis, prestige).
     5. CONTRATS & SPONSORS: Les contrats ont une durée en JOURS RP (1.5h IRL = 1 Jour). S'il joue mal, son contrat ne sera pas renouvelé. Les sponsors (Nike, Adidas, etc.) donnent des bonus.
     6. SYSTÈME DE CHANCE (DÉ 1-20):

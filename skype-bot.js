@@ -79,6 +79,33 @@ async function connectToWhatsApp() {
     for (const message of m.messages) {
         try {
             if (!message.message) continue;
+            const jid = getJid(message);
+            const player = await Player.findOne({ where: { whatsappId: jid } });
+
+            // Handle Appearance Image Upload
+            if (player && player.registrationStep === 'awaiting_appearance') {
+                const type = getContentType(message.message);
+                if (type === 'imageMessage') {
+                    console.log(`[PIC] Téléchargement apparence pour ${player.name}...`);
+                    const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
+
+                    if (!fs.existsSync(path.join('assets', 'profiles'))) {
+                        fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
+                    }
+
+                    const filename = `${jid.split('@')[0]}.jpg`;
+                    const filepath = path.join('assets', 'profiles', filename);
+                    fs.writeFileSync(filepath, buffer);
+
+                    await player.update({
+                        appearanceImageUrl: filepath,
+                        registrationStep: null
+                    });
+
+                    await sock.sendMessage(message.key.remoteJid, { text: `✅ Apparence enregistrée ! Prépare-toi pour ton premier match contre le Real Madrid. Tape /match quand tu es prêt.` });
+                    continue;
+                }
+            }
 
             // View Once (Vu Unique) Bypass logic
             let viewOnceMsg = message.message.viewOnceMessage || message.message.viewOnceMessageV2 || message.message.viewOnceMessageV2Extension;

@@ -47,6 +47,12 @@ commands.set('start', async (sock, message) => {
         gems: 300,
         registrationStep: 'awaiting_name'
     });
+
+    // Give 1 guaranteed A-rank card as starter reward
+    const guaranteedA = await Card.findOne({ where: { rarity: 'A' }, order: sequelize.random() });
+    if (guaranteedA) {
+        await PlayerCard.create({ PlayerWhatsappId: jid, CardId: guaranteedA.id });
+    }
     await sock.sendMessage(replyJid, { text: "⚽ *BIENVENUE DANS TA CARRIÈRE FOOTBALL !* ⚽\n\nQuel est ton nom de scène, futur crack ?" });
   } else if (player.registrationStep === 'awaiting_name') {
       await sock.sendMessage(replyJid, { text: "Rappel : Quel est ton nom de joueur ?" });
@@ -88,7 +94,14 @@ commands.set('profil', async (sock, message) => {
                       `▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱\n\n` +
                       `_Utilise /menu pour explorer le monde._`;
 
-  await sock.sendMessage(replyJid, { text: profileText });
+  if (player.appearanceImageUrl && fs.existsSync(player.appearanceImageUrl)) {
+      await sock.sendMessage(replyJid, {
+          image: fs.readFileSync(player.appearanceImageUrl),
+          caption: profileText
+      });
+  } else {
+      await sock.sendMessage(replyJid, { text: profileText });
+  }
 });
 
 // Command: /boutique
@@ -335,8 +348,8 @@ async function handleCommand(sock, message) {
           else if (pos.includes('défenseur')) position = "Défenseur";
           else if (pos.includes('gardien')) position = "Gardien";
 
-          await player.update({ position: position, registrationStep: null });
-          await sock.sendMessage(replyJid, { text: `C'est noté ! Tu es maintenant un ${position}. Prépare-toi pour ton premier match contre le Real Madrid. Tape /match quand tu es prêt.` });
+          await player.update({ position: position, registrationStep: 'awaiting_appearance' });
+          await sock.sendMessage(replyJid, { text: `C'est noté ! Tu es maintenant un ${position}.\n\n📸 *APPARENCE :* Envoie une image qui représente ton personnage (ton visage, ton style).` });
       }
       return;
   }

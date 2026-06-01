@@ -51,6 +51,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'prologue', // prologue, pro, legend
   },
+  appearanceImageUrl: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   contractDays: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
