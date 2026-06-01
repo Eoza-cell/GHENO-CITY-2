@@ -22,11 +22,24 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true,
+    printQRInTerminal: false,
     version,
     logger: pino({ level: 'silent' }),
-    getMessage: async key => ({ conversation: '...' })
+    getMessage: async key => ({ conversation: '...' }),
+    browser: ["Ubuntu", "Chrome", "128.0.6613.86"]
   });
+
+  if (!sock.authState.creds.registered) {
+    const phoneNumber = process.env.PHONE_NUMBER;
+    if (phoneNumber) {
+        await delay(3000);
+        const code = await sock.requestPairingCode(phoneNumber);
+        console.log('==============================================================');
+        console.log('Votre code de pairage :');
+        console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
+        console.log('==============================================================');
+    }
+  }
 
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect } = update;
