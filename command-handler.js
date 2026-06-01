@@ -346,8 +346,12 @@ async function handleCommand(sock, message) {
           else if (pos.includes('défenseur')) position = "Défenseur";
           else if (pos.includes('gardien')) position = "Gardien";
 
-          await player.update({ position: position, registrationStep: 'awaiting_appearance' });
-          await sock.sendMessage(replyJid, { text: `C'est noté ! Tu es maintenant un ${position}.\n\n📸 *APPARENCE :* Envoie une image qui représente ton personnage (ton visage, ton style).` });
+          await player.update({ position: position, registrationStep: 'awaiting_nation' });
+          await sock.sendMessage(replyJid, { text: `C'est noté ! Tu es maintenant un ${position}.\n\n🌍 *NATION :* De quel pays viens-tu ? (Ex: France, Brésil, Japon...)` });
+      } else if (player.registrationStep === 'awaiting_nation') {
+          const country = messageText.trim();
+          await player.update({ country: country, registrationStep: 'awaiting_appearance' });
+          await sock.sendMessage(replyJid, { text: `Représente fièrement le drapeau de ${country} !\n\n📸 *APPARENCE :* Envoie une image qui représente ton personnage (ton visage, ton style).` });
       }
       return;
   }
