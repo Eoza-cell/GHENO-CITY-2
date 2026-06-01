@@ -19,6 +19,24 @@ function initPuter() {
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
  */
+async function sendLoadingSequence(sock, jid) {
+    const sent = await sock.sendMessage(jid, { text: "▱▱▱▱▱▱▱▱▱▱ 0%" });
+    const frames = [
+        "▰▱▱▱▱▱▱▱▱▱ 10%",
+        "▰▰▰▱▱▱▱▱▱▱ 30%",
+        "▰▰▰▰▰▱▱▱▱▱ 50%",
+        "▰▰▰▰▰▰▰▱▱▱ 70%",
+        "▰▰▰▰▰▰▰▰▰▱ 90%",
+        "▰▰▰▰▰▰▰▰▰▰ 100%"
+    ];
+
+    for (const frame of frames) {
+        await new Promise(r => setTimeout(r, 300));
+        await sock.sendMessage(jid, { text: frame, edit: sent.key });
+    }
+    return sent;
+}
+
 async function sendWithImage(sock, jid, aiResponse) {
     const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
     const imagePrompt = aiResponse.imagePrompt;
@@ -76,4 +94,4 @@ async function sendWithImage(sock, jid, aiResponse) {
     }
 }
 
-module.exports = { sendWithImage };
+module.exports = { sendWithImage, sendLoadingSequence };

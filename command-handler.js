@@ -17,6 +17,15 @@ function getJid(message) {
 const GOD_NUMBER = '48198576038116@s.whatsapp.net';
 const commands = new Map();
 
+// Helper for aesthetic status bars
+function createStatusBar(current, max, length = 10) {
+    if (max === 0) return '▱'.repeat(length);
+    const percentage = Math.max(0, Math.min(1, current / max));
+    const filledCount = Math.round(percentage * length);
+    const emptyCount = length - filledCount;
+    return '▰'.repeat(filledCount) + '▱'.repeat(emptyCount);
+}
+
 // Temporary storage for team registration per chat (Penalty legacy)
 const pendingTeams = {};
 function getPendingTeams(chatId) {
@@ -54,18 +63,30 @@ commands.set('profil', async (sock, message) => {
 
   if (!player) return;
 
-  const profileText = `--- ⚽ PROFIL CARRIÈRE - ${player.name} --- \n\n` +
-                      `📍 *POSTE:* ${player.position || 'Non défini'}\n` +
-                      `🏠 *CLUB:* ${player.currentClub}\n` +
-                      `💰 *VALEUR:* ${player.marketValue} €\n` +
-                      `📊 *NIVEAU:* ${player.level}\n` +
+  const staminaBar = createStatusBar(player.stamina, 100);
+  const xpNeeded = player.level * 100;
+  const xpBar = createStatusBar(player.xp, xpNeeded);
+
+  const fameBar = createStatusBar(player.fame, 100);
+
+  const profileText = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n` +
+                      `┃  ⚽ PROFIL CARRIÈRE - ${player.name.toUpperCase()} \n` +
+                      `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n` +
+                      `📍 *PRO:* ${player.position || 'Rookie'} | ${player.currentClub}\n` +
+                      `🌍 *LIEU:* ${player.location}, ${player.country}\n` +
+                      `💼 *JOB:* ${player.job} | 🏳️ *NAT:* ${player.nationalTeam}\n` +
+                      `💰 *VALEUR:* ${player.marketValue.toLocaleString()} €\n` +
+                      `💵 *ARGENT:* ${player.money.toLocaleString()} €\n` +
+                      `📊 *NIVEAU:* ${player.level} [${xpBar}]\n` +
+                      `🔋 *STAMINA:* [${staminaBar}] ${player.stamina}%\n` +
+                      `🌟 *CÉLÉBRITÉ:* [${fameBar}] ${player.fame}%\n` +
                       `💎 *GEMS:* ${player.gems}\n\n` +
-                      `--- 📈 STATISTIQUES --- \n` +
-                      `👟 Shoot: ${player.shoot} | 🎯 Passe: ${player.pass}\n` +
-                      `✨ Dribble: ${player.dribble} | 🛡️ Défense: ${player.defense}\n` +
-                      `⚡ Vitesse: ${player.speed} | 🔋 Stamina: ${player.stamina}\n` +
-                      `🧠 IQ: ${player.iq}\n\n` +
-                      `---------------------------`;
+                      `▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱\n` +
+                      `👟 SHOOT: ${player.shoot}   🎯 PASSE: ${player.pass}\n` +
+                      `✨ DRIB: ${player.dribble}   🛡️ DÉF: ${player.defense}\n` +
+                      `⚡ VIT: ${player.speed}      🧠 IQ: ${player.iq}\n` +
+                      `▰▱▰▱▰▱▰▱▰▱▰▱▰▱▰▱\n\n` +
+                      `_Utilise /menu pour explorer le monde._`;
 
   await sock.sendMessage(replyJid, { text: profileText });
 });
@@ -131,13 +152,79 @@ commands.set('match', async (sock, message) => {
 
 // Command: /menu
 commands.set('menu', async (sock, message) => {
-  const menuText = "⚽ *FOOTBALL CAREER RP* ⚽\n\n" +
-                   "🎮 `/action` - Jouer (RP).\n" +
-                   "👤 `/profil` - Tes stats & Club.\n" +
-                   "🏟️ `/match` - Lancer le match (Prologue/Saison).\n" +
-                   "🎰 `/boutique` - Gacha Joueurs & Items.\n" +
-                   "❓ `/help` - Aide.";
+  const menuText = `⚽ *FOOTBALL CAREER RP* ⚽\n\n` +
+                   `🎮 \`/action\` - Interaction RP.\n` +
+                   `🚶 \`/explorer\` - Se promener en ville.\n` +
+                   `💼 \`/travailler\` - Gagner de l'argent.\n` +
+                   `🌍 \`/voyager\` - Voyager (Payant).\n` +
+                   `👤 \`/profil\` - Ton dossier joueur.\n` +
+                   `🏟️ \`/match\` - Jouer un match.\n` +
+                   `🎰 \`/boutique\` - Gacha & Invocations.\n` +
+                   `❓ \`/help\` - Guide du joueur.`;
   await sock.sendMessage(message.key.remoteJid, { text: menuText });
+});
+
+// Command: /explorer
+commands.set('explorer', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (player) {
+        await player.update({ mode: 'action' });
+        await sock.sendMessage(message.key.remoteJid, { text: `🚶 Tu commences à te promener dans les rues de *${player.location}*. Que fais-tu ?` });
+    }
+});
+
+// Command: /voyager
+commands.set('voyager', async (sock, message) => {
+    const countries = [
+        { name: 'Espagne', cost: 300 },
+        { name: 'Angleterre', cost: 400 },
+        { name: 'Italie', cost: 350 },
+        { name: 'Allemagne', cost: 400 },
+        { name: 'Brésil', cost: 1200 },
+        { name: 'France', cost: 0 },
+        { name: 'Portugal', cost: 450 },
+        { name: 'Arabie Saoudite', cost: 1500 }
+    ];
+    let list = "🌍 *AGENCE DE VOYAGE* 🌍\nLe prix dépend de la distance :\n\n";
+    countries.forEach(c => {
+        list += `✈️ *${c.name}* : ${c.cost} €\n`;
+    });
+    list += `\n_Tape "/aller [nom_pays]"_`;
+    await sock.sendMessage(message.key.remoteJid, { text: list });
+});
+
+commands.set('aller', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const destination = args.join(' ');
+
+    const costs = {
+        'Espagne': 300, 'Angleterre': 400, 'Italie': 350, 'Allemagne': 400,
+        'Brésil': 1200, 'France': 100, 'Portugal': 450, 'Arabie Saoudite': 1500
+    };
+
+    if (player && destination) {
+        const cost = costs[destination] || 500;
+        if (player.money < cost) {
+            await sock.sendMessage(message.key.remoteJid, { text: `❌ Tu n'as pas assez d'argent (${cost} € requis). Travaille pour en gagner !` });
+            return;
+        }
+
+        await player.decrement('money', { by: cost });
+        await player.update({ country: destination, location: 'Aéroport / Centre-ville' });
+        await sock.sendMessage(message.key.remoteJid, { text: `✈️ Billet acheté pour ${cost} € ! Bienvenue en *${destination}*.` });
+    }
+});
+
+// Command: /travailler
+commands.set('travailler', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (player) {
+        await player.update({ mode: 'action' });
+        await sock.sendMessage(message.key.remoteJid, { text: `💼 Tu cherches un petit job en ville pour financer ta carrière. Que veux-tu faire ? (Livreur, Serveur, Coach...)` });
+    }
 });
 
 // Command: /action

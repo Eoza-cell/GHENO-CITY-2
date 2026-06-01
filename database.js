@@ -51,9 +51,33 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'prologue', // prologue, pro, legend
   },
+  location: {
+    type: DataTypes.STRING,
+    defaultValue: 'Centre-ville',
+  },
+  country: {
+    type: DataTypes.STRING,
+    defaultValue: 'France',
+  },
   matchEndTime: {
     type: DataTypes.DATE,
     allowNull: true,
+  },
+  money: {
+    type: DataTypes.INTEGER,
+    defaultValue: 500, // En Euros
+  },
+  fame: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0, // 0-100
+  },
+  job: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucun',
+  },
+  nationalTeam: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucune',
   },
   gems: {
     type: DataTypes.INTEGER,

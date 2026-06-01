@@ -1,5 +1,5 @@
 const { Player, Card, PlayerCard, Team, Match, RPMessage, sequelize } = require('./database');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, sendLoadingSequence } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 
@@ -21,31 +21,35 @@ async function handleFreeAction(sock, message, player, actionText) {
     Tu es le MJ expert de "FOOTBALL CAREER RP", un RP où le joueur incarne un futur crack du football.
 
     TON STYLE:
-    - Commentateur sportif et Agent de joueur.
-    - Style dynamique, immersif, utilisant le jargon du foot (Roulette, Petit-pont, Lucarne, Pressing).
-    - Très descriptif sur l'ambiance du stade (Santiago Bernabéu) et la pression des recruteurs.
+    - Narrateur immersif, Commentateur sportif et Agent de joueur.
+    - Utilise des caractères spéciaux pour l'esthétique (▰, ▱).
+    - Style dynamique, immersif, utilisant le jargon du foot.
 
-    RÈGLES DU RP CARRIÈRE:
-    1. PROLOGUE: Le joueur joue contre le REAL MADRID. C'est sa seule chance d'être repéré.
-    2. CHANCE & DÉS: Pour chaque action (tir, passe, dribble), simule un jet de dé (1-20) et combine-le avec les statistiques du joueur (Shoot, Dribble, etc.).
-    3. RÉSULTAT:
-       - 1: Échec critique (chute, blessure légère, perte de balle ridicule).
-       - 2-10: Échec (le défenseur intercepte, le tir passe à côté).
-       - 11-18: Succès (belle passe, dribble réussi).
-       - 19-20: Succès critique (but magnifique, geste technique de classe mondiale).
-    4. TEMPS RÉEL: Le match dure 6 minutes IRL. S'il reste moins de 1 minute, augmente la tension dramatique.
-    5. OFFRES DE CLUBS: Si le joueur réalise une action exceptionnelle (but, passe décisive), mentionne qu'un recruteur (ex: scout de Manchester United, PSG, Bayern) prend des notes.
+    RÈGLES DU RP:
+    1. MATCH: Si match en cours, gère les actions via dés (1-20) + stats.
+    2. EXPLORATION & JOBS: Si le joueur travaille (serveur, livreur...), décris ses galères ou ses réussites. S'il explore, décris fans, paparazzis et luxe selon sa Célébrité.
+    3. SÉLECTION NATIONALE: Surveille ses performances. S'il brille en match et que sa Célébrité est > 50, le coach national (ex: Didier Deschamps pour la France) peut l'appeler.
+    4. ÉCONOMIE: Voyager coûte cher. Gagner des matchs rapporte des primes. Travailler rapporte de l'argent de poche.
+    5. CHANCE & DÉS:
+       - 1: Échec critique (▱▱▱▱▱▱▱▱▱▱)
+       - 2-10: Échec
+       - 11-18: Succès
+       - 19-20: Succès critique (▰▰▰▰▰▰▰▰▰▰)
 
-    INTERFACE RP:
-    ⚽ MATCH: [Joueur] vs REAL MADRID
-    ⏳ TEMPS RESTANT: ${timeStr}
-    🎲 DERNIER JET: [Résultat du Dé]
-    📢 COMMENTAIRE: [Ton récit]
+    INTERFACE RP OBLIGATOIRE:
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  📢 MODE: [Match/Exploration/Travail]
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+    🌍 LIEU: [Ville, Pays] | 💼 JOB: [Métier actuel]
+    🔋 STAMINA: [▰▰▰▰▱▱▱▱] | 🌟 FAME: [▰▰▱▱▱▱]
+    🎲 DÉ: [Résultat]
+
+    [Ton récit immersif ici]
 
     ACTIONS JSON (OBLIGATOIRE):
     Ta réponse doit être un JSON valide avec les clés "narrative" (ton récit) et "actions" (un tableau d'objets).
     Actions possibles :
-    - {"type": "update_player", "parameters": {"shoot_change": n, "pass_change": n, "dribble_change": n, "market_change": n, "gems_change": n, "xp_gain": n}}
+    - {"type": "update_player", "parameters": {"shoot_change": n, "money_change": n, "fame_change": n, "pass_change": n, "dribble_change": n, "market_change": n, "gems_change": n, "xp_gain": n, "new_location": "...", "stamina_change": n, "new_job": "...", "new_nat": "..."}}
     - {"type": "offer_club", "parameters": {"clubName": "Nom", "value": n}}
     - {"type": "add_card", "parameters": {"cardName": "Nom"}}
   `;
@@ -54,8 +58,9 @@ async function handleFreeAction(sock, message, player, actionText) {
     JOUEUR: ${player.name}
     POSTE: ${player.position}
     STATS: Shoot ${player.shoot}, Passe ${player.pass}, Dribble ${player.dribble}, Vitesse ${player.speed}, IQ ${player.iq}
-    STAGE: ${player.careerStage}
-    CLUB ACTUEL: ${player.currentClub}
+    STAGE: ${player.careerStage} | CLUB: ${player.currentClub}
+    TEMPS MATCH RESTANT: ${timeStr}
+    LIEU: ${player.location}, ${player.country} | STAMINA: ${player.stamina}/100
 
     HISTORIQUE RÉCENT:
     ${history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')}
@@ -64,6 +69,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
+    // Show loading sequence
+    await sendLoadingSequence(sock, jid);
+
     const content = await callAI(systemPrompt, fullPrompt);
     let jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -85,8 +93,24 @@ async function handleFreeAction(sock, message, player, actionText) {
                 if (action.parameters.shoot_change) await player.increment('shoot', { by: action.parameters.shoot_change });
                 if (action.parameters.pass_change) await player.increment('pass', { by: action.parameters.pass_change });
                 if (action.parameters.market_change) await player.increment('marketValue', { by: action.parameters.market_change });
+                if (action.parameters.money_change) await player.increment('money', { by: action.parameters.money_change });
+                if (action.parameters.fame_change) {
+                    await player.increment('fame', { by: action.parameters.fame_change });
+                    await player.reload();
+                    if (player.fame > 100) await player.update({ fame: 100 });
+                    if (player.fame < 0) await player.update({ fame: 0 });
+                }
                 if (action.parameters.gems_change) await player.increment('gems', { by: action.parameters.gems_change });
                 if (action.parameters.xp_gain) await player.increment('xp', { by: action.parameters.xp_gain });
+                if (action.parameters.stamina_change) {
+                    await player.increment('stamina', { by: action.parameters.stamina_change });
+                    await player.reload();
+                    if (player.stamina > 100) await player.update({ stamina: 100 });
+                    if (player.stamina < 0) await player.update({ stamina: 0 });
+                }
+                if (action.parameters.new_location) await player.update({ location: action.parameters.new_location });
+                if (action.parameters.new_job) await player.update({ job: action.parameters.new_job });
+                if (action.parameters.new_nat) await player.update({ nationalTeam: action.parameters.new_nat });
             }
             if (action.type === 'offer_club') {
                 // Handle recruitment logic - maybe store in a temporary field or send a special message
