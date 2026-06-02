@@ -23,6 +23,7 @@
     "@heyputer/puter.js": "^2.3.2",
     "@whiskeysockets/baileys": "^7.0.0-rc10",
     "axios": "^1.13.2",
+    "canvas": "^3.2.3",
     "dotenv": "^17.2.3",
     "p-queue": "^6.6.2",
     "p-retry": "^4.6.2",

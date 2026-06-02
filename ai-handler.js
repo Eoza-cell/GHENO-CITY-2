@@ -1,4 +1,4 @@
-const { Player, NPC, RPMessage, sequelize } = require('./database');
+const { Player, Club, NPC, RPMessage, ContractOffer, sequelize } = require('./database');
 const { sendWithImage, sendLoadingSequence } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
@@ -6,6 +6,7 @@ const { callAI } = require('./ai-utils');
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
   const history = await RPMessage.findAll({ order: [['id', 'DESC']], limit: 12 });
+  const currentClub = await Club.findByPk(player.currentClubId);
 
   const remainingTime = player.matchEndTime ? Math.max(0, Math.round((player.matchEndTime - new Date()) / 1000)) : 0;
   const minutes = Math.floor(remainingTime / 60);
@@ -16,28 +17,30 @@ async function handleFreeAction(sock, message, player, actionText) {
     Tu es le MJ expert de "FOOTBALL CAREER PRO".
 
     TON RÔLE:
-    - Arbitre neutre et narrateur immersif.
-    - Style: Commentateur pro.
+    - Gère l'Open World (Hôtels, Marchés, Restaurants, Stades).
+    - Agis comme Coach, Agent et Journaliste.
 
-    SYSTÈME DE JEU:
-    1. DISTANCES: Tu DOIS mentionner les distances en MÈTRES (ex: "Tu es à 25m du but").
-    2. CHANCE: Basé sur le dé imposé, décris l'action. NE JAMAIS mentionner "dé", "stats" ou "chance" dans le texte.
-    3. ARBITRE: Si l'action vise un autre joueur (@tag), tague-le et attends 5 min. Donne un verdict après.
-    4. CONSEQUENCES: Narratives et impitoyables.
+    LOGIQUE DU MONDE:
+    1. EXPLORATION: Si le joueur est dans un Restaurant ou Marché, décris l'ambiance et les interactions.
+    2. CONTRATS: Si le joueur brille, génère une offre de club via JSON avec un numéro de maillot spécifique.
+    3. MULTI-JOUEURS: Plusieurs joueurs peuvent être dans le même club. Si @tag est utilisé, l'action impacte les deux.
+    4. MATCHS: Narrations précises (mètres).
 
     INTERFACE RP:
     ⚽ SCORE: [Équipe A] [n] - [n] [Équipe B]
     ⏳ TEMPS RP: [min]' | IRL: ${timeStr}
-    🌟 FAME: ${player.fame}
-    🔋 STAMINA: [▰▰▰▱▱] (Valeur: ${player.stamina}/100)
+    📍 LIEU: ${player.location} (${player.city})
+    🔋 STAMINA: [▰▰▰▱▱] (${player.stamina}/100)
 
     ACTIONS JSON POSSIBLES:
     - {"type": "update_stats", "parameters": {"shoot_change": n, "money_change": n, "xp_change": n, "fame_change": n, "stamina_change": n}}
+    - {"type": "send_offer", "parameters": {"club_name": "...", "salary": n, "jersey_number": n}}
     - {"type": "visual", "parameters": {"imagePrompt": "..."}}
   `;
 
   const fullPrompt = `
-    JOUEUR: ${player.name} | POSTE: ${player.position} | CLUB: ${player.currentClub}
+    JOUEUR: ${player.name} | CLUB: ${currentClub?.name || 'Sans club'} | NATION: ${player.nation}
+    LOCATION: ${player.location} | VILLE: ${player.city} | PAYS: ${player.country}
     STATS: Tir:${player.shoot}, Passe:${player.pass}, Dribble:${player.dribble}, Défense:${player.defense}, Vitesse:${player.speed}
 
     HISTORIQUE:
@@ -78,6 +81,18 @@ async function handleFreeAction(sock, message, player, actionText) {
                 if (p.fame_change) await player.increment('fame', { by: p.fame_change });
                 if (p.stamina_change) await player.update({ stamina: Math.min(100, Math.max(0, player.stamina + p.stamina_change)) });
             }
+            if (action.type === 'send_offer') {
+                const club = await Club.findOne({ where: { name: { [Op.like]: `%${action.parameters.club_name}%` } } });
+                if (club) {
+                    await ContractOffer.create({
+                        playerWhatsappId: jid,
+                        clubId: club.id,
+                        salary: action.parameters.salary,
+                        jerseyNumber: action.parameters.jersey_number
+                    });
+                    await sock.sendMessage(jid, { text: `📩 *OFFRE DE CONTRAT REÇUE !* 📩\n${club.name} te propose un contrat (N° ${action.parameters.jersey_number}). Tape /contrats pour voir.` });
+                }
+            }
         }
     }
 
@@ -85,7 +100,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   } catch (error) {
     console.error(error);
-    await sock.sendMessage(jid, { text: "⚠️ Liaison coupée avec le MJ." });
+    await sock.sendMessage(jid, { text: "⚠️ Liaison coupée." });
   }
 }
 

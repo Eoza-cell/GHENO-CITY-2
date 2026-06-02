@@ -31,11 +31,17 @@ const Player = sequelize.define('Player', {
 
   // Career
   position: { type: DataTypes.STRING, allowNull: true },
-  currentClub: { type: DataTypes.STRING, defaultValue: 'Centre de Formation' },
+  jerseyNumber: { type: DataTypes.INTEGER, defaultValue: 99 },
+  currentClubId: { type: DataTypes.INTEGER, allowNull: true },
   nation: { type: DataTypes.STRING, defaultValue: 'France' },
   salary: { type: DataTypes.INTEGER, defaultValue: 500 },
   money: { type: DataTypes.INTEGER, defaultValue: 1000 },
   fame: { type: DataTypes.INTEGER, defaultValue: 0 },
+
+  // Location
+  country: { type: DataTypes.STRING, defaultValue: 'France' },
+  city: { type: DataTypes.STRING, defaultValue: 'Paris' },
+  location: { type: DataTypes.STRING, defaultValue: 'Hôtel' },
 
   // Appearance
   appearanceImageUrl: { type: DataTypes.STRING, allowNull: true },
@@ -57,12 +63,6 @@ const Player = sequelize.define('Player', {
     get() { return JSON.parse(this.getDataValue('properties') || '[]'); },
     set(v) { this.setDataValue('properties', JSON.stringify(v)); }
   },
-  trophies: {
-    type: DataTypes.TEXT,
-    defaultValue: '[]',
-    get() { return JSON.parse(this.getDataValue('trophies') || '[]'); },
-    set(v) { this.setDataValue('trophies', JSON.stringify(v)); }
-  },
 
   // Game State
   matchEndTime: { type: DataTypes.DATE, allowNull: true },
@@ -70,10 +70,36 @@ const Player = sequelize.define('Player', {
   registrationStep: { type: DataTypes.STRING, allowNull: true },
 });
 
+const Club = sequelize.define('Club', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  name: { type: DataTypes.STRING, unique: true },
+  country: { type: DataTypes.STRING },
+  league: { type: DataTypes.STRING },
+  reputation: { type: DataTypes.INTEGER, defaultValue: 50 }, // 1-100
+  formation: { type: DataTypes.STRING, defaultValue: '4-3-3' }
+});
+
+const Trophy = sequelize.define('Trophy', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  name: { type: DataTypes.STRING },
+  type: { type: DataTypes.STRING }, // League, Cup, National
+  year: { type: DataTypes.INTEGER },
+  playerWhatsappId: { type: DataTypes.STRING }
+});
+
+const ContractOffer = sequelize.define('ContractOffer', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    playerWhatsappId: { type: DataTypes.STRING },
+    clubId: { type: DataTypes.INTEGER },
+    salary: { type: DataTypes.INTEGER },
+    jerseyNumber: { type: DataTypes.INTEGER },
+    status: { type: DataTypes.STRING, defaultValue: 'pending' } // pending, accepted, declined
+});
+
 const NPC = sequelize.define('NPC', {
   name: { type: DataTypes.STRING, unique: true },
   role: { type: DataTypes.STRING },
-  club: { type: DataTypes.STRING },
+  clubId: { type: DataTypes.INTEGER, allowNull: true },
   stats: {
     type: DataTypes.TEXT,
     get() { return JSON.parse(this.getDataValue('stats') || '{}'); },
@@ -88,11 +114,27 @@ const RPMessage = sequelize.define('RPMessage', {
     timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 });
 
+Player.belongsTo(Club, { as: 'currentClub', foreignKey: 'currentClubId' });
+Club.hasMany(Player, { foreignKey: 'currentClubId' });
+
+ContractOffer.belongsTo(Club, { foreignKey: 'clubId' });
+Player.hasMany(ContractOffer, { foreignKey: 'playerWhatsappId' });
+
 async function setupDatabase() {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
+
+    const clubCount = await Club.count();
+    if (clubCount === 0) {
+        await Club.bulkCreate([
+            { name: 'Paris Saint-Germain', country: 'France', league: 'Ligue 1', reputation: 85, formation: '4-3-3' },
+            { name: 'Real Madrid', country: 'Espagne', league: 'La Liga', reputation: 95, formation: '4-3-3' },
+            { name: 'Manchester City', country: 'Angleterre', league: 'Premier League', reputation: 92, formation: '4-1-4-1' },
+            { name: 'Club de Formation', country: 'France', league: 'National', reputation: 20, formation: '4-4-2' }
+        ]);
+    }
   } catch (e) { console.error(e); }
 }
 
-module.exports = { sequelize, Player, NPC, RPMessage, Creds, setupDatabase };
+module.exports = { sequelize, Player, Club, Trophy, ContractOffer, NPC, RPMessage, Creds, setupDatabase };

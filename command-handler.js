@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { Player, NPC, sequelize } = require('./database');
+const { Player, Club, Trophy, ContractOffer, NPC, sequelize } = require('./database');
 const { handleFreeAction } = require('./ai-handler');
+const { generateFormationImage } = require('./formation-generator');
 const { Op } = require('sequelize');
 
 function getJid(message) {
@@ -25,8 +26,6 @@ async function updateChrono(player) {
     const now = new Date();
     const diffMs = now - player.lastChronoUpdate;
     const diffMin = diffMs / (1000 * 60);
-
-    // 90 mins IRL = 1 day RP (1.5h)
     if (diffMin >= 90) {
         const daysPassed = Math.floor(diffMin / 90);
         await player.increment('currentDay', { by: daysPassed });
@@ -41,13 +40,9 @@ commands.set('start', async (sock, message) => {
   const jid = getJid(message);
   const replyJid = message.key.remoteJid;
   let player = await Player.findOne({ where: { whatsappId: jid } });
-
   if (!player) {
-    player = await Player.create({
-        whatsappId: jid,
-        registrationStep: 'awaiting_name'
-    });
-    await sock.sendMessage(replyJid, { text: "⚽ *FOOTBALL CAREER PRO* ⚽\n\nBienvenue, futur crack.\n\nQuel est ton nom de joueur ?" });
+    player = await Player.create({ whatsappId: jid, registrationStep: 'awaiting_name' });
+    await sock.sendMessage(replyJid, { text: "⚽ *FOOTBALL CAREER PRO* ⚽\n\nBienvenue, futur crack.\nQuel est ton nom de joueur ?" });
   } else {
     await sock.sendMessage(replyJid, { text: `Ravi de te revoir, ${player.name} !` });
   }
@@ -57,7 +52,7 @@ commands.set('start', async (sock, message) => {
 commands.set('profil', async (sock, message) => {
   const jid = getJid(message);
   const replyJid = message.key.remoteJid;
-  const player = await Player.findOne({ where: { whatsappId: jid } });
+  const player = await Player.findOne({ where: { whatsappId: jid }, include: ['currentClub'] });
   if (!player) return;
 
   await updateChrono(player);
@@ -67,18 +62,17 @@ commands.set('profil', async (sock, message) => {
                       `┃  ⚽ DOSSIER PRO : ${player.name.toUpperCase()} \n` +
                       `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n` +
                       `🌍 *NATION:* ${player.nation}\n` +
-                      `📍 *POSTE:* ${player.position}\n` +
-                      `🏢 *CLUB:* ${player.currentClub}\n` +
+                      `📍 *POSTE:* ${player.position} | 🔟 *NUMÉRO:* ${player.jerseyNumber}\n` +
+                      `🏢 *CLUB:* ${player.currentClub?.name || 'Sans club'}\n` +
                       `📅 *JOUR RP:* Jour ${player.currentDay}\n` +
+                      `📍 *LIEU:* ${player.location} (${player.city}, ${player.country})\n` +
                       `💰 *SOLDE:* ${player.money.toLocaleString()} €\n\n` +
                       `📊 *STATS :*\n` +
                       `👟 Tir: ${player.shoot} | 🎯 Passe: ${player.pass}\n` +
                       `✨ Dribble: ${player.dribble} | 🛡️ Défense: ${player.defense}\n` +
                       `⚡ Vitesse: ${player.speed} | 🧠 IQ: ${player.iq}\n` +
                       `🔋 STAMINA: [${staminaBar}]\n\n` +
-                      `🏆 *TROPHÉES:* ${player.trophies.length}\n` +
-                      `🏎️ *GARAGE:* ${player.vehicles.length}\n\n` +
-                      `_Tape /menu pour voir les options._`;
+                      `_Tape /monde pour explorer._`;
 
   if (player.appearanceImageUrl && fs.existsSync(player.appearanceImageUrl)) {
       await sock.sendMessage(replyJid, { image: fs.readFileSync(player.appearanceImageUrl), caption: profileText });
@@ -87,59 +81,90 @@ commands.set('profil', async (sock, message) => {
   }
 });
 
+// Command: /monde
+commands.set('monde', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) return;
+
+    const text = `🌍 *OPEN WORLD EXPLORATION* 🌍\n\n` +
+                 `📍 *LIEU ACTUEL:* ${player.location || 'Hôtel'}\n\n` +
+                 `🚗 *DÉPLACEMENTS :*\n` +
+                 `- /visiter [Hôtel | Restaurant | Marché | Stade | Entraînement]\n` +
+                 `- /voyager [Pays] (Coût: 500€)\n\n` +
+                 `💼 *CARRIÈRE :*\n` +
+                 `- /contrats : Voir les offres de clubs.\n` +
+                 `- /formation : Voir le 11 de départ.`;
+    await sock.sendMessage(message.key.remoteJid, { text: text });
+});
+
+commands.set('visiter', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const place = args[0];
+    if (!player || !place) return;
+
+    await player.update({ location: place, mode: 'action' });
+    await sock.sendMessage(message.key.remoteJid, { text: `📍 Tu arrives à : *${place}*. Que fais-tu ?` });
+});
+
+commands.set('voyager', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const pays = args.join(' ');
+    if (!player || !pays) return;
+
+    if (player.money < 500) return sock.sendMessage(message.key.remoteJid, { text: "❌ Pas assez d'argent pour le billet d'avion (500€)." });
+
+    await player.decrement('money', { by: 500 });
+    await player.update({ country: pays, city: 'Capitale', location: 'Aéroport' });
+    await sock.sendMessage(message.key.remoteJid, { text: `✈️ Bienvenue en *${pays}* ! Ton solde : ${player.money}€.` });
+});
+
+commands.set('contrats', async (sock, message) => {
+    const jid = getJid(message);
+    const offers = await ContractOffer.findAll({ where: { playerWhatsappId: jid, status: 'pending' }, include: [Club] });
+
+    if (offers.length === 0) return sock.sendMessage(message.key.remoteJid, { text: "📩 Aucune offre de contrat pour le moment." });
+
+    let msg = `📩 *OFFRES DE CONTRAT* 📩\n\n`;
+    offers.forEach((o, i) => {
+        msg += `${i+1}. 🏢 *${o.Club.name}*\n   💰 Salaire: ${o.salary}€/match\n   🔟 Numéro proposé: ${o.jerseyNumber}\n   ✅ /accepter ${o.id}\n\n`;
+    });
+    await sock.sendMessage(message.key.remoteJid, { text: msg });
+});
+
+commands.set('formation', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: ['currentClub'] });
+    if (!player) return;
+
+    const buffer = await generateFormationImage(player);
+    await sock.sendMessage(message.key.remoteJid, { image: buffer, caption: `📋 *FORMATION TACTIQUE : ${player.currentClub?.name || 'Sans club'}*\nPoste: ${player.position} | Numéro: ${player.jerseyNumber}` });
+});
+
+commands.set('accepter', async (sock, message, args) => {
+    const jid = getJid(message);
+    const offerId = args[0];
+    const offer = await ContractOffer.findOne({ where: { id: offerId, playerWhatsappId: jid }, include: [Club] });
+    if (!offer) return;
+
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    await player.update({ currentClubId: offer.clubId, salary: offer.salary, jerseyNumber: offer.jerseyNumber });
+    await offer.update({ status: 'accepted' });
+
+    await sock.sendMessage(message.key.remoteJid, { text: `✅ Félicitations ! Tu as signé chez *${offer.Club.name}* avec le numéro ${offer.jerseyNumber} !` });
+});
+
 // Command: /match
 commands.set('match', async (sock, message) => {
     const jid = getJid(message);
-    const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
     if (!player) return;
 
     const endTime = new Date(Date.now() + 6 * 60 * 1000);
     await player.update({ matchEndTime: endTime, mode: 'action' });
-
-    const msg = `⚽ *JOUR DE MATCH* ⚽\n\n` +
-                `Le coup d'envoi est proche.\n` +
-                `⏳ *DURÉE : 6 MINUTES IRL (90' RP)*\n\n` +
-                `L'arbitre siffle. Que fais-tu ?`;
-    await sock.sendMessage(replyJid, { text: msg });
-});
-
-// Command: /menu
-commands.set('menu', async (sock, message) => {
-  const menuText = `⚽ *FOOTBALL CAREER MENU* ⚽\n\n` +
-                   `/profil - Ton dossier & stats.\n` +
-                   `/match - Jouer un match (6min).\n` +
-                   `/entrainement - Booster tes stats.\n` +
-                   `/action - RP Libre.\n` +
-                   `/quit - Sortir du mode RP.`;
-  await sock.sendMessage(message.key.remoteJid, { text: menuText });
-});
-
-commands.set('entrainement', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (player) {
-        await player.update({ mode: 'action' });
-        await sock.sendMessage(message.key.remoteJid, { text: "🏋️ *CENTRE D'ENTRAÎNEMENT* 🏋️\nDécris ta séance pour gagner des stats." });
-    }
-});
-
-commands.set('action', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (player) {
-        await player.update({ mode: 'action' });
-        await sock.sendMessage(message.key.remoteJid, { text: "⚽ MODE RP ACTIVÉ." });
-    }
-});
-
-commands.set('quit', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (player) {
-        await player.update({ mode: 'normal' });
-        await sock.sendMessage(message.key.remoteJid, { text: "Mode normal réactivé." });
-    }
+    await sock.sendMessage(message.key.remoteJid, { text: `⚽ *JOUR DE MATCH* ⚽\nL'arbitre siffle. Que fais-tu ?` });
 });
 
 async function handleCommand(sock, message) {
@@ -151,22 +176,21 @@ async function handleCommand(sock, message) {
   const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
 
-  // Creation flow
   if (player && player.registrationStep) {
       if (player.registrationStep === 'awaiting_name') {
           await player.update({ name: messageText.trim(), registrationStep: 'awaiting_position' });
-          await sock.sendMessage(replyJid, { text: `Quel est ton poste ? (GK, DEF, MID, FWD)` });
+          await sock.sendMessage(replyJid, { text: `Poste ? (GK, DEF, MID, FWD)` });
       } else if (player.registrationStep === 'awaiting_position') {
           await player.update({ position: messageText.toUpperCase(), registrationStep: 'awaiting_nation' });
-          await sock.sendMessage(replyJid, { text: `Quelle est ta nation ?` });
+          await sock.sendMessage(replyJid, { text: `Nation ?` });
       } else if (player.registrationStep === 'awaiting_nation') {
-          await player.update({ nation: messageText.trim(), registrationStep: 'awaiting_appearance' });
-          await sock.sendMessage(replyJid, { text: `Envoie ton image d'apparence (ton maillot ou ton visage).` });
+          const club = await Club.findOne({ where: { name: 'Club de Formation' } });
+          await player.update({ nation: messageText.trim(), registrationStep: 'awaiting_appearance', currentClubId: club.id });
+          await sock.sendMessage(replyJid, { text: `Envoie ton image d'apparence.` });
       }
       return;
   }
 
-  // Action Mode
   if (player?.mode === 'action' && !messageText.startsWith('/')) {
       await handleFreeAction(sock, message, player, messageText);
       return;
@@ -177,9 +201,7 @@ async function handleCommand(sock, message) {
   const commandName = args.shift().toLowerCase();
   const command = commands.get(commandName);
 
-  if (command) {
-      await command(sock, message, args);
-  }
+  if (command) await command(sock, message, args);
 }
 
 module.exports = { handleCommand, getJid };
