@@ -10,7 +10,7 @@ const { handleCommand, getJid } = require('./command-handler');
 
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Basketball Gacha RP Bot is running');
+    res.end('Football Career RPG is running');
 });
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
@@ -47,7 +47,7 @@ async function connectToWhatsApp() {
       const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
       if (shouldReconnect) connectToWhatsApp();
     } else if (connection === 'open') {
-      console.log('Connecté à WhatsApp (Basketball Gacha)');
+      console.log('Connecté à WhatsApp (Football Career RPG)');
       if (!serverStarted) {
           server.listen(PORT, () => { console.log(`Server on port ${PORT}`); serverStarted = true; });
       }
@@ -62,13 +62,18 @@ async function connectToWhatsApp() {
         const jid = getJid(message);
         const player = await Player.findOne({ where: { whatsappId: jid } });
 
-        // View Once Bypass
-        let viewOnceMsg = message.message.viewOnceMessage || message.message.viewOnceMessageV2;
-        if (viewOnceMsg) {
-            const actualContent = viewOnceMsg.message;
-            const innerType = Object.keys(actualContent)[0];
-            if (actualContent[innerType].viewOnce) actualContent[innerType].viewOnce = false;
-            await sock.sendMessage(message.key.remoteJid, actualContent, { quoted: message });
+        // Registration Flow: Appearance Image Upload
+        if (player && player.registrationStep === 'awaiting_appearance') {
+            const type = getContentType(message.message);
+            if (type === 'imageMessage') {
+                const buffer = await downloadMediaMessage(message, 'buffer', {});
+                if (!fs.existsSync('assets/profiles')) fs.mkdirSync('assets/profiles', { recursive: true });
+                const filepath = `assets/profiles/${jid.split('@')[0]}.jpg`;
+                fs.writeFileSync(filepath, buffer);
+                await player.update({ appearanceImageUrl: filepath, registrationStep: null });
+                await sock.sendMessage(message.key.remoteJid, { text: "✅ Apparence validée ! Ton dossier pro est complet. Tape /match pour ton premier match." });
+                continue;
+            }
         }
 
         await handleCommand(sock, message);
