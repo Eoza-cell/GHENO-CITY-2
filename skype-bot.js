@@ -7,6 +7,7 @@ const path = require('path');
 const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
+const { updateChrono } = require('./chrono-utils');
 
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -62,6 +63,8 @@ async function connectToWhatsApp() {
         const jid = getJid(message);
         const player = await Player.findOne({ where: { whatsappId: jid } });
 
+        if (player) await updateChrono(player);
+
         // Registration Flow: Appearance Image Upload
         if (player && player.registrationStep === 'awaiting_appearance') {
             const type = getContentType(message.message);
@@ -71,7 +74,7 @@ async function connectToWhatsApp() {
                 const filepath = `assets/profiles/${jid.split('@')[0]}.jpg`;
                 fs.writeFileSync(filepath, buffer);
                 await player.update({ appearanceImageUrl: filepath, registrationStep: null });
-                await sock.sendMessage(message.key.remoteJid, { text: "✅ Apparence validée ! Ton dossier pro est complet. Tape /match pour ton premier match." });
+                await sock.sendMessage(message.key.remoteJid, { text: "✅ Apparence validée ! Ton dossier pro est complet. Tape /monde pour explorer ou /action pour parler au MJ." });
                 continue;
             }
         }

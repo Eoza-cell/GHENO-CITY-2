@@ -22,19 +22,6 @@ function createStatusBar(current, max, length = 10) {
     return '▰'.repeat(filledCount) + '▱'.repeat(emptyCount);
 }
 
-async function updateChrono(player) {
-    const now = new Date();
-    const diffMs = now - player.lastChronoUpdate;
-    const diffMin = diffMs / (1000 * 60);
-    if (diffMin >= 90) {
-        const daysPassed = Math.floor(diffMin / 90);
-        await player.increment('currentDay', { by: daysPassed });
-        await player.update({ lastChronoUpdate: now });
-        return true;
-    }
-    return false;
-}
-
 // Command: /start
 commands.set('start', async (sock, message) => {
   const jid = getJid(message);
@@ -57,11 +44,10 @@ commands.set('menu', async (sock, message) => {
     const menuText = `⚽ *FOOTBALL CAREER MENU* ⚽\n\n` +
                      `👤 /profil - Dossier & Stats.\n` +
                      `🌍 /monde - Exploration & Monde Ouvert.\n` +
-                     `🤝 /match - Jouer un match (Amical ou Pro).\n` +
-                     `🏋️ /entrainement - Booster tes stats.\n` +
                      `📋 /formation - Voir le 11 de départ.\n` +
                      `💼 /contrats - Gérer tes offres.\n\n` +
-                     `_Mode Libre :_ /action | /quit`;
+                     `_Le MJ gère tes matchs et déplacements._\n` +
+                     `_Mode Action :_ /action | /quit`;
     await sock.sendMessage(message.key.remoteJid, { text: menuText });
 });
 
@@ -72,7 +58,6 @@ commands.set('profil', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: jid }, include: ['currentClub'] });
   if (!player) return;
 
-  await updateChrono(player);
   const staminaBar = createStatusBar(player.stamina, 100);
 
   const profileText = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n` +
@@ -86,7 +71,7 @@ commands.set('profil', async (sock, message) => {
                       `👟 Tir: ${player.shoot} | 🎯 Passe: ${player.pass}\n` +
                       `✨ Dribble: ${player.dribble} | 🛡️ Défense: ${player.defense}\n` +
                       `⚡ Vitesse: ${player.speed} | 🔋 Stamina: [${staminaBar}]\n\n` +
-                      `_Tape /menu pour le hub principal._`;
+                      `_Le MJ gère tes aventures._`;
 
   if (player.appearanceImageUrl && fs.existsSync(player.appearanceImageUrl)) {
       await sock.sendMessage(replyJid, { image: fs.readFileSync(player.appearanceImageUrl), caption: profileText });
@@ -102,35 +87,11 @@ commands.set('monde', async (sock, message) => {
     if (!player) return;
 
     const text = `🌍 *EXPLORATION MONDE* 🌍\n\n` +
-                 `📍 *LIEU ACTUEL:* ${player.location}\n` +
+                 `📍 *LIEU:* ${player.location}\n` +
                  `📍 *VILLE:* ${player.city} (${player.country})\n\n` +
-                 `🚗 *OPTIONS :*\n` +
-                 `- /visiter [Lieu] (Ex: Hôtel, Restaurant, Marché, Stade)\n` +
-                 `- /voyager [Pays] (Coût: 500€)\n\n` +
-                 `_Passe en mode action (/action) pour interagir librement avec l'IA._`;
+                 `_Dis simplement à l'IA où tu veux aller ou ce que tu veux faire._\n` +
+                 `_Ex: "Je veux aller au restaurant" ou "Je vais au stade pour m'entraîner"._`;
     await sock.sendMessage(message.key.remoteJid, { text: text });
-});
-
-commands.set('visiter', async (sock, message, args) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const place = args.join(' ');
-    if (!player || !place) return;
-
-    await player.update({ location: place, mode: 'action' });
-    await sock.sendMessage(message.key.remoteJid, { text: `📍 Tu arrives à : *${place}*. Mode Action activé.` });
-});
-
-commands.set('voyager', async (sock, message, args) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    const pays = args.join(' ');
-    if (!player || !pays) return;
-    if (player.money < 500) return sock.sendMessage(message.key.remoteJid, { text: "❌ Fonds insuffisants (500€)." });
-
-    await player.decrement('money', { by: 500 });
-    await player.update({ country: pays, city: 'Capitale', location: 'Aéroport' });
-    await sock.sendMessage(message.key.remoteJid, { text: `✈️ Bienvenue en *${pays}* !` });
 });
 
 commands.set('contrats', async (sock, message) => {
@@ -149,7 +110,7 @@ commands.set('formation', async (sock, message) => {
     if (!player) return;
 
     const buffer = await generateFormationImage(player);
-    await sock.sendMessage(message.key.remoteJid, { image: buffer, caption: `📋 *TACTIQUE : ${player.currentClub?.name || 'Formation'}*\nPoste: ${player.position} | N°: ${player.jerseyNumber}` });
+    await sock.sendMessage(message.key.remoteJid, { image: buffer, caption: `📋 *TACTIQUE : ${player.currentClub?.name || 'Libre'}*\nPoste: ${player.position} | N°: ${player.jerseyNumber}` });
 });
 
 commands.set('accepter', async (sock, message, args) => {
@@ -162,29 +123,10 @@ commands.set('accepter', async (sock, message, args) => {
     await sock.sendMessage(message.key.remoteJid, { text: `✅ Signature chez *${offer.Club.name}* !` });
 });
 
-commands.set('entrainement', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (player) {
-        await player.update({ mode: 'action' });
-        await sock.sendMessage(message.key.remoteJid, { text: "🏋️ *SESSION D'ENTRAÎNEMENT*\nDécris tes efforts pour progresser." });
-    }
-});
-
-commands.set('match', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (!player) return;
-    const endTime = new Date(Date.now() + 6 * 60 * 1000);
-    await player.update({ matchEndTime: endTime, mode: 'action' });
-    const isPro = player.currentClubId && player.currentClubId !== 4; // 4 is Training Club ID
-    await sock.sendMessage(message.key.remoteJid, { text: `⚽ *${isPro ? 'MATCH OFFICIEL' : 'MATCH AMICAL'}* ⚽\nL'arbitre siffle. Montre ce que tu as dans le ventre !` });
-});
-
 commands.set('action', async (sock, message) => {
     const jid = getJid(message);
     const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (player) { await player.update({ mode: 'action' }); await sock.sendMessage(message.key.remoteJid, { text: "⚽ MODE ACTION ACTIVÉ. Parle librement à l'IA maintenant." }); }
+    if (player) { await player.update({ mode: 'action' }); await sock.sendMessage(message.key.remoteJid, { text: "⚽ MODE ACTION ACTIVÉ. Parle librement à l'IA." }); }
 });
 
 commands.set('quit', async (sock, message) => {
@@ -218,12 +160,7 @@ async function handleCommand(sock, message) {
       return;
   }
 
-  // Handle Free Action if in action mode and NOT a command
-  if (player?.mode === 'action' && !messageText.startsWith('/')) {
-      await handleFreeAction(sock, message, player, messageText);
-      return;
-  }
-
+  if (player?.mode === 'action' && !messageText.startsWith('/')) { await handleFreeAction(sock, message, player, messageText); return; }
   if (!messageText.startsWith('/')) return;
   const args = messageText.slice(1).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
