@@ -8,6 +8,16 @@ async function handleFreeAction(sock, message, player, actionText) {
   const history = await RPMessage.findAll({ order: [['id', 'DESC']], limit: 12 });
   const currentClub = await Club.findByPk(player.currentClubId);
 
+  // Find other players nearby
+  const nearbyPlayers = await Player.findAll({
+      where: {
+          location: player.location,
+          country: player.country,
+          whatsappId: { [Op.ne]: player.whatsappId }
+      },
+      limit: 5
+  });
+
   const remainingTime = player.matchEndTime ? Math.max(0, Math.round((player.matchEndTime - new Date()) / 1000)) : 0;
   const minutes = Math.floor(remainingTime / 60);
   const seconds = remainingTime % 60;
@@ -16,15 +26,15 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `
     Tu es le MJ expert de "FOOTBALL CAREER PRO".
 
-    TON RÔLE:
-    - Gère l'Open World (Hôtels, Marchés, Restaurants, Stades).
-    - Agis comme Coach, Agent et Journaliste.
+    STYLE DE JEU (MODE LIBRE):
+    - Agis comme Coach, Arbitre, coéquipiers et PNJ locaux.
+    - ÉQUILIBRE: Utilise le dé d'action (1-20). 1 = Échec, 20 = Exploit. Ne sois pas trop facile.
 
     LOGIQUE DU MONDE:
-    1. EXPLORATION: Si le joueur est dans un Restaurant ou Marché, décris l'ambiance et les interactions.
-    2. CONTRATS: Si le joueur brille, génère une offre de club via JSON avec un numéro de maillot spécifique.
-    3. MULTI-JOUEURS: Plusieurs joueurs peuvent être dans le même club. Si @tag est utilisé, l'action impacte les deux.
-    4. MATCHS: Narrations précises (mètres).
+    1. ENVIRONNEMENT ACTIF: Les coéquipiers demandent la balle, les adversaires pressent, les PNJ dans les lieux (Resto/Hôtel) interagissent spontanément.
+    2. INTERACTION JOUEURS: Si d'autres joueurs sont présents (voir liste), implique-les.
+    3. RÉACTION: Si une action cible un autre joueur (@tag), TAGUE-LE et attends sa réponse avant de donner le verdict.
+    4. MATCH AMICAL: Les bonnes performances en match amical génèrent des offres de contrat.
 
     INTERFACE RP:
     ⚽ SCORE: [Équipe A] [n] - [n] [Équipe B]
@@ -32,15 +42,19 @@ async function handleFreeAction(sock, message, player, actionText) {
     📍 LIEU: ${player.location} (${player.city})
     🔋 STAMINA: [▰▰▰▱▱] (${player.stamina}/100)
 
-    ACTIONS JSON POSSIBLES:
+    ACTIONS JSON:
     - {"type": "update_stats", "parameters": {"shoot_change": n, "money_change": n, "xp_change": n, "fame_change": n, "stamina_change": n}}
     - {"type": "send_offer", "parameters": {"club_name": "...", "salary": n, "jersey_number": n}}
     - {"type": "visual", "parameters": {"imagePrompt": "..."}}
+    - {"type": "notify_player", "parameters": {"target_jid": "...", "text": "..."}}
   `;
 
+  const matesInfo = nearbyPlayers.map(m => `${m.name} (@${m.whatsappId.split('@')[0]})`).join(', ');
+
   const fullPrompt = `
-    JOUEUR: ${player.name} | CLUB: ${currentClub?.name || 'Sans club'} | NATION: ${player.nation}
-    LOCATION: ${player.location} | VILLE: ${player.city} | PAYS: ${player.country}
+    JOUEUR: ${player.name} | CLUB: ${currentClub?.name || 'Sans club'}
+    JOUEURS PROCHES: ${matesInfo || 'Seul dans ce lieu'}
+    LOCATION: ${player.location} | VILLE: ${player.city}
     STATS: Tir:${player.shoot}, Passe:${player.pass}, Dribble:${player.dribble}, Défense:${player.defense}, Vitesse:${player.speed}
 
     HISTORIQUE:
@@ -62,10 +76,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         try {
             const parsed = JSON.parse(jsonMatch[0]);
             aiResponse.narrative = content.replace(jsonMatch[0], "").trim();
-            aiResponse.actions = [parsed];
-            if (parsed.type === 'visual') {
-                aiResponse.imagePrompt = parsed.parameters.imagePrompt;
-            }
+            aiResponse.actions = Array.isArray(parsed) ? parsed : [parsed];
         } catch(e){}
     }
 
@@ -84,14 +95,12 @@ async function handleFreeAction(sock, message, player, actionText) {
             if (action.type === 'send_offer') {
                 const club = await Club.findOne({ where: { name: { [Op.like]: `%${action.parameters.club_name}%` } } });
                 if (club) {
-                    await ContractOffer.create({
-                        playerWhatsappId: jid,
-                        clubId: club.id,
-                        salary: action.parameters.salary,
-                        jerseyNumber: action.parameters.jersey_number
-                    });
-                    await sock.sendMessage(jid, { text: `📩 *OFFRE DE CONTRAT REÇUE !* 📩\n${club.name} te propose un contrat (N° ${action.parameters.jersey_number}). Tape /contrats pour voir.` });
+                    await ContractOffer.create({ playerWhatsappId: jid, clubId: club.id, salary: action.parameters.salary, jerseyNumber: action.parameters.jersey_number });
+                    await sock.sendMessage(jid, { text: `📩 *OFFRE DE CONTRAT RÉCEPTIONNÉE !* 📩\n${club.name} te propose de porter le N° ${action.parameters.jersey_number}.` });
                 }
+            }
+            if (action.type === 'notify_player') {
+                await sock.sendMessage(action.parameters.target_jid, { text: `🔔 *NOTIFICATION RP* 🔔\n\n${action.parameters.text}` });
             }
         }
     }
@@ -100,7 +109,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   } catch (error) {
     console.error(error);
-    await sock.sendMessage(jid, { text: "⚠️ Liaison coupée." });
+    await sock.sendMessage(jid, { text: "⚠️ Le MJ rencontre une difficulté." });
   }
 }
 
