@@ -5,7 +5,12 @@ const { callAI } = require('./ai-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const history = await RPMessage.findAll({ order: [['id', 'DESC']], limit: 10 });
+  const history = await RPMessage.findAll({ order: [['id', 'DESC']], limit: 12 });
+
+  const team = await PlayerCard.findAll({
+      where: { PlayerWhatsappId: player.whatsappId, isStarter: true },
+      include: [Card]
+  });
 
   const remainingTime = player.matchEndTime ? Math.max(0, Math.round((player.matchEndTime - new Date()) / 1000)) : 0;
   const minutes = Math.floor(remainingTime / 60);
@@ -13,51 +18,48 @@ async function handleFreeAction(sock, message, player, actionText) {
   const timeStr = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
   const systemPrompt = `
-    Tu es le MJ expert de "FOOTBALL CAREER PRO".
+    Tu es le MJ expert de "BASKETBALL GACHA RP".
 
-    STYLE DE NARRATION:
-    - Commentateur sportif pro (type RMC/BeIN).
-    - **DISTANCES**: Tu DOIS mentionner les distances en MÈTRES (ex: "Tu es à 22m du but").
-    - **EQUIPEMENT**: Utilise les noms des maillots officiels (Nike, Adidas) et des ballons (Al Rihla, Nike Flight).
-    - **NATUREL**: Cache les mécanismes. NE JAMAIS mentionner "Dés", "Stats", "Chance", "Jet". Décris le résultat organiquement (ex: "Tu trébuches" au lieu de "Échec").
+    TON RÔLE:
+    - Arbitre neutre et narrateur immersif de match de basket (NBA/FIBA).
+    - Style: Énergique, type commentateur US (Mike Breen, Kevin Harlan).
 
-    LOGIQUE DU TEMPS:
-    - 6 minutes IRL = 90 minutes RP de match.
-    - 1h30 IRL = 1 Jour RP.
+    SYSTÈME DE JEU:
+    1. DISTANCES: Précise toujours les distances (ex: "8 mètres", "sous le cercle").
+    2. FLOW: Si un joueur réussit 3 actions de suite, active le 🔥 FLOW (boost stats).
+    3. CLUTCH: Si le temps est < 1:00, active le ⏳ CLUTCH TIME (tension max).
+    4. STAMINA: Chaque action consomme de l'énergie.
+    5. PVP: Si l'action vise un autre joueur (@tag), tague-le et attends son action. Si pas de réponse en 5 min, donne un verdict basé sur les stats.
 
-    RÈGLES:
-    1. PNJ ACTIFS: Les autres joueurs (PNJ) comme Benzema, Modric ou des coéquipiers marquent, passent et reçoivent le ballon avec leurs propres capacités.
-    2. CHANCE: Basé sur le dé imposé, décris l'action.
-    3. ARBITRE: Si multi-joueurs, tague le défenseur et attends 5 min.
+    STATS A UTILISER: Shoot, Layup, Dunk, Dribble, Pass, Defense, Steal, Block, Speed, Stamina, IQ.
 
-    INTERFACE RP (OBLIGATOIRE - HORS RÉCIT):
-    ⚽ SCORE: [Équipe A] [n] - [n] [Équipe B]
-    ⏳ TEMPS RP: [min]' | IRL: ${timeStr}
-    🔋 ÉNERGIE: [▰▰▰▱▱]
-    📏 POSITION: [Distance]m du but
+    INTERFACE RP (DOIT APPARAÎTRE À LA FIN DE CHAQUE RÉPONSE):
+    🏀 SCORE: [Équipe A] [n] - [n] [Équipe B]
+    ⏳ TEMPS RP: [QT] - [min:sec] | IRL: ${timeStr}
+    🔥 Momentum: [Equipe] +[n]%
+    🟩 Energy: [Joueur Vedette] [▰▰▰▱▱]
 
     ACTIONS JSON POSSIBLES:
-    - {"type": "update_stats", "parameters": {"shoot_change": n, "money_change": n, "contract_change": n, "fame_change": n}}
-    - {"type": "add_trophy", "parameters": {"name": "..."}}
-    - {"type": "offer_contract", "parameters": {"club": "...", "duration": n, "wage": n}}
+    - {"type": "update_stats", "parameters": {"xp_change": n, "gems_change": n, "energy_change": n}}
+    - {"type": "visual", "parameters": {"imagePrompt": "..."}}
   `;
 
-  const fullPrompt = `
-    JOUEUR: ${player.name} (${player.position}) | NATION: ${player.country}
-    STATS: Shoot ${player.shoot}, Pass ${player.pass}, Speed ${player.speed}, Dribble ${player.dribble}
-    CARRIÈRE: ${player.careerStage} | CLUB: ${player.currentClub}
-    CONTRAT: ${player.contractDays} Jours | SPONSOR: ${player.sponsor}
-    STAMINA: ${player.stamina}/100
+  const teamInfo = team.map(pc => `${pc.position}: ${pc.Card.name} (Shoot:${pc.Card.shoot}, Def:${pc.Card.defense})`).join(', ');
 
-    HISTORIQUE:
+  const fullPrompt = `
+    MANAGER: ${player.name} | NIVEAU: ${player.level}
+    EQUIPE: ${teamInfo}
+    ENERGIE MANAGER: ${player.energy}/100
+
+    HISTORIQUE RECENT:
     ${history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')}
 
-    ACTION: ${actionText}
+    ACTION DU JOUEUR: ${actionText}
   `;
 
   try {
     const diceRoll = Math.floor(Math.random() * 20) + 1;
-    const finalPrompt = `${fullPrompt}\n\n🎲 DÉ IMPOSÉ (Caché): ${diceRoll}/20`;
+    const finalPrompt = `${fullPrompt}\n\n🎲 DÉ DE RÉUSSITE (Caché): ${diceRoll}/20 (1=Echec critique, 20=Exploit)`;
 
     await sendLoadingSequence(sock, jid);
     const content = await callAI(systemPrompt, finalPrompt);
@@ -69,34 +71,36 @@ async function handleFreeAction(sock, message, player, actionText) {
             const parsed = JSON.parse(jsonMatch[0]);
             aiResponse.narrative = content.replace(jsonMatch[0], "").trim();
             aiResponse.actions = [parsed];
+            if (parsed.type === 'visual') {
+                aiResponse.imagePrompt = parsed.parameters.imagePrompt;
+            }
         } catch(e){}
     }
 
-    await RPMessage.create({ senderJid: 'bot', senderName: 'Commentateur', content: aiResponse.narrative });
+    await RPMessage.create({ senderJid: 'bot', senderName: 'Arise MJ', content: aiResponse.narrative });
 
     if (aiResponse.actions) {
         for (const action of aiResponse.actions) {
             if (action.type === 'update_stats') {
-                if (action.parameters.shoot_change) await player.increment('shoot', { by: action.parameters.shoot_change });
-                if (action.parameters.money_change) await player.increment('money', { by: action.parameters.money_change });
-                if (action.parameters.contract_change) await player.increment('contractDays', { by: action.parameters.contract_change });
-                if (action.parameters.fame_change) await player.increment('fame', { by: action.parameters.fame_change });
-            }
-            if (action.type === 'add_trophy') {
-                const t = player.trophies; t.push(action.parameters.name); player.trophies = t; await player.save();
-            }
-            if (action.type === 'offer_contract') {
-                await player.update({ currentClub: action.parameters.club, contractDays: action.parameters.duration });
-                await sock.sendMessage(jid, { text: `📜 *OFFRE DE CONTRAT !* 📜\nLe club ${action.parameters.club} te propose un contrat de ${action.parameters.duration} jours RP à ${action.parameters.wage}€/jour !` });
+                if (action.parameters.xp_change) await player.increment('xp', { by: action.parameters.xp_change });
+                if (action.parameters.gems_change) await player.increment('gems', { by: action.parameters.gems_change });
+                if (action.parameters.energy_change) await player.update({ energy: Math.min(100, Math.max(0, player.energy + action.parameters.energy_change)) });
             }
         }
     }
 
-    await sock.sendMessage(jid, { text: aiResponse.narrative });
+    await sendWithImage(sock, jid, aiResponse);
+
+    // Handle Level Up
+    if (player.xp >= player.level * 100) {
+        await player.increment('level');
+        await player.update({ xp: 0 });
+        await sock.sendMessage(jid, { text: `🎊 *LEVEL UP !* Coach ${player.name} passe niveau ${player.level} !` });
+    }
 
   } catch (error) {
     console.error(error);
-    await sock.sendMessage(jid, { text: "⚠️ Micro coupé. Le commentateur a un problème." });
+    await sock.sendMessage(jid, { text: "⚠️ Temps mort technique. Le MJ a un problème." });
   }
 }
 
