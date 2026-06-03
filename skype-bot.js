@@ -9,9 +9,16 @@ const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { updateChrono } = require('./chrono-utils');
 
+let isBotConnected = false;
+
 const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Football Career RPG is running');
+    if (isBotConnected) {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Football Career RPG is running and connected to WhatsApp.');
+    } else {
+        res.writeHead(503, { 'Content-Type': 'text/plain' });
+        res.end('Football Career RPG is starting... Waiting for WhatsApp connection (Pairing/Scanning in progress).');
+    }
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => { console.log(`Server is running on port ${PORT} (Health check active)`); });
@@ -55,10 +62,17 @@ async function connectToWhatsApp() {
         await delay(5000); // Wait a bit more for socket to stabilize
         try {
             const code = await sock.requestPairingCode(phoneNumber.replace(/[^0-9]/g, ''));
-            console.log('==============================================================');
-            console.log('VOTRE CODE DE PAIRAGE :');
-            console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
-            console.log('==============================================================');
+            console.log('\n\n\n');
+            console.log('##############################################################');
+            console.log('##############################################################');
+            console.log('##                                                          ##');
+            console.log('##               VOTRE CODE DE PAIRAGE WHATSAPP             ##');
+            console.log('##                                                          ##');
+            console.log(`##               ➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️               ##`);
+            console.log('##                                                          ##');
+            console.log('##############################################################');
+            console.log('##############################################################');
+            console.log('\n\n\n');
         } catch (e) {
             console.error('[BOT] Échec de la demande de code de pairage:', e.message);
             console.log('Assurez-vous que le numéro est au format international (ex: 33612345678)');
@@ -73,8 +87,10 @@ async function connectToWhatsApp() {
     if (connection === 'close') {
       const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
       if (shouldReconnect) connectToWhatsApp();
+      isBotConnected = false;
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp (Football Career RPG)');
+      isBotConnected = true;
     }
   });
 

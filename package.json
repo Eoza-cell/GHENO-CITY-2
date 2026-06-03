@@ -22,7 +22,7 @@
   "dependencies": {
     "@heyputer/puter.js": "^2.3.2",
     "@qvac/sdk": "^0.12.1",
-    "@whiskeysockets/baileys": "^7.0.0-rc10",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "axios": "^1.13.2",
     "canvas": "^3.2.3",
     "dotenv": "^17.2.3",
