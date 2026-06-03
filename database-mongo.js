@@ -82,7 +82,11 @@ const RPMessage = mongoose.model('RPMessage', rpMessageSchema);
 const Creds = mongoose.model('Creds', credsSchema);
 
 async function setupDatabase() {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://Yun:fThRV6QFJ3FQRRIe@cluster0.0ysskom.mongodb.net/?appName=Cluster0';
+    const mongoUri = process.env.MONGODB_URI;
+    if (!mongoUri) {
+        console.warn('⚠️ MONGODB_URI non configurée. La persistence MongoDB est désactivée.');
+        return;
+    }
     try {
         await mongoose.connect(mongoUri);
         console.log('Connected to MongoDB');

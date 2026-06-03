@@ -5,6 +5,7 @@ const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const { setupDatabase, Player, RPMessage } = require('./database');
+const mongoDB = require('./database-mongo');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { updateChrono } = require('./chrono-utils');
@@ -18,6 +19,7 @@ let serverStarted = false;
 
 async function connectToWhatsApp() {
   await setupDatabase();
+  await mongoDB.setupDatabase();
   const { state, saveCreds } = await useDatabaseAuth();
   const { version } = await fetchLatestBaileysVersion();
 

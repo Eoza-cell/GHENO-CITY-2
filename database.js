@@ -1,10 +1,23 @@
 const { Sequelize, DataTypes } = require('sequelize');
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: 'gheno-football-career.sqlite',
-  logging: false,
-});
+// Use Postgres if DATABASE_URL is provided, otherwise SQLite
+const sequelize = process.env.DATABASE_URL
+  ? new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'postgres',
+      protocol: 'postgres',
+      dialectOptions: {
+          ssl: {
+              require: true,
+              rejectUnauthorized: false
+          }
+      },
+      logging: false
+    })
+  : new Sequelize({
+      dialect: 'sqlite',
+      storage: 'gheno-football-career.sqlite',
+      logging: false,
+    });
 
 const Creds = sequelize.define('Creds', {
   key: { type: DataTypes.STRING, primaryKey: true },

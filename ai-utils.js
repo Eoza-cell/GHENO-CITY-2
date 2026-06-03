@@ -1,5 +1,7 @@
 const axios = require('axios');
+const qvac = require("@qvac/sdk");
 let puter = null;
+let qvacModelId = null;
 
 function initPuter() {
     if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
@@ -16,7 +18,7 @@ function initPuter() {
 
 /**
  * Calls the best available AI provider.
- * Priority: Puter.js -> OpenRouter -> Pollinations.ai
+ * Priority: Puter.js -> QVAC -> OpenRouter -> Pollinations.ai
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 3) {
@@ -65,7 +67,34 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    // 2. Try OpenRouter (Free model requested)
+    // 2. Try QVAC (Local/P2P Inference)
+    try {
+        if (!qvacModelId) {
+            console.log("[AI] Chargement du modèle QVAC (Llama 3.2 1B)...");
+            qvacModelId = await qvac.loadModel({
+                modelSrc: qvac.LLAMA_3_2_1B_INST_Q4_0,
+                modelType: "llm"
+            });
+        }
+
+        console.log("[AI] Tentative avec QVAC...");
+        const history = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+        ];
+
+        let fullText = "";
+        const stream = qvac.completion({ modelId: qvacModelId, history, stream: true });
+        for await (const token of stream.tokenStream) {
+            fullText += token;
+        }
+
+        if (fullText.trim()) return fullText.trim();
+    } catch (error) {
+        console.error("[AI] Erreur QVAC:", error.message);
+    }
+
+    // 3. Try OpenRouter (Free model requested)
     if (process.env.OPENROUTER_API_KEY) {
         try {
             console.log("[AI] Tentative avec OpenRouter (GPT-OSS 20B)...");
