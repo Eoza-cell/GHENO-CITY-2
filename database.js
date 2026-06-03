@@ -21,7 +21,7 @@ const sequelize = process.env.DATABASE_URL
 
 const Creds = sequelize.define('Creds', {
   key: { type: DataTypes.STRING, primaryKey: true },
-  value: { type: DataTypes.TEXT },
+  value: { type: DataTypes.TEXT('long') },
 });
 
 const Player = sequelize.define('Player', {

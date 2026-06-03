@@ -56,11 +56,11 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false,
+    printQRInTerminal: true,
     version,
     logger: pino({ level: 'silent' }),
     getMessage: async key => ({ conversation: '...' }),
-    browser: ["Linux", "Chrome", "120.0.0.0"]
+    browser: ["Ubuntu", "Chrome", "20.0.04"]
   });
 
   console.log(`[BOT] Statut d'enregistrement : ${sock.authState.creds.registered ? '✅ Enregistré' : '❌ Non enregistré'}`);
@@ -69,7 +69,7 @@ async function connectToWhatsApp() {
     const phoneNumber = process.env.PHONE_NUMBER;
     if (phoneNumber) {
         console.log(`[BOT] Demande de code de pairage pour : ${phoneNumber}`);
-        await delay(7000); // Wait a bit more for socket to stabilize
+        await delay(10000); // Increased delay for better stability
         try {
             const code = await sock.requestPairingCode(phoneNumber.replace(/[^0-9]/g, ''));
             pairingCode = code?.match(/.{1,4}/g)?.join('-') || code;
