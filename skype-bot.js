@@ -18,10 +18,12 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     if (isBotConnected) {
         res.writeHead(200);
-        res.end('<h1>⚽ Football Career RPG</h1><p>Status: ✅ Connecté à WhatsApp.</p>');
+        res.end('<html><head><title>Bot Connected</title></head><body><h1>⚽ Football Career RPG</h1><p>Status: ✅ Connecté à WhatsApp.</p></body></html>');
     } else {
-        res.writeHead(503);
-        let message = '<h1>⚽ Football Career RPG</h1><p>Status: ⏳ En attente de connexion...</p>';
+        res.writeHead(503); // Use 503 to signal "not ready" to deployment platforms like Render
+        let message = '<html><head><title>Bot Pairing</title><meta http-equiv="refresh" content="30"></head><body>';
+        message += '<h1>⚽ Football Career RPG</h1><p>Status: ⏳ En attente de connexion...</p>';
+        message += '<p style="color:red;">⚠️ LE DÉPLOIEMENT NE TERMINERA PAS TANT QUE VOUS N\'AVEZ PAS SCANNÉ/PAIRÉ.</p>';
 
         if (lastQR) {
             const qrImage = await QRCode.toDataURL(lastQR);

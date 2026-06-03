@@ -1,5 +1,0 @@
-
-> app@1.0.0 start
-> node skype-bot.js
-
-[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
