@@ -33,6 +33,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'Aucune',
   },
+  family: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucune',
+  },
   skillPoints: {
       type: DataTypes.INTEGER,
       defaultValue: 0,
@@ -1066,6 +1070,15 @@ async function setupDatabase() {
             { name: 'Fireball', description: 'Projette une boule de feu explosive.', type: 'spell', manaCost: 30, statBonuses: { intelligence: 10 } },
             { name: 'Healing Breeze', description: 'Un vent doux qui soigne les blessures légères.', type: 'spell', manaCost: 25 },
             { name: 'Ice Spikes', description: 'Fait jaillir des pics de glace du sol.', type: 'spell', manaCost: 35, statBonuses: { intelligence: 12 } },
+            // Techniques d'Aura
+            { name: 'Aura de Bravoure', description: 'Une aura rouge augmentant la force de frappe.', type: 'aura', manaCost: 40, statBonuses: { strength: 15 } },
+            { name: 'Aura de Gardien', description: 'Une aura dorée renforçant la défense.', type: 'aura', manaCost: 40, statBonuses: { defense: 15 } },
+            { name: 'Aura de Célérité', description: 'Une aura verte décuplant la vitesse.', type: 'aura', manaCost: 40, statBonuses: { agility: 15 } },
+            { name: 'Aura de Mana', description: 'Une aura bleue augmentant la régénération et la puissance magique.', type: 'aura', manaCost: 40, statBonuses: { intelligence: 15 } },
+            // Techniques de Magie Avancées
+            { name: 'Éclair Enchaîné', description: 'Un sort de foudre bondissant entre les ennemis.', type: 'spell', manaCost: 50, statBonuses: { intelligence: 20 } },
+            { name: 'Trou Noir', description: 'Crée un vide attirant et écrasant tout à proximité.', type: 'spell', manaCost: 80, statBonuses: { intelligence: 30 } },
+            { name: 'Invocation de Golem', description: 'Invoque un protecteur de pierre massif.', type: 'spell', manaCost: 100 },
             // Passifs
             { name: 'Regen', description: 'Restaure lentement la santé au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
             { name: 'Senseur de Mana', description: 'Permet de détecter les créatures magiques à proximité.', type: 'passive', statBonuses: { intelligence: 15 } },

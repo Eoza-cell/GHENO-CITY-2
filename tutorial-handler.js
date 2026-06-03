@@ -32,22 +32,67 @@ async function handleTutorialAction(sock, message, player, actionText) {
     if (player.tutorialStep === 1) {
         // Class selection logic
         const lowerAction = actionText.toLowerCase();
-        let chosenClass = null;
+        const classes = {
+            'guerrier': 'Guerrier',
+            'mage': 'Mage',
+            'assassin': 'Assassin',
+            'archer': 'Archer',
+            'prêtre': 'Prêtre',
+            'moine': 'Moine',
+            'paladin': 'Paladin',
+            'invocateur': 'Invocateur',
+            'nécromancien': 'Nécromancien',
+            'samouraï': 'Samouraï',
+            'chevalier-dragon': 'Chevalier-Dragon',
+            'alchimiste': 'Alchimiste',
+            'barde': 'Barde'
+        };
 
-        if (lowerAction.includes('guerrier')) chosenClass = 'Guerrier';
-        else if (lowerAction.includes('mage')) chosenClass = 'Mage';
-        else if (lowerAction.includes('assassin')) chosenClass = 'Assassin';
+        let chosenClass = null;
+        for (const [key, value] of Object.entries(classes)) {
+            if (lowerAction.includes(key)) {
+                chosenClass = value;
+                break;
+            }
+        }
 
         if (chosenClass) {
+            // Family "Gacha"
+            const roll = Math.random() * 100;
+            let family = "Sans Famille";
+            let familyBonus = { strength: 0, agility: 0, intelligence: 0, luck: 0, defense: 0 };
+
+            if (roll < 1) { // 1% Noble Suprême
+                family = "Famille Royale d'Elion";
+                familyBonus = { strength: 20, agility: 20, intelligence: 20, luck: 20, defense: 20 };
+            } else if (roll < 11) { // 10% Famille Noble
+                family = "Maison de la Lame d'Argent";
+                familyBonus = { strength: 10, agility: 10, intelligence: 10, luck: 10, defense: 10 };
+            } else if (roll < 36) { // 25% Famille Connue
+                family = "Clan des Loups d'Acier";
+                familyBonus = { strength: 5, agility: 5, intelligence: 5, luck: 5, defense: 5 };
+            }
+
             await player.update({
                 class: chosenClass,
+                family: family,
                 tutorialStep: 2,
-                strength: chosenClass === 'Guerrier' ? 20 : 10,
-                intelligence: chosenClass === 'Mage' ? 20 : 10,
-                agility: chosenClass === 'Assassin' ? 20 : 10
+                strength: (chosenClass === 'Guerrier' || chosenClass === 'Paladin' || chosenClass === 'Samouraï') ? 20 + familyBonus.strength : 10 + familyBonus.strength,
+                intelligence: (chosenClass === 'Mage' || chosenClass === 'Invocateur' || chosenClass === 'Nécromancien' || chosenClass === 'Alchimiste') ? 20 + familyBonus.intelligence : 10 + familyBonus.intelligence,
+                agility: (chosenClass === 'Assassin' || chosenClass === 'Archer' || chosenClass === 'Moine') ? 20 + familyBonus.agility : 10 + familyBonus.agility,
+                luck: 5 + familyBonus.luck,
+                defense: 10 + familyBonus.defense
             });
 
-            const nextText = `Instructeur : 'Un ${chosenClass}, hein ? *DODODO!* Un choix qui en dit long sur ton tempérament. Passons maintenant à la destruction !'\n\n` +
+            let nextText = `Instructeur : 'Un ${chosenClass}, hein ? *DODODO!* Un choix qui en dit long sur ton tempérament.\n\n`;
+
+            if (family !== "Sans Famille") {
+                nextText += `Tiens... ce sceau sur ton épaule... Tu appartiens à la **${family}** ! Ton sang est porteur d'une puissance latente incroyable...'\n\n`;
+            } else {
+                nextText += `Tu n'as peut-être pas de nom illustre, mais ta volonté semble d'acier.'\n\n`;
+            }
+
+            nextText += "Passons maintenant à la destruction !\n\n" +
                              "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre.\n\n" +
                              "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
                              "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
@@ -64,7 +109,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             }
             return;
         } else {
-            await sock.sendMessage(jid, { text: "Instructeur : 'Concentrate-toi ! Tu dois choisir une classe : Guerrier, Mage ou Assassin.'" });
+            await sock.sendMessage(jid, { text: "Instructeur : 'Concentrate-toi ! Tu dois choisir une classe parmi les 13 disponibles (Guerrier, Mage, Assassin, Archer, Prêtre, Moine, Paladin, Invocateur, Nécromancien, Samouraï, Chevalier-Dragon, Alchimiste, Barde).'" });
             return;
         }
     }

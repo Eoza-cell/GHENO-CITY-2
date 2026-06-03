@@ -155,6 +155,7 @@ const profileCommand = async (sock, message) => {
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *JOUEUR:* ${player.name}\n` +
+                          `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
                           `🎖️ *RANG:* ${player.rank}\n` +
                           `📊 *NIVEAU:* ${player.level}\n\n` +
@@ -184,6 +185,7 @@ const profileCommand = async (sock, message) => {
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *JOUEUR:* ${player.name}\n` +
+                          `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
                           `🎖️ *RANG:* ${player.rank}\n` +
                           `📊 *NIVEAU:* ${player.level}\n\n` +
@@ -230,6 +232,7 @@ commands.set('inspecter', async (sock, message) => {
     const xpBar = createStatusBar(targetPlayer.xp, xpNeeded);
 
     const profileText = `--- 🔍 INSPECTION - ${targetPlayer.name} --- \n\n` +
+                        `👪 *FAMILLE:* ${targetPlayer.family}\n` +
                         `🎭 *CLASSE:* ${targetPlayer.class}\n` +
                         `🎖️ *RANG:* ${targetPlayer.rank}\n` +
                         `📊 *NIVEAU:* ${targetPlayer.level}\n\n` +
@@ -367,6 +370,7 @@ commands.set('joueurs', async (sock, message) => {
     let playersText = `--- 👥 AVENTURIERS À PROXIMITÉ --- \n\n`;
     otherPlayers.forEach(p => {
         playersText += `*${p.name}*\n`;
+        playersText += `├ 👪 Famille: ${p.family}\n`;
         playersText += `├ 🎭 Classe: ${p.class} | 📊 Niveau: ${p.level}\n`;
         playersText += `├ 🎖️ Rang: ${p.rank}\n`;
         playersText += `└ 📜 Bio: ${p.characterDescription || '...'}\n\n`;

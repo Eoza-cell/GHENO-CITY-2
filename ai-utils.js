@@ -23,11 +23,11 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     const providers = [];
 
-    // Priority: OpenRouter (if key exists) -> Puter -> Pollinations
+    // Priority: Puter -> OpenRouter -> Pollinations
+    providers.push({ name: 'Puter', fn: callPuter });
     if (process.env.OPENROUTER_API_KEY) {
         providers.push({ name: 'OpenRouter', fn: callOpenRouter });
     }
-    providers.push({ name: 'Puter', fn: callPuter });
     providers.push({ name: 'Pollinations', fn: callPollinations });
 
     for (const provider of providers) {
@@ -81,7 +81,7 @@ async function callPuter(systemPrompt, userPrompt) {
     if (!puterInstance) return null;
 
     const puterPromise = puterInstance.ai.chat(
-        "claude-3-5-sonnet",
+        "gpt-4o",
         {
             system: systemPrompt,
             prompt: userPrompt,

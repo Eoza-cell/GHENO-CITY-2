@@ -10,6 +10,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const playerState = `
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
     - Description: ${player.characterDescription}
+    - Famille: ${player.family}
     - Classe: ${player.class}
     - Points de Compétence (SP): ${player.skillPoints}
     - Rang: ${player.rank}
@@ -148,6 +149,12 @@ async function handleFreeAction(sock, message, player, actionText) {
     **ATMOSPHÈRE SOMBRE & RÉALISME BRUT**:
     - Le monde est dangereux et impitoyable.
     - **INTERACTIONS**: Les PNJ sont des individus avec leurs propres buts. Le "Fan Service" (Tsundere, etc.) doit rester intégré naturellement dans une réalité brutale.
+
+    **SYSTÈMES DE PUISSANCE**:
+    - **FAMILLES**: Les joueurs peuvent appartenir à des familles nobles ou connues. Cela influence leur prestige et leurs interactions.
+    - **AURA**: Les techniques d'aura enveloppent l'utilisateur d'une énergie colorée, augmentant ses capacités physiques ou magiques.
+    - **MAGIE**: Des sorts puissants allant de la simple flèche de mana à des manipulations de l'espace-temps.
+    - **DÉRIVÉS DE CLASSE**: Encourage les joueurs à développer leur propre style. Un Guerrier peut devenir un "Berserker de Sang" ou un "Lame-Tempête" selon sa façon de jouer.
 
     LORE D'AETHERYS:
     - Esthétique: Un mélange de technologie moderne (le "Gheno Phone" servant d'interface, écrans de mana, néons magiques, véhicules à mana) et de fantasy médiévale.
