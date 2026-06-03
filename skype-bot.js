@@ -37,7 +37,7 @@ async function connectToWhatsApp() {
         const code = await sock.requestPairingCode(phoneNumber);
         console.log('==============================================================');
         console.log('Votre code de pairage :');
-        console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
+        console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅&lt;⬅️`);
         console.log('==============================================================');
     }
   }
