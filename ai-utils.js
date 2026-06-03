@@ -50,8 +50,12 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             }
 
             // Robust extraction of the content
+            if (response?.error || response?.code === 'token_missing') {
+                throw new Error(response.message || "Puter Token Error");
+            }
             if (typeof response === 'string') return response;
             if (response?.message?.content?.[0]?.text) return response.message.content[0].text;
+            if (response?.message?.content) return response.message.content;
             if (response?.text) return response.text;
 
             return response.toString();
