@@ -4,7 +4,7 @@ const { getContentType, delay, downloadMediaMessage, makeWASocket, fetchLatestBa
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
-const { setupDatabase, Player } = require('./database');
+const { setupDatabase, Player, RPMessage } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { updateChrono } = require('./chrono-utils');

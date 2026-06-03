@@ -1,5 +1,4 @@
-const { createCanvas, loadImage } = require('canvas');
-const { Player, Club } = require('./database');
+const { createCanvas } = require('canvas');
 
 /**
  * Generates a tactical board image showing the player's position in the team.
@@ -10,7 +9,7 @@ async function generateFormationImage(player) {
     const ctx = canvas.getContext('2d');
 
     // Draw Pitch
-    ctx.fillStyle = '#2e7d32'; // Green
+    ctx.fillStyle = '#1b5e20'; // Dark Green
     ctx.fillRect(0, 0, 800, 1000);
 
     ctx.strokeStyle = '#ffffff';
@@ -28,7 +27,7 @@ async function generateFormationImage(player) {
     ctx.arc(400, 500, 100, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Player Mapping (simplified 4-3-3 for this example)
+    // Player Mapping (simplified 4-3-3)
     const positions = {
         'GK': { x: 400, y: 880 },
         'DEF': { x: 200, y: 700 },
@@ -68,4 +67,4 @@ async function generateFormationImage(player) {
     return canvas.toBuffer('image/jpeg');
 }
 
-module.exports = { generateFormationImage };
+module.exports = { generateFormationImage, generateTeamImage: generateFormationImage };

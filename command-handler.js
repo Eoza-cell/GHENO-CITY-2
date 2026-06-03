@@ -37,10 +37,6 @@ commands.set('start', async (sock, message) => {
 
 // Command: /menu
 commands.set('menu', async (sock, message) => {
-    const jid = getJid(message);
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (!player) return;
-
     const menuText = `⚽ *FOOTBALL CAREER MENU* ⚽\n\n` +
                      `👤 /profil - Dossier & Stats.\n` +
                      `🌍 /monde - Exploration & Monde Ouvert.\n` +

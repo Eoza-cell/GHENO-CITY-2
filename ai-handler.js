@@ -5,15 +5,16 @@ const { callAI } = require('./ai-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
+  const playerWhatsappId = player.whatsappId;
 
-  // 1. Save user action to history IMMEDIATELY (Isolated by JID)
-  await RPMessage.create({ senderJid: jid, senderName: player.name, content: actionText });
+  // 1. Save user action to history (Isolated by User)
+  await RPMessage.create({ senderJid: playerWhatsappId, senderName: player.name, content: actionText });
 
-  // 2. Fetch history (Isolated by JID)
+  // 2. Fetch history (Inclusive of group context if applicable)
   const history = await RPMessage.findAll({
-    where: { senderJid: jid },
+    where: { [Op.or]: [{ senderJid: playerWhatsappId }, { senderJid: jid }] },
     order: [['id', 'DESC']],
-    limit: 12
+    limit: 15
   });
 
   const currentClub = await Club.findByPk(player.currentClubId);
@@ -23,31 +24,27 @@ async function handleFreeAction(sock, message, player, actionText) {
       limit: 5
   });
 
-  const remainingTime = player.matchEndTime ? Math.max(0, Math.round((player.matchEndTime - new Date()) / 1000)) : 0;
-  const minutes = Math.floor(remainingTime / 60);
-  const seconds = remainingTime % 60;
-  const timeStr = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-
   const systemPrompt = `
     Tu es le MJ expert de "FOOTBALL CAREER PRO".
 
     TON RÔLE:
     - Agis comme Coach, Arbitre et coéquipiers/adversaires.
     - ÉQUILIBRE: Utilise le dé d'action (1-20). 1 = Échec, 20 = Exploit.
+    - IA PRIORITAIRE: Claude 3.5 Sonnet.
 
     RESPONSABILITÉS MJ:
     1. GESTION DU LIEU: Si le joueur veut bouger, utilise l'action JSON "update_location".
-    2. DÉCLENCHEMENT DE MATCH: Si le joueur est au "Stade" ou centre d'entraînement, déclenche un match.
-    3. SIMULATION DE MATCH: Si le joueur demande à "passer le match" ou "simuler", utilise l'action "skip_match".
-    4. CONTRATS: Génère des offres de clubs prestigieux (PSG, Barça, Man Utd) si le joueur brille.
+    2. DÉCLENCHEMENT DE MATCH: Si le joueur est au "Stade" ou centre d'entraînement, déclenche un match narratif.
+    3. SIMULATION DE MATCH: Si demandé, utilise l'action "skip_match".
+    4. CONTRATS: Génère des offres de clubs (PSG, Barça, Man Utd) si le joueur brille.
 
     INTERFACE RP:
     ⚽ SCORE: [Équipe A] [n] - [n] [Équipe B]
-    ⏳ TEMPS RP: [min]' | IRL: ${timeStr}
+    ⏳ TEMPS RP: [min]'
     📍 LIEU: ${player.location} (${player.city})
     🔋 STAMINA: [▰▰▰▱▱] (${player.stamina}/100)
 
-    ACTIONS JSON (STRICTEMENT REQUISES SI NÉCESSAIRE):
+    ACTIONS JSON POSSIBLES:
     - {"type": "update_stats", "parameters": {"shoot_change": n, "money_change": n, "xp_change": n, "fame_change": n, "stamina_change": n}}
     - {"type": "update_location", "parameters": {"location": "...", "city": "...", "country": "..."}}
     - {"type": "skip_match", "parameters": {"score": "n-n", "goals": n, "assists": n, "rating": n}}
@@ -71,11 +68,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
-    const diceRoll = Math.floor(Math.random() * 20) + 1;
-    const finalPrompt = `${fullPrompt}\n\n🎲 DÉ IMPOSÉ (Caché): ${diceRoll}/20`;
-
     await sendLoadingSequence(sock, jid);
-    const content = await callAI(systemPrompt, finalPrompt);
+    const content = await callAI(systemPrompt, fullPrompt);
 
     let aiResponse = { narrative: content };
     const jsonMatches = content.match(/\{[\s\S]*?\}/g);
@@ -87,7 +81,6 @@ async function handleFreeAction(sock, message, player, actionText) {
                 aiResponse.actions.push(parsed);
                 aiResponse.narrative = aiResponse.narrative.replace(jsonStr, "").trim();
 
-                // Set image prompt if present
                 if (parsed.type === 'visual') {
                     aiResponse.imagePrompt = parsed.parameters.imagePrompt;
                 }
@@ -95,8 +88,8 @@ async function handleFreeAction(sock, message, player, actionText) {
         }
     }
 
-    // Save bot response to history (Isolated)
-    await RPMessage.create({ senderJid: jid, senderName: 'Football MJ', content: aiResponse.narrative });
+    // Save bot response to history
+    await RPMessage.create({ senderJid: playerWhatsappId, senderName: 'Football MJ', content: aiResponse.narrative });
 
     if (aiResponse.actions) {
         for (const action of aiResponse.actions) {
@@ -120,7 +113,7 @@ async function handleFreeAction(sock, message, player, actionText) {
             if (action.type === 'send_offer') {
                 const club = await Club.findOne({ where: { name: { [Op.like]: `%${action.parameters.club_name}%` } } });
                 if (club) {
-                    await ContractOffer.create({ playerWhatsappId: jid, clubId: club.id, salary: action.parameters.salary, jerseyNumber: action.parameters.jersey_number });
+                    await ContractOffer.create({ playerWhatsappId: player.whatsappId, clubId: club.id, salary: action.parameters.salary, jerseyNumber: action.parameters.jersey_number });
                     await sock.sendMessage(jid, { text: `📩 *OFFRE DE CONTRAT : ${club.name}* 📩\nIls te proposent le N° ${action.parameters.jersey_number} ! Tape /contrats pour voir.` });
                 }
             }
@@ -130,8 +123,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     await sendWithImage(sock, jid, aiResponse);
 
   } catch (error) {
-    console.error(error);
-    await sock.sendMessage(jid, { text: "⚠️ Liaison interrompue avec le MJ." });
+    console.error("[MJ ERROR]:", error);
+    try {
+        await sock.sendMessage(jid, { text: "⚠️ *LIAISON MJ INTERROMPUE* : Connexion avec Claude 3.5 instable." });
+    } catch(e) {}
   }
 }
 

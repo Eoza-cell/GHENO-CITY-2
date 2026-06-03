@@ -38,9 +38,6 @@ const Player = sequelize.define('Player', {
   appearanceImageUrl: { type: DataTypes.STRING, allowNull: true },
   currentDay: { type: DataTypes.INTEGER, defaultValue: 1 },
   lastChronoUpdate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-  vehicles: { type: DataTypes.TEXT, defaultValue: '[]', get() { return JSON.parse(this.getDataValue('vehicles') || '[]'); }, set(v) { this.setDataValue('vehicles', JSON.stringify(v)); } },
-  properties: { type: DataTypes.TEXT, defaultValue: '[]', get() { return JSON.parse(this.getDataValue('properties') || '[]'); }, set(v) { this.setDataValue('properties', JSON.stringify(v)); } },
-  matchEndTime: { type: DataTypes.DATE, allowNull: true },
   mode: { type: DataTypes.STRING, defaultValue: 'normal' },
   registrationStep: { type: DataTypes.STRING, allowNull: true },
 });
@@ -124,12 +121,11 @@ async function setupDatabase() {
             { name: 'Harry Kane', role: 'Star', stats: { shoot: 96, pass: 88 } }
         ];
 
-        // Generate up to 110 to be safe
-        for (let i = 0; i < 100; i++) {
+        for (let i = 0; i < 110; i++) {
             const firstNames = ["Luka", "Robert", "Karim", "Antoine", "Toni", "Bernardo", "Ruben", "Rodri", "Alisson", "Thibaut"];
             const lastNames = ["Modric", "Lewandowski", "Benzema", "Griezmann", "Kroos", "Silva", "Dias", "Hernandez", "Becker", "Courtois"];
             const name = i < stars.length ? stars[i].name : `${firstNames[i % 10]} ${lastNames[Math.floor(i / 10) % 10]} ${i}`;
-            await NPC.findOrCreate({ where: { name }, defaults: { role: 'Joueur Pro', stats: JSON.stringify({ shoot: 70 + Math.random() * 20, speed: 70 + Math.random() * 20 }) } });
+            await NPC.findOrCreate({ where: { name }, defaults: { role: 'Joueur Pro', stats: { shoot: 70 + Math.random() * 20, speed: 70 + Math.random() * 20 } } });
         }
     }
   } catch (e) { console.error(e); }
