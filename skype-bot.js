@@ -10,14 +10,24 @@ const { handleCommand, getJid } = require('./command-handler');
 const { updateChrono } = require('./chrono-utils');
 
 let isBotConnected = false;
+let pairingCode = null;
 
 const server = http.createServer((req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     if (isBotConnected) {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Football Career RPG is running and connected to WhatsApp.');
+        res.writeHead(200);
+        res.end('<h1>⚽ Football Career RPG</h1><p>Status: ✅ Connecté à WhatsApp.</p>');
     } else {
-        res.writeHead(503, { 'Content-Type': 'text/plain' });
-        res.end('Football Career RPG is starting... Waiting for WhatsApp connection (Pairing/Scanning in progress).');
+        res.writeHead(503);
+        let message = '<h1>⚽ Football Career RPG</h1><p>Status: ⏳ En attente de connexion...</p>';
+        if (pairingCode) {
+            message += `<p>Veuillez entrer ce code dans WhatsApp (Appareils connectés > Lier un appareil > Lier avec le numéro de téléphone) :</p>
+                        <h2 style="font-family: monospace; background: #eee; padding: 10px; display: inline-block;">${pairingCode}</h2>
+                        <p>Le déploiement se terminera automatiquement une fois lié.</p>`;
+        } else {
+            message += '<p>Génération du code de pairage en cours... Rafraîchissez dans quelques secondes.</p>';
+        }
+        res.end(message);
     }
 });
 const PORT = process.env.PORT || 3000;
@@ -50,7 +60,7 @@ async function connectToWhatsApp() {
     version,
     logger: pino({ level: 'silent' }),
     getMessage: async key => ({ conversation: '...' }),
-    browser: ["Ubuntu", "Chrome", "128.0.6613.86"]
+    browser: ["Linux", "Chrome", "120.0.0.0"]
   });
 
   console.log(`[BOT] Statut d'enregistrement : ${sock.authState.creds.registered ? '✅ Enregistré' : '❌ Non enregistré'}`);
@@ -59,16 +69,17 @@ async function connectToWhatsApp() {
     const phoneNumber = process.env.PHONE_NUMBER;
     if (phoneNumber) {
         console.log(`[BOT] Demande de code de pairage pour : ${phoneNumber}`);
-        await delay(5000); // Wait a bit more for socket to stabilize
+        await delay(7000); // Wait a bit more for socket to stabilize
         try {
             const code = await sock.requestPairingCode(phoneNumber.replace(/[^0-9]/g, ''));
+            pairingCode = code?.match(/.{1,4}/g)?.join('-') || code;
             console.log('\n\n\n');
             console.log('##############################################################');
             console.log('##############################################################');
             console.log('##                                                          ##');
             console.log('##               VOTRE CODE DE PAIRAGE WHATSAPP             ##');
             console.log('##                                                          ##');
-            console.log(`##               ➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️               ##`);
+            console.log(`##               ➡️➡️➡️   ${pairingCode}   ⬅️⬅️⬅️               ##`);
             console.log('##                                                          ##');
             console.log('##############################################################');
             console.log('##############################################################');
