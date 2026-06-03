@@ -23,13 +23,13 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     const providers = [];
 
-    // Priority: Jan AI (Local) -> Ollama (Local) -> OpenRouter (if key exists) -> Puter -> Pollinations
+    // Priority: Puter -> Jan AI (Local) -> Ollama (Local) -> OpenRouter (if key exists) -> Pollinations
+    providers.push({ name: 'Puter', fn: callPuter });
     providers.push({ name: 'Jan AI', fn: callJanAI });
     providers.push({ name: 'Ollama', fn: callOllama });
     if (process.env.OPENROUTER_API_KEY) {
         providers.push({ name: 'OpenRouter', fn: callOpenRouter });
     }
-    providers.push({ name: 'Puter', fn: callPuter });
     providers.push({ name: 'Pollinations', fn: callPollinations });
 
     for (const provider of providers) {
