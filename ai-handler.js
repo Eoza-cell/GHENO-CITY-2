@@ -30,7 +30,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     TON RÔLE:
     - Agis comme Coach, Arbitre et coéquipiers/adversaires.
     - ÉQUILIBRE: Utilise le dé d'action (1-20). 1 = Échec, 20 = Exploit.
-    - IA PRIORITAIRE: Claude 3.5 Sonnet.
+    - IA PRIORITAIRE: GPT-4o (Puter.js).
 
     RESPONSABILITÉS MJ:
     1. GESTION DU LIEU: Si le joueur veut bouger, utilise l'action JSON "update_location".
@@ -125,7 +125,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   } catch (error) {
     console.error("[MJ ERROR]:", error);
     try {
-        await sock.sendMessage(jid, { text: "⚠️ *LIAISON MJ INTERROMPUE* : Connexion avec Claude 3.5 instable." });
+        await sock.sendMessage(jid, { text: "⚠️ *LIAISON MJ INTERROMPUE* : Connexion avec GPT-4o instable." });
     } catch(e) {}
   }
 }
