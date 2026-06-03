@@ -2,7 +2,7 @@ const { Sequelize, DataTypes } = require('sequelize');
 
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: 'gheno-football-career.sqlite',
+  storage: 'gheno-basketball-gacha.sqlite',
   logging: false,
 });
 
@@ -11,68 +11,59 @@ const Creds = sequelize.define('Creds', {
   value: { type: DataTypes.TEXT },
 });
 
-const Player = sequelize.define('Player', {
+const User = sequelize.define('User', {
   whatsappId: { type: DataTypes.STRING, primaryKey: true },
   name: { type: DataTypes.STRING, defaultValue: 'Rookie' },
-  shoot: { type: DataTypes.INTEGER, defaultValue: 40 },
-  pass: { type: DataTypes.INTEGER, defaultValue: 40 },
-  dribble: { type: DataTypes.INTEGER, defaultValue: 40 },
-  defense: { type: DataTypes.INTEGER, defaultValue: 40 },
-  speed: { type: DataTypes.INTEGER, defaultValue: 40 },
-  power: { type: DataTypes.INTEGER, defaultValue: 40 },
-  stamina: { type: DataTypes.INTEGER, defaultValue: 100 },
-  iq: { type: DataTypes.INTEGER, defaultValue: 40 },
-  goalkeeping: { type: DataTypes.INTEGER, defaultValue: 10 },
+  gems: { type: DataTypes.INTEGER, defaultValue: 300 },
   level: { type: DataTypes.INTEGER, defaultValue: 1 },
   xp: { type: DataTypes.INTEGER, defaultValue: 0 },
-  position: { type: DataTypes.STRING, allowNull: true },
-  jerseyNumber: { type: DataTypes.INTEGER, defaultValue: 99 },
-  currentClubId: { type: DataTypes.INTEGER, allowNull: true },
-  nation: { type: DataTypes.STRING, defaultValue: 'France' },
-  salary: { type: DataTypes.INTEGER, defaultValue: 500 },
-  money: { type: DataTypes.INTEGER, defaultValue: 1000 },
   fame: { type: DataTypes.INTEGER, defaultValue: 0 },
-  country: { type: DataTypes.STRING, defaultValue: 'France' },
-  city: { type: DataTypes.STRING, defaultValue: 'Paris' },
-  location: { type: DataTypes.STRING, defaultValue: 'Hôtel' },
-  appearanceImageUrl: { type: DataTypes.STRING, allowNull: true },
-  currentDay: { type: DataTypes.INTEGER, defaultValue: 1 },
-  lastChronoUpdate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-  mode: { type: DataTypes.STRING, defaultValue: 'normal' },
+  mode: { type: DataTypes.STRING, defaultValue: 'normal' }, // normal or action
   registrationStep: { type: DataTypes.STRING, allowNull: true },
+  lastChronoUpdate: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  pendingMatchAction: { type: DataTypes.BOOLEAN, defaultValue: false },
+  lastMatchActionTime: { type: DataTypes.DATE, allowNull: true },
 });
 
-const Club = sequelize.define('Club', {
+const BasketballPlayer = sequelize.define('BasketballPlayer', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING, unique: true },
-  country: { type: DataTypes.STRING },
-  league: { type: DataTypes.STRING },
-  reputation: { type: DataTypes.INTEGER, defaultValue: 50 },
-  formation: { type: DataTypes.STRING, defaultValue: '4-3-3' }
+  rarity: { type: DataTypes.STRING }, // C, B, A, S, SS, ULT
+  type: { type: DataTypes.STRING }, // Base, Prime, Playoff, Legendary, Alternate
+  position: { type: DataTypes.STRING }, // PG, SG, SF, PF, C
+  shoot: { type: DataTypes.INTEGER },
+  layup: { type: DataTypes.INTEGER },
+  dunk: { type: DataTypes.INTEGER },
+  dribble: { type: DataTypes.INTEGER },
+  pass: { type: DataTypes.INTEGER },
+  defense: { type: DataTypes.INTEGER },
+  steal: { type: DataTypes.INTEGER },
+  block: { type: DataTypes.INTEGER },
+  speed: { type: DataTypes.INTEGER },
+  stamina: { type: DataTypes.INTEGER },
+  iq: { type: DataTypes.INTEGER },
+  imageUrl: { type: DataTypes.STRING },
+  signatureSkill: { type: DataTypes.STRING },
+  description: { type: DataTypes.TEXT }
 });
 
-const Trophy = sequelize.define('Trophy', {
+const PlayerCard = sequelize.define('PlayerCard', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  name: { type: DataTypes.STRING },
-  type: { type: DataTypes.STRING },
-  year: { type: DataTypes.INTEGER },
-  playerWhatsappId: { type: DataTypes.STRING }
+  userWhatsappId: { type: DataTypes.STRING },
+  basketballPlayerId: { type: DataTypes.INTEGER },
+  level: { type: DataTypes.INTEGER, defaultValue: 1 },
+  xp: { type: DataTypes.INTEGER, defaultValue: 0 },
+  staminaCurrent: { type: DataTypes.INTEGER, defaultValue: 100 },
+  isLocked: { type: DataTypes.BOOLEAN, defaultValue: false }
 });
 
-const ContractOffer = sequelize.define('ContractOffer', {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    playerWhatsappId: { type: DataTypes.STRING },
-    clubId: { type: DataTypes.INTEGER },
-    salary: { type: DataTypes.INTEGER },
-    jerseyNumber: { type: DataTypes.INTEGER },
-    status: { type: DataTypes.STRING, defaultValue: 'pending' }
-});
-
-const NPC = sequelize.define('NPC', {
-  name: { type: DataTypes.STRING, unique: true },
-  role: { type: DataTypes.STRING },
-  clubId: { type: DataTypes.INTEGER, allowNull: true },
-  stats: { type: DataTypes.TEXT, get() { return JSON.parse(this.getDataValue('stats') || '{}'); }, set(v) { this.setDataValue('stats', JSON.stringify(v)); } }
+const Team = sequelize.define('Team', {
+  userWhatsappId: { type: DataTypes.STRING, primaryKey: true },
+  pgCardId: { type: DataTypes.INTEGER, allowNull: true },
+  sgCardId: { type: DataTypes.INTEGER, allowNull: true },
+  sfCardId: { type: DataTypes.INTEGER, allowNull: true },
+  pfCardId: { type: DataTypes.INTEGER, allowNull: true },
+  cCardId: { type: DataTypes.INTEGER, allowNull: true },
 });
 
 const RPMessage = sequelize.define('RPMessage', {
@@ -82,53 +73,80 @@ const RPMessage = sequelize.define('RPMessage', {
     timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 });
 
-Player.belongsTo(Club, { as: 'currentClub', foreignKey: 'currentClubId' });
-Club.hasMany(Player, { foreignKey: 'currentClubId' });
-ContractOffer.belongsTo(Club, { foreignKey: 'clubId' });
-Player.hasMany(ContractOffer, { foreignKey: 'playerWhatsappId' });
+// Relations
+PlayerCard.belongsTo(User, { foreignKey: 'userWhatsappId' });
+User.hasMany(PlayerCard, { foreignKey: 'userWhatsappId' });
+PlayerCard.belongsTo(BasketballPlayer, { foreignKey: 'basketballPlayerId' });
+Team.belongsTo(User, { foreignKey: 'userWhatsappId' });
 
 async function setupDatabase() {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
 
-    const clubCount = await Club.count();
-    if (clubCount < 5) {
-        await Club.bulkCreate([
-            { name: 'Paris Saint-Germain', country: 'France', league: 'Ligue 1', reputation: 85 },
-            { name: 'FC Barcelone', country: 'Espagne', league: 'La Liga', reputation: 90 },
-            { name: 'Real Madrid', country: 'Espagne', league: 'La Liga', reputation: 95 },
-            { name: 'Manchester United', country: 'Angleterre', league: 'Premier League', reputation: 88 },
-            { name: 'Manchester City', country: 'Angleterre', league: 'Premier League', reputation: 92 },
-            { name: 'Bayern Munich', country: 'Allemagne', league: 'Bundesliga', reputation: 89 },
-            { name: 'AC Milan', country: 'Italie', league: 'Serie A', reputation: 85 },
-            { name: 'Club de Formation', country: 'France', league: 'National', reputation: 20 }
-        ], { ignoreDuplicates: true });
-    }
-
-    const npcCount = await NPC.count();
-    if (npcCount < 100) {
-        const stars = [
-            { name: 'Kylian Mbappé', role: 'Star', stats: { shoot: 92, speed: 99 } },
-            { name: 'Lionel Messi', role: 'Legend', stats: { pass: 99, dribble: 99 } },
-            { name: 'Cristiano Ronaldo', role: 'Legend', stats: { shoot: 95, power: 95 } },
-            { name: 'Neymar Jr', role: 'Star', stats: { dribble: 96, pass: 92 } },
-            { name: 'Erling Haaland', role: 'Star', stats: { shoot: 98, power: 98 } },
-            { name: 'Kevin De Bruyne', role: 'Star', stats: { pass: 99, iq: 98 } },
-            { name: 'Vinícius Júnior', role: 'Star', stats: { speed: 98, dribble: 95 } },
-            { name: 'Jude Bellingham', role: 'Star', stats: { iq: 96, defense: 85 } },
-            { name: 'Mohamed Salah', role: 'Star', stats: { speed: 94, shoot: 90 } },
-            { name: 'Harry Kane', role: 'Star', stats: { shoot: 96, pass: 88 } }
+    const playerCount = await BasketballPlayer.count();
+    if (playerCount < 100) {
+        const initialPlayers = [
+            {
+                name: 'Stephen Curry', rarity: 'SS', type: 'Prime', position: 'PG',
+                shoot: 99, layup: 90, dunk: 65, dribble: 98, pass: 94, defense: 70, steal: 85, block: 40, speed: 88, stamina: 95, iq: 97,
+                signatureSkill: 'Deep Range', imageUrl: 'https://i.imgur.com/uPId3vK.jpeg'
+            },
+            {
+                name: 'LeBron James', rarity: 'ULT', type: 'Legendary', position: 'SF',
+                shoot: 85, layup: 98, dunk: 99, dribble: 90, pass: 97, defense: 90, steal: 80, block: 85, speed: 92, stamina: 98, iq: 99,
+                signatureSkill: 'King Drive', imageUrl: 'https://i.imgur.com/8f8wBvE.jpeg'
+            },
+            {
+                name: 'Kyrie Irving', rarity: 'S', type: 'Base', position: 'PG',
+                shoot: 92, layup: 99, dunk: 70, dribble: 99, pass: 90, defense: 72, steal: 82, block: 45, speed: 94, stamina: 92, iq: 95,
+                signatureSkill: 'Ankle Breaker', imageUrl: 'https://i.imgur.com/1O8z7yA.jpeg'
+            },
+            {
+                name: 'Victor Wembanyama', rarity: 'S', type: 'Base', position: 'C',
+                shoot: 82, layup: 88, dunk: 95, dribble: 80, pass: 78, defense: 98, steal: 85, block: 99, speed: 85, stamina: 90, iq: 92,
+                signatureSkill: 'Alien Wingspan', imageUrl: 'https://i.imgur.com/W2l4v9U.jpeg'
+            },
+            {
+                name: 'Shaquille O\'Neal', rarity: 'ULT', type: 'Legendary', position: 'C',
+                shoot: 30, layup: 95, dunk: 99, dribble: 60, pass: 70, defense: 95, steal: 60, block: 98, speed: 75, stamina: 90, iq: 88,
+                signatureSkill: 'Diesel Power', imageUrl: 'https://i.imgur.com/Q9E1K7v.jpeg'
+            },
+            {
+                name: 'Kobe Bryant', rarity: 'ULT', type: 'Legendary', position: 'SG',
+                shoot: 95, layup: 96, dunk: 94, dribble: 94, pass: 88, defense: 96, steal: 88, block: 70, speed: 92, stamina: 99, iq: 98,
+                signatureSkill: 'Mamba Mentality', imageUrl: 'https://i.imgur.com/9K6L6E2.jpeg'
+            },
+            {
+                name: 'Michael Jordan', rarity: 'ULT', type: 'Legendary', position: 'SG',
+                shoot: 94, layup: 99, dunk: 99, dribble: 95, pass: 90, defense: 99, steal: 99, block: 85, speed: 98, stamina: 99, iq: 99,
+                signatureSkill: 'Air Walk', imageUrl: 'https://i.imgur.com/L1N7n9Y.jpeg'
+            }
         ];
 
-        for (let i = 0; i < 110; i++) {
-            const firstNames = ["Luka", "Robert", "Karim", "Antoine", "Toni", "Bernardo", "Ruben", "Rodri", "Alisson", "Thibaut"];
-            const lastNames = ["Modric", "Lewandowski", "Benzema", "Griezmann", "Kroos", "Silva", "Dias", "Hernandez", "Becker", "Courtois"];
-            const name = i < stars.length ? stars[i].name : `${firstNames[i % 10]} ${lastNames[Math.floor(i / 10) % 10]} ${i}`;
-            await NPC.findOrCreate({ where: { name }, defaults: { role: 'Joueur Pro', stats: { shoot: 70 + Math.random() * 20, speed: 70 + Math.random() * 20 } } });
+        for (const p of initialPlayers) {
+            await BasketballPlayer.findOrCreate({ where: { name: p.name }, defaults: p });
+        }
+
+        // Fill remaining up to 100 with procedural/basic players
+        const names = ["Luka Doncic", "Giannis Antetokounmpo", "Kevin Durant", "Nikola Jokic", "Joel Embiid", "Jayson Tatum", "Ja Morant", "Zion Williamson", "Shai Gilgeous-Alexander", "Devin Booker"];
+        for (let i = 0; i < 93; i++) {
+            const baseName = names[i % names.length];
+            const name = `${baseName} ${Math.floor(i / names.length) + 1}`;
+            const rarity = i % 20 === 0 ? 'S' : (i % 10 === 0 ? 'A' : (i % 5 === 0 ? 'B' : 'C'));
+            await BasketballPlayer.findOrCreate({
+                where: { name },
+                defaults: {
+                    name, rarity, type: 'Base', position: ['PG', 'SG', 'SF', 'PF', 'C'][i % 5],
+                    shoot: 40 + Math.random() * 40, layup: 40 + Math.random() * 40, dunk: 40 + Math.random() * 40,
+                    dribble: 40 + Math.random() * 40, pass: 40 + Math.random() * 40, defense: 40 + Math.random() * 40,
+                    steal: 40 + Math.random() * 40, block: 40 + Math.random() * 40, speed: 40 + Math.random() * 40,
+                    stamina: 80, iq: 70, signatureSkill: 'Standard', imageUrl: 'https://via.placeholder.com/500'
+                }
+            });
         }
     }
   } catch (e) { console.error(e); }
 }
 
-module.exports = { sequelize, Player, Club, Trophy, ContractOffer, NPC, RPMessage, Creds, setupDatabase };
+module.exports = { sequelize, User, BasketballPlayer, PlayerCard, Team, RPMessage, Creds, setupDatabase };

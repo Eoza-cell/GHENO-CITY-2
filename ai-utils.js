@@ -28,14 +28,16 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         try {
             console.log("[AI] Tentative avec Puter.js (Claude 3.5 Sonnet)...");
 
-            // Promise wrapper with timeout for Puter.js (Using GPT-4o as suggested by the tutorial link)
-            const puterPromise = puterInstance.ai.chat(
-                `System: ${systemPrompt}\n\nUser: ${userPrompt}`,
-                {
-                    model: "gpt-4o",
-                    stream: false,
-                }
-            );
+            // Use the standard message array format for Puter.js
+            const messages = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ];
+
+            const puterPromise = puterInstance.ai.chat(messages, {
+                model: "gpt-4o",
+                stream: false,
+            });
 
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Puter.js Timeout (30s)")), 30000)

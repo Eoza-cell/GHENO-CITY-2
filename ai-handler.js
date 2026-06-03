@@ -1,70 +1,75 @@
-const { Player, Club, NPC, RPMessage, ContractOffer, sequelize } = require('./database');
+const { User, Team, PlayerCard, BasketballPlayer, RPMessage, sequelize } = require('./database');
 const { sendWithImage, sendLoadingSequence } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 
-async function handleFreeAction(sock, message, player, actionText) {
+async function handleFreeAction(sock, message, user, actionText) {
   const jid = message.key.remoteJid;
-  const playerWhatsappId = player.whatsappId;
+  const userWhatsappId = user.whatsappId;
 
   // 1. Save user action to history
-  await RPMessage.create({ senderJid: playerWhatsappId, senderName: player.name, content: actionText });
+  await RPMessage.create({ senderJid: userWhatsappId, senderName: user.name, content: actionText });
 
   // 2. Fetch history
   const history = await RPMessage.findAll({
-    where: { [Op.or]: [{ senderJid: playerWhatsappId }, { senderJid: jid }] },
+    where: { [Op.or]: [{ senderJid: userWhatsappId }, { senderJid: jid }] },
     order: [['id', 'DESC']],
     limit: 15
   });
 
-  const currentClub = await Club.findByPk(player.currentClubId);
-
-  const nearbyPlayers = await Player.findAll({
-      where: { location: player.location, country: player.country, whatsappId: { [Op.ne]: player.whatsappId } },
-      limit: 5
+  // 3. Fetch Team info
+  const team = await Team.findOne({ where: { userWhatsappId: user.whatsappId } });
+  const cardIds = [team.pgCardId, team.sgCardId, team.sfCardId, team.pfCardId, team.cCardId].filter(id => id !== null);
+  const cards = await PlayerCard.findAll({
+      where: { id: { [Op.in]: cardIds } },
+      include: [BasketballPlayer]
   });
 
+  const teamDescription = cards.map(c => {
+      const p = c.BasketballPlayer;
+      return `${p.position}: ${p.name} (Rarity: ${p.rarity}, Shoot: ${p.shoot}, Defense: ${p.defense}, Stamina: ${c.staminaCurrent}/100)`;
+  }).join('\n');
+
   const systemPrompt = `
-    Tu es le MJ expert de "FOOTBALL CAREER PRO".
+    Tu es le MJ expert de "BASKETBALL GACHA RP".
 
     TON RÔLE:
-    - Agis comme Coach, Arbitre et coéquipiers/adversaires.
-    - ÉQUILIBRE: Utilise le dé d'action (1-20). 1 = Échec, 20 = Exploit.
-    - IA PRIORITAIRE: Puter.js (GPT-4o).
+    - Arbitre, Commentateur et IA des adversaires.
+    - ÉQUILIBRE: Utilise les statistiques des cartes pour résoudre les actions.
+    - SYSTÈME: 5v5, 4 quart-temps, chrono RP (1 tour = 3-5 sec).
 
-    RESPONSABILITÉS MJ:
-    1. GESTION DU LIEU: Si le joueur veut bouger, utilise l'action JSON "update_location".
-    2. DÉCLENCHEMENT DE MATCH: Si le joueur est au "Stade" ou centre d'entraînement, déclenche un match narratif.
-    3. SIMULATION DE MATCH: Si demandé, utilise l'action "skip_match".
-    4. CONTRATS: Génère des offres de clubs (PSG, Barça, Man Utd) si le joueur brille.
+    RÈGLES DU JEU:
+    1. FLOW: Si un joueur domine (stats > adversaire + dé chance), active le 🔥 FLOW.
+    2. STAMINA: Chaque action consomme de l'énergie (-10% sprint, -15% iso, -20% dunk). Moins d'énergie = moins de précision.
+    3. DISTANCE: Respecte les positions (Zones: Raquette, Corner, Aile, Top key, Mid-range).
+    4. FOULS:Reach-in, Blocking, Charge, Shooting foul. 6 fautes = exclusion.
+    5. CLUTCH: En fin de match, active le ⏳ CLUTCH TIME (boost stats joueurs clutch).
 
-    INTERFACE RP:
-    ⚽ SCORE: [Équipe A] [n] - [n] [Équipe B]
-    ⏳ TEMPS RP: [min]'
-    📍 LIEU: ${player.location} (${player.city})
-    🔋 STAMINA: [▰▰▰▱▱] (${player.stamina}/100)
+    PVP & ARBITRAGE:
+    - Si l'action manque de précision, agis comme arbitre neutre.
+    - En cas de conflit entre joueurs, tag le joueur concerné (@jid) et laisse 5 min pour répondre avant de donner un verdict basé sur les stats.
+
+    INTERFACE RP OBLIGATOIRE:
+    🏀 SCORE: [Équipe A] [n] - [n] [Équipe B]
+    ⏳ [QT] - [TEMPS]
+    🔥 Momentum: [Équipe] +n%
+    🔋 Energy: [Nom] [▰▰▰▱▱] (n/100)
 
     ACTIONS JSON POSSIBLES:
-    - {"type": "update_stats", "parameters": {"shoot_change": n, "money_change": n, "xp_change": n, "fame_change": n, "stamina_change": n}}
-    - {"type": "update_location", "parameters": {"location": "...", "city": "...", "country": "..."}}
-    - {"type": "skip_match", "parameters": {"score": "n-n", "goals": n, "assists": n, "rating": n}}
-    - {"type": "send_offer", "parameters": {"club_name": "...", "salary": n, "jersey_number": n}}
+    - {"type": "update_player_card", "parameters": {"cardId": n, "stamina_change": n, "xp_change": n}}
+    - {"type": "update_user", "parameters": {"gems_change": n, "xp_change": n, "fame_change": n}}
     - {"type": "visual", "parameters": {"imagePrompt": "..."}}
   `;
 
-  const matesInfo = nearbyPlayers.map(m => `${m.name} (@${m.whatsappId.split('@')[0]})`).join(', ');
-
   const fullPrompt = `
-    JOUEUR: ${player.name} | CLUB: ${currentClub?.name || 'Libre'}
-    LOCATION: ${player.location} | VILLE: ${player.city} | PAYS: ${player.country}
-    STATS: Tir:${player.shoot}, Passe:${player.pass}, Dribble:${player.dribble}, Défense:${player.defense}, Vitesse:${player.speed}
-
-    JOUEURS PROCHES: ${matesInfo || 'Seul'}
+    MANAGER: ${user.name} | NIVEAU: ${user.level}
+    ÉQUIPE ACTUELLE:
+    ${teamDescription}
 
     HISTORIQUE RÉCENT:
     ${history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')}
 
-    ACTION: ${actionText}
+    ACTION MANAGER: ${actionText}
   `;
 
   try {
@@ -89,33 +94,30 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
 
     // Save bot response to history
-    await RPMessage.create({ senderJid: playerWhatsappId, senderName: 'Football MJ', content: aiResponse.narrative });
+    await RPMessage.create({ senderJid: userWhatsappId, senderName: 'Basketball MJ', content: aiResponse.narrative });
+
+    // Handle 5-minute verdict tracking
+    if (aiResponse.narrative.includes('@')) {
+        await user.update({ pendingMatchAction: true, lastMatchActionTime: new Date() });
+    } else {
+        await user.update({ pendingMatchAction: false });
+    }
 
     if (aiResponse.actions) {
         for (const action of aiResponse.actions) {
-            if (action.type === 'update_stats') {
+            if (action.type === 'update_player_card') {
                 const p = action.parameters;
-                if (p.shoot_change) await player.increment('shoot', { by: p.shoot_change });
-                if (p.money_change) await player.increment('money', { by: p.money_change });
-                if (p.xp_change) await player.increment('xp', { by: p.xp_change });
-                if (p.fame_change) await player.increment('fame', { by: p.fame_change });
-                if (p.stamina_change) await player.update({ stamina: Math.min(100, Math.max(0, player.stamina + p.stamina_change)) });
-            }
-            if (action.type === 'update_location') {
-                await player.update({ location: action.parameters.location || player.location, city: action.parameters.city || player.city, country: action.parameters.country || player.country });
-            }
-            if (action.type === 'skip_match') {
-                const p = action.parameters;
-                await player.increment('xp', { by: p.rating * 5 });
-                await player.increment('fame', { by: p.goals * 2 + p.assists });
-                await sock.sendMessage(jid, { text: `🏟️ *RÉSULTAT DU MATCH SIMULÉ* 🏟️\n\nScore: ${p.score}\nButs: ${p.goals}\nPasses D: ${p.assists}\nNote: ${p.rating}/10` });
-            }
-            if (action.type === 'send_offer') {
-                const club = await Club.findOne({ where: { name: { [Op.like]: `%${action.parameters.club_name}%` } } });
-                if (club) {
-                    await ContractOffer.create({ playerWhatsappId: player.whatsappId, clubId: club.id, salary: action.parameters.salary, jerseyNumber: action.parameters.jersey_number });
-                    await sock.sendMessage(jid, { text: `📩 *OFFRE DE CONTRAT : ${club.name}* 📩\nIls te proposent le N° ${action.parameters.jersey_number} ! Tape /contrats pour voir.` });
+                const card = await PlayerCard.findByPk(p.cardId);
+                if (card) {
+                    if (p.stamina_change) await card.update({ staminaCurrent: Math.min(100, Math.max(0, card.staminaCurrent + p.stamina_change)) });
+                    if (p.xp_change) await card.increment('xp', { by: p.xp_change });
                 }
+            }
+            if (action.type === 'update_user') {
+                const p = action.parameters;
+                if (p.gems_change) await user.increment('gems', { by: p.gems_change });
+                if (p.xp_change) await user.increment('xp', { by: p.xp_change });
+                if (p.fame_change) await user.increment('fame', { by: p.fame_change });
             }
         }
     }
@@ -125,7 +127,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   } catch (error) {
     console.error("[MJ ERROR]:", error);
     try {
-        await sock.sendMessage(jid, { text: "⚠️ *LIAISON MJ INTERROMPUE* : Connexion avec Puter.js instable." });
+        await sock.sendMessage(jid, { text: "⚠️ *LIAISON MJ INTERROMPUE* : Connexion avec l'IA instable." });
     } catch(e) {}
   }
 }

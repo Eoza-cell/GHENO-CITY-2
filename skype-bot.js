@@ -4,14 +4,14 @@ const { getContentType, delay, downloadMediaMessage, makeWASocket, fetchLatestBa
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
-const { setupDatabase, Player, RPMessage } = require('./database');
+const { setupDatabase, User, RPMessage } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { updateChrono } = require('./chrono-utils');
 
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Football Career RPG is running');
+    res.end('Basketball Gacha RP is running');
 });
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
@@ -61,20 +61,33 @@ async function connectToWhatsApp() {
     for (const message of m.messages) {
         if (!message.message) continue;
         const jid = getJid(message);
-        const player = await Player.findOne({ where: { whatsappId: jid } });
+        const user = await User.findOne({ where: { whatsappId: jid } });
 
-        if (player) await updateChrono(player);
+        if (user) {
+            await updateChrono(user);
+
+            // Check for Match Verdict Timeout (5 mins)
+            if (user.pendingMatchAction && user.lastMatchActionTime) {
+                const now = new Date();
+                const diffMs = now - user.lastMatchActionTime;
+                if (diffMs > 5 * 60 * 1000) {
+                    await user.update({ pendingMatchAction: false });
+                    await handleFreeAction(sock, message, user, "[VERDICT MJ AUTOMATIQUE : Temps écoulé pour le joueur.]");
+                }
+            }
+        }
 
         // Registration Flow: Appearance Image Upload
-        if (player && player.registrationStep === 'awaiting_appearance') {
+        if (user && user.registrationStep === 'awaiting_appearance') {
             const type = getContentType(message.message);
             if (type === 'imageMessage') {
                 const buffer = await downloadMediaMessage(message, 'buffer', {});
                 if (!fs.existsSync('assets/profiles')) fs.mkdirSync('assets/profiles', { recursive: true });
                 const filepath = `assets/profiles/${jid.split('@')[0]}.jpg`;
                 fs.writeFileSync(filepath, buffer);
-                await player.update({ appearanceImageUrl: filepath, registrationStep: null });
-                await sock.sendMessage(message.key.remoteJid, { text: "✅ Apparence validée ! Ton dossier pro est complet. Tape /monde pour explorer ou /action pour parler au MJ." });
+
+                await user.update({ registrationStep: null });
+                await sock.sendMessage(message.key.remoteJid, { text: "✅ Inscription terminée ! Tu reçois 300 Gems et ton équipe starter. Tape /menu pour commencer." });
                 continue;
             }
         }

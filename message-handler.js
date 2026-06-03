@@ -20,14 +20,14 @@ function initPuter() {
  * @param {object} aiResponse The JSON response from the AI handler.
  */
 async function sendLoadingSequence(sock, jid) {
-    const sent = await sock.sendMessage(jid, { text: "⚽ ▱▱▱▱▱▱▱▱▱▱ 0%" });
+    const sent = await sock.sendMessage(jid, { text: "🏀 ▱▱▱▱▱▱▱▱▱▱ 0%" });
     const frames = [
-        "⚽ ▰▱▱▱▱▱▱▱▱▱ 10%",
-        "⚽ ▰▰▰▱▱▱▱▱▱▱ 30%",
-        "⚽ ▰▰▰▰▰▱▱▱▱▱ 50%",
-        "⚽ ▰▰▰▰▰▰▰▱▱▱ 70%",
-        "⚽ ▰▰▰▰▰▰▰▰▰▱ 90%",
-        "⚽ ▰▰▰▰▰▰▰▰▰▰ 100%"
+        "🏀 ▰▱▱▱▱▱▱▱▱▱ 10%",
+        "🏀 ▰▰▰▱▱▱▱▱▱▱ 30%",
+        "🏀 ▰▰▰▰▰▱▱▱▱▱ 50%",
+        "🏀 ▰▰▰▰▰▰▰▱▱▱ 70%",
+        "🏀 ▰▰▰▰▰▰▰▰▰▱ 90%",
+        "🏀 ▰▰▰▰▰▰▰▰▰▰ 100%"
     ];
 
     for (const frame of frames) {
