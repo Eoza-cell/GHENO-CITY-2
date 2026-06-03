@@ -5,7 +5,6 @@ const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const { setupDatabase, Player, RPMessage } = require('./database');
-const mongoDB = require('./database-mongo');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { updateChrono } = require('./chrono-utils');
@@ -15,11 +14,10 @@ const server = http.createServer((req, res) => {
     res.end('Football Career RPG is running');
 });
 const PORT = process.env.PORT || 3000;
-let serverStarted = false;
+server.listen(PORT, () => { console.log(`Server is running on port ${PORT} (Health check active)`); });
 
 async function connectToWhatsApp() {
   await setupDatabase();
-  await mongoDB.setupDatabase();
   const { state, saveCreds } = await useDatabaseAuth();
   const { version } = await fetchLatestBaileysVersion();
 
@@ -36,11 +34,13 @@ async function connectToWhatsApp() {
     const phoneNumber = process.env.PHONE_NUMBER;
     if (phoneNumber) {
         await delay(3000);
-        const code = await sock.requestPairingCode(phoneNumber);
-        console.log('==============================================================');
-        console.log('Votre code de pairage :');
-        console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
-        console.log('==============================================================');
+        const code = await sock.requestPairingCode(phoneNumber).catch(e => console.error("Pairing Error:", e));
+        if (code) {
+          console.log('==============================================================');
+          console.log('Votre code de pairage :');
+          console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
+          console.log('==============================================================');
+        }
     }
   }
 
@@ -51,9 +51,6 @@ async function connectToWhatsApp() {
       if (shouldReconnect) connectToWhatsApp();
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp (Football Career RPG)');
-      if (!serverStarted) {
-          server.listen(PORT, () => { console.log(`Server on port ${PORT}`); serverStarted = true; });
-      }
     }
   });
 

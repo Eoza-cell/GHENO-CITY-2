@@ -18,40 +18,64 @@ function initPuter() {
 
 /**
  * Calls the best available AI provider.
- * Priority: Puter.js -> QVAC -> OpenRouter -> Pollinations.ai
+ * Priority: Puter API -> Puter.js -> QVAC -> OpenRouter -> Pollinations.ai
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 3) {
         throw new Error("Récursion AI trop profonde détectée.");
     }
 
-    // 1. Try Puter.js (Wrapped in a try-catch to prevent stack overflow crashes)
+    // 1. Try Puter OpenAI-Compatible API (via axios)
+    if (process.env.PUTER_API_KEY) {
+        try {
+            console.log("[AI] Tentative avec Puter API (GPT-4o)...");
+            const response = await axios.post("https://api.puter.com/v1/chat/completions", {
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt }
+                ],
+                stream: false
+            }, {
+                headers: {
+                    "Authorization": `Bearer ${process.env.PUTER_API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                timeout: 30000
+            });
+
+            if (response.data && response.data.choices && response.data.choices[0]) {
+                return response.data.choices[0].message.content;
+            }
+        } catch (error) {
+            console.error("[AI] Erreur Puter API (Axios):", error.response?.data || error.message);
+        }
+    }
+
+    // 2. Try Puter.js SDK
     const puterInstance = initPuter();
     if (puterInstance) {
         try {
-            console.log("[AI] Tentative avec Puter.js (GPT-4o)...");
+            console.log("[AI] Tentative avec Puter.js SDK (GPT-4o)...");
 
-            // Promise wrapper with timeout for Puter.js
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Puter.js Timeout (30s)")), 30000)
             );
 
             let response;
             try {
-                console.log("[AI] Tentative avec Puter.js (GPT-4o)...");
                 response = await Promise.race([
                     puterInstance.ai.chat(`System: ${systemPrompt}\n\nUser: ${userPrompt}`, { model: "gpt-4o", stream: false }),
                     timeoutPromise
                 ]);
             } catch (err) {
-                console.log("[AI] Échec GPT-4o, tentative avec GPT-4o-mini...");
+                console.log("[AI] Échec GPT-4o SDK, tentative avec GPT-4o-mini...");
                 response = await Promise.race([
                     puterInstance.ai.chat(`System: ${systemPrompt}\n\nUser: ${userPrompt}`, { model: "gpt-4o-mini", stream: false }),
                     timeoutPromise
                 ]);
             }
 
-            // Robust extraction of the content
             if (response?.error || response?.code === 'token_missing') {
                 throw new Error(response.message || "Puter Token Error");
             }
@@ -62,8 +86,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
             return response.toString();
         } catch (error) {
-            console.error("[AI] Erreur Puter.js:", error.message);
-            // If Puter.js crashes with a RangeError (Stack overflow), we MUST continue to fallbacks
+            console.error("[AI] Erreur Puter.js SDK:", error.message);
         }
     }
 
