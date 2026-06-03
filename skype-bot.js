@@ -8,11 +8,13 @@ const { setupDatabase, Player, RPMessage } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { updateChrono } = require('./chrono-utils');
+const QRCode = require('qrcode');
 
 let isBotConnected = false;
 let pairingCode = null;
+let lastQR = null;
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     if (isBotConnected) {
         res.writeHead(200);
@@ -20,13 +22,23 @@ const server = http.createServer((req, res) => {
     } else {
         res.writeHead(503);
         let message = '<h1>⚽ Football Career RPG</h1><p>Status: ⏳ En attente de connexion...</p>';
-        if (pairingCode) {
-            message += `<p>Veuillez entrer ce code dans WhatsApp (Appareils connectés > Lier un appareil > Lier avec le numéro de téléphone) :</p>
-                        <h2 style="font-family: monospace; background: #eee; padding: 10px; display: inline-block;">${pairingCode}</h2>
-                        <p>Le déploiement se terminera automatiquement une fois lié.</p>`;
-        } else {
-            message += '<p>Génération du code de pairage en cours... Rafraîchissez dans quelques secondes.</p>';
+
+        if (lastQR) {
+            const qrImage = await QRCode.toDataURL(lastQR);
+            message += `<p>Veuillez scanner ce QR Code avec WhatsApp :</p>
+                        <img src="${qrImage}" alt="QR Code" style="border: 10px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"><br>
+                        <p><i>Note: Le QR Code change régulièrement.</i></p>`;
         }
+
+        if (pairingCode) {
+            message += `<hr><p>OU utilisez ce code de pairage :</p>
+                        <h2 style="font-family: monospace; background: #eee; padding: 10px; display: inline-block;">${pairingCode}</h2>`;
+        }
+
+        if (!lastQR && !pairingCode) {
+            message += '<p>Génération de la session en cours... Rafraîchissez dans quelques secondes.</p>';
+        }
+
         res.end(message);
     }
 });
@@ -94,7 +106,10 @@ async function connectToWhatsApp() {
   }
 
   sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, qr } = update;
+    if (qr) {
+        lastQR = qr;
+    }
     if (connection === 'close') {
       const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
       if (shouldReconnect) connectToWhatsApp();
