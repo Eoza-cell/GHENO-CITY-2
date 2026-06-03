@@ -44,7 +44,13 @@ const useDatabaseAuth = async () => {
         }
     };
 
-    creds = await readData('creds') || initAuthCreds();
+    creds = await readData('creds');
+    if (creds) {
+        console.log('[AUTH] Sessions de connexion récupérées depuis la base de données.');
+    } else {
+        console.log('[AUTH] Aucune session trouvée, initialisation de nouveaux credentials.');
+        creds = initAuthCreds();
+    }
 
     return {
         state: {

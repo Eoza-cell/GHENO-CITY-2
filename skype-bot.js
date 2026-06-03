@@ -17,9 +17,25 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => { console.log(`Server is running on port ${PORT} (Health check active)`); });
 
 async function connectToWhatsApp() {
-  await setupDatabase();
+  console.log('[BOT] Démarrage de la connexion...');
+  try {
+    await setupDatabase();
+    console.log('[BOT] Base de données prête.');
+  } catch (e) {
+    console.error('[BOT] Erreur lors de la configuration de la base de données:', e.message);
+  }
+
   const { state, saveCreds } = await useDatabaseAuth();
+
+  // Force re-pairing if requested via environment variable
+  if (process.env.FORCE_REPAIRING === 'true') {
+      console.log('[BOT] FORCE_REPAIRING activé. Réinitialisation des credentials...');
+      state.creds = require('@whiskeysockets/baileys').initAuthCreds();
+  }
+
   const { version } = await fetchLatestBaileysVersion();
+
+  console.log(`[BOT] Utilisation de Baileys v${version.join('.')}`);
 
   const sock = makeWASocket({
     auth: state,
@@ -30,17 +46,25 @@ async function connectToWhatsApp() {
     browser: ["Ubuntu", "Chrome", "128.0.6613.86"]
   });
 
+  console.log(`[BOT] Statut d'enregistrement : ${sock.authState.creds.registered ? '✅ Enregistré' : '❌ Non enregistré'}`);
+
   if (!sock.authState.creds.registered) {
     const phoneNumber = process.env.PHONE_NUMBER;
     if (phoneNumber) {
-        await delay(3000);
-        const code = await sock.requestPairingCode(phoneNumber).catch(e => console.error("Pairing Error:", e));
-        if (code) {
-          console.log('==============================================================');
-          console.log('Votre code de pairage :');
-          console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
-          console.log('==============================================================');
+        console.log(`[BOT] Demande de code de pairage pour : ${phoneNumber}`);
+        await delay(5000); // Wait a bit more for socket to stabilize
+        try {
+            const code = await sock.requestPairingCode(phoneNumber.replace(/[^0-9]/g, ''));
+            console.log('==============================================================');
+            console.log('VOTRE CODE DE PAIRAGE :');
+            console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
+            console.log('==============================================================');
+        } catch (e) {
+            console.error('[BOT] Échec de la demande de code de pairage:', e.message);
+            console.log('Assurez-vous que le numéro est au format international (ex: 33612345678)');
         }
+    } else {
+        console.warn("[BOT] PHONE_NUMBER manquant dans les variables d'environnement.");
     }
   }
 
