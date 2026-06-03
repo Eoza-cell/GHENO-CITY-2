@@ -59,17 +59,32 @@ async function sendWithImage(sock, jid, aiResponse) {
                 try {
                     console.log(`[IMG] Génération Puter (Flux) pour : "${imagePrompt}"`);
                     const img = await puterInstance.ai.txt2img(imagePrompt);
-                    const imgStr = img.toString();
+
+                    if (img?.error) throw new Error(img.message || "Puter Image Error");
+
                     let buffer;
-                    if (imgStr.includes(',')) {
-                        buffer = Buffer.from(imgStr.split(',')[1], 'base64');
-                    } else {
-                        buffer = Buffer.from(imgStr, 'base64');
+                    // Handle various Puter image return formats (Blob-like or DataURI string)
+                    if (typeof img === 'string') {
+                        if (img.includes('base64,')) {
+                            buffer = Buffer.from(img.split('base64,')[1], 'base64');
+                        } else {
+                            buffer = Buffer.from(img, 'base64');
+                        }
+                    } else if (img.toString) {
+                        const imgStr = img.toString();
+                        if (imgStr.includes('base64,')) {
+                            buffer = Buffer.from(imgStr.split('base64,')[1], 'base64');
+                        } else {
+                            buffer = Buffer.from(imgStr, 'base64');
+                        }
                     }
-                    await sock.sendMessage(jid, { image: buffer, caption: narrative, mimetype: 'image/jpeg' });
-                    return;
+
+                    if (buffer) {
+                        await sock.sendMessage(jid, { image: buffer, caption: narrative, mimetype: 'image/jpeg' });
+                        return;
+                    }
                 } catch (puterError) {
-                    console.error("[IMG] Échec Puter:", puterError.message);
+                    console.error("[IMG] Échec Puter:", puterError.message || puterError);
                 }
             }
 
