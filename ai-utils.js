@@ -26,9 +26,9 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     const puterInstance = initPuter();
     if (puterInstance) {
         try {
-            console.log("[AI] Tentative avec Puter.js (Claude 3.5 Sonnet)...");
+            console.log("[AI] Tentative avec Puter.js (GPT-4o)...");
 
-            // Promise wrapper with timeout for Puter.js (Using GPT-4o as suggested by the tutorial link)
+            // Promise wrapper with timeout for Puter.js
             const puterPromise = puterInstance.ai.chat(
                 `System: ${systemPrompt}\n\nUser: ${userPrompt}`,
                 {
@@ -42,6 +42,12 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             );
 
             const response = await Promise.race([puterPromise, timeoutPromise]);
+
+            // Robust extraction of the content
+            if (typeof response === 'string') return response;
+            if (response?.message?.content?.[0]?.text) return response.message.content[0].text;
+            if (response?.text) return response.text;
+
             return response.toString();
         } catch (error) {
             console.error("[AI] Erreur Puter.js:", error.message);
