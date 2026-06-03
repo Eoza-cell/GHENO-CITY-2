@@ -4,7 +4,8 @@ let puter = null;
 function initPuter() {
     if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
         try {
-            puter = require('@heyputer/puter.js').default;
+            const puterJS = require('@heyputer/puter.js');
+            puter = puterJS.default || puterJS.puter || puterJS;
             puter.setAuthToken(process.env.PUTER_API_KEY);
         } catch (e) {
             console.error("[AI] Erreur chargement Puter.js:", e.message);
@@ -29,19 +30,24 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             console.log("[AI] Tentative avec Puter.js (GPT-4o)...");
 
             // Promise wrapper with timeout for Puter.js
-            const puterPromise = puterInstance.ai.chat(
-                `System: ${systemPrompt}\n\nUser: ${userPrompt}`,
-                {
-                    model: "gpt-4o",
-                    stream: false,
-                }
-            );
-
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Puter.js Timeout (30s)")), 30000)
             );
 
-            const response = await Promise.race([puterPromise, timeoutPromise]);
+            let response;
+            try {
+                console.log("[AI] Tentative avec Puter.js (GPT-4o)...");
+                response = await Promise.race([
+                    puterInstance.ai.chat(`System: ${systemPrompt}\n\nUser: ${userPrompt}`, { model: "gpt-4o", stream: false }),
+                    timeoutPromise
+                ]);
+            } catch (err) {
+                console.log("[AI] Échec GPT-4o, tentative avec GPT-4o-mini...");
+                response = await Promise.race([
+                    puterInstance.ai.chat(`System: ${systemPrompt}\n\nUser: ${userPrompt}`, { model: "gpt-4o-mini", stream: false }),
+                    timeoutPromise
+                ]);
+            }
 
             // Robust extraction of the content
             if (typeof response === 'string') return response;
@@ -82,26 +88,30 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    // 3. Fallback to Pollinations.ai (GET request is more reliable/stable for free tier)
+    // 3. Fallback to Pollinations.ai (Mistral)
     try {
-        console.log("[AI] Tentative avec Pollinations.ai (GET)...");
+        console.log("[AI] Tentative avec Pollinations.ai (Mistral)...");
         const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
-        const encodedPrompt = encodeURIComponent(combinedPrompt);
-        const response = await axios.get(`https://text.pollinations.ai/${encodedPrompt}?model=openai&cache=false`);
+        const response = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(combinedPrompt)}?model=mistral&cache=false`, { timeout: 30000 });
 
         let content = response.data.toString();
-
-        // Robustness check for JSON within text
-        if (content.includes('{') && content.includes('}')) {
-            // Keep the text but ensure it's not JUST a failed object string
-        }
-
-        // Remove markdown block backticks if AI decided to wrap JSON or text in them
         content = content.replace(/```json/g, "").replace(/```/g, "").trim();
-
         return content;
     } catch (error) {
-        console.error("[AI] Erreur Pollinations.ai:", error.message);
+        console.error("[AI] Erreur Pollinations.ai (Mistral):", error.message);
+    }
+
+    // 4. Ultimate Fallback to Pollinations.ai (Llama)
+    try {
+        console.log("[AI] Tentative avec Pollinations.ai (Llama)...");
+        const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
+        const response = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(combinedPrompt)}?model=llama&cache=false`, { timeout: 30000 });
+
+        let content = response.data.toString();
+        content = content.replace(/```json/g, "").replace(/```/g, "").trim();
+        return content;
+    } catch (error) {
+        console.error("[AI] Erreur Pollinations.ai (Llama):", error.message);
         throw new Error("Tous les fournisseurs d'IA ont échoué.");
     }
 }
