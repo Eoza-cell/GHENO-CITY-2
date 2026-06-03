@@ -6,7 +6,7 @@ const NIGHT_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 function updateDayNightCycle() {
   isCurrentlyDay = !isCurrentlyDay;
-  //console.log(isCurrentlyDay ? "Le soleil se lève sur Gheno City." : "La nuit tombe sur Gheno City.");
+  //console.log(isCurrentlyDay ? "Le soleil se lève sur la Terre." : "La nuit tombe sur la Terre.");
   setTimeout(updateDayNightCycle, isCurrentlyDay ? DAY_DURATION : NIGHT_DURATION);
 }
 

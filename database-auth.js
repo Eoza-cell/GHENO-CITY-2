@@ -3,44 +3,45 @@ const { proto } = require('@whiskeysockets/baileys');
 const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
 
 /**
- * A database-backed authentication handler for Baileys.
- * This function replaces `useMultiFileAuthState` to ensure session
- * persistence on platforms with ephemeral file systems.
+ * A Database-backed authentication handler for Baileys (Sequelize).
  *
  * @returns {Promise<{state: {creds: any, keys: {}}, saveCreds: () => Promise<void>}>}
  */
 const useDatabaseAuth = async () => {
     let creds;
-    let keys = {};
 
-    // Helper function to read a file from the database
+    // Helper function to read data from DB
     const readData = async (key) => {
         try {
             const data = await Creds.findOne({ where: { key } });
-            // The data is stored as a string, so we need to parse it
             return data ? JSON.parse(data.value, BufferJSON.reviver) : null;
         } catch (error) {
-            console.error(`Failed to read key "${key}" from database`, error);
+            console.error(`[DB-AUTH] Failed to read key "${key}"`, error.message);
             return null;
         }
     };
 
-    // Helper function to write data to the database
+    // Helper function to write data to DB
     const writeData = async (key, data) => {
         try {
             const value = JSON.stringify(data, BufferJSON.replacer);
-            await Creds.upsert({ key, value });
+            const existing = await Creds.findOne({ where: { key } });
+            if (existing) {
+                await existing.update({ value });
+            } else {
+                await Creds.create({ key, value });
+            }
         } catch (error) {
-            console.error(`Failed to write key "${key}" to database`, error);
+            console.error(`[DB-AUTH] Failed to write key "${key}"`, error.message);
         }
     };
 
-    // Helper function to remove data from the database
+    // Helper function to remove data from DB
     const removeData = async (key) => {
         try {
             await Creds.destroy({ where: { key } });
         } catch (error) {
-            console.error(`Failed to remove key "${key}" from database`, error);
+            console.error(`[DB-AUTH] Failed to remove key "${key}"`, error.message);
         }
     };
 
@@ -55,7 +56,7 @@ const useDatabaseAuth = async () => {
                     await Promise.all(
                         ids.map(async (id) => {
                             let value = await readData(`${type}-${id}`);
-                            if (type === 'app-state-sync-key') {
+                            if (type === 'app-state-sync-key' && value) {
                                 value = proto.Message.AppStateSyncKeyData.fromObject(value);
                             }
                             data[id] = value;

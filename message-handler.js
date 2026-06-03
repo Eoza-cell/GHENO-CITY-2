@@ -19,8 +19,51 @@ function initPuter() {
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
  */
-async function sendWithImage(sock, jid, aiResponse) {
-    const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
+async function sendLoadingSequence(sock, jid) {
+    try {
+        const steps = [
+            { label: "Synchronisation", progress: 10 },
+            { label: "Détection du Ki", progress: 30 },
+            { label: "Analyse environnementale", progress: 50 },
+            { label: "Appel du Dragon", progress: 80 },
+            { label: "Chargement terminé", progress: 100 }
+        ];
+
+        let { key } = await sock.sendMessage(jid, { text: "🐉 *Initialisation de la connexion...*" });
+
+        for (const step of steps) {
+            const barLength = 10;
+            const filled = Math.round((step.progress / 100) * barLength);
+            const bar = "▰".repeat(filled) + "▱".repeat(barLength - filled);
+
+            const message = `🐉 *GENETWORK RP*\n\n` +
+                          `⚙️ *${step.label}...*\n` +
+                          `[${bar}] ${step.progress}%\n\n` +
+                          `_Veuillez patienter..._`;
+
+            await sock.sendMessage(jid, { text: message, edit: key });
+            await delay(400);
+        }
+
+        return key;
+    } catch (e) {
+        console.error("Erreur loading sequence:", e);
+        return null;
+    }
+}
+
+async function sendWithImage(sock, jid, aiResponse, loadingKey = null) {
+    let narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null);
+
+    // Safety check: if narrative is still missing but we have actions, don't show the JSON
+    if (!narrative && aiResponse.actions && aiResponse.actions.length > 0) {
+        narrative = "L'action s'accomplit dans un éclat de lumière...";
+    }
+
+    if (!narrative) narrative = "Le silence retombe sur le monde.";
+
     const imagePrompt = aiResponse.imagePrompt;
 
     if (imagePrompt) {
@@ -80,8 +123,12 @@ async function sendWithImage(sock, jid, aiResponse) {
     }
 
     if (narrative) {
-        await sock.sendMessage(jid, { text: narrative });
+        if (loadingKey) {
+            await sock.sendMessage(jid, { text: narrative, edit: loadingKey });
+        } else {
+            await sock.sendMessage(jid, { text: narrative });
+        }
     }
 }
 
-module.exports = { sendWithImage };
+module.exports = { sendWithImage, sendLoadingSequence };

@@ -19,6 +19,9 @@
     "url": "https://github.com/Eoza-cell/GHENO-CITY-2/issues"
   },
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "@heyputer/puter.js": "^2.3.2",
     "@whiskeysockets/baileys": "^7.0.0-rc10",
@@ -26,10 +29,12 @@
     "dotenv": "^17.2.3",
     "p-queue": "^6.6.2",
     "p-retry": "^4.6.2",
+    "pg": "^8.21.0",
+    "pg-hstore": "^2.3.4",
     "pino": "^10.1.0",
     "random": "^5.4.1",
-    "sequelize": "^6.37.7",
+    "sequelize": "^6.37.8",
     "sharp": "^0.34.5",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^6.0.1"
   }
 }

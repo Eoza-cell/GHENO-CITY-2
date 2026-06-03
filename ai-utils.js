@@ -23,11 +23,13 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     const providers = [];
 
-    // Priority: OpenRouter (if key exists) -> Puter -> Pollinations
+    // Priority: Puter -> Jan AI (Local) -> Ollama (Local) -> OpenRouter (if key exists) -> Pollinations
+    providers.push({ name: 'Puter', fn: callPuter });
+    providers.push({ name: 'Jan AI', fn: callJanAI });
+    providers.push({ name: 'Ollama', fn: callOllama });
     if (process.env.OPENROUTER_API_KEY) {
         providers.push({ name: 'OpenRouter', fn: callOpenRouter });
     }
-    providers.push({ name: 'Puter', fn: callPuter });
     providers.push({ name: 'Pollinations', fn: callPollinations });
 
     for (const provider of providers) {
@@ -49,9 +51,49 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     console.warn("[AI] TOUS LES FOURNISSEURS ONT ÉCHOUÉ. Utilisation du secours statique.");
     return JSON.stringify({
-        narrative: "Le flux magique d'Aetherys semble perturbé... (Erreur Serveur AI)",
+        narrative: "Une perturbation dans le Ki mondial empêche toute action... (Erreur Serveur AI)",
         actions: []
     });
+}
+
+async function callJanAI(systemPrompt, userPrompt) {
+    try {
+        const response = await axios.post("http://localhost:1337/v1/chat/completions", {
+            model: "mistral-ins-7b-q4", // Default model for Jan, can be adjusted
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            stream: false,
+            response_format: { type: "json_object" },
+            stop: null,
+            temperature: 0.7
+        }, { timeout: 20000 });
+
+        return response.data?.choices?.[0]?.message?.content;
+    } catch (error) {
+        // If Jan AI is not running, this will throw and move to next provider
+        throw error;
+    }
+}
+
+async function callOllama(systemPrompt, userPrompt) {
+    try {
+        const response = await axios.post("http://localhost:11434/api/chat", {
+            model: "llama3", // Defaulting to llama3, can be adjusted
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ],
+            stream: false,
+            format: "json"
+        }, { timeout: 15000 }); // Increased timeout for Ollama
+
+        return response.data?.message?.content;
+    } catch (error) {
+        // If Ollama is not running, this will throw and move to next provider
+        throw error;
+    }
 }
 
 async function callOpenRouter(systemPrompt, userPrompt) {
@@ -99,14 +141,24 @@ async function callPuter(systemPrompt, userPrompt) {
 
 async function callPollinations(systemPrompt, userPrompt) {
     const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
-    const response = await axios.post('https://text.pollinations.ai/', {
-        messages: [{ role: 'user', content: combinedPrompt }],
-        model: 'openai',
-        json: true
-    }, { timeout: 30000 });
 
-    if (typeof response.data === 'string') return response.data;
-    return response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
+    try {
+        const response = await axios.get('https://text.pollinations.ai/' + encodeURIComponent(combinedPrompt), { timeout: 40000 });
+        if (typeof response.data === 'string') return response.data;
+        if (response.data && response.data.narrative) return JSON.stringify(response.data);
+        return JSON.stringify(response.data);
+    } catch (e) {
+        // Fallback to POST if GET fails
+        const response = await axios.post('https://text.pollinations.ai/', {
+            messages: [{ role: 'user', content: combinedPrompt }],
+            model: 'openai',
+            json: true
+        }, { timeout: 30000 });
+
+        if (typeof response.data === 'string') return response.data;
+        if (response.data && response.data.narrative) return JSON.stringify(response.data);
+        return response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
+    }
 }
 
 
