@@ -94,7 +94,31 @@ async function callPuter(systemPrompt, userPrompt) {
     );
 
     const response = await Promise.race([puterPromise, timeoutPromise]);
-    return response.toString();
+
+    if (!response) return null;
+
+    // Robust parsing of Puter.js response
+    let text = "";
+    if (typeof response === 'string') {
+        text = response;
+    } else if (response.message && response.message.content) {
+        if (Array.isArray(response.message.content)) {
+            text = response.message.content.map(c => c.text || "").join("");
+        } else {
+            text = response.message.content;
+        }
+    } else if (response.text) {
+        text = typeof response.text === 'function' ? await response.text() : response.text;
+    } else {
+        text = response.toString();
+    }
+
+    if (text === "[object Object]") {
+        console.warn("[AI] Puter a retourné [object Object], tentative de stringify...");
+        text = JSON.stringify(response);
+    }
+
+    return text;
 }
 
 async function callPollinations(systemPrompt, userPrompt) {
