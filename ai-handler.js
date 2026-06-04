@@ -137,9 +137,15 @@ async function handleFreeAction(sock, message, player, actionText) {
   } catch (error) {
     console.error("[MJ ERROR]:", error);
     try {
-        await sock.sendMessage(jid, { text: `⚠️ *LIAISON MJ INTERROMPUE* : ${error.message || "Erreur inconnue"}` });
+        // RESILIENCE: Instead of just an error, provide a basic narrative if AI fails
+        const fallbackNarrative = `⚠️ *ERREUR MJ* : Le serveur de narration est temporairement indisponible.\n\n` +
+                                 `Cependant, ton action "${actionText.substring(0, 30)}..." a été notée. ` +
+                                 `Tu es toujours au *${player.location}* à *${player.city}*. ` +
+                                 `Réessaie dans quelques instants ou vérifie ton inventaire.`;
+
+        await sock.sendMessage(jid, { text: fallbackNarrative });
     } catch(e) {
-        console.error("[MJ ERROR] Échec envoi message erreur:", e.message);
+        console.error("[MJ ERROR] Échec envoi message résilience:", e.message);
     }
   }
 }

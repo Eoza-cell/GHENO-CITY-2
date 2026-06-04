@@ -131,6 +131,24 @@ commands.set('quit', async (sock, message) => {
     if (player) { await player.update({ mode: 'normal' }); await sock.sendMessage(message.key.remoteJid, { text: "Mode normal réactivé." }); }
 });
 
+commands.set('status', async (sock, message) => {
+    try {
+        await sequelize.authenticate();
+        const playerCount = await Player.count();
+        const clubCount = await Club.count();
+        const dbType = process.env.DATABASE_URL ? "PostgreSQL (Cloud)" : "SQLite (Local)";
+
+        const statusMsg = `📊 *SYSTÈME FOOTBALL CAREER* 📊\n\n` +
+                          `🗄️ *Base de données:* ${dbType}\n` +
+                          `👥 *Joueurs enregistrés:* ${playerCount}\n` +
+                          `🏢 *Clubs actifs:* ${clubCount}\n` +
+                          `✅ *Connexion:* Stable`;
+        await sock.sendMessage(message.key.remoteJid, { text: statusMsg });
+    } catch (e) {
+        await sock.sendMessage(message.key.remoteJid, { text: "❌ *ERREUR SYSTÈME* : Base de données inaccessible." });
+    }
+});
+
 async function handleCommand(sock, message) {
   if (message.key.fromMe) return;
   const messageText = message.message.conversation ||

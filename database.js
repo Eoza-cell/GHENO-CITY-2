@@ -15,7 +15,7 @@ const sequelize = process.env.DATABASE_URL
     })
   : new Sequelize({
       dialect: 'sqlite',
-      storage: 'gheno-football-career.sqlite',
+      storage: 'database.sqlite',
       logging: false,
     });
 

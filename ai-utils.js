@@ -148,25 +148,36 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     // 3. Fallback to Pollinations.ai (POST is more reliable for long prompts)
-    const models = ["gpt-4o", "mistral", "llama"];
+    const models = ["gpt-4o", "mistral", "llama", "search"];
     for (const model of models) {
         try {
-            console.log(`[AI] Tentative avec Pollinations.ai (${model})...`);
+            console.log(`[AI] Tentative avec Pollinations.ai (POST, model: ${model})...`);
             const response = await axios.post("https://text.pollinations.ai/", {
                 messages: [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: userPrompt }
                 ],
                 model: model,
-                json: false
-            }, { timeout: 30000 });
+                json: false,
+                seed: Math.floor(Math.random() * 1000000)
+            }, { timeout: 15000 });
 
             let content = response.data.toString();
             content = content.replace(/```json/g, "").replace(/```/g, "").trim();
-            if (content) return content;
+            if (content && content.length > 5) return content;
         } catch (error) {
-            console.error(`[AI] Erreur Pollinations.ai (${model}):`, error.message);
+            console.error(`[AI] Erreur Pollinations.ai (POST, model: ${model}):`, error.message);
         }
+    }
+
+    // 4. Emergency Fallback: Pollinations.ai GET (Simple but usually works when POST fails)
+    try {
+        console.log("[AI] Tentative avec Pollinations.ai (Emergency GET)...");
+        const prompt = `System: ${systemPrompt}\nUser: ${userPrompt}`;
+        const response = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 2000))}?model=search&cache=false`, { timeout: 15000 });
+        if (response.data) return response.data.toString().trim();
+    } catch (e) {
+        console.error("[AI] Échec Emergency GET:", e.message);
     }
 
     throw new Error("Tous les fournisseurs d'IA ont échoué.");
