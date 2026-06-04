@@ -40,31 +40,44 @@ async function callAI(system, user) {
             });
             return res.data?.choices?.[0]?.message?.content;
         },
-        // 1. Puter API (Axios) - High Priority
+        // 1. Puter API (Axios) - High Priority Model Rotation
         async () => {
             if (!process.env.PUTER_API_KEY) return null;
-            console.log("[AI] Trying Puter API (GPT-4o)...");
-            const res = await axios.post("https://api.puter.com/v1/chat/completions", {
-                model: "gpt-4o",
-                messages: [{role: "system", content: system}, {role: "user", content: user}]
-            }, {
-                headers: { "Authorization": `Bearer ${process.env.PUTER_API_KEY}` },
-                timeout: 20000
-            });
-            return res.data?.choices?.[0]?.message?.content;
+            const models = ["gpt-4o", "gpt-5.5", "o3-mini", "gpt-4o-mini"];
+            for (const model of models) {
+                try {
+                    console.log(`[AI] Trying Puter API (${model})...`);
+                    const res = await axios.post("https://api.puter.com/v1/chat/completions", {
+                        model: model,
+                        messages: [{role: "system", content: system}, {role: "user", content: user}]
+                    }, {
+                        headers: { "Authorization": `Bearer ${process.env.PUTER_API_KEY}` },
+                        timeout: 15000
+                    });
+                    const content = res.data?.choices?.[0]?.message?.content;
+                    if (content) return content;
+                } catch (e) {
+                    console.log(`[AI] Puter API ${model} failed: ${e.message}`);
+                    continue;
+                }
+            }
+            return null;
         },
         // 2. Puter SDK - Model Rotation
         async () => {
             const puter = initPuter();
             if (!puter) return null;
-            const models = ["gpt-4o", "gpt-5.4-nano", "gpt-4o-mini", "o3-mini"];
+            const models = ["gpt-4o", "gpt-5.5", "gpt-5.5-pro", "o3-mini", "gpt-4o-mini"];
             for (const model of models) {
                 try {
                     console.log(`[AI] Trying Puter SDK (${model})...`);
                     const resp = await puter.ai.chat(`System: ${system}\nUser: ${user}`, { model: model });
                     let text = typeof resp === 'string' ? resp : (resp?.message?.content?.[0]?.text || resp?.text);
                     if (text && text.length > 5) return text;
-                } catch (e) { continue; }
+                } catch (e) {
+                    console.log(`[AI] Puter SDK ${model} failed: ${e.message}`);
+                    continue;
+                }
             }
             throw new Error("Puter SDK models failed");
         },
@@ -99,8 +112,9 @@ async function callAI(system, user) {
         }
     }
 
-    // 5. Emergency Dynamic Narrative
+    // 5. Emergency Dynamic Narrative (Matches the one in user's screenshot)
     const fallbacks = [
+        "Le match continue intensément ! L'action est confuse mais tu gardes le contrôle. (Le serveur MJ est un peu surchargé, mais ton action est enregistrée).",
         "L'arbitre siffle une faute alors que l'action devenait confuse ! Le jeu reprendra dans un instant, reste concentré.",
         "Le coach te donne des consignes tactiques mais le bruit du stade couvre sa voix. Tu continues ton action avec détermination.",
         "Une contre-attaque rapide se dessine ! Tu sprintes vers le ballon, l'adrénaline monte alors que le MJ prépare la suite.",
