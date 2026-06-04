@@ -25,6 +25,34 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         throw new Error("Récursion AI trop profonde détectée.");
     }
 
+    // 0. Try ApiFreeLLM (User requested priority)
+    if (process.env.APIFREELLM_API_KEY) {
+        try {
+            console.log("[AI] Tentative avec ApiFreeLLM (GPT-4o)...");
+            const baseUrl = process.env.APIFREELLM_BASE_URL || "https://api.apifreellm.com/v1";
+            const response = await axios.post(`${baseUrl}/chat/completions`, {
+                model: "gpt-4o",
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt }
+                ],
+                stream: false
+            }, {
+                headers: {
+                    "Authorization": `Bearer ${process.env.APIFREELLM_API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                timeout: 30000
+            });
+
+            if (response.data && response.data.choices && response.data.choices[0]) {
+                return response.data.choices[0].message.content;
+            }
+        } catch (error) {
+            console.error("[AI] Erreur ApiFreeLLM:", error.response?.data || error.message);
+        }
+    }
+
     // 1. Try Puter OpenAI-Compatible API (via axios)
     if (process.env.PUTER_API_KEY) {
         try {
