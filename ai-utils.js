@@ -12,7 +12,7 @@ function initPuter() {
         try {
             const p = require('@heyputer/puter.js');
             puterInstance = p.default || p.puter || p;
-            if (process.env.PUTER_API_KEY) {
+            if (process.env.PUTER_API_KEY && process.env.PUTER_API_KEY.length > 5) {
                 puterInstance.setAuthToken(process.env.PUTER_API_KEY);
             }
         } catch (e) {

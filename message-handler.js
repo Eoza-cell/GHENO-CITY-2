@@ -54,70 +54,45 @@ async function sendLoadingSequence(sock, jid) {
     }
 }
 
-async function sendWithImage(sock, jid, aiResponse) {
+async function sendWithVideo(sock, jid, aiResponse) {
     const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
-    const imagePrompt = aiResponse.imagePrompt;
+    const videoPrompt = aiResponse.videoPrompt;
 
-    if (imagePrompt) {
+    if (videoPrompt) {
         try {
-            if (imagePrompt.startsWith('http')) {
-                const response = await axios.get(imagePrompt, {
-                    responseType: 'arraybuffer',
-                    headers: { 'User-Agent': 'Mozilla/5.0' }
-                });
-                const imageBuffer = Buffer.from(response.data, 'binary');
-                await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
-                return;
-            }
-
-            // Primary: Puter (Flux.1-schnell)
             const puterInstance = initPuter();
             if (puterInstance) {
-                try {
-                    console.log(`[IMG] Génération Puter (Flux) pour : "${imagePrompt}"`);
-                    const img = await puterInstance.ai.txt2img(imagePrompt);
+                console.log(`[VID] Génération Vidéo Puter pour : "${videoPrompt}"`);
+                // Model sora-2 is default. We use test_mode: false for real results.
+                const video = await puterInstance.ai.txt2vid(videoPrompt, { seconds: 4 });
 
-                    if (img?.error) throw new Error(img.message || "Puter Image Error");
+                if (video?.error) throw new Error(video.message || "Puter Video Error");
 
-                    let buffer;
-                    // Handle various Puter image return formats (Blob-like or DataURI string)
-                    if (typeof img === 'string') {
-                        if (img.includes('base64,')) {
-                            buffer = Buffer.from(img.split('base64,')[1], 'base64');
-                        } else {
-                            buffer = Buffer.from(img, 'base64');
-                        }
-                    } else if (img.toString) {
-                        const imgStr = img.toString();
-                        if (imgStr.includes('base64,')) {
-                            buffer = Buffer.from(imgStr.split('base64,')[1], 'base64');
-                        } else {
-                            buffer = Buffer.from(imgStr, 'base64');
-                        }
+                let buffer;
+                if (typeof video === 'string') {
+                    if (video.includes('base64,')) {
+                        buffer = Buffer.from(video.split('base64,')[1], 'base64');
+                    } else if (video.startsWith('http')) {
+                        const res = await axios.get(video, { responseType: 'arraybuffer' });
+                        buffer = Buffer.from(res.data);
+                    } else {
+                        buffer = Buffer.from(video, 'base64');
                     }
+                } else if (Buffer.isBuffer(video)) {
+                    buffer = video;
+                } else if (video && video.src) {
+                    // In some environments, it might return an object with a src (URL)
+                    const res = await axios.get(video.src, { responseType: 'arraybuffer' });
+                    buffer = Buffer.from(res.data);
+                }
 
-                    if (buffer) {
-                        await sock.sendMessage(jid, { image: buffer, caption: narrative, mimetype: 'image/jpeg' });
-                        return;
-                    }
-                } catch (puterError) {
-                    console.error("[IMG] Échec Puter:", puterError.message || puterError);
+                if (buffer) {
+                    await sock.sendMessage(jid, { video: buffer, caption: narrative, mimetype: 'video/mp4' });
+                    return;
                 }
             }
-
-            // Fallback: Pollinations.ai
-            console.log(`[IMG] Fallback Pollinations pour : "${imagePrompt}"`);
-            const encodedPrompt = encodeURIComponent(imagePrompt);
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
-            const response = await axios.get(imageUrl, {
-                responseType: 'arraybuffer',
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-            });
-            const imageBuffer = Buffer.from(response.data, 'binary');
-            await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
-            return;
         } catch (error) {
-            console.error(`[IMG] Erreur totale:`, error.message);
+            console.error(`[VID] Erreur vidéo:`, error.message);
         }
     }
 
@@ -126,4 +101,4 @@ async function sendWithImage(sock, jid, aiResponse) {
     }
 }
 
-module.exports = { sendWithImage, sendLoadingSequence };
+module.exports = { sendWithVideo, sendLoadingSequence };
