@@ -114,7 +114,16 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (loadingMsg && loadingMsg.key) {
         await sock.sendMessage(jid, { delete: loadingMsg.key }).catch(() => null);
     }
-    await sock.sendMessage(jid, { text: `⚽ *MJ* : Le lien avec le centre technique est perturbé, mais j'ai noté ton action : "${actionText.substring(0,20)}..."` });
+
+    // Fallback narrative if everything fails
+    const defaultNarratives = [
+        `⚽ *MJ* : Tu t'élances avec détermination pour effectuer : "${actionText.substring(0,30)}...". Le stade retient son souffle, l'action se poursuit dans le feu de l'action !`,
+        `🏟️ *Coach* : J'ai vu ton intention sur cette action : "${actionText.substring(0,30)}...". Continue de presser, on analyse ça à la mi-temps !`,
+        `🎙️ *Journaliste* : Quelle intensité sur la pelouse ! ${player.name} tente de "${actionText.substring(0,30)}...", un moment charnière de ce match !`
+    ];
+    const randomFallback = defaultNarratives[Math.floor(Math.random() * defaultNarratives.length)];
+
+    await sock.sendMessage(jid, { text: randomFallback });
   }
 }
 

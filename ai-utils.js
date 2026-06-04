@@ -43,21 +43,30 @@ async function callAI(system, user) {
         // 1. Puter API (Axios) - High Priority Model Rotation
         async () => {
             if (!process.env.PUTER_API_KEY) return null;
-            const models = ["gpt-4o", "gpt-5.5", "o3-mini", "gpt-4o-mini"];
+            const models = ["gpt-4o", "gpt-5.5-pro", "gpt-5.5", "o3-mini", "gpt-4o-mini", "gpt-5.4-pro"];
             for (const model of models) {
                 try {
                     console.log(`[AI] Trying Puter API (${model})...`);
                     const res = await axios.post("https://api.puter.com/v1/chat/completions", {
                         model: model,
-                        messages: [{role: "system", content: system}, {role: "user", content: user}]
+                        messages: [{role: "system", content: system}, {role: "user", content: user}],
+                        temperature: 0.7
                     }, {
-                        headers: { "Authorization": `Bearer ${process.env.PUTER_API_KEY}` },
-                        timeout: 15000
+                        headers: {
+                            "Authorization": `Bearer ${process.env.PUTER_API_KEY}`,
+                            "Content-Type": "application/json"
+                        },
+                        timeout: 20000
                     });
                     const content = res.data?.choices?.[0]?.message?.content;
-                    if (content) return content;
+                    if (content && content.length > 10) return content;
                 } catch (e) {
-                    console.log(`[AI] Puter API ${model} failed: ${e.message}`);
+                    const errMsg = e.response?.data?.error?.message || e.message;
+                    console.log(`[AI] Puter API ${model} failed: ${errMsg}`);
+                    if (errMsg.includes("rate limit") || errMsg.includes("insufficient_quota")) {
+                        // If quota is hit for this model, try next one quickly
+                        continue;
+                    }
                     continue;
                 }
             }
@@ -67,19 +76,19 @@ async function callAI(system, user) {
         async () => {
             const puter = initPuter();
             if (!puter) return null;
-            const models = ["gpt-4o", "gpt-5.5", "gpt-5.5-pro", "o3-mini", "gpt-4o-mini"];
+            const models = ["gpt-5.5-pro", "gpt-5.5", "o3-mini", "gpt-4o", "gpt-5.4-mini"];
             for (const model of models) {
                 try {
                     console.log(`[AI] Trying Puter SDK (${model})...`);
                     const resp = await puter.ai.chat(`System: ${system}\nUser: ${user}`, { model: model });
                     let text = typeof resp === 'string' ? resp : (resp?.message?.content?.[0]?.text || resp?.text);
-                    if (text && text.length > 5) return text;
+                    if (text && text.length > 10) return text;
                 } catch (e) {
                     console.log(`[AI] Puter SDK ${model} failed: ${e.message}`);
                     continue;
                 }
             }
-            throw new Error("Puter SDK models failed");
+            return null;
         },
         // 3. Pollinations POST
         async () => {
