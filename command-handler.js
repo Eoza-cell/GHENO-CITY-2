@@ -149,6 +149,21 @@ commands.set('status', async (sock, message) => {
     }
 });
 
+commands.set('checkai', async (sock, message) => {
+    const jid = message.key.remoteJid;
+    await sock.sendMessage(jid, { text: "🔍 *DIAGNOSTIC IA* : Test des serveurs en cours..." });
+
+    const { callAI } = require('./ai-utils');
+    const start = Date.now();
+    try {
+        const res = await callAI("Test", "Dis 'OK' en un mot.");
+        const duration = ((Date.now() - start) / 1000).toFixed(1);
+        await sock.sendMessage(jid, { text: `✅ *IA OPÉRATIONNELLE*\n⏱️ Temps: ${duration}s\n💬 Réponse: ${res.substring(0, 50)}` });
+    } catch (e) {
+        await sock.sendMessage(jid, { text: `❌ *IA HORS-LIGNE*\n⚠️ Erreur: ${e.message}` });
+    }
+});
+
 async function handleCommand(sock, message) {
   if (message.key.fromMe) return;
   const messageText = message.message.conversation ||

@@ -26,9 +26,24 @@ async function callAI(system, user) {
     console.log("[AI] Starting generation...");
 
     const providers = [
-        // 1. Puter API (Axios - Often more stable in Node than SDK)
+        // 0. ApiFreeLLM (User's preferred high-tier provider)
+        async () => {
+            if (!process.env.APIFREELLM_API_KEY) return null;
+            console.log("[AI] Trying ApiFreeLLM...");
+            const baseUrl = process.env.APIFREELLM_BASE_URL || "https://api.apifreellm.com/v1";
+            const res = await axios.post(`${baseUrl}/chat/completions`, {
+                model: "gpt-4o",
+                messages: [{role: "system", content: system}, {role: "user", content: user}]
+            }, {
+                headers: { "Authorization": `Bearer ${process.env.APIFREELLM_API_KEY}` },
+                timeout: 25000
+            });
+            return res.data?.choices?.[0]?.message?.content;
+        },
+        // 1. Puter API (Axios) - High Priority
         async () => {
             if (!process.env.PUTER_API_KEY) return null;
+            console.log("[AI] Trying Puter API (GPT-4o)...");
             const res = await axios.post("https://api.puter.com/v1/chat/completions", {
                 model: "gpt-4o",
                 messages: [{role: "system", content: system}, {role: "user", content: user}]
@@ -38,22 +53,36 @@ async function callAI(system, user) {
             });
             return res.data?.choices?.[0]?.message?.content;
         },
-        // 2. Puter SDK
+        // 2. Puter SDK - Model Rotation
         async () => {
             const puter = initPuter();
             if (!puter) return null;
-            const resp = await puter.ai.chat(`System: ${system}\nUser: ${user}`, { model: "gpt-4o" });
-            if (typeof resp === 'string') return resp;
-            if (resp?.error) throw new Error(resp.message);
-            return resp?.message?.content?.[0]?.text || resp?.text;
+            const models = ["gpt-4o", "gpt-5.4-nano", "gpt-4o-mini", "o3-mini"];
+            for (const model of models) {
+                try {
+                    console.log(`[AI] Trying Puter SDK (${model})...`);
+                    const resp = await puter.ai.chat(`System: ${system}\nUser: ${user}`, { model: model });
+                    let text = typeof resp === 'string' ? resp : (resp?.message?.content?.[0]?.text || resp?.text);
+                    if (text && text.length > 5) return text;
+                } catch (e) { continue; }
+            }
+            throw new Error("Puter SDK models failed");
         },
-        // 3. Pollinations (Reliable Free Fallback)
+        // 3. Pollinations POST
         async () => {
+            console.log("[AI] Trying Pollinations POST...");
             const res = await axios.post("https://text.pollinations.ai/", {
                 messages: [{role: "system", content: system}, {role: "user", content: user}],
                 model: "openai",
                 stream: false
             }, { timeout: 15000 });
+            return res.data?.toString();
+        },
+        // 4. Pollinations GET (Ultra-Fast)
+        async () => {
+            console.log("[AI] Trying Pollinations GET...");
+            const encoded = encodeURIComponent(`System: ${system.substring(0, 500)}\nUser: ${user.substring(0, 500)}`);
+            const res = await axios.get(`https://text.pollinations.ai/${encoded}?model=search&cache=false`, { timeout: 10000 });
             return res.data?.toString();
         }
     ];
@@ -61,7 +90,7 @@ async function callAI(system, user) {
     for (let i = 0; i < providers.length; i++) {
         try {
             const result = await providers[i]();
-            if (result && result.length > 5) {
+            if (result && result.length > 5 && !result.includes("error") && !result.includes("Missing authentication")) {
                 console.log(`[AI] Provider ${i} success!`);
                 return result;
             }
@@ -70,8 +99,14 @@ async function callAI(system, user) {
         }
     }
 
-    // 4. Emergency Dummy Narrative (Prevents MJ Link Interrupted error)
-    return "Le match continue intensément ! L'action est confuse mais tu gardes le contrôle. (Le serveur MJ est un peu surchargé, mais ton action est enregistrée).";
+    // 5. Emergency Dynamic Narrative
+    const fallbacks = [
+        "L'arbitre siffle une faute alors que l'action devenait confuse ! Le jeu reprendra dans un instant, reste concentré.",
+        "Le coach te donne des consignes tactiques mais le bruit du stade couvre sa voix. Tu continues ton action avec détermination.",
+        "Une contre-attaque rapide se dessine ! Tu sprintes vers le ballon, l'adrénaline monte alors que le MJ prépare la suite.",
+        "Le match est d'une intensité folle ! Tu reprends ton souffle pendant un arrêt de jeu technique."
+    ];
+    return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }
 
 module.exports = { callAI };
