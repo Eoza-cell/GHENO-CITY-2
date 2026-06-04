@@ -16,36 +16,9 @@ let lastQR = null;
 
 const server = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    if (isBotConnected) {
-        res.writeHead(200);
-        res.end('<html><head><title>Bot Connected</title></head><body><h1>⚽ Football Career RPG</h1><p>Status: ✅ Connecté à WhatsApp.</p></body></html>');
-    } else {
-        res.writeHead(503); // Use 503 to signal "not ready" to deployment platforms like Render
-        let message = '<html><head><title>Bot Pairing</title><meta http-equiv="refresh" content="30"></head><body>';
-        message += '<h1>⚽ Football Career RPG</h1><p>Status: ⏳ En attente de connexion...</p>';
-        message += '<p style="color:red;">⚠️ LE DÉPLOIEMENT NE TERMINERA PAS TANT QUE VOUS N\'AVEZ PAS SCANNÉ/PAIRÉ.</p>';
-
-        if (lastQR) {
-            const qrImage = await QRCode.toDataURL(lastQR);
-            message += `<p>Veuillez scanner ce QR Code avec WhatsApp :</p>
-                        <img src="${qrImage}" alt="QR Code" style="border: 10px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"><br>
-                        <p><i>Note: Le QR Code change régulièrement.</i></p>`;
-        }
-
-        if (pairingCode) {
-            message += `<hr><p>OU utilisez ce code de pairage :</p>
-                        <h2 style="font-family: monospace; background: #eee; padding: 10px; display: inline-block;">${pairingCode}</h2>`;
-        }
-
-        if (!lastQR && !pairingCode) {
-            message += '<p>Génération de la session en cours... Rafraîchissez dans quelques secondes.</p>';
-        }
-
-        res.end(message);
-    }
+    res.writeHead(200);
+    res.end('<html><head><title>Bot Connected</title></head><body><h1>⚽ Football Career RPG</h1><p>Status: ✅ Connecté à WhatsApp.</p></body></html>');
 });
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { console.log(`Server is running on port ${PORT} (Health check active)`); });
 
 async function connectToWhatsApp() {
   console.log('[BOT] Démarrage de la connexion...');
@@ -119,6 +92,14 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp (Football Career RPG)');
       isBotConnected = true;
+
+      // Start server only AFTER successful connection
+      const PORT = process.env.PORT || 3000;
+      if (!server.listening) {
+          server.listen(PORT, () => {
+              console.log(`[SERVER] Bot connecté. Port ${PORT} ouvert.`);
+          });
+      }
     }
   });
 
