@@ -67,9 +67,22 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   try {
     console.log(`[MJ] Traitement action pour ${player.name} (${player.whatsappId})`);
-    await sendLoadingSequence(sock, jid);
-    const content = await callAI(systemPrompt, fullPrompt);
+
+    // Start AI call and Loading sequence simultaneously
+    // We don't await the loading sequence so the AI call can start immediately
+    const loadingPromise = sendLoadingSequence(sock, jid);
+    const aiPromise = callAI(systemPrompt, fullPrompt);
+
+    const [loadingSent, content] = await Promise.all([loadingPromise, aiPromise]);
+
     console.log(`[MJ] Réponse AI reçue (${content?.length || 0} chars)`);
+
+    // Clean up loading message if it exists
+    if (loadingSent && loadingSent.key) {
+        try {
+            await sock.sendMessage(jid, { delete: loadingSent.key }).catch(() => null);
+        } catch (e) {}
+    }
 
     if (!content) {
         throw new Error("Contenu AI vide.");

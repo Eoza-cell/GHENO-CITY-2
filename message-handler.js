@@ -25,26 +25,28 @@ function initPuter() {
 async function sendLoadingSequence(sock, jid) {
     try {
         const sent = await sock.sendMessage(jid, { text: "⚽ ▱▱▱▱▱▱▱▱▱▱ 0%" });
-        const frames = [
-            "⚽ ▰▱▱▱▱▱▱▱▱▱ 10%",
-            "⚽ ▰▰▰▱▱▱▱▱▱▱ 30%",
-            "⚽ ▰▰▰▰▰▱▱▱▱▱ 50%",
-            "⚽ ▰▰▰▰▰▰▰▱▱▱ 70%",
-            "⚽ ▰▰▰▰▰▰▰▰▰▱ 90%",
-            "⚽ ▰▰▰▰▰▰▰▰▰▰ 100%"
-        ];
 
-        // We run this in background but don't wait for all of it if AI is fast
-        // Or we just do it sequentially. Given user's screenshot, let's make it more stable.
-        for (const frame of frames) {
-            await new Promise(r => setTimeout(r, 400));
-            try {
-                // Use a more resilient edit
-                await sock.sendMessage(jid, { text: frame, edit: sent.key }).catch(() => null);
-            } catch (e) {
-                break;
+        // We run the animation in the background so it doesn't block the main AI call
+        (async () => {
+            const frames = [
+                "⚽ ▰▱▱▱▱▱▱▱▱▱ 10%",
+                "⚽ ▰▰▰▱▱▱▱▱▱▱ 30%",
+                "⚽ ▰▰▰▰▰▱▱▱▱▱ 50%",
+                "⚽ ▰▰▰▰▰▰▰▱▱▱ 70%",
+                "⚽ ▰▰▰▰▰▰▰▰▰▱ 90%",
+                "⚽ ▰▰▰▰▰▰▰▰▰▰ 100%"
+            ];
+
+            for (const frame of frames) {
+                await new Promise(r => setTimeout(r, 400));
+                try {
+                    await sock.sendMessage(jid, { text: frame, edit: sent.key }).catch(() => null);
+                } catch (e) {
+                    break;
+                }
             }
-        }
+        })();
+
         return sent;
     } catch (e) {
         console.error("[MSG] Error in loading sequence:", e.message);

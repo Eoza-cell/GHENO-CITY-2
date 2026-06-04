@@ -27,6 +27,10 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         throw new Error("Récursion AI trop profonde détectée.");
     }
 
+    // Sanitize prompts
+    systemPrompt = (systemPrompt || "").toString().substring(0, 4000);
+    userPrompt = (userPrompt || "").toString().substring(0, 2000);
+
     // 0. Try ApiFreeLLM (User requested priority)
     if (process.env.APIFREELLM_API_KEY) {
         try {
@@ -186,7 +190,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     // 3. Fallback to Pollinations.ai (POST is more reliable for long prompts)
-    const models = ["gpt-4o", "mistral", "llama", "search"];
+    // Model names updated to match Pollinations documentation
+    const models = ["openai", "mistral", "llama", "search"];
     for (const model of models) {
         try {
             console.log(`[AI] Tentative avec Pollinations.ai (POST, model: ${model})...`);
@@ -198,11 +203,14 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
                 model: model,
                 json: false,
                 seed: Math.floor(Math.random() * 1000000)
-            }, { timeout: 15000 });
+            }, { timeout: 20000 });
 
             let content = response.data.toString();
+            // Basic cleanup of AI fluff
             content = content.replace(/```json/g, "").replace(/```/g, "").trim();
-            if (content && content.length > 5) return content;
+            if (content && content.length > 5 && !content.includes("error") && !content.includes("rate limit")) {
+                return content;
+            }
         } catch (error) {
             console.error(`[AI] Erreur Pollinations.ai (POST, model: ${model}):`, error.message);
         }
@@ -211,8 +219,11 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     // 4. Emergency Fallback: Pollinations.ai GET (Simple but usually works when POST fails)
     try {
         console.log("[AI] Tentative avec Pollinations.ai (Emergency GET)...");
-        const prompt = `System: ${systemPrompt}\nUser: ${userPrompt}`;
-        const response = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 2000))}?model=search&cache=false`, { timeout: 15000 });
+        // Use a very stripped down prompt for the emergency GET to avoid URL length issues
+        const shortSystem = "Tu es MJ Foot. Réponds en 1-2 phrases RP.";
+        const shortUser = userPrompt.substring(0, 500);
+        const prompt = `System: ${shortSystem}\nUser: ${shortUser}`;
+        const response = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(prompt)}?model=search&cache=false`, { timeout: 15000 });
         if (response.data) return response.data.toString().trim();
     } catch (e) {
         console.error("[AI] Échec Emergency GET:", e.message);
