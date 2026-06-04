@@ -4,11 +4,13 @@ let puter = null;
 let qvacModelId = null;
 
 function initPuter() {
-    if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+    if (!puter) {
         try {
             const puterJS = require('@heyputer/puter.js');
             puter = puterJS.default || puterJS.puter || puterJS;
-            puter.setAuthToken(process.env.PUTER_API_KEY);
+            if (process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+                puter.setAuthToken(process.env.PUTER_API_KEY);
+            }
         } catch (e) {
             console.error("[AI] Erreur chargement Puter.js:", e.message);
         }
@@ -90,23 +92,31 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
                 setTimeout(() => reject(new Error("Puter.js Timeout (30s)")), 30000)
             );
 
+            const puterModels = ["gpt-4o", "gpt-5.5", "gpt-4o-mini", "o3-mini", "gpt-5.4", "gpt-5.4-mini"];
             let response;
-            try {
-                response = await Promise.race([
-                    puterInstance.ai.chat(`System: ${systemPrompt}\n\nUser: ${userPrompt}`, { model: "gpt-4o", stream: false }),
-                    timeoutPromise
-                ]);
-            } catch (err) {
-                console.log("[AI] Échec GPT-4o SDK, tentative avec GPT-4o-mini...");
-                response = await Promise.race([
-                    puterInstance.ai.chat(`System: ${systemPrompt}\n\nUser: ${userPrompt}`, { model: "gpt-4o-mini", stream: false }),
-                    timeoutPromise
-                ]);
+            let lastError;
+
+            for (const model of puterModels) {
+                try {
+                    console.log(`[AI] Puter SDK try: ${model}`);
+                    response = await Promise.race([
+                        puterInstance.ai.chat(`System: ${systemPrompt}\n\nUser: ${userPrompt}`, { model: model, stream: false }),
+                        timeoutPromise
+                    ]);
+
+                    if (response && !response.error && response.code !== 'token_missing') {
+                        break;
+                    }
+                } catch (err) {
+                    lastError = err;
+                    continue;
+                }
             }
 
-            if (response?.error || response?.code === 'token_missing') {
-                throw new Error(response.message || "Puter Token Error");
+            if (!response || response.error || response.code === 'token_missing') {
+                throw new Error(response?.message || lastError?.message || "Puter SDK failure");
             }
+
             if (typeof response === 'string') return response;
             if (response?.message?.content?.[0]?.text) return response.message.content[0].text;
             if (response?.message?.content) return response.message.content;

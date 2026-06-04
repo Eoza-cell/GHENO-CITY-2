@@ -2,11 +2,13 @@ const axios = require('axios');
 let puter = null;
 
 function initPuter() {
-    if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+    if (!puter) {
         try {
             const puterJS = require('@heyputer/puter.js');
             puter = puterJS.default || puterJS.puter || puterJS;
-            puter.setAuthToken(process.env.PUTER_API_KEY);
+            if (process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+                puter.setAuthToken(process.env.PUTER_API_KEY);
+            }
         } catch (e) {
             console.error("[IMG] Erreur chargement Puter.js:", e.message);
         }
@@ -32,12 +34,14 @@ async function sendLoadingSequence(sock, jid) {
             "⚽ ▰▰▰▰▰▰▰▰▰▰ 100%"
         ];
 
+        // We run this in background but don't wait for all of it if AI is fast
+        // Or we just do it sequentially. Given user's screenshot, let's make it more stable.
         for (const frame of frames) {
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 400));
             try {
-                await sock.sendMessage(jid, { text: frame, edit: sent.key });
+                // Use a more resilient edit
+                await sock.sendMessage(jid, { text: frame, edit: sent.key }).catch(() => null);
             } catch (e) {
-                // If edit fails, we just stop the sequence to avoid crashing
                 break;
             }
         }
