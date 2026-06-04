@@ -133,10 +133,15 @@ commands.set('quit', async (sock, message) => {
 
 async function handleCommand(sock, message) {
   if (message.key.fromMe) return;
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
+  const messageText = message.message.conversation ||
+                      message.message.extendedTextMessage?.text ||
+                      message.message.imageMessage?.caption ||
+                      message.message.videoMessage?.caption;
+
   if (!messageText) return;
 
   const jid = getJid(message);
+  console.log(`[CMD] Message reçu de ${jid}: ${messageText.substring(0, 50)}...`);
   const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
 
@@ -156,7 +161,12 @@ async function handleCommand(sock, message) {
       return;
   }
 
-  if (player?.mode === 'action' && !messageText.startsWith('/')) { await handleFreeAction(sock, message, player, messageText); return; }
+  if (player?.mode === 'action' && !messageText.startsWith('/')) {
+    console.log(`[CMD] Transfert vers handleFreeAction pour ${player.name}`);
+    await handleFreeAction(sock, message, player, messageText);
+    return;
+  }
+
   if (!messageText.startsWith('/')) return;
   const args = messageText.slice(1).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();

@@ -90,31 +90,34 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    // 2. Try QVAC (Local/P2P Inference)
-    try {
-        if (!qvacModelId) {
-            console.log("[AI] Chargement du modèle QVAC (Llama 3.2 1B)...");
-            qvacModelId = await qvac.loadModel({
-                modelSrc: qvac.LLAMA_3_2_1B_INST_Q4_0,
-                modelType: "llm"
-            });
+    // 2. Try QVAC (Local/P2P Inference) - Only if Node version allows (requires WebGPU or similar often)
+    // We wrap this carefully as it can be heavy.
+    if (process.env.ENABLE_QVAC === 'true') {
+        try {
+            if (!qvacModelId) {
+                console.log("[AI] Chargement du modèle QVAC (Llama 3.2 1B)...");
+                qvacModelId = await qvac.loadModel({
+                    modelSrc: qvac.LLAMA_3_2_1B_INST_Q4_0,
+                    modelType: "llm"
+                });
+            }
+
+            console.log("[AI] Tentative avec QVAC...");
+            const history = [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+            ];
+
+            let fullText = "";
+            const stream = qvac.completion({ modelId: qvacModelId, history, stream: true });
+            for await (const token of stream.tokenStream) {
+                fullText += token;
+            }
+
+            if (fullText.trim()) return fullText.trim();
+        } catch (error) {
+            console.error("[AI] Erreur QVAC:", error.message);
         }
-
-        console.log("[AI] Tentative avec QVAC...");
-        const history = [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-        ];
-
-        let fullText = "";
-        const stream = qvac.completion({ modelId: qvacModelId, history, stream: true });
-        for await (const token of stream.tokenStream) {
-            fullText += token;
-        }
-
-        if (fullText.trim()) return fullText.trim();
-    } catch (error) {
-        console.error("[AI] Erreur QVAC:", error.message);
     }
 
     // 3. Try OpenRouter (Free model requested)
@@ -144,32 +147,29 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    // 3. Fallback to Pollinations.ai (Mistral)
-    try {
-        console.log("[AI] Tentative avec Pollinations.ai (Mistral)...");
-        const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
-        const response = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(combinedPrompt)}?model=mistral&cache=false`, { timeout: 30000 });
+    // 3. Fallback to Pollinations.ai (POST is more reliable for long prompts)
+    const models = ["gpt-4o", "mistral", "llama"];
+    for (const model of models) {
+        try {
+            console.log(`[AI] Tentative avec Pollinations.ai (${model})...`);
+            const response = await axios.post("https://text.pollinations.ai/", {
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt }
+                ],
+                model: model,
+                json: false
+            }, { timeout: 30000 });
 
-        let content = response.data.toString();
-        content = content.replace(/```json/g, "").replace(/```/g, "").trim();
-        return content;
-    } catch (error) {
-        console.error("[AI] Erreur Pollinations.ai (Mistral):", error.message);
+            let content = response.data.toString();
+            content = content.replace(/```json/g, "").replace(/```/g, "").trim();
+            if (content) return content;
+        } catch (error) {
+            console.error(`[AI] Erreur Pollinations.ai (${model}):`, error.message);
+        }
     }
 
-    // 4. Ultimate Fallback to Pollinations.ai (Llama)
-    try {
-        console.log("[AI] Tentative avec Pollinations.ai (Llama)...");
-        const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
-        const response = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(combinedPrompt)}?model=llama&cache=false`, { timeout: 30000 });
-
-        let content = response.data.toString();
-        content = content.replace(/```json/g, "").replace(/```/g, "").trim();
-        return content;
-    } catch (error) {
-        console.error("[AI] Erreur Pollinations.ai (Llama):", error.message);
-        throw new Error("Tous les fournisseurs d'IA ont échoué.");
-    }
+    throw new Error("Tous les fournisseurs d'IA ont échoué.");
 }
 
 module.exports = { callAI };

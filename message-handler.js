@@ -4,7 +4,8 @@ let puter = null;
 function initPuter() {
     if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
         try {
-            puter = require('@heyputer/puter.js').default;
+            const puterJS = require('@heyputer/puter.js');
+            puter = puterJS.default || puterJS.puter || puterJS;
             puter.setAuthToken(process.env.PUTER_API_KEY);
         } catch (e) {
             console.error("[IMG] Erreur chargement Puter.js:", e.message);
@@ -20,21 +21,31 @@ function initPuter() {
  * @param {object} aiResponse The JSON response from the AI handler.
  */
 async function sendLoadingSequence(sock, jid) {
-    const sent = await sock.sendMessage(jid, { text: "⚽ ▱▱▱▱▱▱▱▱▱▱ 0%" });
-    const frames = [
-        "⚽ ▰▱▱▱▱▱▱▱▱▱ 10%",
-        "⚽ ▰▰▰▱▱▱▱▱▱▱ 30%",
-        "⚽ ▰▰▰▰▰▱▱▱▱▱ 50%",
-        "⚽ ▰▰▰▰▰▰▰▱▱▱ 70%",
-        "⚽ ▰▰▰▰▰▰▰▰▰▱ 90%",
-        "⚽ ▰▰▰▰▰▰▰▰▰▰ 100%"
-    ];
+    try {
+        const sent = await sock.sendMessage(jid, { text: "⚽ ▱▱▱▱▱▱▱▱▱▱ 0%" });
+        const frames = [
+            "⚽ ▰▱▱▱▱▱▱▱▱▱ 10%",
+            "⚽ ▰▰▰▱▱▱▱▱▱▱ 30%",
+            "⚽ ▰▰▰▰▰▱▱▱▱▱ 50%",
+            "⚽ ▰▰▰▰▰▰▰▱▱▱ 70%",
+            "⚽ ▰▰▰▰▰▰▰▰▰▱ 90%",
+            "⚽ ▰▰▰▰▰▰▰▰▰▰ 100%"
+        ];
 
-    for (const frame of frames) {
-        await new Promise(r => setTimeout(r, 300));
-        await sock.sendMessage(jid, { text: frame, edit: sent.key });
+        for (const frame of frames) {
+            await new Promise(r => setTimeout(r, 300));
+            try {
+                await sock.sendMessage(jid, { text: frame, edit: sent.key });
+            } catch (e) {
+                // If edit fails, we just stop the sequence to avoid crashing
+                break;
+            }
+        }
+        return sent;
+    } catch (e) {
+        console.error("[MSG] Error in loading sequence:", e.message);
+        return null;
     }
-    return sent;
 }
 
 async function sendWithImage(sock, jid, aiResponse) {

@@ -68,8 +68,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   try {
+    console.log(`[MJ] Traitement action pour ${player.name} (${player.whatsappId})`);
     await sendLoadingSequence(sock, jid);
     const content = await callAI(systemPrompt, fullPrompt);
+    console.log(`[MJ] Réponse AI reçue (${content?.length || 0} chars)`);
+
+    if (!content) {
+        throw new Error("Contenu AI vide.");
+    }
 
     let aiResponse = { narrative: content };
     const jsonMatches = content.match(/\{[\s\S]*?\}/g);
@@ -89,7 +95,9 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
 
     // Save bot response to history
-    await RPMessage.create({ senderJid: playerWhatsappId, senderName: 'Football MJ', content: aiResponse.narrative });
+    if (aiResponse.narrative) {
+        await RPMessage.create({ senderJid: playerWhatsappId, senderName: 'Football MJ', content: aiResponse.narrative });
+    }
 
     if (aiResponse.actions) {
         for (const action of aiResponse.actions) {
@@ -120,13 +128,19 @@ async function handleFreeAction(sock, message, player, actionText) {
         }
     }
 
+    if (!aiResponse.narrative && !aiResponse.imagePrompt) {
+        aiResponse.narrative = "...";
+    }
+
     await sendWithImage(sock, jid, aiResponse);
 
   } catch (error) {
     console.error("[MJ ERROR]:", error);
     try {
-        await sock.sendMessage(jid, { text: "⚠️ *LIAISON MJ INTERROMPUE* : Connexion avec GPT-4o instable." });
-    } catch(e) {}
+        await sock.sendMessage(jid, { text: `⚠️ *LIAISON MJ INTERROMPUE* : ${error.message || "Erreur inconnue"}` });
+    } catch(e) {
+        console.error("[MJ ERROR] Échec envoi message erreur:", e.message);
+    }
   }
 }
 
