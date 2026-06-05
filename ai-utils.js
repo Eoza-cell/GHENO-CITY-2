@@ -25,6 +25,10 @@ function initPuter() {
 async function callAI(system, user) {
     console.log("[AI] Starting generation...");
 
+    // Sanitize and truncate prompts to avoid length-related errors
+    const systemSafe = system.substring(0, 4000);
+    const userSafe = user.substring(0, 2000);
+
     const providers = [
         // 0. ApiFreeLLM (User's preferred high-tier provider)
         async () => {
@@ -33,7 +37,7 @@ async function callAI(system, user) {
             const baseUrl = process.env.APIFREELLM_BASE_URL || "https://api.apifreellm.com/v1";
             const res = await axios.post(`${baseUrl}/chat/completions`, {
                 model: "gpt-4o",
-                messages: [{role: "system", content: system}, {role: "user", content: user}]
+                messages: [{role: "system", content: systemSafe}, {role: "user", content: userSafe}]
             }, {
                 headers: { "Authorization": `Bearer ${process.env.APIFREELLM_API_KEY}` },
                 timeout: 25000
@@ -49,7 +53,7 @@ async function callAI(system, user) {
                     console.log(`[AI] Trying Puter API (${model})...`);
                     const res = await axios.post("https://api.puter.com/v1/chat/completions", {
                         model: model,
-                        messages: [{role: "system", content: system}, {role: "user", content: user}],
+                        messages: [{role: "system", content: systemSafe}, {role: "user", content: userSafe}],
                         temperature: 0.7
                     }, {
                         headers: {
@@ -63,10 +67,6 @@ async function callAI(system, user) {
                 } catch (e) {
                     const errMsg = e.response?.data?.error?.message || e.message;
                     console.log(`[AI] Puter API ${model} failed: ${errMsg}`);
-                    if (errMsg.includes("rate limit") || errMsg.includes("insufficient_quota")) {
-                        // If quota is hit for this model, try next one quickly
-                        continue;
-                    }
                     continue;
                 }
             }
@@ -80,9 +80,9 @@ async function callAI(system, user) {
             for (const model of models) {
                 try {
                     console.log(`[AI] Trying Puter SDK (${model})...`);
-                    const resp = await puter.ai.chat(`System: ${system}\nUser: ${user}`, { model: model });
+                    const resp = await puter.ai.chat(`System: ${systemSafe}\nUser: ${userSafe}`, { model: model });
                     let text = typeof resp === 'string' ? resp : (resp?.message?.content?.[0]?.text || resp?.text);
-                    if (text && text.length > 10) return text;
+                    if (text && text.length > 10 && !text.includes("Missing authentication")) return text;
                 } catch (e) {
                     console.log(`[AI] Puter SDK ${model} failed: ${e.message}`);
                     continue;
@@ -90,21 +90,34 @@ async function callAI(system, user) {
             }
             return null;
         },
-        // 3. Pollinations POST
+        // 3. Pollinations POST (Resilient rotation)
         async () => {
-            console.log("[AI] Trying Pollinations POST...");
-            const res = await axios.post("https://text.pollinations.ai/", {
-                messages: [{role: "system", content: system}, {role: "user", content: user}],
-                model: "openai",
-                stream: false
-            }, { timeout: 15000 });
-            return res.data?.toString();
+            const models = ["openai", "mistral", "llama", "search"];
+            for (const model of models) {
+                try {
+                    console.log(`[AI] Trying Pollinations POST (${model})...`);
+                    const seed = Math.floor(Math.random() * 1000000);
+                    const res = await axios.post("https://text.pollinations.ai/", {
+                        messages: [{role: "system", content: systemSafe}, {role: "user", content: userSafe}],
+                        model: model,
+                        seed: seed,
+                        stream: false
+                    }, { timeout: 15000 });
+                    const result = res.data?.toString();
+                    if (result && result.length > 10) return result;
+                } catch (e) {
+                    console.log(`[AI] Pollinations POST ${model} failed: ${e.message}`);
+                }
+            }
+            return null;
         },
-        // 4. Pollinations GET (Ultra-Fast)
+        // 4. Pollinations GET (Ultra-Resilient / Emergency)
         async () => {
-            console.log("[AI] Trying Pollinations GET...");
-            const encoded = encodeURIComponent(`System: ${system.substring(0, 500)}\nUser: ${user.substring(0, 500)}`);
-            const res = await axios.get(`https://text.pollinations.ai/${encoded}?model=search&cache=false`, { timeout: 10000 });
+            console.log("[AI] Trying Pollinations GET Emergency...");
+            const seed = Math.floor(Math.random() * 1000000);
+            // Use extremely short version for GET to avoid URL limits
+            const litePrompt = `MJ Football: ${userSafe.substring(0, 500)}`;
+            const res = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(litePrompt)}?model=search&seed=${seed}&cache=false`, { timeout: 10000 });
             return res.data?.toString();
         }
     ];
