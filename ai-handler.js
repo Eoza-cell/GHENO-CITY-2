@@ -53,7 +53,11 @@ async function handleFreeAction(sock, message, player, actionText) {
     const [sent, aiText] = await Promise.all([loadingPromise, aiPromise]);
     loadingMsg = sent;
 
-    if (!aiText) throw new Error("AI returned nothing");
+    console.log("[MJ] AI Response received:", aiText ? aiText.substring(0, 50) + "..." : "null");
+
+    if (!aiText) {
+      throw new Error("AI returned nothing");
+    }
 
     // 3. Process Response
     let narrative = aiText;
@@ -99,17 +103,25 @@ async function handleFreeAction(sock, message, player, actionText) {
         }
     }
 
-    // 6. Final reply
+    // 6. Delete loading message with delay to avoid conflicts
     if (loadingMsg && loadingMsg.key) {
+        await new Promise(r => setTimeout(r, 500)); // Wait 500ms before deleting
         await sock.sendMessage(jid, { delete: loadingMsg.key }).catch(() => null);
+        await new Promise(r => setTimeout(r, 300)); // Wait 300ms before sending final message
     }
 
+    // 7. Final reply
     await sock.sendMessage(jid, { text: narrative });
+    console.log("[MJ] Message sent successfully");
 
   } catch (error) {
     console.error("[MJ ERROR]:", error.message);
+    
+    // Delete loading message if it exists
     if (loadingMsg && loadingMsg.key) {
+        await new Promise(r => setTimeout(r, 500));
         await sock.sendMessage(jid, { delete: loadingMsg.key }).catch(() => null);
+        await new Promise(r => setTimeout(r, 300));
     }
 
     // Fallback narrative if everything fails
