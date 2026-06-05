@@ -47,7 +47,7 @@ async function callAI(system, user, debug = false) {
                         "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
                         "Content-Type": "application/json"
                     },
-                    timeout: 25000
+                    timeout: 40000
                 });
                 return res.data?.choices?.[0]?.message?.content;
             }
@@ -63,7 +63,7 @@ async function callAI(system, user, debug = false) {
                     messages: [{role: "system", content: systemSafe}, {role: "user", content: userSafe}]
                 }, {
                     headers: { "Authorization": `Bearer ${process.env.APIFREELLM_API_KEY}` },
-                    timeout: 25000
+                    timeout: 40000
                 });
                 return res.data?.choices?.[0]?.message?.content;
             }
@@ -82,11 +82,12 @@ async function callAI(system, user, debug = false) {
                             temperature: 0.7
                         }, {
                             headers: { ...authHeader, "Content-Type": "application/json" },
-                            timeout: 20000
+                            timeout: 35000
                         });
                         const content = res.data?.choices?.[0]?.message?.content;
                         if (content && content.length > 10) return content;
                     } catch (e) {
+                        console.log(`[AI] Puter model ${model} failed: ${e.message}`);
                         continue;
                     }
                 }
@@ -106,6 +107,7 @@ async function callAI(system, user, debug = false) {
                         let text = typeof resp === 'string' ? resp : (resp?.message?.content?.[0]?.text || resp?.text);
                         if (text && text.length > 10 && !text.includes("Missing authentication")) return text;
                     } catch (e) {
+                        console.log(`[AI] Puter SDK model ${model} failed: ${e.message}`);
                         continue;
                     }
                 }
@@ -125,10 +127,12 @@ async function callAI(system, user, debug = false) {
                             model: model,
                             seed: seed,
                             stream: false
-                        }, { timeout: 15000 });
+                        }, { timeout: 30000 });
                         const result = res.data?.toString();
                         if (result && result.length > 10) return result;
-                    } catch (e) {}
+                    } catch (e) {
+                        console.log(`[AI] Pollinations model ${model} failed: ${e.message}`);
+                    }
                 }
                 throw new Error("Pollinations POST failed");
             }
@@ -139,7 +143,7 @@ async function callAI(system, user, debug = false) {
             call: async () => {
                 const seed = Math.floor(Math.random() * 1000000);
                 const litePrompt = `MJ Football: ${userSafe.substring(0, 500)}`;
-                const res = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(litePrompt)}?model=search&seed=${seed}&cache=false`, { timeout: 10000 });
+                const res = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(litePrompt)}?model=search&seed=${seed}&cache=false`, { timeout: 20000 });
                 return res.data?.toString();
             }
         }
@@ -162,6 +166,7 @@ async function callAI(system, user, debug = false) {
         }
     }
 
+    console.log("[AI] All providers failed, using fallback");
     if (debug) return debugResults.join('\n');
 
     // 5. Emergency Dynamic Narrative (Matches the one in user's screenshot)
