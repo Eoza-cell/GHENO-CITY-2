@@ -32,7 +32,27 @@ async function callAI(system, user, debug = false) {
     let debugResults = [];
 
     const providers = [
-        // 0. ApiFreeLLM (User's preferred high-tier provider)
+        // 0. OpenRouter (Nemotron)
+        {
+            name: "OpenRouter (Nemotron)",
+            call: async () => {
+                if (!process.env.OPENROUTER_API_KEY) throw new Error("Missing API Key");
+                console.log("[AI] Trying OpenRouter Nemotron...");
+                const res = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+                    model: "nvidia/llama-3.1-nemotron-70b-instruct",
+                    messages: [{role: "system", content: systemSafe}, {role: "user", content: userSafe}],
+                    temperature: 0.7
+                }, {
+                    headers: {
+                        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                        "Content-Type": "application/json"
+                    },
+                    timeout: 25000
+                });
+                return res.data?.choices?.[0]?.message?.content;
+            }
+        },
+        // 1. ApiFreeLLM (User's preferred high-tier provider)
         {
             name: "ApiFreeLLM",
             call: async () => {
@@ -48,11 +68,11 @@ async function callAI(system, user, debug = false) {
                 return res.data?.choices?.[0]?.message?.content;
             }
         },
-        // 1. Puter API (Axios) - High Priority Model Rotation
+        // 2. Puter API (Axios) - High Priority Model Rotation
         {
             name: "Puter API (Axios)",
             call: async () => {
-                const models = ["gpt-4o", "gpt-5.5-pro", "gpt-5.5", "o3-mini", "gpt-4o-mini", "gpt-5.4-pro"];
+                const models = ["o3-mini", "gpt-4o", "gpt-5.5-pro", "gpt-5.5", "gpt-4o-mini", "gpt-5.4-pro"];
                 const authHeader = process.env.PUTER_API_KEY ? { "Authorization": `Bearer ${process.env.PUTER_API_KEY}` } : {};
                 for (const model of models) {
                     try {
@@ -73,13 +93,13 @@ async function callAI(system, user, debug = false) {
                 throw new Error("All Puter models failed");
             }
         },
-        // 2. Puter SDK - Model Rotation
+        // 3. Puter SDK - Model Rotation
         {
             name: "Puter SDK",
             call: async () => {
                 const puter = initPuter();
                 if (!puter) throw new Error("SDK not loaded");
-                const models = ["gpt-5.5-pro", "gpt-5.5", "o3-mini", "gpt-4o", "gpt-5.4-mini"];
+                const models = ["o3-mini", "gpt-5.5-pro", "gpt-5.5", "gpt-4o", "gpt-5.4-mini"];
                 for (const model of models) {
                     try {
                         const resp = await puter.ai.chat(`System: ${systemSafe}\nUser: ${userSafe}`, { model: model });
@@ -92,7 +112,7 @@ async function callAI(system, user, debug = false) {
                 throw new Error("All SDK models failed");
             }
         },
-        // 3. Pollinations POST (Resilient rotation)
+        // 4. Pollinations POST (Resilient rotation)
         {
             name: "Pollinations POST",
             call: async () => {
@@ -113,7 +133,7 @@ async function callAI(system, user, debug = false) {
                 throw new Error("Pollinations POST failed");
             }
         },
-        // 4. Pollinations GET (Ultra-Resilient / Emergency)
+        // 5. Pollinations GET (Ultra-Resilient / Emergency)
         {
             name: "Pollinations GET",
             call: async () => {

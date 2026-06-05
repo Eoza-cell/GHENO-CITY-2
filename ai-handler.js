@@ -12,7 +12,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   // 1. Context Collection
   const history = await RPMessage.findAll({
-    where: { [Op.or]: [{ senderJid: playerWhatsappId }, { senderJid: jid }] },
+    where: { [Op.or]: [{ senderJid: playerWhatsappId }, { senderJid: jid }, { senderJid: 'MJ' }] },
     order: [['id', 'DESC']],
     limit: 10
   });
