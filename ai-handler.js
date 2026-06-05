@@ -37,7 +37,6 @@ async function handleFreeAction(sock, message, player, actionText) {
       {"type": "update_stats", "parameters": {"shoot_change": 1, "money_change": 100, "stamina_change": -10, "xp_change": 50}}
       {"type": "update_location", "parameters": {"location": "Stade", "city": "Londres"}}
       {"type": "skip_match", "parameters": {"score": "2-1", "rating": 7}}
-      {"type": "visual", "parameters": {"videoPrompt": "Une description visuelle cinématographique et dynamique de l'action de football"}}
   `;
 
   const userPrompt = `
@@ -59,7 +58,6 @@ async function handleFreeAction(sock, message, player, actionText) {
     // 3. Process Response
     let narrative = aiText;
     let actions = [];
-    let videoPrompt = null;
 
     const jsonMatches = narrative.match(/\{[\s\S]*?\}/g);
     if (jsonMatches) {
@@ -68,7 +66,6 @@ async function handleFreeAction(sock, message, player, actionText) {
                 const parsed = JSON.parse(match);
                 actions.push(parsed);
                 narrative = narrative.replace(match, "");
-                if (parsed.type === 'visual') videoPrompt = parsed.parameters?.videoPrompt;
             } catch(e) {}
         }
     }
@@ -107,7 +104,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         await sock.sendMessage(jid, { delete: loadingMsg.key }).catch(() => null);
     }
 
-    await sendWithVideo(sock, jid, { narrative, videoPrompt });
+    await sock.sendMessage(jid, { text: narrative });
 
   } catch (error) {
     console.error("[MJ ERROR]:", error.message);
