@@ -53,11 +53,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     const [sent, aiText] = await Promise.all([loadingPromise, aiPromise]);
     loadingMsg = sent;
 
-    console.log("[MJ] AI Response received:", aiText ? aiText.substring(0, 50) + "..." : "null");
-
-    if (!aiText) {
-      throw new Error("AI returned nothing");
-    }
+    if (!aiText) throw new Error("AI returned nothing");
 
     // 3. Process Response
     let narrative = aiText;
@@ -74,7 +70,23 @@ async function handleFreeAction(sock, message, player, actionText) {
         }
     }
 
-    narrative = narrative.trim() || "...";
+    narrative = narrative.trim();
+    if (!narrative || narrative.length < 5) {
+        if (actions.length > 0) {
+            const act = actions[0];
+            if (act.type === 'update_stats') narrative = "Tes efforts paient ! Tes statistiques augmentent alors que tu continues ton entraînement intensif.";
+            else if (act.type === 'update_location') narrative = `Tu arrives à destination : ${act.parameters.location}. Le décor change alors que ta carrière progresse.`;
+            else narrative = "L'action se déroule sans encombre sur le terrain.";
+        } else {
+            narrative = "Le match continue intensément ! Tu restes concentré sur tes objectifs.";
+        }
+    }
+
+    // 3b. Automatic "Offline" Reward (Optional but recommended for continuity)
+    if (actions.length === 0 && !aiText.includes("{")) {
+        // AI was probably offline or in local mode. Let's give a tiny XP boost.
+        actions.push({ type: "update_stats", parameters: { xp_change: 10, stamina_change: -5 } });
+    }
 
     // 4. Save to DB
     await RPMessage.create({ senderJid: playerWhatsappId, senderName: player.name, content: actionText });
@@ -103,36 +115,23 @@ async function handleFreeAction(sock, message, player, actionText) {
         }
     }
 
-    // 6. Delete loading message with delay to avoid conflicts
+    // 6. Final reply
     if (loadingMsg && loadingMsg.key) {
-        await new Promise(r => setTimeout(r, 500)); // Wait 500ms before deleting
         await sock.sendMessage(jid, { delete: loadingMsg.key }).catch(() => null);
-        await new Promise(r => setTimeout(r, 300)); // Wait 300ms before sending final message
     }
 
-    // 7. Final reply
     await sock.sendMessage(jid, { text: narrative });
-    console.log("[MJ] Message sent successfully");
 
   } catch (error) {
     console.error("[MJ ERROR]:", error.message);
-    
-    // Delete loading message if it exists
     if (loadingMsg && loadingMsg.key) {
-        await new Promise(r => setTimeout(r, 500));
         await sock.sendMessage(jid, { delete: loadingMsg.key }).catch(() => null);
-        await new Promise(r => setTimeout(r, 300));
     }
 
-    // Fallback narrative if everything fails
-    const defaultNarratives = [
-        `⚽ *MJ* : Tu t'élances avec détermination pour effectuer : "${actionText.substring(0,30)}...". Le stade retient son souffle, l'action se poursuit dans le feu de l'action !`,
-        `🏟️ *Coach* : J'ai vu ton intention sur cette action : "${actionText.substring(0,30)}...". Continue de presser, on analyse ça à la mi-temps !`,
-        `🎙️ *Journaliste* : Quelle intensité sur la pelouse ! ${player.name} tente de "${actionText.substring(0,30)}...", un moment charnière de ce match !`
-    ];
-    const randomFallback = defaultNarratives[Math.floor(Math.random() * defaultNarratives.length)];
-
-    await sock.sendMessage(jid, { text: randomFallback });
+    // Fallback narrative if everything fails (Shouldn't happen with ai-utils local MJ, but safe to keep)
+    const fallback = `🏟️ *MJ (Auto)* : Ton action "${actionText.substring(0,40)}..." est enregistrée. Le match gagne en intensité ! (+10 XP)`;
+    await player.increment('xp', { by: 10 });
+    await sock.sendMessage(jid, { text: fallback });
   }
 }
 

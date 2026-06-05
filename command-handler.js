@@ -131,6 +131,15 @@ commands.set('quit', async (sock, message) => {
     if (player) { await player.update({ mode: 'normal' }); await sock.sendMessage(message.key.remoteJid, { text: "Mode normal réactivé." }); }
 });
 
+commands.set('reset', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (player) {
+        await player.destroy();
+        await sock.sendMessage(message.key.remoteJid, { text: "✅ Ton profil a été réinitialisé. Tape /start pour recommencer ta carrière." });
+    }
+});
+
 commands.set('status', async (sock, message) => {
     try {
         await sequelize.authenticate();
