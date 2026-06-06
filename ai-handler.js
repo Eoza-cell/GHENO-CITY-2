@@ -27,7 +27,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     JOUEUR: ${player.name} (${player.position})
     LIEU ACTUEL: ${player.location}, ${player.city}
     CLUB: ${currentClub?.name || 'Libre'}
-    STATS: Tir:${player.shoot}, Passe:${player.pass}, Dribble:${player.dribble}, Vitesse:${player.speed}, Défense:${player.defense}
+    STATS: Tir:${player.shoot} Passe:${player.pass} Dribble:${player.dribble} Vitesse:${player.speed} Défense:${player.defense}
 
     RÈGLES MJ:
     - Tes narrations doivent être basées sur les stats du joueur.

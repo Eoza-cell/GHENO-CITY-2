@@ -159,9 +159,11 @@ async function callAI(system, user, debug = false) {
             name: "Pollinations GET",
             call: async () => {
                 const seed = Math.floor(Math.random() * 1000000);
-                const litePrompt = `MJ Football: ${userSafe.substring(0, 500)}`;
-                const res = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(litePrompt)}?model=search&seed=${seed}&cache=false`, { timeout: 10000 });
-                return res.data?.toString();
+                const litePrompt = `[MJ FOOTBALL] Action: ${userSafe.substring(0, 300)}\nRéponds en 2 phrases max.`;
+                const res = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(litePrompt)}?model=openai&seed=${seed}&system=Tu+es+un+MJ+expert+en+football.+Reste+immersif+et+court.`, { timeout: 10000 });
+                const result = res.data?.toString();
+                if (result && result.length > 5 && !result.includes("Queue full") && !result.includes("error")) return result;
+                throw new Error("Pollinations GET failed");
             }
         },
         // 6. Blackbox AI (New free provider)
@@ -202,39 +204,122 @@ async function callAI(system, user, debug = false) {
 }
 
 /**
- * Generates a semi-dynamic narrative based on keywords when all AI fail.
+ * Generates a highly context-aware narrative based on keywords and player stats when all AI fail.
  */
 function generateLocalNarrative(userAction, systemPrompt) {
-    const action = userAction.toLowerCase();
+    const action = userAction.trim();
+    const actionLower = action.toLowerCase();
 
-    // Extract name and position from system prompt if possible
+    // 1. Context Extraction
     const nameMatch = systemPrompt.match(/JOUEUR: (.*?) \(/);
     const playerName = nameMatch ? nameMatch[1] : "Joueur";
 
-    if (action.includes("tir") || action.includes("frappe") || action.includes("shoot")) {
-        return `${playerName} déclenche une frappe puissante vers le but ! Le gardien plonge mais le ballon est dévié in extremis par un défenseur. L'action reste chaude !`;
+    const posMatch = systemPrompt.match(/\((.*?)\)/);
+    const playerPos = posMatch ? posMatch[1] : "Joueur";
+
+    const stats = {
+        tir: parseInt(systemPrompt.match(/Tir:(\d+)/)?.[1] || "50"),
+        passe: parseInt(systemPrompt.match(/Passe:(\d+)/)?.[1] || "50"),
+        dribble: parseInt(systemPrompt.match(/Dribble:(\d+)/)?.[1] || "50"),
+        vitesse: parseInt(systemPrompt.match(/Vitesse:(\d+)/)?.[1] || "50"),
+        defense: parseInt(systemPrompt.match(/Défense:(\d+)/)?.[1] || "50")
+    };
+
+    // 2. Mechanics: d20 Roll
+    const roll = Math.floor(Math.random() * 20) + 1;
+    const isSuccess = roll > 10;
+    const isCritical = roll === 20;
+
+    // 3. Scoring System for Keywords
+    const categories = [
+        { id: "tir", keywords: ["tir", "frappe", "shoot", "but", "lucarne", "poteau", "reprise", "enroule", "volée"], score: 0 },
+        { id: "passe", keywords: ["passe", "centre", "transversale", "ouverture", "transmission", "servir", "appuyé", "une-deux"], score: 0 },
+        { id: "dribble", keywords: ["dribble", "élimine", "crochet", "geste", "technique", "petit pont", "roulette", "feinte", "déborde"], score: 0 },
+        { id: "defense", keywords: ["tacle", "défend", "intercepte", "duel", "marquage", "récupère", "bloc", "charge", "épaule"], score: 0 },
+        { id: "entraine", keywords: ["entraine", "exercice", "physique", "musculation", "cardio", "gammes", "progrès", "préparation"], score: 0 },
+        { id: "social", keywords: ["parle", "discute", "coach", "agent", "vestiaire", "presse", "journaliste", "fan", "supporter", "coéquipier"], score: 0 }
+    ];
+
+    categories.forEach(cat => {
+        cat.keywords.forEach(kw => {
+            if (actionLower.includes(kw)) cat.score += 1;
+        });
+    });
+
+    const bestCat = categories.sort((a, b) => b.score - a.score)[0];
+    const category = (bestCat.score > 0) ? bestCat.id : "generic";
+
+    let narrative = "";
+    let jsonAction = null;
+
+    // 4. Contextual Narratives
+    if (category === "tir") {
+        const difficulty = 65;
+        const total = stats.tir + (roll * 2);
+
+        if (total > difficulty + 20 || isCritical) {
+            const options = [
+                `🎙️ **COMMENTATEUR**: QUEL BUT !! ${playerName} prend ses responsabilités et déclenche une frappe monstrueuse qui nettoie la lucarne ! Le stade est en délire !`,
+                `🏟️ **MATCH**: Incroyable ! Tu déclenches une volée foudroyante à l'entrée de la surface. Le gardien ne peut que constater les dégâts. Magnifique but !`
+            ];
+            narrative = options[Math.floor(Math.random() * options.length)];
+            jsonAction = { type: "update_stats", parameters: { xp_change: 100, money_change: 50, shoot_change: 1 } };
+        } else if (total > difficulty) {
+            narrative = `🏟️ **MATCH**: Tu tentes ta chance avec une frappe placée. Le gardien est battu mais le ballon rase le poteau extérieur ! C'était tout proche, ${playerName}.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 30, shoot_change: 1 } };
+        } else {
+            narrative = `🏟️ **MATCH**: Ta tentative de tir manque de conviction. Le ballon s'envole dans les tribunes, provoquant les sifflets d'une partie du public. Travaille ta précision !`;
+            jsonAction = { type: "update_stats", parameters: { stamina_change: -10 } };
+        }
     }
-    if (action.includes("passe") || action.includes("centre")) {
-        return "Ta passe est précise et trouve un coéquipier dans la course. L'offensive progresse rapidement vers la surface adverse !";
+    else if (category === "passe") {
+        if (isSuccess) {
+            narrative = `⚽ **TERRAIN**: Magnifique vision de jeu ! Ta passe pour le latéral droit est millimétrée, cassant deux lignes adverses. L'offensive se poursuit !`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 40, pass_change: 1 } };
+        } else {
+            narrative = `⚽ **TERRAIN**: Tu cherches l'ouverture mais ta transmission est trop courte et interceptée. Le bloc adverse remonte vite, il va falloir redescendre défendre !`;
+            jsonAction = { type: "update_stats", parameters: { stamina_change: -15 } };
+        }
     }
-    if (action.includes("dribble") || action.includes("élimine")) {
-        return "D'un geste technique élégant, tu effaces ton vis-à-vis ! Le public se lève alors que tu t'ouvres le chemin du but.";
+    else if (category === "dribble") {
+        if (stats.dribble + (roll * 1.5) > 75) {
+            narrative = `✨ **ACTION**: Quel régal technique ! Tu élimines ton défenseur d'un petit pont dévastateur. Le public scande ton nom alors que tu t'enfonces dans la surface.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 50, dribble_change: 1 } };
+        } else {
+            narrative = `✨ **ACTION**: Tu tentes un geste technique audacieux, mais le défenseur ne tombe pas dans le panneau et récupère le cuir. Tu dois être plus vif !`;
+            jsonAction = { type: "update_stats", parameters: { stamina_change: -10 } };
+        }
     }
-    if (action.includes("tacle") || action.includes("défend")) {
-        return "Ton intervention défensive est impeccable ! Tu récupères le ballon proprement et relances immédiatement le jeu.";
+    else if (category === "defense") {
+        if (stats.defense + roll > 60) {
+            narrative = `🛡️ **DÉFENSE**: Intervention autoritaire de ${playerName} ! Tu récupères le ballon proprement avec un tacle glissé parfaitement exécuté. Le coach apprécie ton engagement.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 45, defense_change: 1 } };
+        } else {
+            narrative = `🛡️ **DÉFENSE**: Ton intervention est en retard. L'arbitre n'hésite pas et te siffle une faute dangereuse. Attention à ne pas prendre de carton idiot !`;
+            jsonAction = { type: "update_stats", parameters: { stamina_change: -20 } };
+        }
     }
-    if (action.includes("entraine") || action.includes("exercice")) {
-        return "Ton entraînement intensif porte ses fruits. Tu sens tes muscles brûler mais ta technique s'affine à chaque répétition. +1 XP.";
+    else if (category === "entraine") {
+        narrative = `🏋️ **ENTRAÎNEMENT**: Séance intense au centre de formation. Tu répètes tes gammes jusqu'à l'épuisement. Tu sens que ton physique s'améliore progressivement.`;
+        jsonAction = { type: "update_stats", parameters: { xp_change: 60, stamina_change: -30, speed_change: 1 } };
+    }
+    else if (category === "social") {
+        narrative = `🗣️ **VESTIAIRES**: Tu échanges avec ton entourage pro. Les discussions sont constructives pour ton avenir. "Reste concentré sur le terrain", te glisse-t-on avec insistance.`;
+        jsonAction = { type: "update_stats", parameters: { xp_change: 15 } };
+    }
+    else {
+        // Echo the user action to make it feel responsive
+        const shortAction = action.length > 50 ? action.substring(0, 47) + "..." : action;
+        const options = [
+            `🏟️ **STADE**: "${shortAction}". Tu effectues ton action sous les yeux attentifs des recruteurs. Le match suit son cours et ton influence grandit.`,
+            `👟 **TERRAIN**: "${shortAction}". Tes coéquipiers t'encouragent. Tu restes bien en place tactiquement pour la suite du match.`
+        ];
+        narrative = options[Math.floor(Math.random() * options.length)];
+        jsonAction = { type: "update_stats", parameters: { xp_change: 15, stamina_change: -5 } };
     }
 
-    const generic = [
-        "L'intensité du match est à son comble ! Tu es au cœur de l'action, luttant pour chaque ballon avec une détermination sans faille.",
-        "Le coach te fait signe depuis le banc de touche. Tes efforts sont remarqués et tu continues à peser sur le jeu.",
-        "Le stade gronde alors que tu prends une décision cruciale sur le terrain. Le suspense est total pour la suite de ta carrière !",
-        "Chaque mouvement compte maintenant. Tu restes concentré, lisant le jeu avec une clarté impressionnante malgré la fatigue.",
-        "La tension monte d'un cran ! Tu es idéalement placé pour faire la différence dans les prochaines minutes."
-    ];
-    return generic[Math.floor(Math.random() * generic.length)];
+    // 5. Return combined result (Narrative + optional JSON)
+    return narrative + (jsonAction ? "\n\n" + JSON.stringify(jsonAction) : "");
 }
 
 module.exports = { callAI };
