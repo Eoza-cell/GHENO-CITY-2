@@ -750,6 +750,7 @@ commands.set('help', async (sock, message) => {
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
                    "/save - Sauvegarder tes données manuellement.\n" +
+                   "/checkai - Diagnostiquer l'état des serveurs IA.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
                    "/help - Afficher cette aide.";
@@ -766,6 +767,33 @@ commands.set('action', async (sock, message) => {
   } else {
       await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
   }
+});
+
+// Command: /checkai
+commands.set('checkai', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const { callAI } = require('./ai-utils');
+
+    await sock.sendMessage(replyJid, { text: "🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*...\nVeuillez patienter." });
+
+    const startTime = Date.now();
+    try {
+        const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
+        const duration = (Date.now() - startTime) / 1000;
+
+        let status = "🟢 *OPÉRATIONNEL*";
+        if (result.includes("moteur MJ Local")) status = "🟡 *MODE DÉGRADÉ* (MJ Local)";
+
+        await sock.sendMessage(replyJid, {
+            text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
+                  `Statut: ${status}\n` +
+                  `Latence: ${duration}s\n` +
+                  `Réponse: ${result.substring(0, 100)}...\n\n` +
+                  `_Si le statut est dégradé, vérifiez vos clés API ou attendez quelques minutes._`
+        });
+    } catch (e) {
+        await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
+    }
 });
 
 // Command: /menu

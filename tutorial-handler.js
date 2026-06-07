@@ -57,20 +57,20 @@ async function handleTutorialAction(sock, message, player, actionText) {
         }
 
         if (chosenClass) {
-            // Family "Gacha"
+            // Family "Gacha" (1% - 10% - 25% - 75% interpretation)
             const roll = Math.random() * 100;
             let family = "Sans Famille";
             let familyBonus = { strength: 0, agility: 0, intelligence: 0, luck: 0, defense: 0 };
 
-            if (roll < 1) { // 1% Noble Suprême
+            if (roll < 1) { // 1% Royale
                 family = "Famille Royale d'Elion";
-                familyBonus = { strength: 20, agility: 20, intelligence: 20, luck: 20, defense: 20 };
-            } else if (roll < 11) { // 10% Famille Noble
+                familyBonus = { strength: 25, agility: 25, intelligence: 25, luck: 25, defense: 25 };
+            } else if (roll < 10) { // 9% Noble (Top 10%)
                 family = "Maison de la Lame d'Argent";
-                familyBonus = { strength: 10, agility: 10, intelligence: 10, luck: 10, defense: 10 };
-            } else if (roll < 36) { // 25% Famille Connue
+                familyBonus = { strength: 15, agility: 15, intelligence: 15, luck: 15, defense: 15 };
+            } else if (roll < 25) { // 15% Connue (Top 25%)
                 family = "Clan des Loups d'Acier";
-                familyBonus = { strength: 5, agility: 5, intelligence: 5, luck: 5, defense: 5 };
+                familyBonus = { strength: 8, agility: 8, intelligence: 8, luck: 8, defense: 8 };
             }
 
             await player.update({

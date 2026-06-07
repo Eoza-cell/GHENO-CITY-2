@@ -20,7 +20,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Mana: ${player.mana}/${player.maxMana}
     - Col: ${player.col}
     - Emplacement: ${player.location}
-    - Statistiques: Force ${player.strength}, Agilité ${player.agility}, Intelligence ${player.intelligence}, Défense ${player.defense}, Chance ${player.luck}
+    - STATS: Force:${player.strength} Agilité:${player.agility} Intelligence:${player.intelligence} Défense:${player.defense} Chance:${player.luck}
   `;
 
   const inventory = player.inventory || [];
@@ -252,18 +252,24 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     // Robust JSON extraction
     let aiResponse = { narrative: "", actions: [] };
-    let jsonMatch = content.match(/\{[\s\S]*\}/);
 
-    if (jsonMatch) {
-        try {
-            aiResponse = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-            console.error("[AI ERROR] JSON Parse failed, extracting narrative only.");
-            aiResponse.narrative = content.replace(/\{[\s\S]*\}/, '').trim();
-        }
+    // Check if it's already an object (from Local MJ)
+    if (typeof content === 'object') {
+        aiResponse = content;
     } else {
-        console.warn("[AI WARNING] No JSON found, using raw content as narrative.");
-        aiResponse.narrative = content.trim();
+        let jsonMatch = content.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+            try {
+                aiResponse = JSON.parse(jsonMatch[0]);
+            } catch (e) {
+                console.error("[AI ERROR] JSON Parse failed, extracting narrative only.");
+                aiResponse.narrative = content.replace(/\{[\s\S]*\}/, '').trim();
+            }
+        } else {
+            console.warn("[AI WARNING] No JSON found, using raw content as narrative.");
+            aiResponse.narrative = content.trim();
+        }
     }
 
     // Fallback if narrative is still empty

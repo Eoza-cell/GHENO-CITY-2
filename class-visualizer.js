@@ -1,4 +1,21 @@
-const { createCanvas, registerFont } = require('canvas');
+const { createCanvas } = require('canvas');
+
+/**
+ * Helper to draw rounded rectangles for cross-version compatibility.
+ */
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+}
 
 /**
  * Generates a Canvas image for class selection with a grid of 13 classes.
@@ -6,7 +23,7 @@ const { createCanvas, registerFont } = require('canvas');
  */
 async function generateClassSelectionImage() {
     const width = 1200;
-    const height = 1000;
+    const height = 1100;
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
@@ -30,19 +47,31 @@ async function generateClassSelectionImage() {
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, width, height);
 
+    // Grid lines effect
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < width; i += 40) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, height); ctx.stroke();
+    }
+    for (let i = 0; i < height; i += 40) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(width, i); ctx.stroke();
+    }
+
     // Title
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 40px Arial';
+    ctx.font = 'bold 50px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('CHOISISSEZ VOTRE CLASSE', width / 2, 60);
+    ctx.shadowBlur = 10; ctx.shadowColor = 'white';
+    ctx.fillText('LINK START : CHOISIS TA CLASSE', width / 2, 80);
+    ctx.shadowBlur = 0;
 
     const columns = 4;
     const cardWidth = 260;
     const cardHeight = 180;
     const marginX = 30;
-    const marginY = 30;
+    const marginY = 35;
     const startX = (width - (columns * cardWidth + (columns - 1) * marginX)) / 2;
-    const startY = 120;
+    const startY = 150;
 
     classes.forEach((cls, i) => {
         const row = Math.floor(i / columns);
@@ -50,42 +79,40 @@ async function generateClassSelectionImage() {
         const x = startX + col * (cardWidth + marginX);
         const y = startY + row * (cardHeight + marginY);
 
-        // Card shadow/glow
+        // Card Glow
         ctx.shadowBlur = 15;
         ctx.shadowColor = cls.color;
 
         // Card Background
         ctx.fillStyle = cls.bg;
-        ctx.beginPath();
-        ctx.roundRect(x, y, cardWidth, cardHeight, 15);
+        drawRoundedRect(ctx, x, y, cardWidth, cardHeight, 15);
         ctx.fill();
 
-        ctx.shadowBlur = 0; // Reset shadow
+        ctx.shadowBlur = 0;
 
-        // Card border
+        // Card Border
         ctx.strokeStyle = cls.color;
         ctx.lineWidth = 3;
         ctx.stroke();
 
         // Class Name
         ctx.fillStyle = cls.color;
-        ctx.font = 'bold 24px Arial';
+        ctx.font = 'bold 26px sans-serif';
         ctx.fillText(cls.name, x + cardWidth / 2, y + 60);
 
         // Description
-        ctx.fillStyle = '#cccccc';
-        ctx.font = '16px Arial';
+        ctx.fillStyle = '#eeeeee';
+        ctx.font = '16px sans-serif';
         ctx.fillText(cls.desc, x + cardWidth / 2, y + 100);
 
-        // Decoration
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.beginPath();
-        ctx.roundRect(x + 20, y + 130, cardWidth - 40, 30, 8);
+        // Footer button-like look
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        drawRoundedRect(ctx, x + 20, y + 130, cardWidth - 40, 30, 8);
         ctx.fill();
 
         ctx.fillStyle = 'white';
-        ctx.font = 'italic 12px Arial';
-        ctx.fillText('Sélectionnez via message', x + cardWidth / 2, y + 150);
+        ctx.font = 'italic 13px sans-serif';
+        ctx.fillText('Envoie le nom par message', x + cardWidth / 2, y + 150);
     });
 
     return canvas.toBuffer('image/png');
