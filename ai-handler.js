@@ -257,24 +257,45 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (typeof content === 'object') {
         aiResponse = content;
     } else {
-        let jsonMatch = content.match(/\{[\s\S]*\}/);
+        // Remove markdown code blocks and various JSON tags
+        let cleanContent = content
+            .replace(/```json/gi, '')
+            .replace(/```/g, '')
+            .replace(/^json/gi, '')
+            .trim();
+
+        let jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
 
         if (jsonMatch) {
             try {
                 aiResponse = JSON.parse(jsonMatch[0]);
+                // If there's narrative text OUTSIDE the JSON (sometimes happens with models)
+                if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+                    const parts = cleanContent.split(jsonMatch[0]);
+                    const potentialNarrative = parts[0].trim() || parts[1]?.trim();
+                    if (potentialNarrative && potentialNarrative.length > 5) {
+                        aiResponse.narrative = potentialNarrative;
+                    }
+                }
             } catch (e) {
                 console.error("[AI ERROR] JSON Parse failed, extracting narrative only.");
-                aiResponse.narrative = content.replace(/\{[\s\S]*\}/, '').trim();
+                aiResponse.narrative = cleanContent.trim();
             }
         } else {
             console.warn("[AI WARNING] No JSON found, using raw content as narrative.");
-            aiResponse.narrative = content.trim();
+            aiResponse.narrative = cleanContent;
         }
     }
 
     // Fallback if narrative is still empty
     if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-        aiResponse.narrative = content.substring(0, 500).replace(/\{[\s\S]*/, '').trim() || "Le flux magique est instable...";
+        let fallbackNarrative = content
+            .replace(/```json/gi, '')
+            .replace(/```/g, '')
+            .replace(/^json/gi, '')
+            .split('{')[0].trim();
+
+        aiResponse.narrative = fallbackNarrative || "Le flux magique est instable...";
     }
 
     console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
@@ -381,6 +402,7 @@ async function handleFreeAction(sock, message, player, actionText) {
               }
           }
           if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
+          if (parameters.new_class) await target.update({ class: parameters.new_class });
           if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
           if (parameters.academicGrade_change) await target.increment('academicGrade', { by: parameters.academicGrade_change });
           if (parameters.sp_gain) await target.increment('skillPoints', { by: parameters.sp_gain });

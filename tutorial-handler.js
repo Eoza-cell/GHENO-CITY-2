@@ -133,24 +133,40 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
         try {
             const contentRaw = await callAI(systemPrompt, fullPrompt);
+            let content = contentRaw;
+            let aiResponse = { narrative: "", tutorial_complete: false };
 
-            let content = contentRaw.trim();
-            // Try to fix common AI formatting issues
-            if (content.includes('```json')) {
-                content = content.split('```json')[1].split('```')[0].trim();
-            } else if (content.includes('```')) {
-                content = content.split('```')[1].split('```')[0].trim();
+            if (typeof content === 'object') {
+                aiResponse = content;
+            } else {
+                let cleanContent = content
+                    .replace(/```json/gi, '')
+                    .replace(/```/g, '')
+                    .replace(/^json/gi, '')
+                    .trim();
+
+                const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    try {
+                        aiResponse = JSON.parse(jsonMatch[0]);
+                        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+                            const parts = cleanContent.split(jsonMatch[0]);
+                            const potentialNarrative = parts[0].trim() || parts[1]?.trim();
+                            if (potentialNarrative && potentialNarrative.length > 5) {
+                                aiResponse.narrative = potentialNarrative;
+                            }
+                        }
+                    } catch (e) {
+                        aiResponse.narrative = cleanContent;
+                    }
+                } else {
+                    aiResponse.narrative = cleanContent;
+                }
             }
 
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                 console.error("Échec extraction JSON tutoriel. Contenu brut:", content);
-                 await sock.sendMessage(jid, { text: "Instructeur : 'Impressionnant ! Tu apprends vite. Le tutoriel est terminé.'\n\n*Utilise /menu pour commencer.*" });
-                 await player.update({ tutorialStep: 3, mode: 'normal' });
-                 return;
+            if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+                aiResponse.narrative = "Instructeur : 'Impressionnant ! Tu apprends vite.'";
             }
-
-            const aiResponse = JSON.parse(jsonMatch[0]);
 
             if (aiResponse.tutorial_complete) {
                 await player.update({ tutorialStep: 3, mode: 'normal' });
