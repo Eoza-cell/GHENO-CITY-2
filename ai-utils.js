@@ -23,6 +23,10 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         throw new Error("Récursion AI trop profonde.");
     }
 
+    // Sanitize prompts (truncate if too long for providers)
+    const sanitizedSystem = systemPrompt.length > 4000 ? systemPrompt.substring(0, 4000) + "..." : systemPrompt;
+    const sanitizedUser = userPrompt.length > 2000 ? userPrompt.substring(0, 2000) + "..." : userPrompt;
+
     const providers = [];
 
     // Priority: Puter -> OpenRouter -> Pollinations
@@ -36,7 +40,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         for (let attempt = 1; attempt <= 2; attempt++) {
             try {
                 console.log(`[AI] Tentative ${attempt} avec ${provider.name}...`);
-                const result = await provider.fn(systemPrompt, userPrompt);
+                const result = await provider.fn(sanitizedSystem, sanitizedUser);
                 if (result) {
                     console.log(`[AI] Succès avec ${provider.name}`);
                     return result;
@@ -53,11 +57,17 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    console.warn("[AI] TOUS LES FOURNISSEURS ONT ÉCHOUÉ. Utilisation du secours statique.");
-    return JSON.stringify({
-        narrative: "Le flux magique d'Aetherys semble perturbé... (Erreur Serveur AI)",
-        actions: []
-    });
+    console.warn("[AI] TOUS LES FOURNISSEURS ONT ÉCHOUÉ. Utilisation du secours d'urgence.");
+    try {
+        // Ultimate fallback: stripped-down Pollinations call
+        const emergencyPrompt = "Tu es MJ. Le système a crashé. Dis au joueur de réessayer poliment en une phrase RP.";
+        return await callPollinations("Tu es un MJ de RPG.", emergencyPrompt);
+    } catch (e) {
+        return JSON.stringify({
+            narrative: "Le flux magique d'Aetherys semble perturbé... (Erreur Serveur AI)",
+            actions: []
+        });
+    }
 }
 
 async function callOpenRouter(systemPrompt, userPrompt) {

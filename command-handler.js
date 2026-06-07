@@ -716,6 +716,26 @@ commands.set('statut', async (sock, message) => {
 });
 
 // Command: /help
+// Command: /save
+commands.set('save', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de données à sauvegarder. Utilise /start." });
+        return;
+    }
+
+    try {
+        await player.save();
+        await sock.sendMessage(replyJid, { text: "💾 *SAUVEGARDE RÉUSSIE*\n\nTes données ont été synchronisées avec la matrice d'Aetherys. Tu pourras reprendre ton aventure à tout moment." });
+    } catch (error) {
+        console.error("Erreur sauvegarde joueur:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la sauvegarde de tes données." });
+    }
+});
+
 commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
                    "/start - Commencer l'aventure.\n" +
@@ -729,6 +749,7 @@ commands.set('help', async (sock, message) => {
                    "/joueurs - Voir les joueurs à proximité.\n" +
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
+                   "/save - Sauvegarder tes données manuellement.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
                    "/help - Afficher cette aide.";

@@ -1,16 +1,14 @@
-const sharp = require('sharp');
+const { createCanvas, registerFont } = require('canvas');
 
 /**
- * Generates an SVG image for class selection with a grid of 13 classes.
+ * Generates a Canvas image for class selection with a grid of 13 classes.
  * @returns {Promise<Buffer>} The image buffer.
  */
 async function generateClassSelectionImage() {
-    const width = 1000;
-    const height = 800;
-    const columns = 4;
-    const cardWidth = 220;
-    const cardHeight = 160;
-    const margin = 20;
+    const width = 1200;
+    const height = 1000;
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
 
     const classes = [
         { name: 'GUERRIER', color: '#ff4d4d', bg: '#4a1a1a', desc: 'Force & Défense' },
@@ -23,38 +21,74 @@ async function generateClassSelectionImage() {
         { name: 'INVOCATEUR', color: '#ff00ff', bg: '#4a004a', desc: 'Créatures & Pactes' },
         { name: 'NÉCROMANCIEN', color: '#a200ff', bg: '#2a004a', desc: 'Mort & Ombres' },
         { name: 'SAMOURAÏ', color: '#ff0055', bg: '#4a0019', desc: 'Honneur & Lame' },
-        { name: 'CHEVALIER-DRAGON', color: '#ff5e00', bg: '#4a1c00', desc: 'Dragon & Cieux' },
+        { name: 'CH.-DRAGON', color: '#ff5e00', bg: '#4a1c00', desc: 'Dragon & Cieux' },
         { name: 'ALCHIMISTE', color: '#00ff88', bg: '#004a28', desc: 'Science & Potions' },
         { name: 'BARDE', color: '#ff00aa', bg: '#4a0031', desc: 'Musique & Soutien' }
     ];
 
-    let svgContent = `<rect width="100%" height="100%" fill="#0a0a0a" />`;
-    svgContent += `<text x="${width / 2}" y="50" font-family="Arial" font-size="32" fill="white" text-anchor="middle" font-weight="bold">CHOISISSEZ VOTRE CLASSE</text>`;
+    // Background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, width, height);
+
+    // Title
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 40px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('CHOISISSEZ VOTRE CLASSE', width / 2, 60);
+
+    const columns = 4;
+    const cardWidth = 260;
+    const cardHeight = 180;
+    const marginX = 30;
+    const marginY = 30;
+    const startX = (width - (columns * cardWidth + (columns - 1) * marginX)) / 2;
+    const startY = 120;
 
     classes.forEach((cls, i) => {
         const row = Math.floor(i / columns);
         const col = i % columns;
-        const x = margin + col * (cardWidth + margin);
-        const y = 80 + row * (cardHeight + margin);
+        const x = startX + col * (cardWidth + marginX);
+        const y = startY + row * (cardHeight + marginY);
 
-        svgContent += `
-            <g transform="translate(${x}, ${y})">
-                <rect width="${cardWidth}" height="${cardHeight}" rx="10" fill="${cls.bg}" stroke="${cls.color}" stroke-width="2" />
-                <text x="${cardWidth / 2}" y="60" font-family="Arial" font-size="18" fill="${cls.color}" text-anchor="middle" font-weight="bold">${cls.name}</text>
-                <text x="${cardWidth / 2}" y="100" font-family="Arial" font-size="12" fill="#cccccc" text-anchor="middle">${cls.desc}</text>
-                <rect x="20" y="120" width="${cardWidth - 40}" height="20" rx="5" fill="#00000033" />
-                <text x="${cardWidth / 2}" y="135" font-family="Arial" font-size="10" fill="white" text-anchor="middle" font-style="italic">Cliquez pour choisir</text>
-            </g>
-        `;
+        // Card shadow/glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = cls.color;
+
+        // Card Background
+        ctx.fillStyle = cls.bg;
+        ctx.beginPath();
+        ctx.roundRect(x, y, cardWidth, cardHeight, 15);
+        ctx.fill();
+
+        ctx.shadowBlur = 0; // Reset shadow
+
+        // Card border
+        ctx.strokeStyle = cls.color;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Class Name
+        ctx.fillStyle = cls.color;
+        ctx.font = 'bold 24px Arial';
+        ctx.fillText(cls.name, x + cardWidth / 2, y + 60);
+
+        // Description
+        ctx.fillStyle = '#cccccc';
+        ctx.font = '16px Arial';
+        ctx.fillText(cls.desc, x + cardWidth / 2, y + 100);
+
+        // Decoration
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.beginPath();
+        ctx.roundRect(x + 20, y + 130, cardWidth - 40, 30, 8);
+        ctx.fill();
+
+        ctx.fillStyle = 'white';
+        ctx.font = 'italic 12px Arial';
+        ctx.fillText('Sélectionnez via message', x + cardWidth / 2, y + 150);
     });
 
-    const svgString = `
-        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-            ${svgContent}
-        </svg>
-    `;
-
-    return sharp(Buffer.from(svgString)).png().toBuffer();
+    return canvas.toBuffer('image/png');
 }
 
 module.exports = { generateClassSelectionImage };
