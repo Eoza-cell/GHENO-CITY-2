@@ -2,10 +2,12 @@ const axios = require('axios');
 let puter = null;
 
 function initPuter() {
-    if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+    if (!puter) {
         try {
-            puter = require('@heyputer/puter.js').default;
-            puter.setAuthToken(process.env.PUTER_API_KEY);
+            puter = require('@heyputer/puter.js').default || require('@heyputer/puter.js');
+            if (process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+                puter.setAuthToken(process.env.PUTER_API_KEY);
+            }
         } catch (e) {
             console.error("[AI] Erreur chargement Puter.js:", e.message);
         }
@@ -35,12 +37,16 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             try {
                 console.log(`[AI] Tentative ${attempt} avec ${provider.name}...`);
                 const result = await provider.fn(systemPrompt, userPrompt);
-                if (result) return result;
+                if (result) {
+                    console.log(`[AI] Succès avec ${provider.name}`);
+                    return result;
+                }
+                console.warn(`[AI] ${provider.name} a retourné une réponse vide.`);
             } catch (error) {
-                console.error(`[AI] Échec ${provider.name} (Tentative ${attempt}):`, error.message);
-                if (error.message.includes('Maximum call stack size exceeded')) {
+                console.error(`[AI] Échec ${provider.name} (Tentative ${attempt}):`, error.message || error);
+                if (error.message && error.message.includes('Maximum call stack size exceeded')) {
                     console.error("[CRITICAL] Puter SDK Stack Overflow detected. Skipping provider.");
-                    break; // Skip to next provider immediately on stack overflow
+                    break;
                 }
                 await new Promise(r => setTimeout(r, 1000));
             }
@@ -78,59 +84,99 @@ async function callOpenRouter(systemPrompt, userPrompt) {
 
 async function callPuter(systemPrompt, userPrompt) {
     const puterInstance = initPuter();
-    if (!puterInstance) return null;
-
-    const puterPromise = puterInstance.ai.chat(
-        "gpt-4o",
-        {
-            system: systemPrompt,
-            prompt: userPrompt,
-            stream: false,
-        }
-    );
-
-    const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Puter.js Timeout")), 25000)
-    );
-
-    const response = await Promise.race([puterPromise, timeoutPromise]);
-
-    if (!response) return null;
-
-    // Robust parsing of Puter.js response
-    let text = "";
-    if (typeof response === 'string') {
-        text = response;
-    } else if (response.message && response.message.content) {
-        if (Array.isArray(response.message.content)) {
-            text = response.message.content.map(c => c.text || "").join("");
-        } else {
-            text = response.message.content;
-        }
-    } else if (response.text) {
-        text = typeof response.text === 'function' ? await response.text() : response.text;
-    } else {
-        text = response.toString();
+    if (!puterInstance) {
+        console.warn("[AI] Puter non initialisé.");
+        return null;
     }
 
-    if (text === "[object Object]") {
-        console.warn("[AI] Puter a retourné [object Object], tentative de stringify...");
-        text = JSON.stringify(response);
+    const models = ["gpt-4o", "openai/gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet"];
+
+    for (const model of models) {
+        try {
+            console.log(`[AI] Puter - Essai du modèle: ${model}`);
+
+            // Puter.js chat can take a string as first arg, and options as second
+            // OR just a prompt as first arg.
+            const options = {
+                model: model,
+                system: systemPrompt,
+                stream: false,
+            };
+
+            const puterPromise = puterInstance.ai.chat(userPrompt, options);
+
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error(`Puter.js Timeout (${model})`)), 20000)
+            );
+
+            const response = await Promise.race([puterPromise, timeoutPromise]);
+
+            console.log(`[AI] Puter (${model}) Raw Response:`, JSON.stringify(response).substring(0, 200));
+
+            if (!response || response.error || response.code === 'token_missing') {
+                console.warn(`[AI] Puter (${model}) échec ou erreur d'auth.`);
+                continue;
+            }
+
+            // Robust parsing of Puter.js response
+            let text = "";
+            if (typeof response === 'string') {
+                text = response;
+            } else if (response.message && response.message.content) {
+                if (Array.isArray(response.message.content)) {
+                    text = response.message.content.map(c => c.text || (typeof c === 'string' ? c : "")).join("");
+                } else {
+                    text = response.message.content;
+                }
+            } else if (response.text) {
+                text = typeof response.text === 'function' ? await response.text() : response.text;
+            } else {
+                text = response.toString();
+            }
+
+            if (text && text !== "[object Object]" && text.length > 5) {
+                return text;
+            }
+            console.warn(`[AI] Puter (${model}) a retourné une réponse invalide: ${text}`);
+        } catch (e) {
+            console.error(`[AI] Puter (${model}) erreur:`, e.message || e);
+        }
     }
 
-    return text;
+    return null;
 }
 
 async function callPollinations(systemPrompt, userPrompt) {
-    const combinedPrompt = `SYSTEM: ${systemPrompt}\n\nUSER: ${userPrompt}`;
-    const response = await axios.post('https://text.pollinations.ai/', {
-        messages: [{ role: 'user', content: combinedPrompt }],
-        model: 'openai',
-        json: true
-    }, { timeout: 30000 });
+    const models = ['openai', 'mistral', 'llama', 'p1'];
+    const combinedPrompt = `System: ${systemPrompt}\n\nUser: ${userPrompt}`;
 
-    if (typeof response.data === 'string') return response.data;
-    return response.data?.choices?.[0]?.message?.content || JSON.stringify(response.data);
+    for (const model of models) {
+        try {
+            console.log(`[AI] Pollinations - Essai du modèle: ${model}`);
+            const response = await axios.post('https://text.pollinations.ai/', {
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                model: model,
+                json: true
+            }, { timeout: 15000 });
+
+            let text = "";
+            if (typeof response.data === 'string') {
+                text = response.data;
+            } else {
+                text = response.data?.choices?.[0]?.message?.content || response.data?.content || JSON.stringify(response.data);
+            }
+
+            if (text && text.length > 5 && !text.includes("Error")) {
+                return text;
+            }
+        } catch (e) {
+            console.error(`[AI] Pollinations (${model}) échec:`, e.message);
+        }
+    }
+    return null;
 }
 
 
