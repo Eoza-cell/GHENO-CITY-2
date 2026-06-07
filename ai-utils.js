@@ -127,12 +127,13 @@ async function callAI(system, user, debug = false) {
         {
             name: "Pollinations",
             call: async () => {
-                const models = ["openai", "mistral", "llama", "search", "unity", "midjourney"];
+                const models = ["p1", "openai", "mistral", "llama", "unity"];
                 // Try multiple times with different seeds to bypass 429/Queue issues
                 for (let attempt = 0; attempt < 3; attempt++) {
                     for (const model of models) {
                         try {
                             const seed = Math.floor(Math.random() * 9999999);
+                            console.log(`[AI] Pollinations trying ${model} (attempt ${attempt+1})...`);
                             const res = await axios.post("https://text.pollinations.ai/", {
                                 messages: [{role: "system", content: systemSafe}, {role: "user", content: userSafe}],
                                 model: model,
@@ -140,16 +141,18 @@ async function callAI(system, user, debug = false) {
                                 stream: false,
                                 cache: false
                             }, {
-                                headers: { "Content-Type": "application/json" },
-                                timeout: 12000
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                                },
+                                timeout: 15000
                             });
 
                             let content = res.data;
                             if (typeof content === 'object') content = JSON.stringify(content);
-                            if (content && content.length > 10 && !content.includes("Queue full")) return content;
+                            if (content && content.length > 10 && !content.includes("Queue full") && !content.includes("error")) return content;
                         } catch (e) {
-                            // Wait a bit between attempts if 429
-                            if (e.response?.status === 429) await new Promise(r => setTimeout(r, 1000));
+                            if (e.response?.status === 429) await new Promise(r => setTimeout(r, 2000));
                             continue;
                         }
                     }
@@ -162,8 +165,13 @@ async function callAI(system, user, debug = false) {
             name: "Pollinations GET",
             call: async () => {
                 const seed = Math.floor(Math.random() * 1000000);
-                const litePrompt = `[MJ FOOTBALL] Action: ${userSafe.substring(0, 300)}\nRéponds en 2 phrases max.`;
-                const res = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(litePrompt)}?model=openai&seed=${seed}&system=Tu+es+un+MJ+expert+en+football.+Reste+immersif+et+court.`, { timeout: 10000 });
+                const litePrompt = `[MJ FOOTBALL] Action: ${userSafe.substring(0, 300)}`;
+                const sys = encodeURIComponent("Tu es un MJ expert en football. Réponds en 2 phrases max.");
+                // Use a different model for GET to increase success chance
+                const res = await axios.get(`https://text.pollinations.ai/${encodeURIComponent(litePrompt)}?model=p1&seed=${seed}&system=${sys}`, {
+                    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+                    timeout: 10000
+                });
                 const result = res.data?.toString();
                 if (result && result.length > 5 && !result.includes("Queue full") && !result.includes("error")) return result;
                 throw new Error("Pollinations GET failed");
