@@ -70,7 +70,7 @@ async function callAI(system, user, debug = false) {
             name: "Puter API (Axios)",
             call: async () => {
                 // Models from 2026 Puter Tutorial
-                const models = ["claude-3.5-sonnet", "gpt-5.5-pro", "gpt-5.5", "o3-mini", "gpt-4o", "gpt-5.4-pro", "gpt-4o-mini"];
+                const models = ["gpt-5.5-pro", "gpt-5.5", "gpt-5.4-pro", "gpt-5.4", "gpt-5.4-nano", "o3-mini", "gpt-4.5-preview", "gpt-4o", "claude-3.5-sonnet"];
                 const authHeader = process.env.PUTER_API_KEY ? { "Authorization": `Bearer ${process.env.PUTER_API_KEY}` } : {};
                 for (const model of models) {
                     try {
@@ -85,7 +85,10 @@ async function callAI(system, user, debug = false) {
                                 "Content-Type": "application/json",
                                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                                 "Origin": "https://puter.com",
-                                "Referer": "https://puter.com/"
+                                "Referer": "https://puter.com/",
+                                "X-Puter-App-Name": "Football Career Pro",
+                                "Sec-Fetch-Mode": "cors",
+                                "Sec-Fetch-Site": "cross-site"
                             },
                             timeout: 15000
                         });
@@ -105,13 +108,13 @@ async function callAI(system, user, debug = false) {
             call: async () => {
                 const puter = initPuter();
                 if (!puter) throw new Error("SDK not loaded");
-                const models = ["claude-3.5-sonnet", "gpt-5.5-pro", "gpt-5.5", "o3-mini", "gpt-4o", "gpt-5.4-mini"];
+                const models = ["gpt-5.5-pro", "gpt-5.5", "gpt-5.4-pro", "gpt-5.4", "gpt-5.4-nano", "o3-mini", "gpt-4o"];
                 for (const model of models) {
                     try {
                         console.log(`[AI] Puter SDK trying ${model}...`);
                         const resp = await puter.ai.chat(`System: ${systemSafe}\nUser: ${userSafe}`, { model: model });
                         let text = typeof resp === 'string' ? resp : (resp?.message?.content?.[0]?.text || resp?.text);
-                        if (text && text.length > 10 && !text.includes("Missing authentication")) return text;
+                        if (text && text.length > 10 && !text.includes("Missing authentication") && !text.includes("error")) return text;
                     } catch (e) {
                         console.log(`[AI] Puter SDK ${model} failed: ${e.message}`);
                         continue;
@@ -200,7 +203,9 @@ async function callAI(system, user, debug = false) {
     if (debug) return debugResults.join('\n');
 
     // 6. Local MJ Narrative Engine (Last Resort)
-    return generateLocalNarrative(userSafe, systemSafe);
+    const localRes = generateLocalNarrative(userSafe, systemSafe);
+    console.log("[AI] Falling back to Local MJ...");
+    return localRes;
 }
 
 /**
@@ -222,22 +227,23 @@ function generateLocalNarrative(userAction, systemPrompt) {
         passe: parseInt(systemPrompt.match(/Passe:(\d+)/)?.[1] || "50"),
         dribble: parseInt(systemPrompt.match(/Dribble:(\d+)/)?.[1] || "50"),
         vitesse: parseInt(systemPrompt.match(/Vitesse:(\d+)/)?.[1] || "50"),
-        defense: parseInt(systemPrompt.match(/Défense:(\d+)/)?.[1] || "50")
+        defense: parseInt(systemPrompt.match(/Défense:(\d+)/)?.[1] || "50"),
+        stamina: parseInt(systemPrompt.match(/Stamina:(\d+)/)?.[1] || "100")
     };
 
     // 2. Mechanics: d20 Roll
     const roll = Math.floor(Math.random() * 20) + 1;
-    const isSuccess = roll > 10;
-    const isCritical = roll === 20;
+    const isCriticalSuccess = roll === 20;
+    const isCriticalFailure = roll === 1;
 
     // 3. Scoring System for Keywords
     const categories = [
-        { id: "tir", keywords: ["tir", "frappe", "shoot", "but", "lucarne", "poteau", "reprise", "enroule", "volée"], score: 0 },
-        { id: "passe", keywords: ["passe", "centre", "transversale", "ouverture", "transmission", "servir", "appuyé", "une-deux"], score: 0 },
-        { id: "dribble", keywords: ["dribble", "élimine", "crochet", "geste", "technique", "petit pont", "roulette", "feinte", "déborde"], score: 0 },
-        { id: "defense", keywords: ["tacle", "défend", "intercepte", "duel", "marquage", "récupère", "bloc", "charge", "épaule"], score: 0 },
-        { id: "entraine", keywords: ["entraine", "exercice", "physique", "musculation", "cardio", "gammes", "progrès", "préparation"], score: 0 },
-        { id: "social", keywords: ["parle", "discute", "coach", "agent", "vestiaire", "presse", "journaliste", "fan", "supporter", "coéquipier"], score: 0 }
+        { id: "tir", keywords: ["tir", "frappe", "shoot", "but", "lucarne", "poteau", "reprise", "enroule", "volée", "surface", "filet", "angle", "lob", "penalty", "coup franc", "plexus", "temple", "poitrine"], score: 0 },
+        { id: "passe", keywords: ["passe", "centre", "transversale", "ouverture", "transmission", "servir", "appuyé", "une-deux", "profondeur", "déviation", "talonmade", "remise"], score: 0 },
+        { id: "dribble", keywords: ["dribble", "élimine", "crochet", "geste", "technique", "petit pont", "roulette", "feinte", "déborde", "vitesse", "accélère", "flip-flap", "elastico", "sombrero", "foulée"], score: 0 },
+        { id: "defense", keywords: ["tacle", "défend", "intercepte", "duel", "marquage", "récupère", "bloc", "charge", "épaule", "tête", "dégage", "poitrine", "contrent"], score: 0 },
+        { id: "entraine", keywords: ["entraine", "exercice", "physique", "musculation", "cardio", "gammes", "progrès", "préparation", "échauffement", "pompes", "abdos", "footing"], score: 0 },
+        { id: "social", keywords: ["parle", "discute", "coach", "agent", "vestiaire", "presse", "journaliste", "fan", "supporter", "coéquipier", "signature", "contrat", "interview"], score: 0 }
     ];
 
     categories.forEach(cat => {
@@ -251,75 +257,93 @@ function generateLocalNarrative(userAction, systemPrompt) {
 
     let narrative = "";
     let jsonAction = null;
+    let rollDetails = "";
 
     // 4. Contextual Narratives
     if (category === "tir") {
-        const difficulty = 65;
         const total = stats.tir + (roll * 2);
+        const diff = 75;
+        let status = total > diff + 15 ? 'Réussite totale' : (total > diff ? 'Réussite' : (total > diff - 15 ? 'Réussite mitigée' : 'Échec'));
+        rollDetails = `\n\n*Jet de dé virtuel (Tir + Technique) : ${roll}/20 — ${status}.*`;
 
-        if (total > difficulty + 20 || isCritical) {
-            const options = [
-                `🎙️ **COMMENTATEUR**: QUEL BUT !! ${playerName} prend ses responsabilités et déclenche une frappe monstrueuse qui nettoie la lucarne ! Le stade est en délire !`,
-                `🏟️ **MATCH**: Incroyable ! Tu déclenches une volée foudroyante à l'entrée de la surface. Le gardien ne peut que constater les dégâts. Magnifique but !`
-            ];
-            narrative = options[Math.floor(Math.random() * options.length)];
+        if (isCriticalSuccess || total > diff + 15) {
+            narrative = `Le cuir colle toujours à ton pied, mais les cuisses commencent à crier. Tu plantes l'appui, hanche ouverte, frappe *rasante, tendue, vicieuse* — le genre qui nettoie la plinthe. Le ballon termine sa course dans le petit filet opposé, laissant le gardien de marbre. Magnifique, ${playerName} !`;
             jsonAction = { type: "update_stats", parameters: { xp_change: 100, money_change: 50, shoot_change: 1 } };
-        } else if (total > difficulty) {
-            narrative = `🏟️ **MATCH**: Tu tentes ta chance avec une frappe placée. Le gardien est battu mais le ballon rase le poteau extérieur ! C'était tout proche, ${playerName}.`;
-            jsonAction = { type: "update_stats", parameters: { xp_change: 30, shoot_change: 1 } };
+        } else if (total > diff) {
+            narrative = `Tu déclenches une frappe puissante à mi-hauteur. Le portier la touche du bout des gants mais ça finit au fond ! Un but de pur opportuniste qui récompense tes efforts.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 60, shoot_change: 1 } };
         } else {
-            narrative = `🏟️ **MATCH**: Ta tentative de tir manque de conviction. Le ballon s'envole dans les tribunes, provoquant les sifflets d'une partie du public. Travaille ta précision !`;
+            narrative = `Tu cherches la lucarne mais ton pied d'appui glisse légèrement au moment de l'impact. Le ballon s'envole vers le deuxième poteau de corner... Tes coéquipiers soupirent, il va falloir se régler !`;
             jsonAction = { type: "update_stats", parameters: { stamina_change: -10 } };
         }
     }
     else if (category === "passe") {
-        if (isSuccess) {
-            narrative = `⚽ **TERRAIN**: Magnifique vision de jeu ! Ta passe pour le latéral droit est millimétrée, cassant deux lignes adverses. L'offensive se poursuit !`;
-            jsonAction = { type: "update_stats", parameters: { xp_change: 40, pass_change: 1 } };
+        const total = stats.passe + (roll * 2);
+        const diff = 70;
+        let status = total > diff + 15 ? 'Réussite totale' : (total > diff ? 'Réussite' : (total > diff - 15 ? 'Réussite mitigée' : 'Échec'));
+        rollDetails = `\n\n*Jet de dé virtuel (Passe + Vision) : ${roll}/20 — ${status}.*`;
+
+        if (total > diff + 10) {
+            narrative = `Quelle vista ! Tu délivres une passe laser qui transperce tout le bloc adverse. Ton attaquant n'a plus qu'à pousser le cuir au fond. Le stade scande ton nom pour cette offrande royale.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 70, pass_change: 1 } };
+        } else if (total > diff) {
+            narrative = `Une transmission propre dans les pieds. Le jeu progresse et tu assures la possession pour ton équipe. Simple, efficace, du travail de pro.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 30 } };
         } else {
-            narrative = `⚽ **TERRAIN**: Tu cherches l'ouverture mais ta transmission est trop courte et interceptée. Le bloc adverse remonte vite, il va falloir redescendre défendre !`;
+            narrative = `Ta passe manque de conviction. Elle est interceptée par un Mamadou aux aguets qui lance immédiatement la contre-attaque. "T'as cru que j'allais te laisser faire ?", te lance-t-il avec un sourire en coin.`;
             jsonAction = { type: "update_stats", parameters: { stamina_change: -15 } };
         }
     }
     else if (category === "dribble") {
-        if (stats.dribble + (roll * 1.5) > 75) {
-            narrative = `✨ **ACTION**: Quel régal technique ! Tu élimines ton défenseur d'un petit pont dévastateur. Le public scande ton nom alors que tu t'enfonces dans la surface.`;
-            jsonAction = { type: "update_stats", parameters: { xp_change: 50, dribble_change: 1 } };
+        const total = stats.dribble + (roll * 2);
+        const diff = 75;
+        let status = total > diff + 15 ? 'Réussite totale' : (total > diff ? 'Réussite' : (total > diff - 15 ? 'Réussite mitigée' : 'Échec'));
+        rollDetails = `\n\n*Jet de dé virtuel (Dribble + Agilité) : ${roll}/20 — ${status}.*`;
+
+        if (isCriticalSuccess || total > diff + 15) {
+            narrative = `C'est de la magie ! Roulette, double contact, et tu laisses ton vis-à-vis sur les fesses. Tu t'enfonces dans la surface avec une élégance rare. Même le coach adverse ne peut s'empêcher d'applaudir.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 80, dribble_change: 1 } };
+        } else if (total > diff) {
+            narrative = `Un crochet court bien senti qui te permet de déborder sur l'aile. Le centre qui suit est dangereux, tu as fait la différence sur ce coup-là.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 40, dribble_change: 1 } };
         } else {
-            narrative = `✨ **ACTION**: Tu tentes un geste technique audacieux, mais le défenseur ne tombe pas dans le panneau et récupère le cuir. Tu dois être plus vif !`;
+            narrative = `Tu tentes le geste de trop. Le défenseur reste sur ses appuis et te subtilise le ballon proprement. Tu finis le nez dans le gazon, avec les jambes en coton.`;
             jsonAction = { type: "update_stats", parameters: { stamina_change: -10 } };
         }
     }
     else if (category === "defense") {
-        if (stats.defense + roll > 60) {
-            narrative = `🛡️ **DÉFENSE**: Intervention autoritaire de ${playerName} ! Tu récupères le ballon proprement avec un tacle glissé parfaitement exécuté. Le coach apprécie ton engagement.`;
-            jsonAction = { type: "update_stats", parameters: { xp_change: 45, defense_change: 1 } };
+        const total = stats.defense + (roll * 2);
+        const diff = 70;
+        let status = total > diff + 15 ? 'Réussite totale' : (total > diff ? 'Réussite' : (total > diff - 15 ? 'Réussite mitigée' : 'Échec'));
+        rollDetails = `\n\n*Jet de dé virtuel (Défense + Force) : ${roll}/20 — ${status}.*`;
+
+        if (total > diff + 10) {
+            narrative = `Un tacle glissé d'anthologie ! Tu emportes le ballon sans même effleurer l'adversaire. Une intervention qui redonne confiance à toute ton équipe. Impérial, ${playerName}.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 70, defense_change: 1 } };
+        } else if (total > diff) {
+            narrative = `Tu gagnes ton duel à l'épaule et tu relances proprement. Tu es un vrai poison pour les attaquants aujourd'hui.`;
+            jsonAction = { type: "update_stats", parameters: { xp_change: 30 } };
         } else {
-            narrative = `🛡️ **DÉFENSE**: Ton intervention est en retard. L'arbitre n'hésite pas et te siffle une faute dangereuse. Attention à ne pas prendre de carton idiot !`;
+            narrative = `Tu te fais aspirer par la feinte. L'attaquant te passe comme si tu n'existais pas. Heureusement que ton gardien veille au grain... Travaille tes appuis !`;
             jsonAction = { type: "update_stats", parameters: { stamina_change: -20 } };
         }
     }
     else if (category === "entraine") {
-        narrative = `🏋️ **ENTRAÎNEMENT**: Séance intense au centre de formation. Tu répètes tes gammes jusqu'à l'épuisement. Tu sens que ton physique s'améliore progressivement.`;
+        narrative = `Séance intense au centre de formation. Tes cuisses brûlent sous l'effort, mais tu ne lâches rien. Cinq. Encore cinq. Tu répètes tes gammes jusqu'à ce que le geste devienne instinctif. Tu sens que ton corps s'endurcit.`;
         jsonAction = { type: "update_stats", parameters: { xp_change: 60, stamina_change: -30, speed_change: 1 } };
     }
     else if (category === "social") {
-        narrative = `🗣️ **VESTIAIRES**: Tu échanges avec ton entourage pro. Les discussions sont constructives pour ton avenir. "Reste concentré sur le terrain", te glisse-t-on avec insistance.`;
-        jsonAction = { type: "update_stats", parameters: { xp_change: 15 } };
+        narrative = `Tu échanges avec ton agent dans un café branché. "Ton profil intéresse du monde, reste focus", te glisse-t-il. Les rumeurs de transfert commencent à circuler, à toi de confirmer sur le terrain.`;
+        jsonAction = { type: "update_stats", parameters: { xp_change: 20 } };
     }
     else {
-        // Echo the user action to make it feel responsive
         const shortAction = action.length > 50 ? action.substring(0, 47) + "..." : action;
-        const options = [
-            `🏟️ **STADE**: "${shortAction}". Tu effectues ton action sous les yeux attentifs des recruteurs. Le match suit son cours et ton influence grandit.`,
-            `👟 **TERRAIN**: "${shortAction}". Tes coéquipiers t'encouragent. Tu restes bien en place tactiquement pour la suite du match.`
-        ];
-        narrative = options[Math.floor(Math.random() * options.length)];
+        narrative = `Tu t'appliques sur ton action : "${shortAction}". Le jeu se poursuit sur un rythme élevé et chaque ballon devient une bataille. Tu restes concentré, prêt à saisir la moindre opportunité.`;
         jsonAction = { type: "update_stats", parameters: { xp_change: 15, stamina_change: -5 } };
     }
 
-    // 5. Return combined result (Narrative + optional JSON)
-    return narrative + (jsonAction ? "\n\n" + JSON.stringify(jsonAction) : "");
+    // 5. Final Formatting
+    return narrative + rollDetails + (jsonAction ? "\n\n" + JSON.stringify(jsonAction) : "");
 }
 
 module.exports = { callAI };
