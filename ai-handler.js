@@ -29,7 +29,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     CLUB: ${currentClub?.name || 'Libre'}
     STATS: Tir:${player.shoot} Passe:${player.pass} Dribble:${player.dribble} Vitesse:${player.speed} Défense:${player.defense} Stamina:${player.stamina}
 
-    RÈGLES MJ:
+    RÈGLES MJ (STRICTES):
+    - INTERDICTION de faire agir le joueur à sa place. Ne décris JAMAIS ce que le joueur va faire après l'action actuelle.
+    - Ne narre que le RÉSULTAT IMMÉDIAT de l'action demandée par le joueur.
+    - Laisse le joueur libre de ses mouvements : s'il veut quitter le terrain, parler à quelqu'un ou changer de lieu, accepte immédiatement.
     - Tes narrations doivent être basées sur les stats du joueur.
     - Si l'action est difficile, simule un jet de dé virtuel (1-20). Si le jet est bas (<10), l'action peut échouer ou être compliquée.
     - Décris les mouvements précis (pied gauche/droit, lucarne, tacle glissé, etc.).
@@ -42,6 +45,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const userPrompt = `
     HISTORIQUE RÉCENT: ${history.reverse().map(h => h.content).join(' | ')}
     ACTION DU JOUEUR ${player.name}: ${actionText}
+
+    NOTE MJ: Si le joueur exprime le désir de quitter le match, de changer de lieu ou d'arrêter une action, RÉPONDS POSITIVEMENT et effectue la transition immédiatement sans forcer un jet de dé.
   `;
 
   let loadingMsg = null;

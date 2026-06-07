@@ -41,7 +41,8 @@ commands.set('menu', async (sock, message) => {
                      `👤 /profil - Dossier & Stats.\n` +
                      `🌍 /monde - Exploration & Monde Ouvert.\n` +
                      `📋 /formation - Voir le 11 de départ.\n` +
-                     `💼 /contrats - Gérer tes offres.\n\n` +
+                     `💼 /contrats - Gérer tes offres.\n` +
+                     `💾 /save - Sauvegarder ta progression.\n\n` +
                      `_Le MJ gère tes matchs et déplacements._\n` +
                      `_Mode Action :_ /action | /quit`;
     await sock.sendMessage(message.key.remoteJid, { text: menuText });
@@ -128,7 +129,16 @@ commands.set('action', async (sock, message) => {
 commands.set('quit', async (sock, message) => {
     const jid = getJid(message);
     const player = await Player.findOne({ where: { whatsappId: jid } });
-    if (player) { await player.update({ mode: 'normal' }); await sock.sendMessage(message.key.remoteJid, { text: "Mode normal réactivé." }); }
+    if (player) { await player.update({ mode: 'normal' }); await sock.sendMessage(message.key.remoteJid, { text: "🚪 Mode action quitté. Tu es libre de tes mouvements." }); }
+});
+
+commands.set('save', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (player) {
+        await player.save();
+        await sock.sendMessage(message.key.remoteJid, { text: "💾 *PROGRES SAUVEGARDÉS* : Ta carrière est en sécurité dans le Cloud." });
+    }
 });
 
 commands.set('reset', async (sock, message) => {

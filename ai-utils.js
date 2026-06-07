@@ -267,13 +267,13 @@ function generateLocalNarrative(userAction, systemPrompt) {
         rollDetails = `\n\n*Jet de dé virtuel (Tir + Technique) : ${roll}/20 — ${status}.*`;
 
         if (isCriticalSuccess || total > diff + 15) {
-            narrative = `Le cuir colle toujours à ton pied, mais les cuisses commencent à crier. Tu plantes l'appui, hanche ouverte, frappe *rasante, tendue, vicieuse* — le genre qui nettoie la plinthe. Le ballon termine sa course dans le petit filet opposé, laissant le gardien de marbre. Magnifique, ${playerName} !`;
+            narrative = `Tu plantes ton appui et déclenches une frappe *rasante et vicieuse*. Le ballon nettoie le petit filet opposé ! Magnifique but, ${playerName}.`;
             jsonAction = { type: "update_stats", parameters: { xp_change: 100, money_change: 50, shoot_change: 1 } };
         } else if (total > diff) {
-            narrative = `Tu déclenches une frappe puissante à mi-hauteur. Le portier la touche du bout des gants mais ça finit au fond ! Un but de pur opportuniste qui récompense tes efforts.`;
+            narrative = `Ta frappe à mi-hauteur est puissante. Le gardien la touche mais ne peut l'empêcher d'entrer. C'est au fond !`;
             jsonAction = { type: "update_stats", parameters: { xp_change: 60, shoot_change: 1 } };
         } else {
-            narrative = `Tu cherches la lucarne mais ton pied d'appui glisse légèrement au moment de l'impact. Le ballon s'envole vers le deuxième poteau de corner... Tes coéquipiers soupirent, il va falloir se régler !`;
+            narrative = `Ta tentative manque de précision et s'envole au-dessus de la transversale. Le public gronde légèrement.`;
             jsonAction = { type: "update_stats", parameters: { stamina_change: -10 } };
         }
     }
