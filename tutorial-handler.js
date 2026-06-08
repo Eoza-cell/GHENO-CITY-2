@@ -86,10 +86,12 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
             let nextText = `Instructeur : 'Un ${chosenClass}, hein ? *DODODO!* Un choix qui en dit long sur ton tempérament.\n\n`;
 
+            nextText += `*Dés de Destin lancés... 🎲 Résultat : ${roll.toFixed(1)}%*\n\n`;
+
             if (family !== "Sans Famille") {
-                nextText += `Tiens... ce sceau sur ton épaule... Tu appartiens à la **${family}** ! Ton sang est porteur d'une puissance latente incroyable...'\n\n`;
+                nextText += `Tiens... ce sceau sur ton épaule... Incroyable ! Tu appartiens à la **${family}** ! Ton sang est porteur d'une puissance latente qui surpasse le commun des mortels...'\n\n`;
             } else {
-                nextText += `Tu n'as peut-être pas de nom illustre, mais ta volonté semble d'acier.'\n\n`;
+                nextText += `Tu n'as peut-être pas de nom illustre (75% de chance d'être "Sans Famille"), mais ta volonté semble d'acier.'\n\n`;
             }
 
             nextText += "Passons maintenant à la destruction !\n\n" +
