@@ -239,33 +239,25 @@ async function handleFreeAction(sock, message, player, actionText) {
           const foundTarget = await Player.findOne({
               where: {
                   name: parameters.target_name,
-                  location: player.location // Only target players at same location
+                  location: player.location
               }
           });
           if (foundTarget) {
               target = foundTarget;
-          } else {
-              console.log(`[AI] Target not found or not at location: ${parameters.target_name}`);
           }
       }
 
+      // Track if target needs a final reload/save
+      let targetModified = false;
+
       switch (type) {
         case 'update_player':
-          if (parameters.monster_name && parameters.monster_damage) {
-              const monster = await Monster.findOne({ where: { name: parameters.monster_name } });
-              if (monster) {
-                  console.log(`[COMBAT] ${monster.name} subit ${parameters.monster_damage} dégâts.`);
-                  // Here we could track monster HP in a session or temp table if needed,
-                  // but for now we follow the AI's narrative verdict.
-                  if (parameters.monster_damage >= monster.health) {
-                      console.log(`[COMBAT] ${monster.name} est vaincu !`);
-                  }
-              }
+          if (parameters.col_change) {
+              await target.increment('col', { by: parameters.col_change });
+              targetModified = true;
           }
-          if (parameters.col_change) await target.increment('col', { by: parameters.col_change });
           if (parameters.xp_gain) {
               await target.increment('xp', { by: parameters.xp_gain });
-              // Reload target to check XP
               await target.reload();
               const xpNeeded = target.level * 100;
               if (target.xp >= xpNeeded) {
@@ -273,39 +265,63 @@ async function handleFreeAction(sock, message, player, actionText) {
                   await target.increment('level', { by: levelsGained });
                   await target.update({
                       xp: target.xp % xpNeeded,
-                      maxHealth: target.maxHealth + (levelsGained * 15), // Reduced from 20 for balance
-                      maxMana: target.maxMana + (levelsGained * 8), // Reduced from 10
+                      maxHealth: target.maxHealth + (levelsGained * 15),
+                      maxMana: target.maxMana + (levelsGained * 8),
                       health: target.maxHealth + (levelsGained * 15),
                       mana: target.maxMana + (levelsGained * 8),
-                      // Automatic small stat increase on level up
                       strength: target.strength + (levelsGained * 1),
                       agility: target.agility + (levelsGained * 1),
                       intelligence: target.intelligence + (levelsGained * 1)
                   });
                   await sock.sendMessage(target.whatsappId, {
-                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes points de vie et de mana ont augmenté.`
+                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes stats ont augmenté.`
                   });
               }
+              targetModified = true;
           }
           if (parameters.health_change) {
               await target.increment('health', { by: parameters.health_change });
               await target.reload();
               if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
               if (target.health < 0) await target.update({ health: 0 });
+              targetModified = true;
           }
-          if (parameters.max_health_change) await target.increment('maxHealth', { by: parameters.max_health_change });
+          if (parameters.max_health_change) {
+              await target.increment('maxHealth', { by: parameters.max_health_change });
+              targetModified = true;
+          }
           if (parameters.mana_change) {
               await target.increment('mana', { by: parameters.mana_change });
               await target.reload();
               if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
               if (target.mana < 0) await target.update({ mana: 0 });
+              targetModified = true;
           }
-          if (parameters.max_mana_change) await target.increment('maxMana', { by: parameters.max_mana_change });
-          if (parameters.strength_change) await target.increment('strength', { by: parameters.strength_change });
-          if (parameters.agility_change) await target.increment('agility', { by: parameters.agility_change });
-          if (parameters.intelligence_change) await target.increment('intelligence', { by: parameters.intelligence_change });
-          if (parameters.defense_change) await target.increment('defense', { by: parameters.defense_change });
-          if (parameters.luck_change) await target.increment('luck', { by: parameters.luck_change });
+          if (parameters.max_mana_change) {
+              await target.increment('maxMana', { by: parameters.max_mana_change });
+              targetModified = true;
+          }
+          if (parameters.strength_change) {
+              await target.increment('strength', { by: parameters.strength_change });
+              targetModified = true;
+          }
+          if (parameters.agility_change) {
+              await target.increment('agility', { by: parameters.agility_change });
+              targetModified = true;
+          }
+          if (parameters.intelligence_change) {
+              await target.increment('intelligence', { by: parameters.intelligence_change });
+              targetModified = true;
+          }
+          if (parameters.defense_change) {
+              await target.increment('defense', { by: parameters.defense_change });
+              targetModified = true;
+          }
+          if (parameters.luck_change) {
+              await target.increment('luck', { by: parameters.luck_change });
+              targetModified = true;
+          }
+
           if (parameters.new_location) {
               await target.update({ location: parameters.new_location });
               // Check if there is a local image for this location
@@ -320,8 +336,19 @@ async function handleFreeAction(sock, message, player, actionText) {
           if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
           if (parameters.new_class) await target.update({ class: parameters.new_class });
           if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
-          if (parameters.academicGrade_change) await target.increment('academicGrade', { by: parameters.academicGrade_change });
-          if (parameters.sp_gain) await target.increment('skillPoints', { by: parameters.sp_gain });
+          if (parameters.academicGrade_change) {
+              await target.increment('academicGrade', { by: parameters.academicGrade_change });
+              targetModified = true;
+          }
+          if (parameters.sp_gain) {
+              await target.increment('skillPoints', { by: parameters.sp_gain });
+              targetModified = true;
+          }
+
+          if (targetModified) {
+              await target.save();
+              await target.reload();
+          }
           break;
 
         case 'add_skill':
@@ -345,6 +372,8 @@ async function handleFreeAction(sock, message, player, actionText) {
                     await target.increment(stat, { by: value });
                   }
                 }
+                await target.save();
+                await target.reload();
               }
             }
           }
@@ -367,10 +396,16 @@ async function handleFreeAction(sock, message, player, actionText) {
             const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${parameters.itemName}%` } } });
             if (itemData) {
                 const bonuses = itemData.statBonuses;
+                let itemModified = false;
                 for (const [stat, value] of Object.entries(bonuses)) {
                     if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
                         await target.increment(stat, { by: value * parameters.quantity });
+                        itemModified = true;
                     }
+                }
+                if (itemModified) {
+                    await target.save();
+                    await target.reload();
                 }
                 if (itemData.imageUrl && !aiResponse.imagePrompt && target.whatsappId === player.whatsappId) {
                     aiResponse.imagePrompt = itemData.imageUrl;
@@ -402,6 +437,8 @@ async function handleFreeAction(sock, message, player, actionText) {
                                 await target.decrement(stat, { by: value * actualQuantityToRemove });
                             }
                         }
+                        await target.save();
+                        await target.reload();
                     }
                 }
             }
