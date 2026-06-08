@@ -86,7 +86,7 @@ async function evaluatePave(sock, player, remoteJid, text) {
 
         // Reload player for up-to-date mana
         await player.reload();
-        replyText += `🔷 *MANA ACTUEL :* ${player.health}/${player.maxHealth} (HP) | ${player.mana}/${player.maxMana} (PM)`;
+        replyText += `🔷 *ÉNERGIE ACTUELLE :* ${player.mana}/${player.maxMana}`;
 
         await sock.sendMessage(remoteJid, { text: replyText });
 

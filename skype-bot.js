@@ -12,9 +12,6 @@ const { Sequelize } = require('sequelize');
 const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
-const { startTutorial } = require('./tutorial-handler');
-const { startInactivePlayerCheck } = require('./inactive-handler');
-const { startDayNightCycle } = require('./game-state');
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -85,8 +82,6 @@ async function connectToWhatsApp() {
       }
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
-      startInactivePlayerCheck(sock);
-      startDayNightCycle();
 
       // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
       if (!serverStarted) {
@@ -108,50 +103,8 @@ async function connectToWhatsApp() {
             const jid = getJid(message);
             if (!jid) continue;
 
-            const player = await Player.findOne({ where: { whatsappId: jid } });
-
-            // Handle profile picture submission
-            if (player && player.awaitingProfilePic) {
-                const type = getContentType(message.message);
-                if (type === 'imageMessage') {
-                    try {
-                        console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
-                        const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
-
-                        const idPart = jid.includes('@') ? jid.split('@')[0] : jid;
-                        const filename = `${idPart}.jpg`;
-                        const filepath = path.join('assets', 'profiles', filename);
-
-                        fs.writeFileSync(filepath, buffer);
-
-                        await player.update({
-                            profilePicUrl: filepath,
-                            awaitingProfilePic: false
-                        });
-
-                        console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                        await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
-
-                        // Trigger tutorial after profile pic
-                        await startTutorial(sock, message.key.remoteJid, player);
-                        continue; // Stop further processing for this message
-                    } catch (error) {
-                        console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
-                        await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
-                        continue;
-                    }
-                } else {
-                     // Only warn if it's not a command
-                     const text = message.message.conversation || message.message.extendedTextMessage?.text;
-                     if (!text || !text.startsWith('/')) {
-                         await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
-                         continue;
-                     }
-                }
-            }
-
-            // If not a profile pic submission, handle as a normal command/message
-            await handleCommand(sock, message, downloadMediaMessage);
+            // Handle as a normal command/message
+            await handleCommand(sock, message);
         } catch (globalError) {
             console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
             // On ne crash pas le bot, on continue le traitement
