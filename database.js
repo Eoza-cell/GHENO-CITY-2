@@ -132,6 +132,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 0, // Score out of 100
   },
+  paveStatus: {
+    type: DataTypes.STRING,
+    defaultValue: 'idle', // 'idle', 'writing'
+  },
+  paveMessageKey: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   tutorialStep: {
     type: DataTypes.INTEGER,
     defaultValue: 0, // 0: not started, 1: class choice, 2: combat training, 3: completed
