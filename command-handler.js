@@ -912,7 +912,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   // Handle free action mode
   if (player?.mode === 'action' && !messageText.startsWith('/')) {
     try {
-        if (player.tutorialStep > 0 && player.tutorialStep < 3) {
+        if (player.tutorialStep >= 0 && player.tutorialStep < 3) {
             const { handleTutorialAction } = require('./tutorial-handler');
             await handleTutorialAction(sock, message, player, messageText);
         } else {

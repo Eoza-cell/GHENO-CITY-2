@@ -139,29 +139,36 @@ async function handleTutorialAction(sock, message, player, actionText) {
             if (typeof content === 'object') {
                 aiResponse = content;
             } else {
-                let cleanContent = content
-                    .replace(/```json/gi, '')
-                    .replace(/```/g, '')
-                    .replace(/^json/gi, '')
-                    .trim();
+                const firstBrace = content.indexOf('{');
+                const lastBrace = content.lastIndexOf('}');
 
-                const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    const potentialJson = content.substring(firstBrace, lastBrace + 1);
                     try {
-                        aiResponse = JSON.parse(jsonMatch[0]);
-                        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-                            const parts = cleanContent.split(jsonMatch[0]);
-                            const potentialNarrative = parts[0].trim() || parts[1]?.trim();
-                            if (potentialNarrative && potentialNarrative.length > 5) {
-                                aiResponse.narrative = potentialNarrative;
-                            }
-                        }
-                    } catch (e) {
-                        aiResponse.narrative = cleanContent;
-                    }
-                } else {
-                    aiResponse.narrative = cleanContent;
+                        aiResponse = JSON.parse(potentialJson);
+                    } catch (e) {}
                 }
+
+                if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+                    let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
+                    let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
+
+                    const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
+                    textBefore = cleanup(textBefore);
+                    textAfter = cleanup(textAfter);
+
+                    if (textBefore.length > 5) aiResponse.narrative = textBefore;
+                    else if (textAfter.length > 5) aiResponse.narrative = textAfter;
+                    else aiResponse.narrative = cleanup(content);
+                }
+            }
+
+            if (aiResponse.narrative) {
+                aiResponse.narrative = aiResponse.narrative
+                    .replace(/\{[\s\S]*\}/g, '')
+                    .replace(/```[\s\S]*?```/g, '')
+                    .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
+                    .trim();
             }
 
             if (!aiResponse.narrative || aiResponse.narrative.length < 5) {

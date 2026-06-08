@@ -1075,10 +1075,14 @@ async function setupDatabase() {
             { name: 'Aura de Gardien', description: 'Une aura dorée renforçant la défense.', type: 'aura', manaCost: 40, statBonuses: { defense: 15 } },
             { name: 'Aura de Célérité', description: 'Une aura verte décuplant la vitesse.', type: 'aura', manaCost: 40, statBonuses: { agility: 15 } },
             { name: 'Aura de Mana', description: 'Une aura bleue augmentant la régénération et la puissance magique.', type: 'aura', manaCost: 40, statBonuses: { intelligence: 15 } },
+            { name: 'Aura du Néant', description: 'Une aura violette qui absorbe une partie des dégâts magiques.', type: 'aura', manaCost: 60, statBonuses: { defense: 20, intelligence: 10 } },
+            { name: 'Aura de Sang', description: 'Une aura cramoisie qui augmente la force au détriment de la vie.', type: 'aura', manaCost: 50, statBonuses: { strength: 30, defense: -10 } },
             // Techniques de Magie Avancées
             { name: 'Éclair Enchaîné', description: 'Un sort de foudre bondissant entre les ennemis.', type: 'spell', manaCost: 50, statBonuses: { intelligence: 20 } },
             { name: 'Trou Noir', description: 'Crée un vide attirant et écrasant tout à proximité.', type: 'spell', manaCost: 80, statBonuses: { intelligence: 30 } },
             { name: 'Invocation de Golem', description: 'Invoque un protecteur de pierre massif.', type: 'spell', manaCost: 100 },
+            { name: 'Pluie de Météores', description: 'Détruit une large zone sous un déluge de feu.', type: 'spell', manaCost: 150, statBonuses: { intelligence: 50 } },
+            { name: 'Souffle de Glace', description: 'Gèle instantanément tout ce qui se trouve devant l\'utilisateur.', type: 'spell', manaCost: 70, statBonuses: { intelligence: 25 } },
             // Passifs
             { name: 'Regen', description: 'Restaure lentement la santé au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
             { name: 'Senseur de Mana', description: 'Permet de détecter les créatures magiques à proximité.', type: 'passive', statBonuses: { intelligence: 15 } },
