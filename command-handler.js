@@ -8,6 +8,7 @@ const { generateProfileCard } = require('./profile-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
+const { startPaveTimer, evaluatePave } = require('./referee-handler');
 const { Op } = require('sequelize');
 
 /**
@@ -778,6 +779,17 @@ commands.set('action', async (sock, message) => {
   }
 });
 
+// Command: /pave
+commands.set('pave', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (player) {
+        await startPaveTimer(sock, player, message.key.remoteJid);
+    } else {
+        await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    }
+});
+
 // Command: /checkai
 commands.set('checkai', async (sock, message) => {
     const replyJid = message.key.remoteJid;
@@ -826,6 +838,7 @@ commands.set('menu', async (sock, message) => {
                    "👥 `/joueurs` - Joueurs aux alentours.\n" +
                    "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
                    "🤝 `/donner @joueur ...` - Échange d'objets.\n" +
+                   "⏳ `/pave` - Lancer un arbitrage (6 min).\n" +
                    "🏰 `/royaumes` - Géopolitique mondiale.\n" +
                    "🛡️ `/conflits` - Guerres en cours.\n" +
                    "🏫 `/ecoles` - Liste des académies.\n" +
@@ -916,6 +929,12 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   if (!player && !messageText.startsWith('/start')) {
     await sock.sendMessage(replyJid, { text: "Utilise /start pour commencer." });
     return;
+  }
+
+  // Handle Pave writing submission
+  if (player && player.paveStatus === 'writing' && !messageText.startsWith('/')) {
+      await evaluatePave(sock, player, replyJid, messageText);
+      return;
   }
 
   // Handle free action mode

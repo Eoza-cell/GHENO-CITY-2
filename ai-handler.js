@@ -435,4 +435,49 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 }
 
-module.exports = { handleFreeAction };
+async function callRefereeAI(player, text) {
+    const systemPrompt = `
+    Tu es l'Arbitre IA du RPG Aetherys. Analyse le texte RP du joueur pour identifier les actions et calculer le coût en MANA selon le système "Dérangement".
+
+    SYSTÈME DE COÛT (Dérangement) :
+    - Action Passive (0 PM) : Pensées, dialogue sans action, observation, attente.
+    - Action Simple (1 PM) : Mouvement normal, interaction basique, petite action physique.
+    - Action Complexe (2 PM) : Combat standard, usage de compétence mineure, acrobatie, interaction environnementale complexe.
+    - Action Très Complexe (4 PM) : Sort majeur, technique ultime, combat contre boss, action à fort impact sur l'environnement.
+
+    RÈGLES :
+    1. Identifie CHAQUE action distincte (chaque verbe d'action important).
+    2. Attribue une catégorie et un coût à chaque action.
+    3. Calcule le coût total.
+
+    FORMAT DE RÉPONSE (JSON STRICT) :
+    {
+      "validation": "✅",
+      "analysis": "Résumé global de la performance et de la cohérence (français)",
+      "breakdown": [
+        {"action": "Description concise de l'action", "cat": "Simple/Complexe/Très Complexe/Passive", "cost": 0}
+      ],
+      "totalCost": 0
+    }
+    `;
+
+    const userPrompt = `JOUEUR: ${player.name}\nCLASSE: ${player.class}\nRANG: ${player.rank}\nTEXTE SOUMIS:\n${text}`;
+
+    const result = await callAI(systemPrompt, userPrompt);
+    try {
+        const firstBrace = result.indexOf('{');
+        const lastBrace = result.lastIndexOf('}');
+        const jsonStr = result.substring(firstBrace, lastBrace + 1);
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        console.error("Referee AI JSON Parse Error:", e);
+        return {
+            validation: "✅",
+            analysis: "L'Arbitre a validé ton pavé mais n'a pas pu détailler le coût.",
+            breakdown: [],
+            totalCost: 1
+        };
+    }
+}
+
+module.exports = { handleFreeAction, callRefereeAI };
