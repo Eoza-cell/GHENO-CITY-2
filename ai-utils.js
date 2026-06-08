@@ -55,7 +55,8 @@ async function callPuterSDK(system, prompt) {
     const p = initPuter();
     if (!p) return null;
 
-    const models = ["gpt-4o", "openai/gpt-4o", "gpt-4o-mini", "claude-3-5-sonnet"];
+    // Priority: Gemini 1.5 Flash (unlimited) > Gemini 1.5 Pro > GPT-4o
+    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o", "openai/gpt-4o", "gpt-4o-mini"];
     for (const model of models) {
         try {
             console.log(`[AI] SDK Puter - Modèle: ${model}`);
@@ -70,30 +71,33 @@ async function callPuterSDK(system, prompt) {
 async function callPuterAPI(system, prompt) {
     if (!process.env.PUTER_API_KEY) return null;
 
-    try {
-        // Updated to use the official Puter OpenAI-compatible endpoint
-        // https://developer.puter.com/tutorials/free-unlimited-openai-api/
-        const resp = await axios.post("https://api.puter.com/v1/chat/completions", {
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            model: "gpt-4o",
-            stream: false
-        }, {
-            headers: {
-                'Authorization': `Bearer ${process.env.PUTER_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 15000
-        });
+    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o"];
+    for (const model of models) {
+        try {
+            console.log(`[AI] API Puter - Modèle: ${model}`);
+            const resp = await axios.post("https://api.puter.com/v1/chat/completions", {
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ],
+                model: model,
+                stream: false
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${process.env.PUTER_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            });
 
-        // Handle OpenAI format response
-        return resp.data?.choices?.[0]?.message?.content || resp.data?.message?.content;
-    } catch (e) {
-        console.error("[AI] Puter API Error:", e.response?.data || e.message);
-        return null;
+            const content = resp.data?.choices?.[0]?.message?.content || resp.data?.message?.content;
+            if (content && content.length > 10) return content;
+        } catch (e) {
+            console.warn(`[AI] Puter API Model ${model} failed:`, e.message);
+            continue;
+        }
     }
+    return null;
 }
 
 async function callOpenRouter(system, prompt) {
