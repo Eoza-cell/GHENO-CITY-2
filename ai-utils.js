@@ -71,7 +71,9 @@ async function callPuterAPI(system, prompt) {
     if (!process.env.PUTER_API_KEY) return null;
 
     try {
-        const resp = await axios.post("https://api.puter.com/v1/ai/chat", {
+        // Updated to use the official Puter OpenAI-compatible endpoint
+        // https://developer.puter.com/tutorials/free-unlimited-openai-api/
+        const resp = await axios.post("https://api.puter.com/v1/chat/completions", {
             messages: [
                 { role: "system", content: system },
                 { role: "user", content: prompt }
@@ -85,8 +87,13 @@ async function callPuterAPI(system, prompt) {
             },
             timeout: 15000
         });
-        return resp.data?.message?.content || resp.data?.choices?.[0]?.message?.content;
-    } catch (e) { return null; }
+
+        // Handle OpenAI format response
+        return resp.data?.choices?.[0]?.message?.content || resp.data?.message?.content;
+    } catch (e) {
+        console.error("[AI] Puter API Error:", e.response?.data || e.message);
+        return null;
+    }
 }
 
 async function callOpenRouter(system, prompt) {
