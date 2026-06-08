@@ -173,6 +173,10 @@ const Item = sequelize.define('Item', {
   type: { // weapon, armor, consumable, etc.
     type: DataTypes.STRING,
   },
+  rarity: { // common, rare, epic, legendary, artifact
+    type: DataTypes.STRING,
+    defaultValue: 'common',
+  },
   slot: { // head, chest, arms, legs, weapon, none
     type: DataTypes.STRING,
     defaultValue: 'none',
@@ -500,6 +504,7 @@ async function setupDatabase() {
                 description: 'Une épée noire obsidienne d\'une puissance incroyable.',
                 price: 5000,
                 type: 'weapon',
+                rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { strength: 25, agility: 10 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/5/53/Elucidator.png'
@@ -509,6 +514,7 @@ async function setupDatabase() {
                 description: 'Une épée forgée à partir d\'un cristal rare, compagne de l\'Elucidator.',
                 price: 4500,
                 type: 'weapon',
+                rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { strength: 20, agility: 15 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/82/Dark_Repulser.png'
@@ -518,6 +524,7 @@ async function setupDatabase() {
                 description: 'Une rapière élégante et rapide comme l\'éclair.',
                 price: 4000,
                 type: 'weapon',
+                rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { agility: 25, luck: 10 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/c/c5/Lambent_Light.png'

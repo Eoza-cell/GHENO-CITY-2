@@ -298,16 +298,25 @@ commands.set('map', async (sock, message) => {
 commands.set('boutique', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const items = await Item.findAll();
+    const items = await Item.findAll({ order: [['price', 'ASC']] });
 
     if (items.length === 0) {
         await sock.sendMessage(replyJid, { text: "La boutique est vide pour le moment." });
         return;
     }
 
-    let boutiqueText = "--- ⚔️ FORGE DE BROKK --- \n\n";
+    const rarityEmoji = {
+        'common': '⚪',
+        'rare': '🔵',
+        'epic': '🟣',
+        'legendary': '🟡',
+        'artifact': '🔴'
+    };
+
+    let boutiqueText = "--- ⚔️ FORGE DE BROKK (PROMOS !) --- \n\n";
     items.forEach(item => {
-        boutiqueText += `*${item.name.toUpperCase()}*\n`;
+        const emoji = rarityEmoji[item.rarity] || '⚪';
+        boutiqueText += `${emoji} *${item.name.toUpperCase()}* (${item.rarity})\n`;
         boutiqueText += `├ 💰 Prix: ${item.price} 🪙\n`;
         const bonuses = item.statBonuses;
         const bonusStrings = Object.entries(bonuses).map(([stat, value]) => `${stat}: +${value}`);
