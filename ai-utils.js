@@ -55,8 +55,8 @@ async function callPuterSDK(system, prompt) {
     const p = initPuter();
     if (!p) return null;
 
-    // Priority: Gemini 1.5 Flash (unlimited) > Gemini 1.5 Pro > GPT-4o
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o", "openai/gpt-4o", "gpt-4o-mini"];
+    // Priority: GPT-4o (User Directive) > Gemini 1.5 Flash > others
+    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash", "gemini-1.5-pro", "openai/gpt-4o", "gpt-4o-mini"];
     for (const model of models) {
         try {
             console.log(`[AI] SDK Puter - Modèle: ${model}`);
@@ -69,9 +69,9 @@ async function callPuterSDK(system, prompt) {
 }
 
 async function callPuterAPI(system, prompt) {
-    if (!process.env.PUTER_API_KEY) return null;
+    if (!process.env.PUTER_API_KEY || process.env.PUTER_API_KEY === 'test_key') return null;
 
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o"];
+    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
     for (const model of models) {
         try {
             console.log(`[AI] API Puter - Modèle: ${model}`);

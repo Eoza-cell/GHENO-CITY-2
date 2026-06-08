@@ -29,6 +29,54 @@ async function startTutorial(sock, jid, player) {
 async function handleTutorialAction(sock, message, player, actionText) {
     const jid = message.key.remoteJid;
 
+    if (player.tutorialStep === 1.5) {
+        const lowerAction = actionText.toLowerCase();
+        let derivative = "Équilibré";
+        let bonus = { strength: 0, defense: 0, luck: 0, intelligence: 0, agility: 0 };
+
+        if (lowerAction.includes("berserker")) {
+            derivative = "Berserker";
+            bonus.strength = 15;
+            bonus.defense = -5;
+        } else if (lowerAction.includes("tank")) {
+            derivative = "Tank";
+            bonus.defense = 20;
+            bonus.agility = -5;
+        } else if (lowerAction.includes("sniper") || lowerAction.includes("assassin")) {
+            derivative = "Sniper/Assassin";
+            bonus.luck = 15;
+            bonus.health = -10;
+        } else if (lowerAction.includes("tacticien")) {
+            derivative = "Tacticien";
+            bonus.intelligence = 10;
+            bonus.mana = 30;
+        }
+
+        await player.update({
+            derivative: derivative,
+            tutorialStep: 2,
+            strength: player.strength + bonus.strength,
+            defense: player.defense + bonus.defense,
+            intelligence: player.intelligence + bonus.intelligence,
+            agility: player.agility + (bonus.agility || 0),
+            luck: player.luck + (bonus.luck || 0)
+        });
+
+        const nextText = `Instructeur : 'Un style ${derivative}, parfait. Passons maintenant à la destruction !\n\n` +
+                         "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre.\n\n" +
+                         "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
+                         "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
+                         "Décris tes attaques avec passion pour maximiser tes dégâts.";
+
+        try {
+            const bossImage = fs.readFileSync(path.join('assets', 'tutorial_boss.jpg'));
+            await sock.sendMessage(jid, { image: bossImage, caption: nextText });
+        } catch (error) {
+            await sock.sendMessage(jid, { text: nextText });
+        }
+        return;
+    }
+
     if (player.tutorialStep === 1) {
         // Class selection logic
         const lowerAction = actionText.toLowerCase();
@@ -76,7 +124,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             await player.update({
                 class: chosenClass,
                 family: family,
-                tutorialStep: 2,
+                tutorialStep: 1.5, // Intermediate step for Derivative
                 strength: (chosenClass === 'Guerrier' || chosenClass === 'Paladin' || chosenClass === 'Samouraï') ? 20 + familyBonus.strength : 10 + familyBonus.strength,
                 intelligence: (chosenClass === 'Mage' || chosenClass === 'Invocateur' || chosenClass === 'Nécromancien' || chosenClass === 'Alchimiste') ? 20 + familyBonus.intelligence : 10 + familyBonus.intelligence,
                 agility: (chosenClass === 'Assassin' || chosenClass === 'Archer' || chosenClass === 'Moine') ? 20 + familyBonus.agility : 10 + familyBonus.agility,
@@ -94,21 +142,16 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 nextText += `Tu n'as peut-être pas de nom illustre (75% de chance d'être "Sans Famille"), mais ta volonté semble d'acier.'\n\n`;
             }
 
-            nextText += "Passons maintenant à la destruction !\n\n" +
-                             "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre.\n\n" +
-                             "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
-                             "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
-                             "Décris tes attaques avec passion (ex: 'Je concentre mon mana dans ma lame et je lance une entaille fulgurante !') pour maximiser tes dégâts.";
+            nextText += "Mais ce n'est pas tout. Chaque combattant a un style qui lui est propre, une *dérivée* de sa classe de base.\n\n" +
+                        "Quel est ton style de prédilection ?\n" +
+                        "1. **Berserker** (Force brute, peu de défense)\n" +
+                        "2. **Tank** (Défense absolue, lent)\n" +
+                        "3. **Sniper/Assassin** (Frappes critiques, fragile)\n" +
+                        "4. **Tacticien/Mage de Soutien** (Contrôle et mana)\n" +
+                        "5. **Équilibré** (Polyvalence)\n\n" +
+                        "Réponds par le nom du style choisi.";
 
-            try {
-                const bossImage = fs.readFileSync(path.join('assets', 'tutorial_boss.jpg'));
-                await sock.sendMessage(jid, {
-                    image: bossImage,
-                    caption: nextText
-                });
-            } catch (error) {
-                await sock.sendMessage(jid, { text: nextText });
-            }
+            await sock.sendMessage(jid, { text: nextText });
             return;
         } else {
             await sock.sendMessage(jid, { text: "Instructeur : 'Concentrate-toi ! Tu dois choisir une classe parmi les 13 disponibles (Guerrier, Mage, Assassin, Archer, Prêtre, Moine, Paladin, Invocateur, Nécromancien, Samouraï, Chevalier-Dragon, Alchimiste, Barde).'" });

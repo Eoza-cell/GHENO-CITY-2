@@ -11,7 +11,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
     - Description: ${player.characterDescription}
     - Famille: ${player.family}
-    - Classe: ${player.class}
+    - Classe: ${player.class} (${player.derivative})
     - Points de Compétence (SP): ${player.skillPoints}
     - Rang: ${player.rank}
     - Niveau: ${player.level}
