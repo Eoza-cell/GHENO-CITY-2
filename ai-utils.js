@@ -167,20 +167,40 @@ Juste la narration pure en français.`;
 function cleanAIResponse(text) {
     if (!text || typeof text !== 'string') return "";
 
-    return text
+    let cleaned = text
         .replace(/data:\s*\[DONE\]/gi, "") // Remove streaming markers anywhere
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .replace(/^(json|JSON)/g, "")
-        .replace(/^data:.*$/gm, "") // Remove any lines starting with data:
-        .trim();
+        .replace(/^data:\s*\[DONE\]/gm, "");
+
+    // If it contains "data: {" then it's probably SSE stream that needs content extraction
+    if (cleaned.includes('data: {')) {
+        const lines = cleaned.split('\n');
+        let extractedText = "";
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                try {
+                    const json = JSON.parse(line.substring(6));
+                    if (json.text) extractedText += json.text;
+                    else if (json.choices?.[0]?.delta?.content) extractedText += json.choices[0].delta.content;
+                    else if (json.message?.content) extractedText += json.message.content;
+                    else if (json.choices?.[0]?.text) extractedText += json.choices[0].text;
+                } catch (e) {
+                    // Not valid JSON or doesn't have the expected field
+                }
+            } else if (line.trim() !== "") {
+                extractedText += line + "\n";
+            }
+        }
+        cleaned = extractedText;
+    }
+
+    return cleaned.trim();
 }
 
 /**
  * Main AI entry point.
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
-    if (depth > 2) return localMJ(userPrompt, systemPrompt);
+    if (depth > 2) return await localMJ(systemPrompt, userPrompt);
 
     // Sanitize prompts
     const sanitizedSystem = systemPrompt.length > 4000 ? systemPrompt.substring(0, 4000) : systemPrompt;
@@ -192,6 +212,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         { name: 'Puter API', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Pollinations POST', fn: callPollinationsPOST },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Local MJ', fn: localMJ }
     ];
 
@@ -213,7 +235,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     console.warn("[AI] Tous les providers ont échoué, utilisation du MJ Local");
-    return localMJ(userPrompt, systemPrompt);
+    return await localMJ(systemPrompt, userPrompt);
 }
 
 async function callPuterSDK(system, prompt) {
@@ -294,6 +316,31 @@ async function callBlackbox(system, prompt) {
     } catch (e) { return null; }
 }
 
+async function callPollinationsPOST(system, prompt) {
+    try {
+        const response = await axios.post('https://text.pollinations.ai/', {
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: prompt }
+            ],
+            model: 'openai',
+            seed: Math.floor(Math.random() * 1000000),
+            jsonMode: system.toLowerCase().includes('json')
+        }, { timeout: 15000 });
+        return response.data;
+    } catch (e) { return null; }
+}
+
+async function callPollinationsGET(system, prompt) {
+    try {
+        const encodedSystem = encodeURIComponent(system);
+        const encodedPrompt = encodeURIComponent(prompt);
+        const url = `https://text.pollinations.ai/${encodedPrompt}?system=${encodedSystem}&model=openai&seed=${Math.floor(Math.random() * 1000000)}`;
+        const response = await axios.get(url, { timeout: 15000 });
+        return response.data;
+    } catch (e) { return null; }
+}
+
 function parsePuterResponse(resp) {
     if (!resp) return null;
     if (typeof resp === 'string') return resp;
@@ -317,9 +364,9 @@ function parsePuterResponse(resp) {
 }
 
 /**
- * Final Fallback: Immersive local MJ with enemy system.
+ * Final Fallback: Immersive local MJ with context-aware system.
  */
-function localMJ(userPrompt, systemPrompt) {
+async function localMJ(systemPrompt, userPrompt) {
     console.log("[AI] MJ Local activé.");
 
     const up = userPrompt.toLowerCase();
@@ -328,15 +375,38 @@ function localMJ(userPrompt, systemPrompt) {
     const difficultyMatch = systemPrompt.match(/DIFFICULTY: (\d+)/);
     const difficulty = difficultyMatch ? parseInt(difficultyMatch[1]) : 1;
 
+    // Context Detection
+    const isTutorial = systemPrompt.toLowerCase().includes("instructeur") || userPrompt.toLowerCase().includes("instructeur");
+
+    // Better opponent detection: look for names in system prompt or nearby players list
+    let existingOpponent = null;
+    const pnjMatch = systemPrompt.match(/PNJ ici:\n- ([^\n:]+)/);
+    const playerMatch = systemPrompt.match(/Joueurs à proximité:\n- Nom: ([^,]+)/);
+    const historyMatch = systemPrompt.match(/HISTORIQUE:\n([^:]+):/);
+
+    if (pnjMatch) existingOpponent = pnjMatch[1].split('(')[0].trim();
+    else if (playerMatch) existingOpponent = playerMatch[1].trim();
+    else if (historyMatch) existingOpponent = historyMatch[1].trim();
+
     // Generate or retrieve enemy if in combat
-    const isCombat = up.includes("attaque") || up.includes("frappe") || up.includes("tue") || up.includes("combat");
-    const enemy = isCombat ? generateEnemy(difficulty) : null;
+    const isCombat = up.includes("attaque") || up.includes("frappe") || up.includes("tue") || up.includes("combat") || up.includes("découpe");
+
+    let enemy = null;
+    if (isCombat) {
+        if (isTutorial) {
+            enemy = { name: "Instructeur", level: 99, power: 5, defense: 5, speed: 10, reactionTime: 200, counterChance: 0.9 };
+        } else if (existingOpponent && !up.includes("gobelin") && !up.includes("goblin")) {
+            enemy = { name: existingOpponent, level: difficulty, power: difficulty, defense: difficulty, speed: 5 + difficulty, reactionTime: 1000 - (difficulty * 100), counterChance: 0.2 + (difficulty * 0.1) };
+        } else {
+            enemy = generateEnemy(difficulty);
+        }
+    }
 
     let actionType = "Action";
     let roll = Math.floor(Math.random() * 20) + 1;
     let result = "Réussite";
 
-    if (up.includes("attaque") || up.includes("frappe") || up.includes("tue")) actionType = "Combat";
+    if (isCombat) actionType = "Combat";
     else if (up.includes("va à") || up.includes("déplace") || up.includes("entre")) actionType = "Mouvement";
     else if (up.includes("parle") || up.includes("dis") || up.includes("demande")) actionType = "Social";
 
@@ -357,42 +427,58 @@ function localMJ(userPrompt, systemPrompt) {
         metadata.reactionTime = reactionTime;
         metadata.counterAttack = counterAttack;
 
-        narrative += `⚔️ **${enemy.name}** (Niv. ${enemy.level}) apparaît !\n`;
-        narrative += `├─ Puissance: ${enemy.power}/5 | Défense: ${enemy.defense} | Vitesse: ${enemy.speed}\n`;
-        narrative += `├─ Temps de réaction: ${Math.round(reactionTime)}ms\n`;
-        narrative += `└─ Chance de contre-attaque: ${Math.round(enemy.counterChance * 100)}%\n\n`;
+        if (!isTutorial && !existingOpponent) {
+            narrative += `⚔️ **${enemy.name}** (Niv. ${enemy.level}) apparaît !\n`;
+            narrative += `├─ Puissance: ${enemy.power}/5 | Défense: ${enemy.defense} | Vitesse: ${enemy.speed}\n`;
+            narrative += `├─ Temps de réaction: ${Math.round(reactionTime)}ms\n`;
+            narrative += `└─ Chance de contre-attaque: ${Math.round(enemy.counterChance * 100)}%\n\n`;
+        }
 
-        if (result === 'Réussite Critique') {
-            narrative += `🎯 Tu lances une attaque foudroyante ! L'énergie crépitante te propulse en avant. Ton coup atteint directement le ${enemy.name} de plein fouet ! `;
-            narrative += `Les dégâts sont dévastateurs et l'ennemi vacille sous la violence du choc.`;
-            actions[0].parameters.xp_gain = 25;
-        } else if (result === 'Réussite mitigée') {
-            narrative += `⚡ Ton attaque déroutante tente de traverser la garde du ${enemy.name}. `;
-            if (counterAttack && counterAttack.willCounter) {
-                narrative += `Mais en ${counterAttack.severity === 'Critique' ? Math.round(reactionTime / 2) : Math.round(reactionTime)}ms, `;
-                narrative += `l'ennemi contre-attaque avec une force ${counterAttack.severity.toLowerCase()} ! Tu dois te défendre d'urgence !`;
-                actions[0].parameters.xp_gain = 15;
+        if (isTutorial) {
+            if (result === 'Réussite Critique') {
+                narrative += `🎯 L'Instructeur écarquille les yeux ! Ta lame fend l'air avec une précision chirurgicale, l'obligeant à parer de justesse. "Ho... pas mal du tout, gamin !"`;
+                actions[0].parameters.xp_gain = 50;
+                actions.push({ type: "tutorial_complete", parameters: { tutorial_complete: true } });
+            } else if (result === 'Réussite' || result === 'Réussite mitigée') {
+                narrative += `⚡ Ton coup est vif, mais l'Instructeur dévie ta trajectoire d'un simple mouvement du poignet. "C'est ça l'intention de tuer ? Tu peux faire mieux !"`;
+                actions[0].parameters.xp_gain = 20;
             } else {
-                narrative += `Tu gratignes légèrement ta cible, mais l'adversaire demeure vigilant.`;
-                actions[0].parameters.xp_gain = 12;
-            }
-        } else if (result === 'Échec') {
-            narrative += `❌ Ta tentative d'attaque est repérée trop tard ! Le ${enemy.name} esquive avec aisance. `;
-            if (counterAttack && counterAttack.willCounter) {
-                narrative += `En seulement ${Math.round(reactionTime)}ms, il riposte avec une attaque ${counterAttack.severity.toLowerCase()}. Attention !`;
+                narrative += `❌ L'Instructeur évite ton assaut sans même sembler bouger. "Trop lent ! Dans un donjon de Rang S, tu serais déjà mort."`;
                 actions[0].parameters.xp_gain = 5;
-            } else {
-                narrative += `L'ennemi se repositionne, prêt à la prochaine offensive.`;
-                actions[0].parameters.xp_gain = 3;
             }
-        } else if (result === 'Échec Critique') {
-            narrative += `💥 **DÉSASTRE** ! Tu trébuches en tentant ton attaque ! Le ${enemy.name} te voit vulnérable. `;
-            narrative += `En moins de ${Math.round(reactionTime / 2)}ms, il lance une contre-attaque DÉVASTATRICE. Tu subis des dégâts massifs !`;
-            actions[0].parameters.xp_gain = 1;
+        } else {
+            if (result === 'Réussite Critique') {
+                narrative += `🎯 Tu lances une attaque foudroyante ! L'énergie crépitante te propulse en avant. Ton coup atteint directement ${enemy.name} de plein fouet ! `;
+                narrative += `Les dégâts sont dévastateurs et l'ennemi vacille sous la violence du choc.`;
+                actions[0].parameters.xp_gain = 25;
+            } else if (result === 'Réussite mitigée') {
+                narrative += `⚡ Ton attaque déroutante tente de traverser la garde de ${enemy.name}. `;
+                if (counterAttack && counterAttack.willCounter) {
+                    narrative += `Mais en ${counterAttack.severity === 'Critique' ? Math.round(reactionTime / 2) : Math.round(reactionTime)}ms, `;
+                    narrative += `l'ennemi contre-attaque avec une force ${counterAttack.severity.toLowerCase()} ! Tu dois te défendre d'urgence !`;
+                    actions[0].parameters.xp_gain = 15;
+                } else {
+                    narrative += `Tu gratignes légèrement ta cible, mais l'adversaire demeure vigilant.`;
+                    actions[0].parameters.xp_gain = 12;
+                }
+            } else if (result === 'Échec') {
+                narrative += `❌ Ta tentative d'attaque est repérée trop tard ! ${enemy.name} esquive avec aisance. `;
+                if (counterAttack && counterAttack.willCounter) {
+                    narrative += `En seulement ${Math.round(reactionTime)}ms, il riposte avec une attaque ${counterAttack.severity.toLowerCase()}. Attention !`;
+                    actions[0].parameters.xp_gain = 5;
+                } else {
+                    narrative += `L'ennemi se repositionne, prêt à la prochaine offensive.`;
+                    actions[0].parameters.xp_gain = 3;
+                }
+            } else if (result === 'Échec Critique') {
+                narrative += `💥 **DÉSASTRE** ! Tu trébuches en tentant ton attaque ! ${enemy.name} te voit vulnérable. `;
+                narrative += `En moins de ${Math.round(reactionTime / 2)}ms, il lance une contre-attaque DÉVASTATRICE. Tu subis des dégâts massifs !`;
+                actions[0].parameters.xp_gain = 1;
+            }
         }
 
         // Add environmental hazard for high-level enemies
-        if (enemy.level >= 4) {
+        if (enemy.level >= 4 && !isTutorial) {
             narrative += `\n\n🌪️ L'arène commence à se déchirer sous la puissance du combat ! Des fragments de réalité flottent autour de vous.`;
         }
 
