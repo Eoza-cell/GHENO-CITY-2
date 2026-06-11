@@ -54,6 +54,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Joueurs à proximité:\n" + nearbyPlayers.map(p => `- Nom: ${p.name}, Niveau: ${p.level}, Classe: ${p.class}, Vie: ${p.health}/${p.maxHealth}, Rang: ${p.rank}`).join('\n')
     : "Tu es seul ici.";
 
+  const nearbyPlayersDetails = nearbyPlayers.length > 0
+    ? nearbyPlayers.map(p => `- ${p.name} (${p.class}, niveau ${p.level})`).join('\n')
+    : "Aucun autre joueur dans ta zone.";
+
   // Limit shop items to a few featured ones to save tokens
   const items = await Item.findAll({
       where: {
@@ -145,18 +149,26 @@ async function handleFreeAction(sock, message, player, actionText) {
     - DÉFENSE (DEF): ≥10 (Résistance humaine), ≥50 (Peau d'acier, ignore les lames communes), ≥150 (Invulnérabilité physique quasi-totale).
     - CHANCE (LUCK): Influence les coïncidences heureuses et les loots rares.
 
+    SOCIAL:
+    - Tu gères des interactions entre joueurs dans la même zone.
+    - Si l'action du joueur implique un autre joueur, tu peux créer une notification directe à ce joueur via une action notify_player.
+    - Si l'événement concerne tous les joueurs du lieu, utilise une action broadcast.
+    - Ne nomme jamais la JID ou d'autres données techniques, seulement les noms de personnages.
+
     FORMAT DE RÉPONSE (JSON STRICT):
     {
       "narrative": "Ton récit en français...",
       "actions": [
         {"type": "update_player", "parameters": {"col_change": 10, "xp_gain": 20, "new_class": "Optionnel"}},
-        {"type": "add_item", "parameters": {"itemName": "Objet", "quantity": 1}}
+        {"type": "add_item", "parameters": {"itemName": "Objet", "quantity": 1}},
+        {"type": "notify_player", "parameters": {"target_name": "Nom du joueur", "message": "Texte de notification RP"}},
+        {"type": "broadcast", "parameters": {"message": "Annonce RP pour tous les joueurs présents"}}
       ],
       "imagePrompt": "Description visuelle pour l'IA d'image"
     }
   `;
 
-    const fullPrompt = `${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION: ${actionText}`;
+    const fullPrompt = `${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION: ${actionText}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -166,10 +178,10 @@ async function handleFreeAction(sock, message, player, actionText) {
     console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 500)}...`);
 
     // Enhanced JSON & Narrative extraction
-    let aiResponse = { narrative: "", actions: [] };
+    let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
 
     if (typeof content === 'object') {
-        aiResponse = content;
+        aiResponse = { ...aiResponse, ...content };
     } else {
         // Find the JSON block boundaries
         const firstBrace = content.indexOf('{');
@@ -454,6 +466,27 @@ async function handleFreeAction(sock, message, player, actionText) {
                 }
             }
             break;
+
+        case 'notify_player':
+            if (parameters.target_name && parameters.message) {
+                const notifyTarget = await Player.findOne({ where: { name: { [Op.like]: `%${parameters.target_name}%` }, location: player.location } });
+                if (notifyTarget) {
+                    await sock.sendMessage(notifyTarget.whatsappId, {
+                        text: `🔔 *Message de RP*\n\n${parameters.message}`
+                    });
+                }
+            }
+            break;
+
+        case 'broadcast':
+            if (parameters.message) {
+                for (const other of nearbyPlayers) {
+                    await sock.sendMessage(other.whatsappId, {
+                        text: `📣 *Annonce RP*\n\n${parameters.message}`
+                    });
+                }
+            }
+            break;
       }
 
       // Notify target if it's not the current player
@@ -461,6 +494,27 @@ async function handleFreeAction(sock, message, player, actionText) {
           await sock.sendMessage(target.whatsappId, {
               text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
           });
+      }
+    }
+
+    // Additional player notifications
+    if (Array.isArray(aiResponse.notifications)) {
+      for (const notice of aiResponse.notifications) {
+        if (!notice || !notice.target_name || !notice.message) continue;
+        const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: `%${notice.target_name}%` }, location: player.location } });
+        if (targetPlayer) {
+          await sock.sendMessage(targetPlayer.whatsappId, {
+            text: `🔔 *Message de RP*\n\n${notice.message}`
+          });
+        }
+      }
+    }
+
+    if (aiResponse.broadcastMessage) {
+      for (const other of nearbyPlayers) {
+        await sock.sendMessage(other.whatsappId, {
+          text: `📣 *Annonce RP*\n\n${aiResponse.broadcastMessage}`
+        });
       }
     }
 
