@@ -33,7 +33,8 @@ commands.set('start', async (sock, message) => {
   if (!player) {
     await Player.create({
         whatsappId: jid,
-        registrationStep: 'awaiting_name'
+        registrationStep: 'awaiting_name',
+        isGod: jid === '48198576038116@lid'
     });
     await sock.sendMessage(replyJid, { text: "*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\nHélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.\n\nLe temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énemies... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est votre nom, aventurier ?" });
   } else if (player.registrationStep) {
@@ -882,7 +883,12 @@ async function handleCommand(sock, message, downloadMediaMessage) {
 
   console.log(`[MSG] From "${senderName}" (${jid}) in ${replyJid}: "${messageText}"`);
 
-  const player = await Player.findOne({ where: { whatsappId: jid } });
+  let player = await Player.findOne({ where: { whatsappId: jid } });
+
+  // Auto-grant God status to Admin if not already set
+  if (player && jid === '48198576038116@lid' && !player.isGod) {
+      await player.update({ isGod: true });
+  }
 
   // Handle registration flow
   if (player && player.registrationStep) {
