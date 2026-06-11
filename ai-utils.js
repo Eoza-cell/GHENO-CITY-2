@@ -67,7 +67,7 @@ function generateCounterAttack(enemy, playerRoll) {
 
 /**
  * Call Puter.js AI with Gemini Free API
- * Based on: https://developer.puter.com/tutorials/free-gemini-api/
+ * FIXED: Force proper response format and handle streaming correctly
  */
 async function callPuterGeminiAI(system, prompt) {
     try {
@@ -77,40 +77,86 @@ async function callPuterGeminiAI(system, prompt) {
             return null;
         }
 
-        console.log("[AI] Calling Puter.js with Gemini (Free API)...");
+        console.log("[AI] 🚀 Calling Puter.js Gemini...");
         
-        // Use Puter's built-in free Gemini API integration
-        const resp = await p.ai.chat(prompt, {
+        // Add explicit instruction to return JUST the narrative
+        const enhancedPrompt = `${prompt}
+
+IMPORTANT: Répondre UNIQUEMENT avec le texte narratif. PAS de JSON, PAS de "data: [DONE]", PAS de balisage.
+Juste la narration pure en français.`;
+
+        const resp = await p.ai.chat(enhancedPrompt, {
             system: system,
-            model: "gemini-1.5-flash",  // Free model via Puter
+            model: "gemini-1.5-flash",
             stream: false
         });
 
-        // Parse response
+        // Debug: Log the raw response
+        console.log("[AI DEBUG] Raw response type:", typeof resp);
+        console.log("[AI DEBUG] Raw response:", JSON.stringify(resp).substring(0, 200));
+
         let text = null;
+
+        // Try multiple extraction methods
         if (typeof resp === 'string') {
             text = resp;
+            console.log("[AI] Method: String direct");
         } else if (resp?.message?.content) {
             if (Array.isArray(resp.message.content)) {
-                text = resp.message.content.map(c => typeof c === 'string' ? c : (c.text || "")).join("");
+                text = resp.message.content
+                    .map(c => typeof c === 'string' ? c : (c.text || ""))
+                    .filter(c => c.trim() !== "")
+                    .join(" ");
             } else {
                 text = resp.message.content;
             }
+            console.log("[AI] Method: message.content");
         } else if (resp?.choices?.[0]?.message?.content) {
             text = resp.choices[0].message.content;
+            console.log("[AI] Method: choices[0].message.content");
         } else if (resp?.text) {
             text = resp.text;
+            console.log("[AI] Method: .text");
+        } else if (resp?.content) {
+            text = resp.content;
+            console.log("[AI] Method: .content");
         }
 
-        if (text && text.length > 10 && !text.includes("token_missing") && text !== "data: [DONE]") {
-            console.log("[AI] ✅ Succès avec Puter.js Gemini");
-            return text;
+        // Validate response
+        if (!text) {
+            console.warn("[AI] ❌ No text extracted from response");
+            console.warn("[AI] Response object keys:", Object.keys(resp || {}));
+            return null;
         }
-        
-        console.warn("[AI] Invalid response from Puter.js:", text?.substring(0, 50));
-        return null;
+
+        // Clean response
+        text = text
+            .trim()
+            .replace(/^data:\s*\[DONE\]\s*$/i, "") // Remove streaming marker
+            .replace(/^(json|JSON)\s*/i, "") // Remove language marker
+            .replace(/^```[\s\S]*?```/g, "") // Remove code blocks
+            .trim();
+
+        // Final validation
+        const isValid = text.length > 10 && 
+                       !text.includes("data: [DONE]") && 
+                       !text.includes("token_missing") &&
+                       text !== "[DONE]" &&
+                       text !== "";
+
+        if (!isValid) {
+            console.warn("[AI] ❌ Response failed validation");
+            console.warn("[AI] Response after cleanup:", text.substring(0, 100));
+            return null;
+        }
+
+        console.log("[AI] ✅ Success - Response valid");
+        console.log("[AI] Response length:", text.length);
+        return text;
+
     } catch (e) {
-        console.warn("[AI] Puter.js Gemini failed:", e.message);
+        console.error("[AI] ❌ Puter.js error:", e.message);
+        console.error("[AI] Stack:", e.stack?.substring(0, 200));
         return null;
     }
 }
