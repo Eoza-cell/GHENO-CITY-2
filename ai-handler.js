@@ -10,7 +10,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const playerState = `
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
     - Description: ${player.characterDescription}
-    - Classe: ${player.class}
+    - Famille: ${player.family}
+    - Classe: ${player.class} (${player.derivative})
     - Points de Compétence (SP): ${player.skillPoints}
     - Rang: ${player.rank}
     - Niveau: ${player.level}
@@ -19,7 +20,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Mana: ${player.mana}/${player.maxMana}
     - Col: ${player.col}
     - Emplacement: ${player.location}
-    - Statistiques: Force ${player.strength}, Agilité ${player.agility}, Intelligence ${player.intelligence}, Défense ${player.defense}, Chance ${player.luck}
+    - STATS: Force:${player.strength} Agilité:${player.agility} Intelligence:${player.intelligence} Défense:${player.defense} Chance:${player.luck}
   `;
 
   const inventory = player.inventory || [];
@@ -27,23 +28,21 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Inventaire:\n" + inventory.map(i => `- ${i.name} (x${i.quantity})`).join('\n')
     : "Ton inventaire est vide.";
 
-  const allQuests = await Quest.findAll();
   const playerQuests = await player.getQuests();
+  const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
 
-  const activeQuestNames = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress').map(q => q.title);
-  const completedQuestNames = playerQuests.filter(q => q.PlayerQuest.status === 'completed').map(q => q.title);
+  const questState = activeQuests.length > 0
+    ? "Quêtes Actives:\n" + activeQuests.map(q => `- ${q.title}: ${q.description}`).join('\n')
+    : "Aucune quête active.";
 
-  const questState = playerQuests.length > 0
-    ? "Tes Quêtes:\n" + playerQuests.map(q => `- ${q.title} [${q.PlayerQuest.status}]`).join('\n')
-    : "Tu n'as commencé aucune quête.";
+  const availableQuests = await Quest.findAll({
+      where: { rank_required: player.rank },
+      limit: 3
+  });
+  const availableQuestState = "Quêtes dispo (Rang " + player.rank + "):\n" + availableQuests.map(q => `- ${q.title}`).join('\n');
 
-  const availableQuests = allQuests.filter(q => !activeQuestNames.includes(q.title) && !completedQuestNames.includes(q.title));
-  const availableQuestState = availableQuests.length > 0
-    ? "Quêtes disponibles dans le monde:\n" + availableQuests.map(q => `- ${q.title}: ${q.description} (Requis: Rang ${q.rank_required})`).join('\n')
-    : "Toutes les quêtes connues ont été commencées ou terminées.";
-
-  const dungeons = await Dungeon.findAll();
-  const dungeonState = "Donjons connus:\n" + dungeons.map(d => `- ${d.name} (Rang ${d.rank})`).join('\n');
+  const dungeons = await Dungeon.findAll({ limit: 5 });
+  const dungeonState = "Donjons:\n" + dungeons.map(d => `- ${d.name} (${d.rank})`).join('\n');
 
   const nearbyPlayers = await Player.findAll({
     where: {
@@ -67,7 +66,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const shopState = "Boutique (Aperçu):\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description.substring(0, 50)}...`).join('\n');
 
-  // Save current player message to memory before fetching history
+  // Save current player message to memory
   await RPMessage.create({
       senderJid: player.whatsappId,
       senderName: player.name,
@@ -75,14 +74,14 @@ async function handleFreeAction(sock, message, player, actionText) {
       location: player.location
   });
 
-  // Memory: Reduced to 5 messages to avoid token bloat
+  // Fetch small history for context
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 5
+      limit: 3
   });
   const historyState = history.length > 0
-    ? "Mémoire Récente:\n" + history.reverse().map(h => `[${h.senderName}]: ${h.content.substring(0, 100)}`).join('\n')
+    ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')
     : "";
 
   const playerSkills = await player.getSkills();
@@ -90,36 +89,20 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Compétences:\n" + playerSkills.map(s => `- ${s.name}: ${s.description.substring(0, 40)}...`).join('\n')
     : "Aucune compétence.";
 
-  const kingdoms = await Kingdom.findAll({ limit: 3 }); // Reduced to 3
-  const kingdomState = "Monde:\n" + kingdoms.map(k => `- ${k.name} [${k.status}]`).join('\n');
+  const kingdomState = "Monde: Empire d'Elion (Paix), Valkyrr (Trêve), Dominion Noir (Guerre).";
 
-  const conflicts = await Conflict.findAll({ where: { status: 'active' }, limit: 2 });
-  const conflictState = "Conflits:\n" + conflicts.map(c => `- ${c.title}`).join('\n');
-
-  // Limit NPCs to current location or key global ones for prompt efficiency
+  // Context-aware NPCs
   const npcs = await NPC.findAll({
-      where: {
-          [Op.or]: [
-              { location: { [Op.like]: `%${player.location}%` } },
-              { name: ['Directeur Magnus', 'Heathcliff', 'Asuna'] } // Reduced key NPCs
-          ]
-      },
-      limit: 6
+      where: { location: { [Op.like]: `%${player.location}%` } },
+      limit: 3
   });
-  const npcState = "PNJ à proximité:\n" + npcs.map(n => `- ${n.name} (${n.role}): ${n.description.substring(0, 60)}...`).join('\n');
+  const npcState = "PNJ ici:\n" + npcs.map(n => `- ${n.name} (${n.role})`).join('\n');
 
-  // Limit monsters to those of similar rank to the player
-  const currentRankIndex = ['F', 'E', 'D', 'C', 'B', 'A', 'S'].indexOf(player.rank);
   const monsters = await Monster.findAll({
-      where: {
-          rank: { [Op.in]: ['F', 'E', 'D', 'C', 'B', 'A', 'S'].slice(Math.max(0, currentRankIndex - 1), currentRankIndex + 2) }
-      },
-      limit: 5 // Increased limit
+      where: { rank: player.rank },
+      limit: 3
   });
-  const monsterState = "Monstres:\n" + monsters.map(m => `- ${m.name} (Rang ${m.rank}) [PV: ${m.health}, STR: ${m.strength}, DEF: ${m.defense}, AGI: ${m.agility}]`).join('\n');
-
-  const schools = await School.findAll({ limit: 3 });
-  const schoolState = "Écoles et Académies:\n" + schools.map(s => `- ${s.name} (${s.specialty}): ${s.description}`).join('\n');
+  const monsterState = "Monstres:\n" + monsters.map(m => `- ${m.name} (PV:${m.health} ATK:${m.strength} DEF:${m.defense})`).join('\n');
 
   // Time Logic: 1 month real = 1 year RP
   // Reference date: Jan 1st 2024
@@ -138,103 +121,42 @@ async function handleFreeAction(sock, message, player, actionText) {
         : "";
 
   const systemPrompt = `
-    Tu es le Maître du Jeu (MJ) de "Arise / Le Monde d’Aetherys", un RPG textuel ultra-immersif. Ton style est direct, sombre et réaliste.
-    **EXIGENCE LINGUISTIQUE (CRUCIAL)**: Tu dois écrire dans un FRANÇAIS TERRE À TERRE, sans fioritures, direct et percutant. Évite le lyrisme excessif, les métaphores pompeuses ou les phrases trop longues. L'utilisateur veut une immersion brute, presque chirurgicale. Bannis toute tournure de phrase "IA" (ex: "En tant qu'IA...", "Voici le résultat..."). Ta seule et unique fonction est de retourner un objet JSON valide.
+    Tu es le MJ de "Arise / Aetherys". RPG de type Manhwa/Anime (style Solo Leveling, SAO, Overlord).
 
-    **LOGIQUE & HISTOIRE**:
-    - La narration doit suivre une LOGIQUE implacable. Pas de miracles injustifiés. Chaque événement est la conséquence directe d'une action ou du contexte.
-    - Respecte scrupuleusement l'histoire du monde (Aetherys, la Fracture des Couronnes, les tensions géopolitiques). La cohérence narrative est ta priorité absolue.
+    STYLE NARRATIF:
+    - Épique, dynamique et visuel. Mélange d'HUMOUR ANIME (exagérations, gags visuels, chutes ridicules) et de MOMENTS SÉRIEUX (tension dramatique, enjeux de vie ou de mort).
+    - Ajoute du "FAN SERVICE" (descriptions esthétiques, charisme frappant des PNJs, gros plans dramatiques sur les visages ou les poses).
+    - Pas de texte en anglais. PAS de parenthèses pour les sons (ex: PAS de "(Clang!)").
+    - LONGUEUR: Minimum 3-4 paragraphes riches en détails et émotions.
 
-    **ATMOSPHÈRE SOMBRE & RÉALISME BRUT**:
-    - Le monde est dangereux et impitoyable.
-    - **INTERACTIONS**: Les PNJ sont des individus avec leurs propres buts. Le "Fan Service" (Tsundere, etc.) doit rester intégré naturellement dans une réalité brutale.
+    RÈGLES MJ:
+    1. RÔLE DU JOUEUR: Le joueur est le PROTAGONISTE. Il n'est pas forcément un héros. Libre de ses choix, lié seulement à sa famille et ses capacités.
+    2. LIBERTÉ TOTALE: Tu ne contrôles PAS les actions du joueur. Tu es le monde qui réagit.
+    3. RECONNAISSANCE: Commence TOUJOURS par valider l'action du joueur avant d'enchaîner sur la narration.
+    4. NPCs ARCHÉTYPES: Utilise des archétypes anime marqués :
+       - Tsundere (froide puis douce), Kuudere (sans émotion), Dandere (timide), Ojou-sama (arrogante/noble).
+       - Rival arrogant qui finit par respecter le joueur, Maître pervers/excentrique, etc.
+    5. LÉTALITÉ & CONSÉQUENCES: Un échec peut être drôle (humiliation) ou tragique (blessure grave), mais ne doit jamais être ignoré.
 
-    LORE D'AETHERYS:
-    - Esthétique: Un mélange de technologie moderne (le "Gheno Phone" servant d'interface, écrans de mana, néons magiques, véhicules à mana) et de fantasy médiévale.
-    - Divinité: Le SEUL ET UNIQUE DIEU de ce monde est **EOZA**. S'il interagit, il a les PLEINS POUVOIRS et peut modifier la réalité. Les autres joueurs sont des mortels ordinaires suivant leur propre voie. Ils ne sont pas des demi-dieux.
-    - Le monde était uni sous l'Empire Céleste d'Elion avant la "Fracture des Couronnes".
-    - Nations: Empire d'Elion (Magie sacrée, Lux Aeterna), Valkyrr (Glace, Runes), Sultanat d'Azrak (Désert, Artefacts), République de Nereïs (Mer, Explorateurs), Dominion Noir de Vharos (Nécromancie).
-    - Intrigue: Les donjons deviennent agressifs. Marques noires sur les aventuriers. Prophétie des Sept Portes et du Roi du Néant.
-    - STRUCTURE: Développe l'histoire par "Arcs Narratifs" comme dans un animé. Introduit des plot twists, des trahisons et des moments de bravoure.
-    - Ville de Départ: Eldoria.
-    - Académie d'Elion: Formation des recrues par rangs (Rang F Novice à Rang S Légende).
+    ÉCHELLE DE PUISSANCE ET IMPACT DES STATS:
+    - FORCE (FOR): ≥10 (Humain simple), ≥50 (Détruit des murs, fissure le sol), ≥150 (Pulvérise des bâtiments, ondes de choc).
+    - VITESSE (AGI): Rang E (2m/s), Rang D (10m/s - Record humain), Rang C (30m/s - Image rémanente), Rang B+ (Vitesse supersonique, invisible).
+    - INTELLIGENCE (INT): ≥10 (Petits sorts, lumière), ≥50 (Explosions de zone, manipulation élémentaire majeure), ≥150 (Sorts cataclysmiques, altération de la réalité).
+    - DÉFENSE (DEF): ≥10 (Résistance humaine), ≥50 (Peau d'acier, ignore les lames communes), ≥150 (Invulnérabilité physique quasi-totale).
+    - CHANCE (LUCK): Influence les coïncidences heureuses et les loots rares.
 
-    LOGIQUE TEMPORELLE & GÉOPOLITIQUE:
-    - Date actuelle en RP: ${rpYearString}.
-    - Échelle: 1 mois réel = 1 an RP. Les saisons passent, les guerres évoluent. Ta narration doit refléter ce passage du temps.
-    - **CYCLE ACADÉMIQUE**: Chaque mois réel (chaque année RP) est ponctué d'Examens Écrits (testant le lore et l'intelligence) et se termine par le Grand Tournoi Inter-Écoles d'Aetherys.
-    - Le monde est en proie à des conflits majeurs. La narration doit refléter l'insécurité, les mouvements de troupes, et l'impact des guerres sur les civils et les aventuriers.
-    - **INTERDICTION DE TIME-SKIP**: Il est strictement INTERDIT de faire des sauts dans le temps narratifs pour l'entraînement ou la progression. Un entraînement doit être vécu en temps réel. Tu ne peux pas dire "Après 3 heures d'efforts, tu es devenu plus fort". Le joueur doit décrire ses actions une par une.
-
-    RÈGLES FONDAMENTALES:
-    0.  **Liberté Totale & Conséquences (STRICT)**: Le joueur est TOTALEMENT LIBRE de ses actions. Ne bloque JAMAIS une intention. Cependant, chaque action a des conséquences réalistes et souvent impitoyables. Si un joueur de Rang F tente d'entrer dans un donjon Rang S, laisse-le entrer, mais décris sa mort imminente ou son arrestation violente par la garde. Adapte la narration à toute folie ou créativité du joueur.
-    1.  **Omniscience & Présence des PNJ**: Tu es le créateur. Intègre des éléments de fantasy sombre et de Sword Art Online. Les PNJ (Personnages Non-Joueurs) doivent être TRÈS PRÉSENTS. Fais-les parler, interagir, et réagir aux actions du joueur. S'il y a un PNJ important à proximité, il DOIT intervenir dans la narration.
-    2.  **Censure Interdite & Ton Mature**: Ton sombre, réaliste, viscéral. Le monde est impitoyable.
-    3.  **Difficulté "Hardcore"**: Les succès sont rares. Un échec peut être fatal.
-    4.  **Impact des Statistiques & Létalité (CRUCIAL)**:
-        - **PHILOSOPHIE**: Laisse le joueur décrire ses actions. Ton rôle est d'arbitrer le résultat selon ses statistiques précises et celles de l'ennemi.
-        - **VÉRIFICATION DES STATS**: Avant chaque action de combat, COMPARE la Force, l'Agilité et la Défense du joueur avec celles du monstre.
-        - **LÉTALITÉ EXTRÊME**: Le monde est dangereux. Si un joueur fait un mauvais contre, manque de vitesse (Agilité) ou de force, l'ennemi peut le blesser gravement, voire le TUER sur le coup, sans qu'il ne puisse riposter. Pas de pitié.
-        - **LOGIQUE**: Si les stats sont insuffisantes, l'action échoue violemment.
-        - **RÈGLES DE COMBAT (STRICTES)**:
-            * **Dégâts infligés au monstre** = (Force du Joueur * 2) - (Défense du Monstre).
-            * **Dégâts reçus par le joueur** = (Force du Monstre * 2) - (Défense du Joueur).
-            * **Esquive** = Impossible si l'Agilité du joueur < (Agilité du Monstre / 1.5).
-            * **Succès Critique** = Si Chance > 20, 10% de chance de doubler les dégâts.
-        - **COMBAT TERRE À TERRE**: Décris les impacts, les os qui craquent, la fatigue. Pas seulement de la magie brillante, mais de la douleur réelle.
-        - Utilise explicitement les chiffres dans la narration (ex: "Tu encaisses 50 dégâts, ton bras est brisé !").
-    5.  **Compétences & Progression (STRICT)**:
-        - **UTILISATION DES SORTS**: Un joueur ne peut PAS utiliser tous les sorts dès le début. Il ne peut utiliser QUE les compétences listées dans sa section "Compétences". S'il tente un sort qu'il n'a pas, il échoue lamentablement (explosion de mana, fatigue extrême, simple geste inutile).
-        - **SP**: 1 SP = +1 stat (Force, Agilité, etc.).
-    6.  **Interactions Sociales**: Si des joueurs sont à proximité, encourage les alliances, les échanges ou les affrontements. Tu DOIS les identifier par leur nom.
-    7.  **Ciblage & Arbitrage PvP (CRUCIAL)**:
-        - Tu peux appliquer des actions à d'autres joueurs présents en ajoutant "target_name" dans les paramètres JSON.
-        - **ARBITRAGE PvP**: Dans un combat entre joueurs (A contre B), tu n'es qu'un ARBITRE.
-        - Tu DOIS nommer et TAguer l'adversaire (ex: "@NomAdversaire") dans ta narration.
-        - Informe-le qu'il a **5 minutes** pour répondre avant que tu ne donnes ton verdict basé sur les statistiques.
-        - Ne décide pas du vainqueur immédiatement si l'adversaire n'a pas encore eu l'occasion de réagir.
-    8.  **Vérification des Noms**: Utilise uniquement les noms fournis dans la section "Joueurs à proximité". Si le joueur mentionne un nom qui n'est pas là, il s'adresse à un PNJ ou hallucine.
-    9.  **Format JSON Impératif**: Réponse JSON uniquement. Ta réponse DOIT commencer par '{' et se terminer par '}'.
-    10. **Mini-Events & Imprévus**: N'hésite pas à déclencher de petits événements narratifs (rencontres fortuites, changements météo magiques, rumeurs entendues) pour rendre le monde vivant.
-
-    FORMAT DE LA NARRATION (TERRE À TERRE):
-    - Narration DIRECTE, BRUTE et EFFICACE.
-    - **LANGUE**: Français simple, vocabulaire du quotidien, phrases courtes. Pas de jargon poétique.
-    - **TON**: Sérieux, menaçant. Le danger doit se ressentir dans chaque mot.
-    - **STYLE DE COMBAT (MANGA/ANIME)**: Les combats doivent être VIVANTS et CINÉMATIQUES.
-        * Décris des ENCHAÎNEMENTS de coups rapides (combos).
-        * Utilise des onomatopées ou des descriptions de sons explosifs (BOOM, SHING, CRACK).
-        * Décris les impacts qui soulèvent la poussière, brisent le sol ou créent des ondes de choc.
-        * Mets l'accent sur la vitesse, les reflets sur les lames et les mouvements "Sakuga".
-        * Exemple: "Il lance une série de trois entailles rapides avant de pivoter pour un coup de pied circulaire dévastateur qui projette l'ennemi contre un mur."
-    - **DESCRIPTION**: Concentre-toi sur les sensations physiques (douleur, froid, odeur de sang, poids de l'arme) ET sur l'intensité visuelle du combat.
-    - IMMERSION: Le "Gheno Phone" est un outil technologique, décris son interface froide.
-    - Utilise des en-têtes simples.
-    - Description des mouvements: Précis, sans exagération héroïque injustifiée.
-    - Exemple:
-      --- ⚔️ SHING! COMBAT ---
-      [Action explosive]
-      --- 📝 RÉSULTAT ---
-      [Conséquences viscérales]
-    - Garde un style "Phone/Card" propre mais avec un flair anime intense.
-
-    DIRECTIVES D'IMAGES (imagePrompt):
-    - Pour chaque action significative, fournis un "imagePrompt" descriptif.
-    - Style: "High-end Anime art style, Modern Fantasy aesthetic, vibrant colors, cinematic lighting, 8k, detailed characters".
-    - Exemple: "Modern anime style, a futuristic city with floating mana screens, neon lights mixed with stone architecture, high detail".
-
-    TYPES D'ACTIONS (JSON):
-    Ta réponse doit être un objet JSON contenant un tableau "actions". Chaque élément du tableau est un objet avec une clé "type" et "parameters".
-    Exemple: {"narrative": "...", "actions": [{"type": "update_player", "parameters": {...}}, {"type": "add_item", "parameters": {...}}]}
-
-    - "type": "update_player", "parameters": {"target_name": "nom_optionnel", "col_change": montant, "xp_gain": montant, "health_change": montant, "max_health_change": montant, "mana_change": montant, "max_mana_change": montant, "new_location": "nom_lieu", "new_rank": "F/E/D/C/B/A/S", "strength_change": montant, "agility_change": montant, "intelligence_change": montant, "defense_change": montant, "luck_change": montant, "schoolName": "nom_ecole", "academicGrade_change": montant, "sp_gain": montant, "monster_damage": montant, "monster_name": "nom_du_monstre"}
-    - "type": "add_skill", "parameters": {"target_name": "nom_optionnel", "skillName": "nom_de_la_competence"}
-    - "type": "add_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
-    - "type": "remove_item", "parameters": {"target_name": "nom_optionnel", "itemName": "nom_de_l_objet", "quantity": nombre}
-    - "type": "interact_npc", "parameters": {"npcName": "nom_du_pnj", "dialogue": "phrase_courte"}
+    FORMAT DE RÉPONSE (JSON STRICT):
+    {
+      "narrative": "Ton récit en français...",
+      "actions": [
+        {"type": "update_player", "parameters": {"col_change": 10, "xp_gain": 20, "new_class": "Optionnel"}},
+        {"type": "add_item", "parameters": {"itemName": "Objet", "quantity": 1}}
+      ],
+      "imagePrompt": "Description visuelle pour l'IA d'image"
+    }
   `;
 
-    const fullPrompt = `CONTEXTE:\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${socialState}\n${shopState}\n${kingdomState}\n${conflictState}\n${schoolState}\n${npcState}\n${monsterState}${miniEventContext}\n\n${historyState}\n\nACTION ACTUELLE DU JOUEUR: ${actionText}`;
+    const fullPrompt = `${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n\n${historyState}\n\nACTION: ${actionText}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -243,25 +165,53 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
     console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 500)}...`);
 
-    // Robust JSON extraction
+    // Enhanced JSON & Narrative extraction
     let aiResponse = { narrative: "", actions: [] };
-    let jsonMatch = content.match(/\{[\s\S]*\}/);
 
-    if (jsonMatch) {
-        try {
-            aiResponse = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-            console.error("[AI ERROR] JSON Parse failed, extracting narrative only.");
-            aiResponse.narrative = content.replace(/\{[\s\S]*\}/, '').trim();
-        }
+    if (typeof content === 'object') {
+        aiResponse = content;
     } else {
-        console.warn("[AI WARNING] No JSON found, using raw content as narrative.");
-        aiResponse.narrative = content.trim();
+        // Find the JSON block boundaries
+        const firstBrace = content.indexOf('{');
+        const lastBrace = content.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            const potentialJson = content.substring(firstBrace, lastBrace + 1);
+            try {
+                aiResponse = JSON.parse(potentialJson);
+            } catch (e) {
+                console.error("[MJ] Erreur parse JSON, tentative récupération narrative...");
+            }
+        }
+
+        // If narrative is missing or empty inside JSON, extract from surrounding text
+        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+            let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
+            let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
+
+            // Cleanup markers
+            const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
+            textBefore = cleanup(textBefore);
+            textAfter = cleanup(textAfter);
+
+            if (textBefore.length > 5) aiResponse.narrative = textBefore;
+            else if (textAfter.length > 5) aiResponse.narrative = textAfter;
+            else if (firstBrace === -1) aiResponse.narrative = cleanup(content);
+        }
     }
 
-    // Fallback if narrative is still empty
-    if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-        aiResponse.narrative = content.substring(0, 500).replace(/\{[\s\S]*/, '').trim() || "Le flux magique est instable...";
+    // Final scrub of ALL AI/JSON artifacts from narrative
+    if (aiResponse.narrative) {
+        aiResponse.narrative = aiResponse.narrative
+            .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
+            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+            .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
+            .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '') // Remove accidental action-like lines
+            .trim();
+    }
+
+    if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
+        aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";
     }
 
     console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
@@ -289,33 +239,25 @@ async function handleFreeAction(sock, message, player, actionText) {
           const foundTarget = await Player.findOne({
               where: {
                   name: parameters.target_name,
-                  location: player.location // Only target players at same location
+                  location: player.location
               }
           });
           if (foundTarget) {
               target = foundTarget;
-          } else {
-              console.log(`[AI] Target not found or not at location: ${parameters.target_name}`);
           }
       }
 
+      // Track if target needs a final reload/save
+      let targetModified = false;
+
       switch (type) {
         case 'update_player':
-          if (parameters.monster_name && parameters.monster_damage) {
-              const monster = await Monster.findOne({ where: { name: parameters.monster_name } });
-              if (monster) {
-                  console.log(`[COMBAT] ${monster.name} subit ${parameters.monster_damage} dégâts.`);
-                  // Here we could track monster HP in a session or temp table if needed,
-                  // but for now we follow the AI's narrative verdict.
-                  if (parameters.monster_damage >= monster.health) {
-                      console.log(`[COMBAT] ${monster.name} est vaincu !`);
-                  }
-              }
+          if (parameters.col_change) {
+              await target.increment('col', { by: parameters.col_change });
+              targetModified = true;
           }
-          if (parameters.col_change) await target.increment('col', { by: parameters.col_change });
           if (parameters.xp_gain) {
               await target.increment('xp', { by: parameters.xp_gain });
-              // Reload target to check XP
               await target.reload();
               const xpNeeded = target.level * 100;
               if (target.xp >= xpNeeded) {
@@ -323,39 +265,63 @@ async function handleFreeAction(sock, message, player, actionText) {
                   await target.increment('level', { by: levelsGained });
                   await target.update({
                       xp: target.xp % xpNeeded,
-                      maxHealth: target.maxHealth + (levelsGained * 15), // Reduced from 20 for balance
-                      maxMana: target.maxMana + (levelsGained * 8), // Reduced from 10
+                      maxHealth: target.maxHealth + (levelsGained * 15),
+                      maxMana: target.maxMana + (levelsGained * 8),
                       health: target.maxHealth + (levelsGained * 15),
                       mana: target.maxMana + (levelsGained * 8),
-                      // Automatic small stat increase on level up
                       strength: target.strength + (levelsGained * 1),
                       agility: target.agility + (levelsGained * 1),
                       intelligence: target.intelligence + (levelsGained * 1)
                   });
                   await sock.sendMessage(target.whatsappId, {
-                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes points de vie et de mana ont augmenté.`
+                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes stats ont augmenté.`
                   });
               }
+              targetModified = true;
           }
           if (parameters.health_change) {
               await target.increment('health', { by: parameters.health_change });
               await target.reload();
               if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
               if (target.health < 0) await target.update({ health: 0 });
+              targetModified = true;
           }
-          if (parameters.max_health_change) await target.increment('maxHealth', { by: parameters.max_health_change });
+          if (parameters.max_health_change) {
+              await target.increment('maxHealth', { by: parameters.max_health_change });
+              targetModified = true;
+          }
           if (parameters.mana_change) {
               await target.increment('mana', { by: parameters.mana_change });
               await target.reload();
               if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
               if (target.mana < 0) await target.update({ mana: 0 });
+              targetModified = true;
           }
-          if (parameters.max_mana_change) await target.increment('maxMana', { by: parameters.max_mana_change });
-          if (parameters.strength_change) await target.increment('strength', { by: parameters.strength_change });
-          if (parameters.agility_change) await target.increment('agility', { by: parameters.agility_change });
-          if (parameters.intelligence_change) await target.increment('intelligence', { by: parameters.intelligence_change });
-          if (parameters.defense_change) await target.increment('defense', { by: parameters.defense_change });
-          if (parameters.luck_change) await target.increment('luck', { by: parameters.luck_change });
+          if (parameters.max_mana_change) {
+              await target.increment('maxMana', { by: parameters.max_mana_change });
+              targetModified = true;
+          }
+          if (parameters.strength_change) {
+              await target.increment('strength', { by: parameters.strength_change });
+              targetModified = true;
+          }
+          if (parameters.agility_change) {
+              await target.increment('agility', { by: parameters.agility_change });
+              targetModified = true;
+          }
+          if (parameters.intelligence_change) {
+              await target.increment('intelligence', { by: parameters.intelligence_change });
+              targetModified = true;
+          }
+          if (parameters.defense_change) {
+              await target.increment('defense', { by: parameters.defense_change });
+              targetModified = true;
+          }
+          if (parameters.luck_change) {
+              await target.increment('luck', { by: parameters.luck_change });
+              targetModified = true;
+          }
+
           if (parameters.new_location) {
               await target.update({ location: parameters.new_location });
               // Check if there is a local image for this location
@@ -368,9 +334,21 @@ async function handleFreeAction(sock, message, player, actionText) {
               }
           }
           if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
+          if (parameters.new_class) await target.update({ class: parameters.new_class });
           if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
-          if (parameters.academicGrade_change) await target.increment('academicGrade', { by: parameters.academicGrade_change });
-          if (parameters.sp_gain) await target.increment('skillPoints', { by: parameters.sp_gain });
+          if (parameters.academicGrade_change) {
+              await target.increment('academicGrade', { by: parameters.academicGrade_change });
+              targetModified = true;
+          }
+          if (parameters.sp_gain) {
+              await target.increment('skillPoints', { by: parameters.sp_gain });
+              targetModified = true;
+          }
+
+          if (targetModified) {
+              await target.save();
+              await target.reload();
+          }
           break;
 
         case 'add_skill':
@@ -394,6 +372,8 @@ async function handleFreeAction(sock, message, player, actionText) {
                     await target.increment(stat, { by: value });
                   }
                 }
+                await target.save();
+                await target.reload();
               }
             }
           }
@@ -416,10 +396,16 @@ async function handleFreeAction(sock, message, player, actionText) {
             const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${parameters.itemName}%` } } });
             if (itemData) {
                 const bonuses = itemData.statBonuses;
+                let itemModified = false;
                 for (const [stat, value] of Object.entries(bonuses)) {
                     if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
                         await target.increment(stat, { by: value * parameters.quantity });
+                        itemModified = true;
                     }
+                }
+                if (itemModified) {
+                    await target.save();
+                    await target.reload();
                 }
                 if (itemData.imageUrl && !aiResponse.imagePrompt && target.whatsappId === player.whatsappId) {
                     aiResponse.imagePrompt = itemData.imageUrl;
@@ -451,6 +437,8 @@ async function handleFreeAction(sock, message, player, actionText) {
                                 await target.decrement(stat, { by: value * actualQuantityToRemove });
                             }
                         }
+                        await target.save();
+                        await target.reload();
                     }
                 }
             }

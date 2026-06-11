@@ -155,6 +155,7 @@ const profileCommand = async (sock, message) => {
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *JOUEUR:* ${player.name}\n` +
+                          `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
                           `🎖️ *RANG:* ${player.rank}\n` +
                           `📊 *NIVEAU:* ${player.level}\n\n` +
@@ -184,6 +185,7 @@ const profileCommand = async (sock, message) => {
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *JOUEUR:* ${player.name}\n` +
+                          `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
                           `🎖️ *RANG:* ${player.rank}\n` +
                           `📊 *NIVEAU:* ${player.level}\n\n` +
@@ -230,6 +232,7 @@ commands.set('inspecter', async (sock, message) => {
     const xpBar = createStatusBar(targetPlayer.xp, xpNeeded);
 
     const profileText = `--- 🔍 INSPECTION - ${targetPlayer.name} --- \n\n` +
+                        `👪 *FAMILLE:* ${targetPlayer.family}\n` +
                         `🎭 *CLASSE:* ${targetPlayer.class}\n` +
                         `🎖️ *RANG:* ${targetPlayer.rank}\n` +
                         `📊 *NIVEAU:* ${targetPlayer.level}\n\n` +
@@ -295,16 +298,25 @@ commands.set('map', async (sock, message) => {
 commands.set('boutique', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const items = await Item.findAll();
+    const items = await Item.findAll({ order: [['price', 'ASC']] });
 
     if (items.length === 0) {
         await sock.sendMessage(replyJid, { text: "La boutique est vide pour le moment." });
         return;
     }
 
-    let boutiqueText = "--- ⚔️ FORGE DE BROKK --- \n\n";
+    const rarityEmoji = {
+        'common': '⚪',
+        'rare': '🔵',
+        'epic': '🟣',
+        'legendary': '🟡',
+        'artifact': '🔴'
+    };
+
+    let boutiqueText = "--- ⚔️ FORGE DE BROKK (PROMOS !) --- \n\n";
     items.forEach(item => {
-        boutiqueText += `*${item.name.toUpperCase()}*\n`;
+        const emoji = rarityEmoji[item.rarity] || '⚪';
+        boutiqueText += `${emoji} *${item.name.toUpperCase()}* (${item.rarity})\n`;
         boutiqueText += `├ 💰 Prix: ${item.price} 🪙\n`;
         const bonuses = item.statBonuses;
         const bonusStrings = Object.entries(bonuses).map(([stat, value]) => `${stat}: +${value}`);
@@ -367,6 +379,7 @@ commands.set('joueurs', async (sock, message) => {
     let playersText = `--- 👥 AVENTURIERS À PROXIMITÉ --- \n\n`;
     otherPlayers.forEach(p => {
         playersText += `*${p.name}*\n`;
+        playersText += `├ 👪 Famille: ${p.family}\n`;
         playersText += `├ 🎭 Classe: ${p.class} | 📊 Niveau: ${p.level}\n`;
         playersText += `├ 🎖️ Rang: ${p.rank}\n`;
         playersText += `└ 📜 Bio: ${p.characterDescription || '...'}\n\n`;
@@ -712,6 +725,26 @@ commands.set('statut', async (sock, message) => {
 });
 
 // Command: /help
+// Command: /save
+commands.set('save', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de données à sauvegarder. Utilise /start." });
+        return;
+    }
+
+    try {
+        await player.save();
+        await sock.sendMessage(replyJid, { text: "💾 *SAUVEGARDE RÉUSSIE*\n\nTes données ont été synchronisées avec la matrice d'Aetherys. Tu pourras reprendre ton aventure à tout moment." });
+    } catch (error) {
+        console.error("Erreur sauvegarde joueur:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la sauvegarde de tes données." });
+    }
+});
+
 commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
                    "/start - Commencer l'aventure.\n" +
@@ -725,6 +758,8 @@ commands.set('help', async (sock, message) => {
                    "/joueurs - Voir les joueurs à proximité.\n" +
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
+                   "/save - Sauvegarder tes données manuellement.\n" +
+                   "/checkai - Diagnostiquer l'état des serveurs IA.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
                    "/help - Afficher cette aide.";
@@ -741,6 +776,33 @@ commands.set('action', async (sock, message) => {
   } else {
       await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
   }
+});
+
+// Command: /checkai
+commands.set('checkai', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const { callAI } = require('./ai-utils');
+
+    await sock.sendMessage(replyJid, { text: "🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*...\nVeuillez patienter." });
+
+    const startTime = Date.now();
+    try {
+        const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
+        const duration = (Date.now() - startTime) / 1000;
+
+        let status = "🟢 *OPÉRATIONNEL*";
+        if (result.includes("moteur MJ Local")) status = "🟡 *MODE DÉGRADÉ* (MJ Local)";
+
+        await sock.sendMessage(replyJid, {
+            text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
+                  `Statut: ${status}\n` +
+                  `Latence: ${duration}s\n` +
+                  `Réponse: ${result.substring(0, 100)}...\n\n` +
+                  `_Si le statut est dégradé, vérifiez vos clés API ou attendez quelques minutes._`
+        });
+    } catch (e) {
+        await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
+    }
 });
 
 // Command: /menu
@@ -859,7 +921,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   // Handle free action mode
   if (player?.mode === 'action' && !messageText.startsWith('/')) {
     try {
-        if (player.tutorialStep > 0 && player.tutorialStep < 3) {
+        if (player.tutorialStep >= 0 && player.tutorialStep < 3) {
             const { handleTutorialAction } = require('./tutorial-handler');
             await handleTutorialAction(sock, message, player, messageText);
         } else {
