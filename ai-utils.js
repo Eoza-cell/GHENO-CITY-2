@@ -41,8 +41,8 @@ async function callPuterGeminiAI(system, prompt) {
             try {
                 console.log(`[AI] Puter.js - Essai avec ${model}...`);
                 resp = await p.ai.chat(enhancedPrompt, {
-                    system: system,
                     model: model,
+                    system: system,
                     stream: false
                 });
                 if (resp) break;
@@ -173,6 +173,8 @@ function cleanAIResponse(text) {
 async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 2) return null;
 
+    console.log(`[AI] callAI - Tentative globale #${depth + 1}`);
+
     // Sanitize prompts
     const sanitizedSystem = systemPrompt.length > 4000 ? systemPrompt.substring(0, 4000) : systemPrompt;
     const sanitizedUser = userPrompt.length > 2000 ? userPrompt.substring(0, 2000) : userPrompt;
@@ -183,22 +185,22 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         { name: 'Puter API', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET }
+        { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'Pollinations POST', fn: callPollinationsPOST }
     ];
 
     for (const provider of providers) {
-        if (provider.name === 'Local MJ') continue; // Don't use local MJ in the loop
-
         try {
             console.log(`[AI] Tentative: ${provider.name}...`);
             let result = await provider.fn(sanitizedSystem, sanitizedUser);
 
             if (result) {
                 result = cleanAIResponse(result);
-                if (result.length > 10) {
+                if (result.length > 5) { // Lowered threshold slightly
                     console.log(`[AI] ✅ Succès avec ${provider.name}`);
                     return result;
+                } else {
+                    console.warn(`[AI] ⚠️ Réponse trop courte de ${provider.name}: "${result}"`);
                 }
             }
         } catch (e) {
@@ -206,23 +208,39 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    console.error("[AI] ❌ Tous les providers AI ont échoué.");
-    return null; // Return null instead of falling back to MJ Local
+    console.error(`[AI] ❌ Tous les providers AI ont échoué à la tentative #${depth + 1}.`);
+
+    // Exponential backoff before global retry
+    if (depth < 2) {
+        const delayMs = (depth + 1) * 2000;
+        console.log(`[AI] Attente de ${delayMs}ms avant retry...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        return await callAI(systemPrompt, userPrompt, depth + 1);
+    }
+
+    return null;
 }
 
 async function callPuterSDK(system, prompt) {
     const p = initPuter();
-    if (!p) return null;
+    if (!p || !p.ai) return null;
 
     // Priority: GPT-4o (User Directive) > Gemini 1.5 Flash > others
-    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash", "gemini-1.5-pro", "openai/gpt-4o", "gpt-4o-mini"];
+    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash", "gemini-1.5-pro", "openai/gpt-4o", "gpt-4o-mini", "claude-3-haiku", "meta-llama/llama-3-70b-instruct"];
     for (const model of models) {
         try {
             console.log(`[AI] SDK Puter - Modèle: ${model}`);
-            const resp = await p.ai.chat(prompt, { model, system, stream: false });
+            const resp = await p.ai.chat(prompt, {
+                model: model,
+                system: system,
+                stream: false
+            });
             const text = parsePuterResponse(resp);
-            if (text && text.length > 5 && !text.includes("token_missing")) return text;
-        } catch (e) { continue; }
+            if (text && text.length > 10 && !text.includes("token_missing") && !text.includes("error")) return text;
+        } catch (e) {
+            console.warn(`[AI] Puter SDK model ${model} failed:`, e.message);
+            continue;
+        }
     }
     return null;
 }
@@ -261,69 +279,100 @@ async function callPuterAPI(system, prompt) {
 
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
-    try {
-        const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "nvidia/llama-3.3-nemotron-super-49b-v1.5", // Good free alternative
-            messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
-        }, {
-            headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` },
-            timeout: 20000
-        });
-        return resp.data?.choices?.[0]?.message?.content;
-    } catch (e) { return null; }
+    const models = [
+        "google/gemini-2.0-flash-exp:free",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemma-2-9b-it:free",
+        "mistralai/mistral-7b-instruct:free"
+    ];
+
+    for (const model of models) {
+        try {
+            console.log(`[AI] OpenRouter - Essai avec ${model}...`);
+            const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+                model: model,
+                messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
+            }, {
+                headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` },
+                timeout: 15000
+            });
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (content && content.length > 10) return content;
+        } catch (e) {
+            console.warn(`[AI] OpenRouter model ${model} failed:`, e.message);
+            continue;
+        }
+    }
+    return null;
 }
 
 async function callBlackbox(system, prompt) {
-    try {
-        const resp = await axios.post("https://www.blackbox.ai/api/chat", {
-            messages: [{ role: "user", content: `SYSTEM: ${system}\n\nUSER: ${prompt}` }],
-            model: "deepseek-v3",
-            agentMode: {},
-            trendingAgentMode: {},
-            userSelectedModel: "deepseek-v3"
-        }, { timeout: 15000 });
+    const models = ["deepseek-v3", "gpt-4o", "claude-3.5-sonnet"];
+    for (const model of models) {
+        try {
+            console.log(`[AI] Blackbox - Essai avec ${model}...`);
+            const resp = await axios.post("https://www.blackbox.ai/api/chat", {
+                messages: [{ role: "user", content: `SYSTEM: ${system}\n\nUSER: ${prompt}` }],
+                model: model,
+                agentMode: {},
+                trendingAgentMode: {},
+                userSelectedModel: model
+            }, { timeout: 15000 });
 
-        if (typeof resp.data === 'string') return resp.data;
-        return JSON.stringify(resp.data);
-    } catch (e) { return null; }
+            let text = "";
+            if (typeof resp.data === 'string') text = resp.data;
+            else text = JSON.stringify(resp.data);
+
+            if (text && text.length > 10) return text;
+        } catch (e) {
+            console.warn(`[AI] Blackbox model ${model} failed:`, e.message);
+            continue;
+        }
+    }
+    return null;
 }
 
 async function callPollinationsPOST(system, prompt) {
-    try {
-        const response = await axios.post('https://text.pollinations.ai/', {
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
-            ],
-            model: 'openai',
-            seed: Math.floor(Math.random() * 1000000),
-            jsonMode: system.toLowerCase().includes('json')
-        }, { timeout: 15000 });
-        return response.data;
-    } catch (e) { return null; }
+    const models = ['openai', 'mistral', 'llama', 'p1'];
+    for (const model of models) {
+        try {
+            console.log(`[AI] Pollinations POST - Essai avec ${model}...`);
+            const response = await axios.post('https://text.pollinations.ai/', {
+                messages: [
+                    { role: 'system', content: system },
+                    { role: 'user', content: prompt }
+                ],
+                model: model,
+                seed: Math.floor(Math.random() * 1000000),
+                jsonMode: system.toLowerCase().includes('json')
+            }, { timeout: 15000 });
+            if (response.data && response.data.length > 5) return response.data;
+        } catch (e) {
+            console.warn(`[AI] Pollinations model ${model} failed:`, e.response?.data?.error || e.message);
+            continue;
+        }
+    }
+    return null;
 }
 
 async function callPollinationsGET(system, prompt) {
-    try {
-        const encodedSystem = encodeURIComponent(system);
-        const encodedPrompt = encodeURIComponent(prompt);
-        // Emergency fallback: simplified GET call
-        const url = `https://text.pollinations.ai/${encodedPrompt}?system=${encodedSystem}&model=openai&seed=${Math.floor(Math.random() * 1000000)}`;
-        const response = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            timeout: 15000
-        });
-        return response.data;
-    } catch (e) {
-        // Second attempt with even more stripped down URL
+    const models = ['openai', 'mistral', 'llama'];
+    for (const model of models) {
         try {
-            const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 100))}?model=openai`;
-            const response = await axios.get(url, { timeout: 10000 });
-            return response.data;
-        } catch (e2) {
-            return null;
+            const encodedSystem = encodeURIComponent(system);
+            const encodedPrompt = encodeURIComponent(prompt);
+            const url = `https://text.pollinations.ai/${encodedPrompt}?system=${encodedSystem}&model=${model}&seed=${Math.floor(Math.random() * 1000000)}`;
+            const response = await axios.get(url, {
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+                timeout: 15000
+            });
+            if (response.data && response.data.length > 5) return response.data;
+        } catch (e) {
+            continue;
         }
     }
+    return null;
 }
 
 function parsePuterResponse(resp) {

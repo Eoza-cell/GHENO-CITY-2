@@ -779,14 +779,17 @@ commands.set('action', async (sock, message) => {
 });
 
 // Command: /checkai
-commands.set('checkai', async (sock, message) => {
+commands.set('checkai', async (sock, message, args) => {
     const replyJid = message.key.remoteJid;
     const { callAI } = require('./ai-utils');
+    const isDebug = args[0] === 'debug';
 
-    await sock.sendMessage(replyJid, { text: "🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*...\nVeuillez patienter." });
+    await sock.sendMessage(replyJid, { text: `🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*${isDebug ? ' [MODE DEBUG]' : ''}...\nVeuillez patienter.` });
 
     const startTime = Date.now();
     try {
+        // In debug mode, we can try to call specific providers if we wanted,
+        // but for now let's just do a full test with logging.
         const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
         const duration = (Date.now() - startTime) / 1000;
 
@@ -800,10 +803,12 @@ commands.set('checkai', async (sock, message) => {
                       `_Le flux magique est stable._`
             });
         } else {
-            throw new Error("Pas de réponse");
+            throw new Error("Tous les providers ont échoué.");
         }
     } catch (e) {
-        await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
+        await sock.sendMessage(replyJid, {
+            text: `🔴 *ERREUR CRITIQUE*\n\n${e.message}\n\nAucun flux magique n'a pu être établi. La matrice est instable.`
+        });
     }
 });
 

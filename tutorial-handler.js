@@ -183,11 +183,14 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
         try {
             const contentRaw = await callAI(systemPrompt, fullPrompt);
+            if (!contentRaw) {
+                throw new Error("L'IA n'a pas répondu.");
+            }
             let content = contentRaw;
             let aiResponse = { narrative: "", tutorial_complete: false };
 
-            if (typeof content === 'object') {
-                aiResponse = content;
+            if (content && typeof content === 'object') {
+                aiResponse = { ...aiResponse, ...content };
             } else {
                 const firstBrace = content.indexOf('{');
                 const lastBrace = content.lastIndexOf('}');
@@ -235,8 +238,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
         } catch (error) {
             console.error("Erreur AI tutoriel:", error);
             // Fallback to avoid blocking the user
-            await sock.sendMessage(jid, { text: "Instructeur : 'Pas mal ! C'est suffisant pour aujourd'hui. Bienvenue dans Skype.'\n\n*Utilise /menu pour commencer.*" });
-            await player.update({ tutorialStep: 3, mode: 'normal' });
+            await sock.sendMessage(jid, { text: "⚠️ *CONNEXION INSTABLE* ⚠️\n\nL'Instructeur semble distrait par une faille dans la matrice. Réessaie ton action dans quelques instants." });
         }
     }
 }
