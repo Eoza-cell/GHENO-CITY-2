@@ -16,6 +16,106 @@ function initPuter() {
 }
 
 /**
+ * Enemy power levels with stats
+ */
+const ENEMY_LEVELS = {
+    1: { name: "Goblin Faible", power: 1, defense: 2, speed: 8, reactionTime: 800, counterChance: 0.3 },
+    2: { name: "Orc Guerrier", power: 2, defense: 4, speed: 6, reactionTime: 600, counterChance: 0.5 },
+    3: { name: "Chevalier Noir", power: 3, defense: 6, speed: 5, reactionTime: 500, counterChance: 0.65 },
+    4: { name: "Sorcier Ancien", power: 4, defense: 5, speed: 8, reactionTime: 400, counterChance: 0.75 },
+    5: { name: "Dragon Antique", power: 5, defense: 8, speed: 7, reactionTime: 300, counterChance: 0.9 }
+};
+
+/**
+ * Get random enemy with difficulty scaling
+ */
+function generateEnemy(difficulty = 1) {
+    const level = Math.max(1, Math.min(5, difficulty));
+    const enemy = { ...ENEMY_LEVELS[level], level };
+    // Add variance
+    enemy.power += Math.floor(Math.random() * 3) - 1;
+    enemy.defense += Math.floor(Math.random() * 2);
+    return enemy;
+}
+
+/**
+ * Calculate enemy reaction time delay
+ */
+function getReactionDelay(enemy) {
+    const baseDelay = enemy.reactionTime;
+    const variance = Math.random() * 200 - 100;
+    return Math.max(100, baseDelay + variance);
+}
+
+/**
+ * Simulate enemy counter-attack
+ */
+function generateCounterAttack(enemy, playerRoll) {
+    const willCounter = Math.random() < enemy.counterChance;
+    if (!willCounter) return null;
+
+    const counterRoll = Math.floor(Math.random() * 20) + 1;
+    const enemyModifier = enemy.power * 2;
+    const counterStrength = counterRoll + enemyModifier;
+
+    return {
+        willCounter: true,
+        strength: counterStrength,
+        severity: counterStrength > playerRoll + 10 ? "Critique" : counterStrength > playerRoll ? "Puissante" : "Modérée"
+    };
+}
+
+/**
+ * Call Puter.js AI with Gemini Free API
+ * Based on: https://developer.puter.com/tutorials/free-gemini-api/
+ */
+async function callPuterGeminiAI(system, prompt) {
+    try {
+        const p = initPuter();
+        if (!p || !p.ai) {
+            console.warn("[AI] Puter.js not properly initialized");
+            return null;
+        }
+
+        console.log("[AI] Calling Puter.js with Gemini (Free API)...");
+        
+        // Use Puter's built-in free Gemini API integration
+        const resp = await p.ai.chat(prompt, {
+            system: system,
+            model: "gemini-1.5-flash",  // Free model via Puter
+            stream: false
+        });
+
+        // Parse response
+        let text = null;
+        if (typeof resp === 'string') {
+            text = resp;
+        } else if (resp?.message?.content) {
+            if (Array.isArray(resp.message.content)) {
+                text = resp.message.content.map(c => typeof c === 'string' ? c : (c.text || "")).join("");
+            } else {
+                text = resp.message.content;
+            }
+        } else if (resp?.choices?.[0]?.message?.content) {
+            text = resp.choices[0].message.content;
+        } else if (resp?.text) {
+            text = resp.text;
+        }
+
+        if (text && text.length > 10 && !text.includes("token_missing") && text !== "data: [DONE]") {
+            console.log("[AI] ✅ Succès avec Puter.js Gemini");
+            return text;
+        }
+        
+        console.warn("[AI] Invalid response from Puter.js:", text?.substring(0, 50));
+        return null;
+    } catch (e) {
+        console.warn("[AI] Puter.js Gemini failed:", e.message);
+        return null;
+    }
+}
+
+/**
  * Main AI entry point.
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
@@ -26,12 +126,11 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     const sanitizedUser = userPrompt.length > 2000 ? userPrompt.substring(0, 2000) : userPrompt;
 
     const providers = [
+        { name: 'Puter.js Gemini (Free)', fn: callPuterGeminiAI },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter API', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Local MJ', fn: localMJ }
     ];
 
@@ -40,14 +139,15 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             console.log(`[AI] Tentative: ${provider.name}...`);
             const result = await provider.fn(sanitizedSystem, sanitizedUser);
             if (result && result.length > 10) {
-                console.log(`[AI] Succès avec ${provider.name}`);
+                console.log(`[AI] ✅ Succès avec ${provider.name}`);
                 return result;
             }
         } catch (e) {
-            console.warn(`[AI] Échec ${provider.name}:`, e.message || e);
+            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
         }
     }
 
+    console.warn("[AI] Tous les providers ont échoué, utilisation du MJ Local");
     return localMJ(userPrompt, systemPrompt);
 }
 
@@ -127,27 +227,6 @@ async function callBlackbox(system, prompt) {
     } catch (e) { return null; }
 }
 
-async function callPollinationsPOST(system, prompt) {
-    try {
-        const resp = await axios.post("https://text.pollinations.ai/", {
-            messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
-            model: "openai",
-            json: true,
-            seed: Math.floor(Math.random() * 1000)
-        }, { timeout: 15000 });
-        return resp.data?.choices?.[0]?.message?.content || resp.data;
-    } catch (e) { return null; }
-}
-
-async function callPollinationsGET(system, prompt) {
-    try {
-        const full = `System: ${system}\nUser: ${prompt}`;
-        const encoded = encodeURIComponent(full.substring(0, 1000));
-        const resp = await axios.get(`https://text.pollinations.ai/${encoded}?model=p1`);
-        return typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
-    } catch (e) { return null; }
-}
-
 function parsePuterResponse(resp) {
     if (!resp) return null;
     if (typeof resp === 'string') return resp;
@@ -171,7 +250,7 @@ function parsePuterResponse(resp) {
 }
 
 /**
- * Final Fallback: Immersive local MJ.
+ * Final Fallback: Immersive local MJ with enemy system.
  */
 function localMJ(userPrompt, systemPrompt) {
     console.log("[AI] MJ Local activé.");
@@ -179,6 +258,12 @@ function localMJ(userPrompt, systemPrompt) {
     const up = userPrompt.toLowerCase();
     const statsMatch = systemPrompt.match(/STATS: (.*)/);
     const stats = statsMatch ? statsMatch[1] : "Moyennes";
+    const difficultyMatch = systemPrompt.match(/DIFFICULTY: (\d+)/);
+    const difficulty = difficultyMatch ? parseInt(difficultyMatch[1]) : 1;
+
+    // Generate or retrieve enemy if in combat
+    const isCombat = up.includes("attaque") || up.includes("frappe") || up.includes("tue") || up.includes("combat");
+    const enemy = isCombat ? generateEnemy(difficulty) : null;
 
     let actionType = "Action";
     let roll = Math.floor(Math.random() * 20) + 1;
@@ -194,9 +279,56 @@ function localMJ(userPrompt, systemPrompt) {
     else if (roll === 20) result = "Réussite Critique";
 
     let narrative = `[MJ Local] (Dé: ${roll} - ${result})\n\n`;
+    const actions = [{ type: "update_player", parameters: { xp_gain: 10 } }];
+    const metadata = { enemy: null, reactionTime: 0, counterAttack: null };
 
-    if (actionType === "Combat") {
-        narrative += `Tu tentes une offensive ! Le choc des armes résonne dans l'air. Malgré le flux de mana instable, ta détermination te permet d'infliger des dégâts. ${result === 'Réussite Critique' ? 'Un coup dévastateur !' : result === 'Échec Critique' ? 'Mais tu glisses et tombes lourdement...' : 'Mais l\'ennemi contre-attaque...'}`;
+    if (actionType === "Combat" && enemy) {
+        const reactionTime = getReactionDelay(enemy);
+        const counterAttack = generateCounterAttack(enemy, roll);
+        
+        metadata.enemy = enemy;
+        metadata.reactionTime = reactionTime;
+        metadata.counterAttack = counterAttack;
+
+        narrative += `⚔️ **${enemy.name}** (Niv. ${enemy.level}) apparaît !\n`;
+        narrative += `├─ Puissance: ${enemy.power}/5 | Défense: ${enemy.defense} | Vitesse: ${enemy.speed}\n`;
+        narrative += `├─ Temps de réaction: ${Math.round(reactionTime)}ms\n`;
+        narrative += `└─ Chance de contre-attaque: ${Math.round(enemy.counterChance * 100)}%\n\n`;
+
+        if (result === 'Réussite Critique') {
+            narrative += `🎯 Tu lances une attaque foudroyante ! L'énergie crépitante te propulse en avant. Ton coup atteint directement le ${enemy.name} de plein fouet ! `;
+            narrative += `Les dégâts sont dévastateurs et l'ennemi vacille sous la violence du choc.`;
+            actions[0].parameters.xp_gain = 25;
+        } else if (result === 'Réussite mitigée') {
+            narrative += `⚡ Ton attaque déroutante tente de traverser la garde du ${enemy.name}. `;
+            if (counterAttack && counterAttack.willCounter) {
+                narrative += `Mais en ${counterAttack.severity === 'Critique' ? Math.round(reactionTime / 2) : Math.round(reactionTime)}ms, `;
+                narrative += `l'ennemi contre-attaque avec une force ${counterAttack.severity.toLowerCase()} ! Tu dois te défendre d'urgence !`;
+                actions[0].parameters.xp_gain = 15;
+            } else {
+                narrative += `Tu gratignes légèrement ta cible, mais l'adversaire demeure vigilant.`;
+                actions[0].parameters.xp_gain = 12;
+            }
+        } else if (result === 'Échec') {
+            narrative += `❌ Ta tentative d'attaque est repérée trop tard ! Le ${enemy.name} esquive avec aisance. `;
+            if (counterAttack && counterAttack.willCounter) {
+                narrative += `En seulement ${Math.round(reactionTime)}ms, il riposte avec une attaque ${counterAttack.severity.toLowerCase()}. Attention !`;
+                actions[0].parameters.xp_gain = 5;
+            } else {
+                narrative += `L'ennemi se repositionne, prêt à la prochaine offensive.`;
+                actions[0].parameters.xp_gain = 3;
+            }
+        } else if (result === 'Échec Critique') {
+            narrative += `💥 **DÉSASTRE** ! Tu trébuches en tentant ton attaque ! Le ${enemy.name} te voit vulnérable. `;
+            narrative += `En moins de ${Math.round(reactionTime / 2)}ms, il lance une contre-attaque DÉVASTATRICE. Tu subis des dégâts massifs !`;
+            actions[0].parameters.xp_gain = 1;
+        }
+
+        // Add environmental hazard for high-level enemies
+        if (enemy.level >= 4) {
+            narrative += `\n\n🌪️ L'arène commence à se déchirer sous la puissance du combat ! Des fragments de réalité flottent autour de vous.`;
+        }
+
     } else if (actionType === "Mouvement") {
         narrative += `Tu te mets en route à travers les terres d'Aetherys. Le voyage se déroule ${result === 'Réussite Critique' ? 'magnifiquement' : result === 'Échec Critique' ? 'désastreusement' : 'sans encombre majeur'}, et tu atteins ton but sous un ciel chargé d'éclairs de mana.`;
     } else {
@@ -205,8 +337,9 @@ function localMJ(userPrompt, systemPrompt) {
 
     return JSON.stringify({
         narrative: narrative,
-        actions: [{ type: "update_player", parameters: { xp_gain: 10 } }]
+        actions: actions,
+        metadata: metadata
     });
 }
 
-module.exports = { callAI };
+module.exports = { callAI, generateEnemy, getReactionDelay, generateCounterAttack, ENEMY_LEVELS };
