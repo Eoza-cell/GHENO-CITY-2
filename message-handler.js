@@ -1,7 +1,20 @@
 const axios = require('axios');
+let puter = null;
+
+function initPuter() {
+    if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
+        try {
+            puter = require('@heyputer/puter.js').default;
+            puter.setAuthToken(process.env.PUTER_API_KEY);
+        } catch (e) {
+            console.error("[IMG] Erreur chargement Puter.js:", e.message);
+        }
+    }
+    return puter;
+}
 
 /**
- * Sends a message with an optional AI-generated image from Pollinations.ai.
+ * Sends a message with an optional AI-generated image.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
@@ -12,29 +25,57 @@ async function sendWithImage(sock, jid, aiResponse) {
 
     if (imagePrompt) {
         try {
-            // URL-encode the prompt to handle special characters
-            const encodedPrompt = encodeURIComponent(imagePrompt);
-            const imageUrl = `https://text.pollinations.ai/${encodedPrompt}`;
-            console.log(`Génération d'image (Pollinations.ai) pour le prompt : "${imagePrompt}" | URL: ${imageUrl}`);
-
-            // Fetch the image as a buffer
-            const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-            const imageBuffer = Buffer.from(response.data, 'binary');
-
-            if (imageBuffer && imageBuffer.length > 0) {
-                await sock.sendMessage(jid, {
-                    image: imageBuffer,
-                    caption: narrative
-                });
+            // Check if it's a local file
+            const fs = require('fs');
+            if (fs.existsSync(imagePrompt) && !imagePrompt.startsWith('http')) {
+                const imageBuffer = fs.readFileSync(imagePrompt);
+                await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
                 return;
-            } else {
-                console.error("La génération d'image a échoué (buffer vide). Envoi du texte seul.");
             }
-        } catch (error) {
-            console.error(`Erreur lors de la génération de l'image (Pollinations.ai):`, {
-                message: error.message,
-                status: error.response?.status
+
+            if (imagePrompt.startsWith('http')) {
+                const response = await axios.get(imagePrompt, {
+                    responseType: 'arraybuffer',
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                const imageBuffer = Buffer.from(response.data, 'binary');
+                await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
+                return;
+            }
+
+            // Primary: Puter (Flux.1-schnell)
+            const puterInstance = initPuter();
+            if (puterInstance) {
+                try {
+                    console.log(`[IMG] Génération Puter (Flux) pour : "${imagePrompt}"`);
+                    const img = await puterInstance.ai.txt2img(imagePrompt);
+                    const imgStr = img.toString();
+                    let buffer;
+                    if (imgStr.includes(',')) {
+                        buffer = Buffer.from(imgStr.split(',')[1], 'base64');
+                    } else {
+                        buffer = Buffer.from(imgStr, 'base64');
+                    }
+                    await sock.sendMessage(jid, { image: buffer, caption: narrative, mimetype: 'image/jpeg' });
+                    return;
+                } catch (puterError) {
+                    console.error("[IMG] Échec Puter:", puterError.message);
+                }
+            }
+
+            // Fallback: Pollinations.ai
+            console.log(`[IMG] Fallback Pollinations pour : "${imagePrompt}"`);
+            const encodedPrompt = encodeURIComponent(imagePrompt);
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+            const response = await axios.get(imageUrl, {
+                responseType: 'arraybuffer',
+                headers: { 'User-Agent': 'Mozilla/5.0' }
             });
+            const imageBuffer = Buffer.from(response.data, 'binary');
+            await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
+            return;
+        } catch (error) {
+            console.error(`[IMG] Erreur totale:`, error.message);
         }
     }
 
