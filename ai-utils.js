@@ -196,11 +196,11 @@ function localMJ(userPrompt, systemPrompt) {
     let narrative = `[MJ Local] (Dé: ${roll} - ${result})\n\n`;
 
     if (actionType === "Combat") {
-        narrative += `Tu tentes une offensive ! Le choc des armes résonne dans l'air. Malgré le flux de mana instable, ta détermination te permet d'infliger des dégâts. ${result === 'Réussite' ? 'Ton ennemi recule brusquement.' : 'L\'échange est rude.'}`;
+        narrative += `Tu tentes une offensive ! Le choc des armes résonne dans l'air. Malgré le flux de mana instable, ta détermination te permet d'infliger des dégâts. ${result === 'Réussite Critique' ? 'Un coup dévastateur !' : result === 'Échec Critique' ? 'Mais tu glisses et tombes lourdement...' : 'Mais l\'ennemi contre-attaque...'}`;
     } else if (actionType === "Mouvement") {
-        narrative += `Tu te mets en route à travers les terres d'Aetherys. Le voyage se déroule sans encombre majeure, et tu atteins ton but sous un ciel chargé d'éclairs de mana.`;
+        narrative += `Tu te mets en route à travers les terres d'Aetherys. Le voyage se déroule ${result === 'Réussite Critique' ? 'magnifiquement' : result === 'Échec Critique' ? 'désastreusement' : 'sans encombre majeur'}, et tu atteins ton but sous un ciel chargé d'éclairs de mana.`;
     } else {
-        narrative += `Tu agis avec assurance dans ce monde de dangers. Le destin semble te sourire alors que tu traces ton chemin à Eldoria.`;
+        narrative += `Tu agis avec assurance dans ce monde de dangers. Le destin semble te ${result === 'Réussite Critique' ? 'sourire grandement' : result === 'Échec Critique' ? 'tourner le dos' : 'sourire'} alors que tu traces ton chemin à Eldoria.`;
     }
 
     return JSON.stringify({
