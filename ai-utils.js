@@ -71,6 +71,7 @@ function cleanAIResponse(text) {
     let cleaned = text
         .replace(/data:\s*\[DONE\]/gi, "")
         .replace(/^data:\s*\[DONE\]/gm, "")
+        .replace(/^data:\s*/gm, "") // Strip any line-starting "data: "
         .trim();
 
     // Clean markdown blocks

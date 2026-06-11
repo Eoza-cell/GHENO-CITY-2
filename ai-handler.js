@@ -202,7 +202,7 @@ async function handleFreeAction(sock, message, player, actionText) {
             let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
 
             // Cleanup markers
-            const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
+            const cleanup = (t) => t.replace(/data:\s*\[DONE\]/gi, "").replace(/^data:\s*/gm, "").replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
             textBefore = cleanup(textBefore);
             textAfter = cleanup(textAfter);
 
@@ -216,6 +216,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (aiResponse.narrative) {
         aiResponse.narrative = aiResponse.narrative
             .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
+            .replace(/^data:\s*/gm, "") // Remove SSE technical artifacts
             .replace(/^```(json|JSON)?/i, "") // Remove starting code block marker
             .replace(/```$/i, "") // Remove ending code block marker
             .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')

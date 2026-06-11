@@ -206,7 +206,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
                     let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
                     let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
 
-                    const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
+                    const cleanup = (t) => t.replace(/data:\s*\[DONE\]/gi, "").replace(/^data:\s*/gm, "").replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
                     textBefore = cleanup(textBefore);
                     textAfter = cleanup(textAfter);
 
@@ -219,6 +219,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             if (aiResponse.narrative) {
                 aiResponse.narrative = aiResponse.narrative
                     .replace(/\{[\s\S]*\}/g, '')
+                    .replace(/^data:\s*/gm, "") // Remove SSE technical artifacts
                     .replace(/^```(json|JSON)?/i, "") // Remove starting code block marker
                     .replace(/```$/i, "") // Remove ending code block marker
                     .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
