@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node skype-bot.js",
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {
     "type": "git",
@@ -19,9 +20,19 @@
   },
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
-    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "@heyputer/puter.js": "^2.3.2",
+    "@whiskeysockets/baileys": "7.0.0-rc13",
+    "axios": "^1.13.2",
+    "canvas": "^2.11.2",
+    "dotenv": "^16.4.5",
+    "p-queue": "^6.6.2",
+    "p-retry": "^4.6.2",
+    "pg": "^8.11.5",
+    "pg-hstore": "^2.3.4",
     "pino": "^10.1.0",
+    "random": "^5.4.1",
     "sequelize": "^6.37.7",
+    "sharp": "^0.34.5",
     "sqlite3": "^5.1.7"
   }
 }
