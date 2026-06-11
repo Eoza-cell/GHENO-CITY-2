@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
 const { sendWithImage } = require('./message-handler');
-const { callAI } = require('./ai-utils');
+const { callAI, cleanAIResponse } = require('./ai-utils');
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
@@ -214,7 +214,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             }
 
             if (aiResponse.narrative) {
-                aiResponse.narrative = aiResponse.narrative
+                aiResponse.narrative = cleanAIResponse(aiResponse.narrative)
                     .replace(/\{[\s\S]*\}/g, '')
                     .replace(/```[\s\S]*?```/g, '')
                     .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')

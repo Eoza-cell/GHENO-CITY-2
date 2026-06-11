@@ -1,7 +1,7 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
-const { callAI } = require('./ai-utils');
+const { callAI, cleanAIResponse } = require('./ai-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -214,7 +214,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     // Final scrub of ALL AI/JSON artifacts from narrative
     if (aiResponse.narrative) {
-        aiResponse.narrative = aiResponse.narrative
+        aiResponse.narrative = cleanAIResponse(aiResponse.narrative)
             .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
             .replace(/```[\s\S]*?```/g, '') // Remove code blocks
             .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')

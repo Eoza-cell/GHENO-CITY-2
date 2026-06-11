@@ -162,6 +162,21 @@ Juste la narration pure en français.`;
 }
 
 /**
+ * Clean AI response from common artifacts
+ */
+function cleanAIResponse(text) {
+    if (!text || typeof text !== 'string') return "";
+
+    return text
+        .replace(/data:\s*\[DONE\]/gi, "") // Remove streaming markers anywhere
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .replace(/^(json|JSON)/g, "")
+        .replace(/^data:.*$/gm, "") // Remove any lines starting with data:
+        .trim();
+}
+
+/**
  * Main AI entry point.
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
@@ -183,10 +198,14 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     for (const provider of providers) {
         try {
             console.log(`[AI] Tentative: ${provider.name}...`);
-            const result = await provider.fn(sanitizedSystem, sanitizedUser);
-            if (result && result.length > 10) {
-                console.log(`[AI] ✅ Succès avec ${provider.name}`);
-                return result;
+            let result = await provider.fn(sanitizedSystem, sanitizedUser);
+
+            if (result) {
+                result = cleanAIResponse(result);
+                if (result.length > 10) {
+                    console.log(`[AI] ✅ Succès avec ${provider.name}`);
+                    return result;
+                }
             }
         } catch (e) {
             console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
@@ -269,7 +288,9 @@ async function callBlackbox(system, prompt) {
             trendingAgentMode: {},
             userSelectedModel: "deepseek-v3"
         }, { timeout: 15000 });
-        return resp.data;
+
+        if (typeof resp.data === 'string') return resp.data;
+        return JSON.stringify(resp.data);
     } catch (e) { return null; }
 }
 
@@ -388,4 +409,4 @@ function localMJ(userPrompt, systemPrompt) {
     });
 }
 
-module.exports = { callAI, generateEnemy, getReactionDelay, generateCounterAttack, ENEMY_LEVELS };
+module.exports = { callAI, cleanAIResponse, generateEnemy, getReactionDelay, generateCounterAttack, ENEMY_LEVELS };
