@@ -16,56 +16,6 @@ function initPuter() {
 }
 
 /**
- * Enemy power levels with stats
- */
-const ENEMY_LEVELS = {
-    1: { name: "Goblin Faible", power: 1, defense: 2, speed: 8, reactionTime: 800, counterChance: 0.3 },
-    2: { name: "Orc Guerrier", power: 2, defense: 4, speed: 6, reactionTime: 600, counterChance: 0.5 },
-    3: { name: "Chevalier Noir", power: 3, defense: 6, speed: 5, reactionTime: 500, counterChance: 0.65 },
-    4: { name: "Sorcier Ancien", power: 4, defense: 5, speed: 8, reactionTime: 400, counterChance: 0.75 },
-    5: { name: "Dragon Antique", power: 5, defense: 8, speed: 7, reactionTime: 300, counterChance: 0.9 }
-};
-
-/**
- * Get random enemy with difficulty scaling
- */
-function generateEnemy(difficulty = 1) {
-    const level = Math.max(1, Math.min(5, difficulty));
-    const enemy = { ...ENEMY_LEVELS[level], level };
-    // Add variance
-    enemy.power += Math.floor(Math.random() * 3) - 1;
-    enemy.defense += Math.floor(Math.random() * 2);
-    return enemy;
-}
-
-/**
- * Calculate enemy reaction time delay
- */
-function getReactionDelay(enemy) {
-    const baseDelay = enemy.reactionTime;
-    const variance = Math.random() * 200 - 100;
-    return Math.max(100, baseDelay + variance);
-}
-
-/**
- * Simulate enemy counter-attack
- */
-function generateCounterAttack(enemy, playerRoll) {
-    const willCounter = Math.random() < enemy.counterChance;
-    if (!willCounter) return null;
-
-    const counterRoll = Math.floor(Math.random() * 20) + 1;
-    const enemyModifier = enemy.power * 2;
-    const counterStrength = counterRoll + enemyModifier;
-
-    return {
-        willCounter: true,
-        strength: counterStrength,
-        severity: counterStrength > playerRoll + 10 ? "Critique" : counterStrength > playerRoll ? "Puissante" : "Modérée"
-    };
-}
-
-/**
  * Call Puter.js AI with Gemini Free API
  * FIXED: Force proper response format and handle streaming correctly
  */
@@ -79,17 +29,31 @@ async function callPuterGeminiAI(system, prompt) {
 
         console.log("[AI] 🚀 Calling Puter.js Gemini...");
         
-        // Add explicit instruction to return JUST the narrative
-        const enhancedPrompt = `${prompt}
+        // Ensure the prompt encourages the requested format
+        const enhancedPrompt = `${prompt}\n\nIMPORTANT: Répondre au format JSON si demandé dans le prompt système, sinon répondre avec la narration pure en français. Pas de "data: [DONE]".`;
 
-IMPORTANT: Répondre UNIQUEMENT avec le texte narratif. PAS de JSON, PAS de "data: [DONE]", PAS de balisage.
-Juste la narration pure en français.`;
+        // User Directive: models to prioritize: gpt-4o, claude-3-5-sonnet, gemini-1.5-flash
+        const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+        let resp = null;
+        let lastError = null;
 
-        const resp = await p.ai.chat(enhancedPrompt, {
-            system: system,
-            model: "gemini-1.5-flash",
-            stream: false
-        });
+        for (const model of models) {
+            try {
+                console.log(`[AI] Puter.js - Essai avec ${model}...`);
+                resp = await p.ai.chat(enhancedPrompt, {
+                    system: system,
+                    model: model,
+                    stream: false
+                });
+                if (resp) break;
+            } catch (e) {
+                lastError = e;
+                console.warn(`[AI] Modèle ${model} échoué: ${e.message}`);
+                continue;
+            }
+        }
+
+        if (!resp) throw lastError || new Error("Tous les modèles Puter ont échoué");
 
         // Debug: Log the raw response
         console.log("[AI DEBUG] Raw response type:", typeof resp);
@@ -133,8 +97,6 @@ Juste la narration pure en français.`;
         text = text
             .trim()
             .replace(/^data:\s*\[DONE\]\s*$/i, "") // Remove streaming marker
-            .replace(/^(json|JSON)\s*/i, "") // Remove language marker
-            .replace(/^```[\s\S]*?```/g, "") // Remove code blocks
             .trim();
 
         // Final validation
@@ -169,7 +131,16 @@ function cleanAIResponse(text) {
 
     let cleaned = text
         .replace(/data:\s*\[DONE\]/gi, "") // Remove streaming markers anywhere
-        .replace(/^data:\s*\[DONE\]/gm, "");
+        .replace(/^data:\s*\[DONE\]/gm, "")
+        .trim();
+
+    // Clean markdown blocks and leading labels
+    cleaned = cleaned
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/```\s*$/i, "")
+        .replace(/^(json|JSON)\s*/i, "")
+        .trim();
 
     // If it contains "data: {" then it's probably SSE stream that needs content extraction
     if (cleaned.includes('data: {')) {
@@ -200,7 +171,7 @@ function cleanAIResponse(text) {
  * Main AI entry point.
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
-    if (depth > 2) return await localMJ(systemPrompt, userPrompt);
+    if (depth > 2) return null;
 
     // Sanitize prompts
     const sanitizedSystem = systemPrompt.length > 4000 ? systemPrompt.substring(0, 4000) : systemPrompt;
@@ -213,11 +184,12 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Local MJ', fn: localMJ }
+        { name: 'Pollinations GET', fn: callPollinationsGET }
     ];
 
     for (const provider of providers) {
+        if (provider.name === 'Local MJ') continue; // Don't use local MJ in the loop
+
         try {
             console.log(`[AI] Tentative: ${provider.name}...`);
             let result = await provider.fn(sanitizedSystem, sanitizedUser);
@@ -234,8 +206,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    console.warn("[AI] Tous les providers ont échoué, utilisation du MJ Local");
-    return await localMJ(systemPrompt, userPrompt);
+    console.error("[AI] ❌ Tous les providers AI ont échoué.");
+    return null; // Return null instead of falling back to MJ Local
 }
 
 async function callPuterSDK(system, prompt) {
@@ -335,10 +307,23 @@ async function callPollinationsGET(system, prompt) {
     try {
         const encodedSystem = encodeURIComponent(system);
         const encodedPrompt = encodeURIComponent(prompt);
+        // Emergency fallback: simplified GET call
         const url = `https://text.pollinations.ai/${encodedPrompt}?system=${encodedSystem}&model=openai&seed=${Math.floor(Math.random() * 1000000)}`;
-        const response = await axios.get(url, { timeout: 15000 });
+        const response = await axios.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 15000
+        });
         return response.data;
-    } catch (e) { return null; }
+    } catch (e) {
+        // Second attempt with even more stripped down URL
+        try {
+            const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 100))}?model=openai`;
+            const response = await axios.get(url, { timeout: 10000 });
+            return response.data;
+        } catch (e2) {
+            return null;
+        }
+    }
 }
 
 function parsePuterResponse(resp) {
@@ -363,136 +348,4 @@ function parsePuterResponse(resp) {
     return JSON.stringify(resp);
 }
 
-/**
- * Final Fallback: Immersive local MJ with context-aware system.
- */
-async function localMJ(systemPrompt, userPrompt) {
-    console.log("[AI] MJ Local activé.");
-
-    const up = userPrompt.toLowerCase();
-    const statsMatch = systemPrompt.match(/STATS: (.*)/);
-    const stats = statsMatch ? statsMatch[1] : "Moyennes";
-    const difficultyMatch = systemPrompt.match(/DIFFICULTY: (\d+)/);
-    const difficulty = difficultyMatch ? parseInt(difficultyMatch[1]) : 1;
-
-    // Context Detection
-    const isTutorial = systemPrompt.toLowerCase().includes("instructeur") || userPrompt.toLowerCase().includes("instructeur");
-
-    // Better opponent detection: look for names in system prompt or nearby players list
-    let existingOpponent = null;
-    const pnjMatch = systemPrompt.match(/PNJ ici:\n- ([^\n:]+)/);
-    const playerMatch = systemPrompt.match(/Joueurs à proximité:\n- Nom: ([^,]+)/);
-    const historyMatch = systemPrompt.match(/HISTORIQUE:\n([^:]+):/);
-
-    if (pnjMatch) existingOpponent = pnjMatch[1].split('(')[0].trim();
-    else if (playerMatch) existingOpponent = playerMatch[1].trim();
-    else if (historyMatch) existingOpponent = historyMatch[1].trim();
-
-    // Generate or retrieve enemy if in combat
-    const isCombat = up.includes("attaque") || up.includes("frappe") || up.includes("tue") || up.includes("combat") || up.includes("découpe");
-
-    let enemy = null;
-    if (isCombat) {
-        if (isTutorial) {
-            enemy = { name: "Instructeur", level: 99, power: 5, defense: 5, speed: 10, reactionTime: 200, counterChance: 0.9 };
-        } else if (existingOpponent && !up.includes("gobelin") && !up.includes("goblin")) {
-            enemy = { name: existingOpponent, level: difficulty, power: difficulty, defense: difficulty, speed: 5 + difficulty, reactionTime: 1000 - (difficulty * 100), counterChance: 0.2 + (difficulty * 0.1) };
-        } else {
-            enemy = generateEnemy(difficulty);
-        }
-    }
-
-    let actionType = "Action";
-    let roll = Math.floor(Math.random() * 20) + 1;
-    let result = "Réussite";
-
-    if (isCombat) actionType = "Combat";
-    else if (up.includes("va à") || up.includes("déplace") || up.includes("entre")) actionType = "Mouvement";
-    else if (up.includes("parle") || up.includes("dis") || up.includes("demande")) actionType = "Social";
-
-    if (roll === 1) result = "Échec Critique";
-    else if (roll < 8) result = "Échec";
-    else if (roll < 14) result = "Réussite mitigée";
-    else if (roll === 20) result = "Réussite Critique";
-
-    let narrative = `[MJ Local] (Dé: ${roll} - ${result})\n\n`;
-    const actions = [{ type: "update_player", parameters: { xp_gain: 10 } }];
-    const metadata = { enemy: null, reactionTime: 0, counterAttack: null };
-
-    if (actionType === "Combat" && enemy) {
-        const reactionTime = getReactionDelay(enemy);
-        const counterAttack = generateCounterAttack(enemy, roll);
-        
-        metadata.enemy = enemy;
-        metadata.reactionTime = reactionTime;
-        metadata.counterAttack = counterAttack;
-
-        if (!isTutorial && !existingOpponent) {
-            narrative += `⚔️ **${enemy.name}** (Niv. ${enemy.level}) apparaît !\n`;
-            narrative += `├─ Puissance: ${enemy.power}/5 | Défense: ${enemy.defense} | Vitesse: ${enemy.speed}\n`;
-            narrative += `├─ Temps de réaction: ${Math.round(reactionTime)}ms\n`;
-            narrative += `└─ Chance de contre-attaque: ${Math.round(enemy.counterChance * 100)}%\n\n`;
-        }
-
-        if (isTutorial) {
-            if (result === 'Réussite Critique') {
-                narrative += `🎯 L'Instructeur écarquille les yeux ! Ta lame fend l'air avec une précision chirurgicale, l'obligeant à parer de justesse. "Ho... pas mal du tout, gamin !"`;
-                actions[0].parameters.xp_gain = 50;
-                actions.push({ type: "tutorial_complete", parameters: { tutorial_complete: true } });
-            } else if (result === 'Réussite' || result === 'Réussite mitigée') {
-                narrative += `⚡ Ton coup est vif, mais l'Instructeur dévie ta trajectoire d'un simple mouvement du poignet. "C'est ça l'intention de tuer ? Tu peux faire mieux !"`;
-                actions[0].parameters.xp_gain = 20;
-            } else {
-                narrative += `❌ L'Instructeur évite ton assaut sans même sembler bouger. "Trop lent ! Dans un donjon de Rang S, tu serais déjà mort."`;
-                actions[0].parameters.xp_gain = 5;
-            }
-        } else {
-            if (result === 'Réussite Critique') {
-                narrative += `🎯 Tu lances une attaque foudroyante ! L'énergie crépitante te propulse en avant. Ton coup atteint directement ${enemy.name} de plein fouet ! `;
-                narrative += `Les dégâts sont dévastateurs et l'ennemi vacille sous la violence du choc.`;
-                actions[0].parameters.xp_gain = 25;
-            } else if (result === 'Réussite mitigée') {
-                narrative += `⚡ Ton attaque déroutante tente de traverser la garde de ${enemy.name}. `;
-                if (counterAttack && counterAttack.willCounter) {
-                    narrative += `Mais en ${counterAttack.severity === 'Critique' ? Math.round(reactionTime / 2) : Math.round(reactionTime)}ms, `;
-                    narrative += `l'ennemi contre-attaque avec une force ${counterAttack.severity.toLowerCase()} ! Tu dois te défendre d'urgence !`;
-                    actions[0].parameters.xp_gain = 15;
-                } else {
-                    narrative += `Tu gratignes légèrement ta cible, mais l'adversaire demeure vigilant.`;
-                    actions[0].parameters.xp_gain = 12;
-                }
-            } else if (result === 'Échec') {
-                narrative += `❌ Ta tentative d'attaque est repérée trop tard ! ${enemy.name} esquive avec aisance. `;
-                if (counterAttack && counterAttack.willCounter) {
-                    narrative += `En seulement ${Math.round(reactionTime)}ms, il riposte avec une attaque ${counterAttack.severity.toLowerCase()}. Attention !`;
-                    actions[0].parameters.xp_gain = 5;
-                } else {
-                    narrative += `L'ennemi se repositionne, prêt à la prochaine offensive.`;
-                    actions[0].parameters.xp_gain = 3;
-                }
-            } else if (result === 'Échec Critique') {
-                narrative += `💥 **DÉSASTRE** ! Tu trébuches en tentant ton attaque ! ${enemy.name} te voit vulnérable. `;
-                narrative += `En moins de ${Math.round(reactionTime / 2)}ms, il lance une contre-attaque DÉVASTATRICE. Tu subis des dégâts massifs !`;
-                actions[0].parameters.xp_gain = 1;
-            }
-        }
-
-        // Add environmental hazard for high-level enemies
-        if (enemy.level >= 4 && !isTutorial) {
-            narrative += `\n\n🌪️ L'arène commence à se déchirer sous la puissance du combat ! Des fragments de réalité flottent autour de vous.`;
-        }
-
-    } else if (actionType === "Mouvement") {
-        narrative += `Tu te mets en route à travers les terres d'Aetherys. Le voyage se déroule ${result === 'Réussite Critique' ? 'magnifiquement' : result === 'Échec Critique' ? 'désastreusement' : 'sans encombre majeur'}, et tu atteins ton but sous un ciel chargé d'éclairs de mana.`;
-    } else {
-        narrative += `Tu agis avec assurance dans ce monde de dangers. Le destin semble te ${result === 'Réussite Critique' ? 'sourire grandement' : result === 'Échec Critique' ? 'tourner le dos' : 'sourire'} alors que tu traces ton chemin à Eldoria.`;
-    }
-
-    return JSON.stringify({
-        narrative: narrative,
-        actions: actions,
-        metadata: metadata
-    });
-}
-
-module.exports = { callAI, cleanAIResponse, generateEnemy, getReactionDelay, generateCounterAttack, ENEMY_LEVELS };
+module.exports = { callAI, cleanAIResponse };

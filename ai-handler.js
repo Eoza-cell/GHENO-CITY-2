@@ -214,16 +214,17 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     // Final scrub of ALL AI/JSON artifacts from narrative
     if (aiResponse.narrative) {
-        aiResponse.narrative = cleanAIResponse(aiResponse.narrative)
+        aiResponse.narrative = aiResponse.narrative
             .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
-            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+            .replace(/^```(json|JSON)?/i, "") // Remove starting code block marker
+            .replace(/```$/i, "") // Remove ending code block marker
             .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
             .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '') // Remove accidental action-like lines
             .trim();
     }
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
-        aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";
+        aiResponse.narrative = "🌀 *Le flux magique est instable.* La matrice de Skype semble s'obscurcir un instant. L'action est en suspens, réessaie dans quelques instants...";
     }
 
     console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
@@ -521,8 +522,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     await sendWithImage(sock, jid, aiResponse);
 
   } catch (error) {
-    console.error('Erreur avec l\'API Puter.js:', error);
-    await sock.sendMessage(jid, { text: "Erreur critique du MJ. L'action n'a pas pu être traitée." });
+    console.error('Erreur MJ Arise:', error);
+    await sock.sendMessage(jid, { text: "⚠️ *ERREUR MATRICE* ⚠️\n\nLe MJ n'a pas pu traiter cette action car la connexion avec l'IA a échoué. Veuillez réessayer dans quelques secondes." });
   }
 }
 

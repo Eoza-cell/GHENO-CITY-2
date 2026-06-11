@@ -790,16 +790,18 @@ commands.set('checkai', async (sock, message) => {
         const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
         const duration = (Date.now() - startTime) / 1000;
 
-        let status = "🟢 *OPÉRATIONNEL*";
-        if (result.includes("moteur MJ Local")) status = "🟡 *MODE DÉGRADÉ* (MJ Local)";
-
-        await sock.sendMessage(replyJid, {
-            text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
-                  `Statut: ${status}\n` +
-                  `Latence: ${duration}s\n` +
-                  `Réponse: ${result.substring(0, 100)}...\n\n` +
-                  `_Si le statut est dégradé, vérifiez vos clés API ou attendez quelques minutes._`
-        });
+        if (result) {
+            let status = "🟢 *OPÉRATIONNEL*";
+            await sock.sendMessage(replyJid, {
+                text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
+                      `Statut: ${status}\n` +
+                      `Latence: ${duration}s\n` +
+                      `Réponse: ${result.substring(0, 100)}...\n\n` +
+                      `_Le flux magique est stable._`
+            });
+        } else {
+            throw new Error("Pas de réponse");
+        }
     } catch (e) {
         await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
     }

@@ -214,15 +214,16 @@ async function handleTutorialAction(sock, message, player, actionText) {
             }
 
             if (aiResponse.narrative) {
-                aiResponse.narrative = cleanAIResponse(aiResponse.narrative)
+                aiResponse.narrative = aiResponse.narrative
                     .replace(/\{[\s\S]*\}/g, '')
-                    .replace(/```[\s\S]*?```/g, '')
+                    .replace(/^```(json|JSON)?/i, "") // Remove starting code block marker
+                    .replace(/```$/i, "") // Remove ending code block marker
                     .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
                     .trim();
             }
 
             if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-                aiResponse.narrative = "Instructeur : 'Impressionnant ! Tu apprends vite.'";
+                aiResponse.narrative = "🌀 *Flux instable...* L'Instructeur te regarde avec insistance, attendant ton prochain mouvement. Réessaie ton attaque.";
             }
 
             if (aiResponse.tutorial_complete) {
