@@ -425,6 +425,22 @@ commands.set('ecoles', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: text });
 });
 
+// Command: /myjid
+commands.set('myjid', async (sock, message) => {
+    const jid = getJid(message);
+    await sock.sendMessage(message.key.remoteJid, { text: `Ton JID est : ${jid}` });
+});
+
+// Command: /checkgod
+commands.set('checkgod', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) return;
+
+    const status = player.isGod ? "🟢 OUI" : "🔴 NON";
+    await sock.sendMessage(message.key.remoteJid, { text: `Es-tu Dieu ? : ${status}\nJID: ${jid}` });
+});
+
 // Command: /examens
 commands.set('examens', async (sock, message) => {
     const jid = getJid(message);

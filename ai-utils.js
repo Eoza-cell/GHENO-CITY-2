@@ -30,8 +30,8 @@ async function callPuterV2(system, prompt) {
 
         // Models from the provided GitHub resource: https://github.com/andrew-gardner22/FREE-UNLIMITED-OpenAI
         const models = [
-            "gpt-4o", "gpt-4.1", "o3-mini", "o1-mini", "gpt-4o-mini",
-            "gpt-4.5-preview", "o1", "o4-mini", "claude-3-5-sonnet", "gemini-1.5-flash"
+            "gemini-1.5-flash", "gpt-4o", "gpt-4.1", "o3-mini", "o1-mini",
+            "claude-3-5-sonnet", "gpt-4.5-preview", "o1", "gpt-4o-mini"
         ];
 
         // Ensure we handle JSON requirement if mentioned in system prompt
@@ -63,15 +63,14 @@ async function callPuterV2(system, prompt) {
 }
 
 /**
- * Clean AI response from common artifacts
+ * Clean AI response from common artifacts (SSE, data:, markdown)
  */
 function cleanAIResponse(text) {
     if (!text || typeof text !== 'string') return "";
 
     let cleaned = text
         .replace(/data:\s*\[DONE\]/gi, "")
-        .replace(/^data:\s*\[DONE\]/gm, "")
-        .replace(/^data:\s*/gm, "") // Strip any line-starting "data: "
+        .replace(/data:\s*/gi, "") // Global, case-insensitive, aggressive "data:" removal
         .trim();
 
     // Clean markdown blocks
@@ -89,15 +88,15 @@ function cleanAIResponse(text) {
  * Main AI entry point with high-resilience chain
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
-    if (depth > 2) return null;
+    if (depth > 3) return null;
 
     console.log(`[AI] callAI - Tentative globale #${depth + 1}`);
 
     const providers = [
         { name: 'Puter V2 (OpenAI Free)', fn: callPuterV2 },
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Pollinations POST', fn: callPollinationsPOST },
         { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Pollinations POST', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET }
     ];
 
@@ -107,6 +106,12 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             let result = await provider.fn(systemPrompt, userPrompt);
 
             if (result) {
+                // If it's an object, we keep it as is (will be handled by the handler)
+                if (typeof result === 'object') {
+                    console.log(`[AI] ✅ Succès avec ${provider.name} (Object)`);
+                    return result;
+                }
+
                 result = cleanAIResponse(result);
                 if (result.length > 5) {
                     console.log(`[AI] ✅ Succès avec ${provider.name}`);
@@ -119,8 +124,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     // Exponential backoff before global retry
-    if (depth < 2) {
-        const delayMs = (depth + 1) * 2000;
+    if (depth < 3) {
+        const delayMs = (depth + 1) * 1500;
         console.log(`[AI] Attente de ${delayMs}ms avant retry...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
         return await callAI(systemPrompt, userPrompt, depth + 1);
@@ -195,15 +200,19 @@ async function callPollinationsPOST(system, prompt) {
                 headers: { 'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json' },
                 timeout: 15000
             });
-            if (response.data && response.data.length > 5) return response.data;
+            if (response.data) {
+                if (typeof response.data === 'string' && response.data.length > 5) return response.data;
+                if (typeof response.data === 'object') return response.data;
+            }
         } catch (e) { continue; }
     }
     return null;
 }
 
 async function callPollinationsGET(system, prompt) {
-    const shortSystem = system.substring(0, 800);
-    const shortPrompt = prompt.substring(0, 800);
+    // Aggressive truncation for URL reliability
+    const shortSystem = "Tu es MJ RPG Anime. Réponds en français. JSON si demandé.";
+    const shortPrompt = prompt.substring(0, 1000);
     const url = `https://text.pollinations.ai/${encodeURIComponent(shortPrompt)}?system=${encodeURIComponent(shortSystem)}&model=openai&seed=${Date.now()}`;
     try {
         const response = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 15000 });
@@ -215,12 +224,27 @@ async function callPollinationsGET(system, prompt) {
 function parsePuterResponse(resp) {
     if (!resp) return null;
     if (typeof resp === 'string') return resp;
+
+    // Check for message content (standard OpenAI/Puter SDK style)
     if (resp.message?.content) {
         if (Array.isArray(resp.message.content)) return resp.message.content.map(c => typeof c === 'string' ? c : (c.text || "")).join("");
         return resp.message.content;
     }
+
+    // Check for choices (OpenAI API style)
     if (resp.choices?.[0]?.message?.content) return resp.choices[0].message.content;
-    if (resp.text) return resp.text;
+
+    // Check for data field (sometimes Axios wrappers or specific SDK versions)
+    if (resp.data) return typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+
+    // Check for direct text field
+    if (resp.text) return typeof resp.text === 'string' ? resp.text : JSON.stringify(resp.text);
+
+    // Fallback: search for any string that looks like a response
+    for (const key in resp) {
+        if (typeof resp[key] === 'string' && resp[key].length > 10) return resp[key];
+    }
+
     return JSON.stringify(resp);
 }
 

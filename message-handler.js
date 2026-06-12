@@ -80,7 +80,15 @@ async function sendWithImage(sock, jid, aiResponse) {
     }
 
     if (narrative) {
-        await sock.sendMessage(jid, { text: narrative });
+        // Final sanity check for technical artifacts
+        const cleanNarrative = narrative
+            .replace(/data:\s*\[DONE\]/gi, "")
+            .replace(/data:\s*/gi, "")
+            .trim();
+
+        if (cleanNarrative.length > 0) {
+            await sock.sendMessage(jid, { text: cleanNarrative });
+        }
     }
 }
 

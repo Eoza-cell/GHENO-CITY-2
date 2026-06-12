@@ -175,13 +175,17 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (!content) {
         throw new Error("L'IA a retourné une réponse vide.");
     }
-    console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 500)}...`);
+    console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : 'Object'}...`);
 
     // Enhanced JSON & Narrative extraction
     let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
 
     if (typeof content === 'object') {
         aiResponse = { ...aiResponse, ...content };
+        // Map common alternative fields to narrative if missing
+        if (!aiResponse.narrative) {
+            aiResponse.narrative = aiResponse.text || aiResponse.content || aiResponse.message || (aiResponse.parameters ? aiResponse.parameters.reason : "");
+        }
     } else {
         // Find the JSON block boundaries
         const firstBrace = content.indexOf('{');
@@ -202,7 +206,7 @@ async function handleFreeAction(sock, message, player, actionText) {
             let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
 
             // Cleanup markers
-            const cleanup = (t) => t.replace(/data:\s*\[DONE\]/gi, "").replace(/^data:\s*/gm, "").replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
+            const cleanup = (t) => t.replace(/data:\s*\[DONE\]/gi, "").replace(/data:\s*/gi, "").replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
             textBefore = cleanup(textBefore);
             textAfter = cleanup(textAfter);
 
@@ -216,11 +220,13 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (aiResponse.narrative) {
         aiResponse.narrative = aiResponse.narrative
             .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
-            .replace(/^data:\s*/gm, "") // Remove SSE technical artifacts
+            .replace(/data:\s*\[DONE\]/gi, "")
+            .replace(/data:\s*/gi, "") // Aggressively remove technical artifacts anywhere
             .replace(/^```(json|JSON)?/i, "") // Remove starting code block marker
             .replace(/```$/i, "") // Remove ending code block marker
             .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
             .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '') // Remove accidental action-like lines
+            .replace(/data:\s*/gi, "") // Final insurance check
             .trim();
     }
 

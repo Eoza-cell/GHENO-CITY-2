@@ -47,7 +47,7 @@ const Creds = sequelize.define('Creds', {
     primaryKey: true,
   },
   value: {
-    type: DataTypes.TEXT,
+    type: DataTypes.TEXT('long'),
   },
 });
 
