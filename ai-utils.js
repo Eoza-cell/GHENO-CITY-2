@@ -171,6 +171,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 3) return null;
 
     const providers = [
+        { name: 'Ollama Local', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter Free', fn: callOpenRouterFree },
         { name: 'Pollinations POST', fn: callPollinationsPOST },
@@ -342,6 +343,22 @@ async function callBlackbox(system, prompt) {
         });
         return resp.data;
     } catch (e) { return null; }
+}
+
+async function callOllama(system, prompt) {
+    try {
+        const response = await axios.post('http://localhost:11434/api/generate', {
+            model: 'qwen3:8b',
+            prompt: prompt,
+            system: system,
+            stream: false
+        }, { timeout: 45000 });
+
+        return response.data?.response || response.data?.content || null;
+    } catch (e) {
+        console.warn(`[AI] Ollama failed:`, e.message);
+        return null;
+    }
 }
 
 module.exports = { callAI, cleanAIResponse, extractNarrative };
