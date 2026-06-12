@@ -358,6 +358,16 @@ async function setupDatabase() {
         ]);
     }
 
+    const questCount = await Quest.count();
+    if (questCount === 0) {
+        console.log('Seeding Quests...');
+        await Quest.bulkCreate([
+            { title: 'La Chasse aux Gobelins', description: 'Élimine 10 gobelins dans la forêt.', rank_required: 'F', reward_col: 50, reward_xp: 100 },
+            { title: 'Le Mystère de la Mine', description: 'Rapporte 5 minerais de cobalt.', rank_required: 'E', reward_col: 150, reward_xp: 300 },
+            { title: 'Examen de l\'Académie', description: 'Prouve tes connaissances au Directeur Magnus.', rank_required: 'F', reward_col: 0, reward_xp: 500 }
+        ]);
+    }
+
     const itemsToSeed = [
             {
                 name: 'Elucidator',
