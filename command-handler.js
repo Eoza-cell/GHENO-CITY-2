@@ -822,11 +822,18 @@ commands.set('checkai', async (sock, message, args) => {
     const { callAI } = require('./ai-utils');
     const isDebug = args[0] === 'debug';
 
-    await sock.sendMessage(replyJid, { text: `🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*${isDebug ? ' [MODE DEBUG]' : ''}...\nVeuillez patienter.` });
+    const puterKeySet = !!(process.env.PUTER_API_KEY && process.env.PUTER_API_KEY.length > 5);
+    const openrouterKeySet = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.length > 5);
+
+    let diagnosticStart = `🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*${isDebug ? ' [MODE DEBUG]' : ''}...\n\n`;
+    diagnosticStart += `🔑 Puter: ${puterKeySet ? '✅' : '❌ (Recommandé)'}\n`;
+    diagnosticStart += `🔑 OpenRouter: ${openrouterKeySet ? '✅' : '❌ (Optionnel)'}\n\n`;
+    diagnosticStart += `Test de connexion en cours...`;
+
+    await sock.sendMessage(replyJid, { text: diagnosticStart });
 
     const startTime = Date.now();
     try {
-        // In debug mode, we provide more visibility
         const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
         const duration = (Date.now() - startTime) / 1000;
 
@@ -845,10 +852,10 @@ commands.set('checkai', async (sock, message, args) => {
                       `_Le flux magique est stable._`
             });
         } else {
-            throw new Error("Tous les providers (Ollama, Puter, OpenRouter, Pollinations, Blackbox) ont échoué ou ont renvoyé des erreurs techniques.");
+            throw new Error("Tous les providers (Ollama, Puter, OpenRouter, Pollinations, Blackbox) ont échoué.");
         }
     } catch (e) {
-        let errorMsg = `🔴 *ERREUR CRITIQUE*\n\n${e.message}`;
+        let errorMsg = `🔴 *ERREUR CRITIQUE*\n\n${e.message}\n\n💡 *Conseil:* Assurez-vous d'avoir configuré PUTER_API_KEY dans votre fichier .env pour une meilleure stabilité.`;
         if (isDebug) {
             errorMsg += `\n\nStack: ${e.stack?.split('\n').slice(0, 3).join('\n')}`;
         }

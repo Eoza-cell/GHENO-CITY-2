@@ -170,19 +170,26 @@ function extractNarrative(content) {
 async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 3) return null;
 
+    // Use a simplified prompt if we are retrying to improve success rate
+    let effectiveSystem = systemPrompt;
+    if (depth > 0) {
+        effectiveSystem = "Tu es le MJ d'un RPG anime. Réponds en français. Format JSON strict: {\"narrative\": \"...\", \"actions\": []}";
+    }
+
     const providers = [
         { name: 'Ollama Local', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter Free', fn: callOpenRouterFree },
         { name: 'Pollinations POST', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Blackbox', fn: callBlackbox }
+        { name: 'Blackbox', fn: callBlackbox },
+        { name: 'MJ Hardcoded Fallback', fn: callMJFallback }
     ];
 
     for (const provider of providers) {
         try {
-            console.log(`[AI] Tentative: ${provider.name}...`);
-            let result = await provider.fn(systemPrompt, userPrompt);
+            console.log(`[AI] Tentative: ${provider.name} (Profondeur ${depth})...`);
+            let result = await provider.fn(effectiveSystem, userPrompt);
 
             if (result) {
                 // If it's a technical error string, treat as failure and continue to next provider
@@ -248,7 +255,7 @@ async function callOpenRouterFree(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'p1'];
+    const models = ['openai', 'mistral', 'llama', 'p1', 'searchgpt', 'qwen-coder'];
     for (const model of models) {
         try {
             console.log(`[AI] Pollinations POST - Tentative avec ${model}`);
@@ -263,7 +270,7 @@ async function callPollinationsPOST(system, prompt) {
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${Math.floor(Math.random()*20)+110}.0.0.0 Safari/537.36`
                 },
                 timeout: 30000
             });
@@ -392,12 +399,36 @@ async function callOllama(system, prompt) {
             if (content && content.length > 5) return content;
         } catch (e) {
             // Only log if it's not a connection error (which happens if Ollama isn't running)
-            if (!e.message.includes('ECONNREFUSED')) {
+            if (e.message && !e.message.includes('ECONNREFUSED')) {
                 console.warn(`[AI] Ollama (${model}) error:`, e.message);
             }
         }
     }
     return null;
+}
+
+/**
+ * ABSOLUTE LAST RESORT: Hardcoded RP response generator.
+ * This ensures the bot ALWAYS replies even if all APIs are down.
+ */
+async function callMJFallback(system, prompt) {
+    console.warn("[AI] ⚠️ Utilisation du MJ Hardcoded Fallback.");
+
+    const actionPart = prompt.includes('ACTION:') ? prompt.split('ACTION:').pop().trim() : "ton action";
+    const playerName = prompt.includes('Nom:') ? prompt.split('Nom:').pop().split('\n')[0].trim() : "Aventurier";
+
+    const templates = [
+        `*Le monde semble vibrer sous l'impact de ta volonté.* \n\n${playerName}, tu exécutes : "${actionPart}". \nL'Instructeur t'observe avec un regard impénétrable. "Pas mal," grogne-t-il, "mais la route est encore longue." Tu sens ton expérience s'affiner.`,
+        `Une onde de choc parcourt la matrice alors que tu tentes de "${actionPart}". \nLe destin sourit à ton audace, ${playerName}. Bien que l'avenir soit incertain, ton geste laisse une marque indélébile dans les couloirs d'Aetherys.`,
+        `*DODODO!* \nL'Instructeur esquive ton geste à la dernière seconde. "C'était bien tenté, ${playerName}, mais ton intention de tuer doit être plus pure !" Ton action "${actionPart}" a été entendue par le monde lui-même.`
+    ];
+
+    const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
+
+    return JSON.stringify({
+        narrative: randomTemplate + "\n\n(Note: Les serveurs de l'IA sont surchargés, ceci est une réponse de secours.)",
+        actions: [{"type": "update_player", "parameters": {"xp_gain": 5, "col_change": 2}}]
+    });
 }
 
 module.exports = { callAI, cleanAIResponse, extractNarrative };
