@@ -83,7 +83,10 @@ async function sendWithImage(sock, jid, aiResponse) {
         // Final sanity check for technical artifacts
         const cleanNarrative = narrative
             .replace(/data:\s*\[DONE\]/gi, "")
+            .replace(/data:\s*\{"type":"(start|message|error|end|done)".*?\}/gi, "")
             .replace(/data:\s*/gi, "")
+            .replace(/^```(json|JSON)?\s*/i, "")
+            .replace(/```\s*$/i, "")
             .trim();
 
         if (cleanNarrative.length > 0) {

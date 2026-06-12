@@ -21,20 +21,29 @@ function initPuter() {
 function cleanAIResponse(text) {
     if (!text || typeof text !== 'string') return "";
 
+    // 1. Remove obvious SSE artifacts
     let cleaned = text
         .replace(/data:\s*\[DONE\]/gi, "")
+        .replace(/data:\s*\{"type":"(start|message|error|end|done)".*?\}/gi, "") // Remove Blackbox/SSE json markers
         .replace(/data:\s*/gi, "")
         .trim();
 
-    // Clean markdown blocks
+    // 2. Remove technical error markers that might leak
+    if (cleaned.includes('"errorText"') || cleaned.includes('"Authentication Error"') || cleaned.includes('"Internal Server Error"')) {
+        console.warn("[AI] Technical error detected in response string, discarding.");
+        return "";
+    }
+
+    // 3. Clean markdown blocks
     cleaned = cleaned
-        .replace(/^```json\s*/i, "")
-        .replace(/^```\s*/i, "")
+        .replace(/^```(json|JSON)?\s*/i, "")
         .replace(/```\s*$/i, "")
-        .replace(/^(json|JSON)\s*/i, "")
         .trim();
 
-    return cleaned.trim();
+    // 4. Final aggressive cleanup of any leftover JSON markers at start
+    cleaned = cleaned.replace(/^(json|JSON)\s*[:=]?\s*/i, "").trim();
+
+    return cleaned;
 }
 
 /**
@@ -89,9 +98,9 @@ async function callOpenRouterFree(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
         "google/gemini-2.0-flash-exp:free",
-        "google/gemini-2.0-flash-thinking-exp:free",
         "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "meta-llama/llama-3.3-70b-instruct:free"
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemini-2.0-flash-thinking-exp:free"
     ];
 
     for (const model of models) {
@@ -99,14 +108,24 @@ async function callOpenRouterFree(system, prompt) {
             console.log(`[AI] OpenRouter - Modèle: ${model}`);
             const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
                 model: model,
-                messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ]
             }, {
-                headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` },
-                timeout: 15000
+                headers: {
+                    'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    'HTTP-Referer': 'https://github.com/Eoza-cell/GHENO-CITY-2',
+                    'X-Title': 'Gheno City 2'
+                },
+                timeout: 20000
             });
             const content = resp.data?.choices?.[0]?.message?.content;
             if (content && content.length > 10) return content;
-        } catch (e) { continue; }
+        } catch (e) {
+            console.warn(`[AI] OpenRouter model ${model} failed: ${e.message}`);
+            continue;
+        }
     }
     return null;
 }
@@ -139,8 +158,8 @@ async function callPollinationsPOST(system, prompt) {
 }
 
 async function callPollinationsGET(system, prompt) {
-    const cleanPrompt = prompt.substring(0, 500);
-    const cleanSystem = system.substring(0, 200);
+    const cleanPrompt = prompt.replace(/[^\w\s\u00C0-\u00FF]/g, ' ').substring(0, 500);
+    const cleanSystem = system.substring(0, 200).replace(/[^\w\s\u00C0-\u00FF]/g, ' ');
     const combined = `Instructions: ${cleanSystem}. Message: ${cleanPrompt}`;
     try {
         const url = `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&seed=${Math.floor(Math.random()*1000)}`;
@@ -158,7 +177,8 @@ async function callPuterSDK(system, prompt) {
     const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
     for (const model of models) {
         try {
-            const resp = await p.ai.chat(prompt, { model, system, stream: false });
+            const combined = `[SYSTEM]\n${system}\n\n[USER]\n${prompt}`;
+            const resp = await p.ai.chat(combined, { model, stream: false });
             const text = parsePuterResponse(resp);
             if (text && text.length > 10) return text;
         } catch (e) { continue; }
@@ -187,4 +207,63 @@ function parsePuterResponse(resp) {
     return JSON.stringify(resp);
 }
 
-module.exports = { callAI, cleanAIResponse };
+/**
+ * Robust extraction of Narrative and Actions from AI string or object
+ */
+function extractNarrative(content) {
+    let aiResponse = { narrative: "", actions: [], tutorial_complete: false };
+
+    if (!content) return aiResponse;
+
+    if (typeof content === 'object') {
+        aiResponse = { ...aiResponse, ...content };
+        // Map common alternative fields to narrative if missing
+        if (!aiResponse.narrative) {
+            aiResponse.narrative = aiResponse.text || aiResponse.content || aiResponse.message || (aiResponse.parameters ? aiResponse.parameters.reason : "");
+        }
+    } else {
+        // 1. Clean the string first
+        const cleaned = cleanAIResponse(content);
+
+        // 2. Try to find JSON block
+        const firstBrace = cleaned.indexOf('{');
+        const lastBrace = cleaned.lastIndexOf('}');
+
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            const potentialJson = cleaned.substring(firstBrace, lastBrace + 1);
+            try {
+                const parsed = JSON.parse(potentialJson);
+                aiResponse = { ...aiResponse, ...parsed };
+            } catch (e) {
+                console.error("[AI] Erreur parse JSON interne:", e.message);
+            }
+        }
+
+        // 3. If narrative still empty, extract from text around JSON or use full text if no JSON
+        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+            let textBefore = firstBrace !== -1 ? cleaned.substring(0, firstBrace).trim() : "";
+            let textAfter = lastBrace !== -1 ? cleaned.substring(lastBrace + 1).trim() : "";
+
+            if (textBefore.length > 5) aiResponse.narrative = textBefore;
+            else if (textAfter.length > 5) aiResponse.narrative = textAfter;
+            else if (firstBrace === -1) aiResponse.narrative = cleaned;
+        }
+    }
+
+    // 4. Final Sanitize of Narrative
+    if (aiResponse.narrative) {
+        aiResponse.narrative = aiResponse.narrative
+            .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
+            .replace(/data:\s*\[DONE\]/gi, "")
+            .replace(/data:\s*\{.*?\}/gi, "")
+            .replace(/data:\s*/gi, "")
+            .replace(/^```(json|JSON)?/i, "")
+            .replace(/```$/i, "")
+            .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*[:=]\s*/i, '')
+            .trim();
+    }
+
+    return aiResponse;
+}
+
+module.exports = { callAI, cleanAIResponse, extractNarrative };

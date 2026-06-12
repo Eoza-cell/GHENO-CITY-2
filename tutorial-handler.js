@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
 const { sendWithImage } = require('./message-handler');
-const { callAI, cleanAIResponse } = require('./ai-utils');
+const { callAI, cleanAIResponse, extractNarrative } = require('./ai-utils');
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
@@ -186,49 +186,8 @@ async function handleTutorialAction(sock, message, player, actionText) {
             if (!contentRaw) {
                 throw new Error("L'IA n'a pas répondu.");
             }
-            let content = contentRaw;
-            let aiResponse = { narrative: "", tutorial_complete: false };
 
-            if (content && typeof content === 'object') {
-                aiResponse = { ...aiResponse, ...content };
-                if (!aiResponse.narrative) {
-                    aiResponse.narrative = aiResponse.text || aiResponse.content || aiResponse.message || "";
-                }
-            } else {
-                const firstBrace = content.indexOf('{');
-                const lastBrace = content.lastIndexOf('}');
-
-                if (firstBrace !== -1 && lastBrace !== -1) {
-                    const potentialJson = content.substring(firstBrace, lastBrace + 1);
-                    try {
-                        aiResponse = JSON.parse(potentialJson);
-                    } catch (e) {}
-                }
-
-                if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-                    let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
-                    let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
-
-                    const cleanup = (t) => t.replace(/data:\s*\[DONE\]/gi, "").replace(/data:\s*/gi, "").replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
-                    textBefore = cleanup(textBefore);
-                    textAfter = cleanup(textAfter);
-
-                    if (textBefore.length > 5) aiResponse.narrative = textBefore;
-                    else if (textAfter.length > 5) aiResponse.narrative = textAfter;
-                    else aiResponse.narrative = cleanup(content);
-                }
-            }
-
-            if (aiResponse.narrative) {
-                aiResponse.narrative = aiResponse.narrative
-                    .replace(/\{[\s\S]*\}/g, '')
-                    .replace(/data:\s*\[DONE\]/gi, "")
-                    .replace(/data:\s*/gi, "") // Aggressively remove technical artifacts anywhere
-                    .replace(/^```(json|JSON)?/i, "") // Remove starting code block marker
-                    .replace(/```$/i, "") // Remove ending code block marker
-                    .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-                    .trim();
-            }
+            const aiResponse = extractNarrative(contentRaw);
 
             if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
                 aiResponse.narrative = "🌀 *Flux instable...* L'Instructeur te regarde avec insistance, attendant ton prochain mouvement. Réessaie ton attaque.";

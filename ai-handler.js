@@ -1,7 +1,7 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
-const { callAI, cleanAIResponse } = require('./ai-utils');
+const { callAI, cleanAIResponse, extractNarrative } = require('./ai-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -177,58 +177,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
     console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : 'Object'}...`);
 
-    // Enhanced JSON & Narrative extraction
-    let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
-
-    if (typeof content === 'object') {
-        aiResponse = { ...aiResponse, ...content };
-        // Map common alternative fields to narrative if missing
-        if (!aiResponse.narrative) {
-            aiResponse.narrative = aiResponse.text || aiResponse.content || aiResponse.message || (aiResponse.parameters ? aiResponse.parameters.reason : "");
-        }
-    } else {
-        // Find the JSON block boundaries
-        const firstBrace = content.indexOf('{');
-        const lastBrace = content.lastIndexOf('}');
-
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            const potentialJson = content.substring(firstBrace, lastBrace + 1);
-            try {
-                aiResponse = JSON.parse(potentialJson);
-            } catch (e) {
-                console.error("[MJ] Erreur parse JSON, tentative récupération narrative...");
-            }
-        }
-
-        // If narrative is missing or empty inside JSON, extract from surrounding text
-        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-            let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
-            let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
-
-            // Cleanup markers
-            const cleanup = (t) => t.replace(/data:\s*\[DONE\]/gi, "").replace(/data:\s*/gi, "").replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
-            textBefore = cleanup(textBefore);
-            textAfter = cleanup(textAfter);
-
-            if (textBefore.length > 5) aiResponse.narrative = textBefore;
-            else if (textAfter.length > 5) aiResponse.narrative = textAfter;
-            else if (firstBrace === -1) aiResponse.narrative = cleanup(content);
-        }
-    }
-
-    // Final scrub of ALL AI/JSON artifacts from narrative
-    if (aiResponse.narrative) {
-        aiResponse.narrative = aiResponse.narrative
-            .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
-            .replace(/data:\s*\[DONE\]/gi, "")
-            .replace(/data:\s*/gi, "") // Aggressively remove technical artifacts anywhere
-            .replace(/^```(json|JSON)?/i, "") // Remove starting code block marker
-            .replace(/```$/i, "") // Remove ending code block marker
-            .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-            .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '') // Remove accidental action-like lines
-            .replace(/data:\s*/gi, "") // Final insurance check
-            .trim();
-    }
+    // Enhanced JSON & Narrative extraction using centralized logic
+    const aiResponse = extractNarrative(content);
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
         aiResponse.narrative = "🌀 *Le flux magique est instable.* La matrice de Skype semble s'obscurcir un instant. L'action est en suspens, réessaie dans quelques instants...";
