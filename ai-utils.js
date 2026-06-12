@@ -4,9 +4,7 @@ let puter = null;
 function initPuter() {
     if (!puter) {
         try {
-            const puterPkg = require('@heyputer/puter.js');
-            puter = puterPkg.default || puterPkg;
-
+            puter = require('@heyputer/puter.js').default || require('@heyputer/puter.js');
             if (process.env.PUTER_API_KEY && process.env.PUTER_API_KEY.length > 5 && process.env.PUTER_API_KEY !== 'test_key') {
                 puter.setAuthToken(process.env.PUTER_API_KEY);
             }
@@ -18,51 +16,6 @@ function initPuter() {
 }
 
 /**
- * Enhanced Puter.js call following the latest v2 discovery and models
- */
-async function callPuterV2(system, prompt) {
-    try {
-        const p = initPuter();
-        if (!p || !p.ai) {
-            console.warn("[AI] Puter.js non initialisé");
-            return null;
-        }
-
-        // Models from the provided GitHub resource: https://github.com/andrew-gardner22/FREE-UNLIMITED-OpenAI
-        const models = [
-            "gemini-1.5-flash", "gpt-4o", "gpt-4.1", "o3-mini", "o1-mini",
-            "claude-3-5-sonnet", "gpt-4.5-preview", "o1", "gpt-4o-mini"
-        ];
-
-        // Ensure we handle JSON requirement if mentioned in system prompt
-        const enhancedPrompt = `${prompt}\n\nIMPORTANT: Répondre uniquement avec le contenu demandé (Narration ou JSON). Pas de blabla inutile.`;
-        const combinedPrompt = `[SYSTEM INSTRUCTIONS]\n${system}\n\n[USER MESSAGE]\n${enhancedPrompt}`;
-
-        for (const model of models) {
-            try {
-                console.log(`[AI] Puter V2 - Essai avec ${model}...`);
-                const resp = await p.ai.chat(combinedPrompt, {
-                    model: model,
-                    stream: false
-                });
-
-                const text = parsePuterResponse(resp);
-                if (text && text.length > 10) {
-                    console.log(`[AI] ✅ Puter V2 succès (${model})`);
-                    return text;
-                }
-            } catch (e) {
-                console.warn(`[AI] Puter V2 - Échec ${model}: ${e.message}`);
-                continue;
-            }
-        }
-    } catch (e) {
-        console.error("[AI] ❌ Puter V2 error:", e.message);
-    }
-    return null;
-}
-
-/**
  * Clean AI response from common artifacts (SSE, data:, markdown)
  */
 function cleanAIResponse(text) {
@@ -70,7 +23,7 @@ function cleanAIResponse(text) {
 
     let cleaned = text
         .replace(/data:\s*\[DONE\]/gi, "")
-        .replace(/data:\s*/gi, "") // Global, case-insensitive, aggressive "data:" removal
+        .replace(/data:\s*/gi, "")
         .trim();
 
     // Clean markdown blocks
@@ -93,11 +46,11 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     console.log(`[AI] callAI - Tentative globale #${depth + 1}`);
 
     const providers = [
-        { name: 'Puter V2 (OpenAI Free)', fn: callPuterV2 },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Blackbox', fn: callBlackbox },
+        { name: 'OpenRouter Free', fn: callOpenRouterFree },
         { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET }
+        { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Blackbox', fn: callBlackbox }
     ];
 
     for (const provider of providers) {
@@ -106,26 +59,24 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             let result = await provider.fn(systemPrompt, userPrompt);
 
             if (result) {
-                // If it's an object, we keep it as is (will be handled by the handler)
                 if (typeof result === 'object') {
                     console.log(`[AI] ✅ Succès avec ${provider.name} (Object)`);
                     return result;
                 }
 
                 result = cleanAIResponse(result);
-                if (result.length > 5) {
+                if (result.length > 10) {
                     console.log(`[AI] ✅ Succès avec ${provider.name}`);
                     return result;
                 }
             }
         } catch (e) {
-            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message);
+            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
         }
     }
 
-    // Exponential backoff before global retry
     if (depth < 3) {
-        const delayMs = (depth + 1) * 1500;
+        const delayMs = (depth + 1) * 2000;
         console.log(`[AI] Attente de ${delayMs}ms avant retry...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
         return await callAI(systemPrompt, userPrompt, depth + 1);
@@ -134,16 +85,18 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     return null;
 }
 
-async function callOpenRouter(system, prompt) {
+async function callOpenRouterFree(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
         "google/gemini-2.0-flash-exp:free",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "google/gemini-2.0-flash-thinking-exp:free",
+        "nvidia/llama-3.1-nemotron-70b-instruct:free",
         "meta-llama/llama-3.3-70b-instruct:free"
     ];
 
     for (const model of models) {
         try {
+            console.log(`[AI] OpenRouter - Modèle: ${model}`);
             const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
                 model: model,
                 messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
@@ -158,34 +111,8 @@ async function callOpenRouter(system, prompt) {
     return null;
 }
 
-async function callBlackbox(system, prompt) {
-    const models = ["gpt-4o", "claude-3-5-sonnet", "deepseek-v3"];
-    for (const model of models) {
-        try {
-            const resp = await axios.post("https://www.blackbox.ai/api/chat", {
-                messages: [{ role: "user", content: `INSTRUCTIONS:\n${system}\n\nMESSAGE:\n${prompt}` }],
-                model: model,
-                max_tokens: 1024
-            }, {
-                headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-                timeout: 20000
-            });
-
-            let text = "";
-            if (typeof resp.data === 'string') {
-                text = resp.data.replace(/\$@\$.*?\$@\$/g, '').trim();
-            } else if (resp.data?.choices?.[0]?.message?.content) {
-                text = resp.data.choices[0].message.content;
-            }
-
-            if (text && text.length > 10) return text;
-        } catch (e) { continue; }
-    }
-    return null;
-}
-
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama'];
+    const models = ['openai', 'mistral', 'llama', 'p1'];
     for (const model of models) {
         try {
             const response = await axios.post('https://text.pollinations.ai/', {
@@ -200,9 +127,11 @@ async function callPollinationsPOST(system, prompt) {
                 headers: { 'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json' },
                 timeout: 15000
             });
+
             if (response.data) {
                 if (typeof response.data === 'string' && response.data.length > 5) return response.data;
-                if (typeof response.data === 'object') return response.data;
+                if (response.data.choices?.[0]?.message?.content) return response.data.choices[0].message.content;
+                if (typeof response.data === 'object') return JSON.stringify(response.data);
             }
         } catch (e) { continue; }
     }
@@ -210,41 +139,51 @@ async function callPollinationsPOST(system, prompt) {
 }
 
 async function callPollinationsGET(system, prompt) {
-    // Aggressive truncation for URL reliability
-    const shortSystem = "Tu es MJ RPG Anime. Réponds en français. JSON si demandé.";
-    const shortPrompt = prompt.substring(0, 1000);
-    const url = `https://text.pollinations.ai/${encodeURIComponent(shortPrompt)}?system=${encodeURIComponent(shortSystem)}&model=openai&seed=${Date.now()}`;
+    const cleanPrompt = prompt.substring(0, 500);
+    const cleanSystem = system.substring(0, 200);
+    const combined = `Instructions: ${cleanSystem}. Message: ${cleanPrompt}`;
     try {
-        const response = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 15000 });
-        if (response.data && response.data.length > 5) return response.data;
+        const url = `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&seed=${Math.floor(Math.random()*1000)}`;
+        const response = await axios.get(url, { headers: { 'User-Agent': 'curl/8.5.0' }, timeout: 15000 });
+        if (response.data && typeof response.data === 'string' && response.data.length > 10 && !response.data.includes('"error"')) {
+            return response.data;
+        }
     } catch (e) {}
     return null;
+}
+
+async function callPuterSDK(system, prompt) {
+    const p = initPuter();
+    if (!p) return null;
+    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+    for (const model of models) {
+        try {
+            const resp = await p.ai.chat(prompt, { model, system, stream: false });
+            const text = parsePuterResponse(resp);
+            if (text && text.length > 10) return text;
+        } catch (e) { continue; }
+    }
+    return null;
+}
+
+async function callBlackbox(system, prompt) {
+    try {
+        const resp = await axios.post("https://www.blackbox.ai/api/chat", {
+            messages: [{ role: "user", content: `SYSTEM: ${system}\n\nUSER: ${prompt}` }],
+            model: "deepseek-v3"
+        }, { timeout: 15000 });
+        return resp.data;
+    } catch (e) { return null; }
 }
 
 function parsePuterResponse(resp) {
     if (!resp) return null;
     if (typeof resp === 'string') return resp;
-
-    // Check for message content (standard OpenAI/Puter SDK style)
     if (resp.message?.content) {
         if (Array.isArray(resp.message.content)) return resp.message.content.map(c => typeof c === 'string' ? c : (c.text || "")).join("");
         return resp.message.content;
     }
-
-    // Check for choices (OpenAI API style)
     if (resp.choices?.[0]?.message?.content) return resp.choices[0].message.content;
-
-    // Check for data field (sometimes Axios wrappers or specific SDK versions)
-    if (resp.data) return typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
-
-    // Check for direct text field
-    if (resp.text) return typeof resp.text === 'string' ? resp.text : JSON.stringify(resp.text);
-
-    // Fallback: search for any string that looks like a response
-    for (const key in resp) {
-        if (typeof resp[key] === 'string' && resp[key].length > 10) return resp[key];
-    }
-
     return JSON.stringify(resp);
 }
 
