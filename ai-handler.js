@@ -480,7 +480,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   } catch (error) {
     console.error('Erreur MJ Arise:', error);
-    await sock.sendMessage(jid, { text: "⚠️ *ERREUR MATRICE* ⚠️\n\nLe MJ n'a pas pu traiter cette action car la connexion avec l'IA a échoué. Veuillez réessayer dans quelques secondes." });
+    const fallbackMsg = "⚠️ *ERREUR MATRICE* ⚠️\n\nLe MJ n'a pas pu traiter cette action car la connexion avec l'IA a échoué ou est saturée. Veuillez réessayer dans quelques secondes. Tape /checkai pour diagnostiquer le flux.";
+    await sock.sendMessage(jid, { text: fallbackMsg });
   }
 }
 

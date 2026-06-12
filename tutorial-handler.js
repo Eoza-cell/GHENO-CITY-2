@@ -190,9 +190,6 @@ async function handleTutorialAction(sock, message, player, actionText) {
             const aiResponse = extractNarrative(contentRaw);
 
             if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-                // If the narrative was truly empty but extractNarrative failed,
-                // we use the raw cleaned response as a last resort
-                const { cleanAIResponse } = require('./ai-utils');
                 const lastResort = cleanAIResponse(contentRaw);
                 aiResponse.narrative = lastResort.length > 10 ? lastResort : "🌀 *Flux instable...* L'Instructeur te regarde avec insistance, attendant ton prochain mouvement. Réessaie ton attaque.";
             }
@@ -205,8 +202,8 @@ async function handleTutorialAction(sock, message, player, actionText) {
             await sendWithImage(sock, jid, aiResponse);
         } catch (error) {
             console.error("Erreur AI tutoriel:", error);
-            // Fallback to avoid blocking the user
-            await sock.sendMessage(jid, { text: "⚠️ *CONNEXION INSTABLE* ⚠️\n\nL'Instructeur semble distrait par une faille dans la matrice. Réessaie ton action dans quelques instants." });
+            const fallbackMsg = "⚠️ *CONNEXION INSTABLE* ⚠️\n\nL'Instructeur semble distrait par une faille dans la matrice. Les serveurs de l'IA sont peut-être saturés. Réessaie ton action dans quelques secondes ou utilise /checkai pour vérifier l'état.";
+            await sock.sendMessage(jid, { text: fallbackMsg });
         }
     }
 }

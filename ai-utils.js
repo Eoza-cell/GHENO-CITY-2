@@ -59,8 +59,8 @@ function cleanAIResponse(text) {
         .trim();
 
     // 3. Filter technical error messages
-    const technicalErrors = ['"errorText"', '"Authentication Error"', '"type":"error"', 'Unauthorized', 'Rate limit', 'Internal Server Error'];
-    if (technicalErrors.some(err => cleaned.includes(err) && cleaned.length < 500)) {
+    const technicalErrors = ['"errorText"', '"Authentication Error"', '"type":"error"', 'Unauthorized', 'Rate limit', 'Internal Server Error', 'Queue full', 'Too Many Requests'];
+    if (technicalErrors.some(err => (cleaned.includes(err) || text.includes(err)) && cleaned.length < 500)) {
         console.warn("[AI] Technical error detected in cleaning phase, discarding response.");
         return "";
     }
@@ -289,23 +289,26 @@ async function callPollinationsPOST(system, prompt) {
 
 async function callPollinationsGET(system, prompt) {
     try {
-        // More robust GET fallback with multiple models and randomized seeds
         const models = ['openai', 'mistral', 'llama', 'unity'];
-        for (const model of models) {
-            const combined = `System: ${system}\nUser: ${prompt}`;
-            // Use a very randomized URL to bypass some caches/rate limits
+        const reversed = [...models].reverse();
+        for (const model of reversed) {
             const seed = Math.floor(Math.random() * 1000000);
-            const url = `https://text.pollinations.ai/${encodeURIComponent(combined.substring(0, 1800))}?model=${model}&seed=${seed}&cache=false`;
+            const tinySystem = "Tu es le MJ d'un RPG anime. Réponds en français. Format JSON: {\"narrative\": \"...\"}";
+            const actionPart = prompt.includes('ACTION:') ? prompt.split('ACTION:').pop() : prompt;
+            const combined = `${tinySystem}\n\nContexte: ${prompt.substring(0, 400)}\n\nAction: ${actionPart.substring(0, 400)}`;
+
+            const url = `https://text.pollinations.ai/${encodeURIComponent(combined.substring(0, 1500))}?model=${model}&seed=${seed}&cache=false`;
 
             const response = await axios.get(url, {
-                timeout: 25000,
+                timeout: 20000,
                 headers: {
-                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${Math.floor(Math.random()*20)+100}.0.0.0 Safari/537.36`
+                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${Math.floor(Math.random()*20)+110}.0.0.0 Safari/537.36`
                 }
             });
 
-            if (response.data && response.data.length > 10 && !response.data.toLowerCase().includes('rate limit')) {
-                return response.data;
+            const data = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+            if (data && data.length > 10 && !data.toLowerCase().includes('rate limit') && !data.includes('Queue full')) {
+                return data;
             }
         }
     } catch (e) {
@@ -357,17 +360,17 @@ async function callBlackbox(system, prompt) {
                 'Referer': 'https://www.blackbox.ai/',
                 'Content-Type': 'application/json'
             },
-            timeout: 25000
+            timeout: 20000
         });
 
-        let data = resp.data;
-        if (typeof data === 'string') {
-            if (data.includes('data: ')) return cleanAIResponse(data);
-            return data;
+        let data = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+        if (data.includes('Authentication Error') || data.includes('No api key')) {
+             return null;
         }
-        return JSON.stringify(data);
+
+        if (data.includes('data: ')) return cleanAIResponse(data);
+        return data;
     } catch (e) {
-        console.warn("[AI] Blackbox failed:", e.message);
         return null;
     }
 }
