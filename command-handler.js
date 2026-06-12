@@ -826,27 +826,33 @@ commands.set('checkai', async (sock, message, args) => {
 
     const startTime = Date.now();
     try {
-        // In debug mode, we can try to call specific providers if we wanted,
-        // but for now let's just do a full test with logging.
+        // In debug mode, we provide more visibility
         const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
         const duration = (Date.now() - startTime) / 1000;
 
         if (result) {
             let status = "🟢 *OPÉRATIONNEL*";
+            let details = `Latence: ${duration}s\n`;
+
+            if (isDebug) {
+                details += `Réponse brute: ${typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200)}...\n`;
+            }
+
             await sock.sendMessage(replyJid, {
                 text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
                       `Statut: ${status}\n` +
-                      `Latence: ${duration}s\n` +
-                      `Réponse: ${result.substring(0, 100)}...\n\n` +
+                      `${details}\n` +
                       `_Le flux magique est stable._`
             });
         } else {
-            throw new Error("Tous les providers ont échoué.");
+            throw new Error("Tous les providers (Ollama, Puter, OpenRouter, Pollinations, Blackbox) ont échoué ou ont renvoyé des erreurs techniques.");
         }
     } catch (e) {
-        await sock.sendMessage(replyJid, {
-            text: `🔴 *ERREUR CRITIQUE*\n\n${e.message}\n\nAucun flux magique n'a pu être établi. La matrice est instable.`
-        });
+        let errorMsg = `🔴 *ERREUR CRITIQUE*\n\n${e.message}`;
+        if (isDebug) {
+            errorMsg += `\n\nStack: ${e.stack?.split('\n').slice(0, 3).join('\n')}`;
+        }
+        await sock.sendMessage(replyJid, { text: errorMsg });
     }
 });
 

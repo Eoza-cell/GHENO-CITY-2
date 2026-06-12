@@ -289,11 +289,28 @@ async function callPollinationsPOST(system, prompt) {
 
 async function callPollinationsGET(system, prompt) {
     try {
-        const combined = `System: ${system}\nUser: ${prompt}`;
-        const url = `https://text.pollinations.ai/${encodeURIComponent(combined.substring(0, 800))}?model=openai&seed=${Math.floor(Math.random()*1000)}`;
-        const response = await axios.get(url, { timeout: 15000 });
-        if (response.data && response.data.length > 5) return response.data;
-    } catch (e) {}
+        // More robust GET fallback with multiple models and randomized seeds
+        const models = ['openai', 'mistral', 'llama', 'unity'];
+        for (const model of models) {
+            const combined = `System: ${system}\nUser: ${prompt}`;
+            // Use a very randomized URL to bypass some caches/rate limits
+            const seed = Math.floor(Math.random() * 1000000);
+            const url = `https://text.pollinations.ai/${encodeURIComponent(combined.substring(0, 1800))}?model=${model}&seed=${seed}&cache=false`;
+
+            const response = await axios.get(url, {
+                timeout: 25000,
+                headers: {
+                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${Math.floor(Math.random()*20)+100}.0.0.0 Safari/537.36`
+                }
+            });
+
+            if (response.data && response.data.length > 10 && !response.data.toLowerCase().includes('rate limit')) {
+                return response.data;
+            }
+        }
+    } catch (e) {
+        console.warn("[AI] Pollinations GET failed:", e.message);
+    }
     return null;
 }
 
@@ -337,28 +354,47 @@ async function callBlackbox(system, prompt) {
         }, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.blackbox.ai/'
+                'Referer': 'https://www.blackbox.ai/',
+                'Content-Type': 'application/json'
             },
-            timeout: 15000
+            timeout: 25000
         });
-        return resp.data;
-    } catch (e) { return null; }
+
+        let data = resp.data;
+        if (typeof data === 'string') {
+            if (data.includes('data: ')) return cleanAIResponse(data);
+            return data;
+        }
+        return JSON.stringify(data);
+    } catch (e) {
+        console.warn("[AI] Blackbox failed:", e.message);
+        return null;
+    }
 }
 
 async function callOllama(system, prompt) {
-    try {
-        const response = await axios.post('http://localhost:11434/api/generate', {
-            model: 'qwen3:8b',
-            prompt: prompt,
-            system: system,
-            stream: false
-        }, { timeout: 45000 });
+    const baseUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    const models = ['qwen3:8b', 'qwen2.5:7b', 'llama3:8b', 'mistral'];
 
-        return response.data?.response || response.data?.content || null;
-    } catch (e) {
-        console.warn(`[AI] Ollama failed:`, e.message);
-        return null;
+    for (const model of models) {
+        try {
+            const response = await axios.post(`${baseUrl}/api/generate`, {
+                model: model,
+                prompt: prompt,
+                system: system,
+                stream: false
+            }, { timeout: 60000 }); // Local models can be slow
+
+            const content = response.data?.response || response.data?.content;
+            if (content && content.length > 5) return content;
+        } catch (e) {
+            // Only log if it's not a connection error (which happens if Ollama isn't running)
+            if (!e.message.includes('ECONNREFUSED')) {
+                console.warn(`[AI] Ollama (${model}) error:`, e.message);
+            }
+        }
     }
+    return null;
 }
 
 module.exports = { callAI, cleanAIResponse, extractNarrative };
