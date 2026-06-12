@@ -26,7 +26,7 @@ function cleanAIResponse(text) {
 
     // 1. Handle SSE (Server-Sent Events) from providers like Blackbox
     // Example: data: {"type":"message", "content": "..."}
-    if (cleaned.includes('data: {')) {
+    if (cleaned.includes('data: {') || cleaned.includes('data: ["')) {
         let narrativeBuffer = "";
         const lines = cleaned.split('\n');
         for (const line of lines) {
@@ -37,12 +37,22 @@ function cleanAIResponse(text) {
                 try {
                     const parsed = JSON.parse(jsonStr);
                     // Extract content from various known SSE formats
-                    let content = parsed.content || parsed.text ||
+                    let content = "";
+                    if (typeof parsed === 'string') {
+                        content = parsed;
+                    } else if (Array.isArray(parsed)) {
+                        content = parsed.join("");
+                    } else {
+                        content = parsed.content || parsed.text ||
                                  parsed.choices?.[0]?.delta?.content ||
                                  parsed.choices?.[0]?.message?.content || "";
+                    }
                     if (content) narrativeBuffer += content;
                 } catch (e) {
-                    // Partial JSON or other technical data, skip
+                    // If it's not valid JSON but looks like a string fragment, maybe it's raw text
+                    if (jsonStr.startsWith('"') && jsonStr.endsWith('"')) {
+                         narrativeBuffer += jsonStr.substring(1, jsonStr.length - 1);
+                    }
                 }
             } else if (actualLine && !actualLine.startsWith('data:')) {
                 // If it's not data: but has content, keep it
@@ -104,12 +114,26 @@ function extractNarrative(content) {
     } else {
         const cleaned = cleanAIResponse(content);
 
-        // Improved JSON detection: look for something that looks like {"narrative": ...}
-        // Try to find all JSON-like objects and merge them
-        const jsonMatches = cleaned.match(/\{[\s\S]*?\}/g);
+        // Find all JSON objects using brace counting
+        const jsonObjects = [];
+        let braceCount = 0;
+        let startIndex = -1;
 
-        if (jsonMatches) {
-            for (const potentialJson of jsonMatches) {
+        for (let i = 0; i < cleaned.length; i++) {
+            if (cleaned[i] === '{') {
+                if (braceCount === 0) startIndex = i;
+                braceCount++;
+            } else if (cleaned[i] === '}') {
+                braceCount--;
+                if (braceCount === 0 && startIndex !== -1) {
+                    jsonObjects.push(cleaned.substring(startIndex, i + 1));
+                    startIndex = -1;
+                }
+            }
+        }
+
+        if (jsonObjects.length > 0) {
+            for (const potentialJson of jsonObjects) {
                 try {
                     const parsed = JSON.parse(potentialJson);
                     // Merge properties, prioritizing narrative and actions
@@ -137,10 +161,9 @@ function extractNarrative(content) {
 
         // If narrative is still empty or we didn't find JSON, use the whole cleaned text
         if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-            // Remove the merged JSON objects from the text before using it as narrative
             let finalNarrative = cleaned;
-            if (jsonMatches) {
-                for (const match of jsonMatches) {
+            if (jsonObjects.length > 0) {
+                for (const match of jsonObjects) {
                     finalNarrative = finalNarrative.replace(match, '');
                 }
             }
@@ -150,10 +173,29 @@ function extractNarrative(content) {
 
     // Final scrub of technical labels
     if (aiResponse.narrative && typeof aiResponse.narrative === 'string') {
-        // Only remove JSON from narrative if we actually have actions extracted
-        // This prevents deleting the only content we have if it's JSON formatted
+        // Remove valid JSON objects from narrative if we successfully extracted something
         if (aiResponse.actions.length > 0 || aiResponse.tutorial_complete) {
-            aiResponse.narrative = aiResponse.narrative.replace(/\{[\s\S]*\}/g, '').trim();
+            // We use the brace counting again to identify what to remove
+            let braceCount = 0;
+            let startIndex = -1;
+            let toRemove = [];
+
+            for (let i = 0; i < aiResponse.narrative.length; i++) {
+                if (aiResponse.narrative[i] === '{') {
+                    if (braceCount === 0) startIndex = i;
+                    braceCount++;
+                } else if (aiResponse.narrative[i] === '}') {
+                    braceCount--;
+                    if (braceCount === 0 && startIndex !== -1) {
+                        toRemove.push(aiResponse.narrative.substring(startIndex, i + 1));
+                        startIndex = -1;
+                    }
+                }
+            }
+
+            for (const item of toRemove) {
+                aiResponse.narrative = aiResponse.narrative.replace(item, '');
+            }
         }
 
         aiResponse.narrative = aiResponse.narrative
@@ -280,10 +322,11 @@ async function callPollinationsPOST(system, prompt) {
                 if (typeof data === 'string' && data.length > 5) return data;
                 if (data.choices?.[0]?.message?.content) return data.choices[0].message.content;
                 if (typeof data === 'object') {
-                    // Handle unexpected object response
+                    // If it's already a well-formatted response object, return it
+                    if (data.narrative) return data;
                     if (data.content) return data.content;
                     if (data.text) return data.text;
-                    return JSON.stringify(data);
+                    return data;
                 }
             }
         } catch (e) {
@@ -414,21 +457,29 @@ async function callOllama(system, prompt) {
 async function callMJFallback(system, prompt) {
     console.warn("[AI] ⚠️ Utilisation du MJ Hardcoded Fallback.");
 
-    const actionPart = prompt.includes('ACTION:') ? prompt.split('ACTION:').pop().trim() : "ton action";
-    const playerName = prompt.includes('Nom:') ? prompt.split('Nom:').pop().split('\n')[0].trim() : "Aventurier";
+    let actionPart = "ton action";
+    if (prompt.includes('ACTION:')) {
+        actionPart = prompt.split('ACTION:').pop().trim();
+    }
+
+    let playerName = "Aventurier";
+    if (prompt.includes('- Nom:')) {
+        playerName = prompt.split('- Nom:')[1].split('\n')[0].trim();
+    }
 
     const templates = [
-        `*Le monde semble vibrer sous l'impact de ta volonté.* \n\n${playerName}, tu exécutes : "${actionPart}". \nL'Instructeur t'observe avec un regard impénétrable. "Pas mal," grogne-t-il, "mais la route est encore longue." Tu sens ton expérience s'affiner.`,
-        `Une onde de choc parcourt la matrice alors que tu tentes de "${actionPart}". \nLe destin sourit à ton audace, ${playerName}. Bien que l'avenir soit incertain, ton geste laisse une marque indélébile dans les couloirs d'Aetherys.`,
-        `*DODODO!* \nL'Instructeur esquive ton geste à la dernière seconde. "C'était bien tenté, ${playerName}, mais ton intention de tuer doit être plus pure !" Ton action "${actionPart}" a été entendue par le monde lui-même.`
+        `*Le monde semble vibrer sous l'impact de ta volonté.* \n\n${playerName}, tu exécutes ton geste avec détermination : "${actionPart}". \nL'Instructeur t'observe avec un regard impénétrable. "Pas mal," grogne-t-il, "mais la route est encore longue." Tu sens ton expérience s'affiner.`,
+        `Une onde de choc parcourt la zone alors que tu tentes de "${actionPart}". \nLe destin sourit à ton audace, ${playerName}. Bien que l'avenir soit incertain, ton geste laisse une marque indélébile dans les couloirs d'Aetherys.`,
+        `*DODODO!* \nL'Instructeur esquive ton geste à la dernière seconde. "C'était bien tenté, ${playerName}, mais ton intention de tuer doit être plus pure !" Ton action a été entendue par le monde lui-même.`
     ];
 
     const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
 
-    return JSON.stringify({
+    // Return an object directly to avoid double JSON stringification/parsing issues
+    return {
         narrative: randomTemplate + "\n\n(Note: Les serveurs de l'IA sont surchargés, ceci est une réponse de secours.)",
         actions: [{"type": "update_player", "parameters": {"xp_gain": 5, "col_change": 2}}]
-    });
+    };
 }
 
 module.exports = { callAI, cleanAIResponse, extractNarrative };
