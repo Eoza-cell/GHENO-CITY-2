@@ -126,10 +126,10 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 3) return null;
 
     const providers = [
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter Free', fn: callOpenRouterFree },
         { name: 'Pollinations POST', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox }
     ];
 
@@ -229,13 +229,29 @@ async function callPollinationsGET(system, prompt) {
 async function callPuterSDK(system, prompt) {
     const p = initPuter();
     if (!p) return null;
-    const models = ["gpt-4o", "claude-3-5-sonnet"];
+
+    // User requested Puter.js as primary. Priority: gpt-4o > claude-3.5-sonnet > gemini-1.5-flash
+    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+
     for (const model of models) {
         try {
-            const combined = `[SYSTEM]\n${system}\n\n[USER]\n${prompt}`;
-            const resp = await p.ai.chat(combined, { model });
-            if (resp) return resp;
-        } catch (e) { continue; }
+            console.log(`[AI] Puter.js - Tentative avec ${model}`);
+            // Note: Heyputer SDK handles system prompts best by prepending to the first message
+            // or using specific chat object structures if supported by the model.
+            const response = await p.ai.chat([
+                { role: 'system', content: system },
+                { role: 'user', content: prompt }
+            ], { model: model });
+
+            if (response && response.message && response.message.content) {
+                return response.message.content;
+            } else if (response && typeof response === 'string') {
+                return response;
+            }
+        } catch (e) {
+            console.warn(`[AI] Puter.js ${model} failed:`, e.message);
+            continue;
+        }
     }
     return null;
 }
