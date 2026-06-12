@@ -190,7 +190,11 @@ async function handleTutorialAction(sock, message, player, actionText) {
             const aiResponse = extractNarrative(contentRaw);
 
             if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-                aiResponse.narrative = "🌀 *Flux instable...* L'Instructeur te regarde avec insistance, attendant ton prochain mouvement. Réessaie ton attaque.";
+                // If the narrative was truly empty but extractNarrative failed,
+                // we use the raw cleaned response as a last resort
+                const { cleanAIResponse } = require('./ai-utils');
+                const lastResort = cleanAIResponse(contentRaw);
+                aiResponse.narrative = lastResort.length > 10 ? lastResort : "🌀 *Flux instable...* L'Instructeur te regarde avec insistance, attendant ton prochain mouvement. Réessaie ton attaque.";
             }
 
             if (aiResponse.tutorial_complete) {

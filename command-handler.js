@@ -741,6 +741,26 @@ commands.set('statut', async (sock, message) => {
     }
 });
 
+// Command: /reset
+commands.set('reset', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de personnage à réinitialiser." });
+        return;
+    }
+
+    try {
+        await player.destroy();
+        await sock.sendMessage(replyJid, { text: "💥 *RÉINITIALISATION TOTALE*\n\nTon personnage et tes données ont été effacés de la matrice. Utilise /start pour renaître sous une nouvelle forme." });
+    } catch (error) {
+        console.error("Erreur reset joueur:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la réinitialisation de ton personnage." });
+    }
+});
+
 // Command: /help
 // Command: /save
 commands.set('save', async (sock, message) => {
@@ -776,6 +796,7 @@ commands.set('help', async (sock, message) => {
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
                    "/save - Sauvegarder tes données manuellement.\n" +
+                   "/reset - Effacer ton personnage pour recommencer.\n" +
                    "/checkai - Diagnostiquer l'état des serveurs IA.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
