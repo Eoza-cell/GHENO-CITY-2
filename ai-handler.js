@@ -9,6 +9,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerState = `
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
+    - JID: ${player.whatsappId}
     - Description: ${player.characterDescription}
     - Famille: ${player.family}
     - Classe: ${player.class} (${player.derivative})

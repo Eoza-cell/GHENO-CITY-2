@@ -2,12 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
+const pino = require('pino');
+const { getContentType } = require('@whiskeysockets/baileys');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./database');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
+const { exportDatabase, importDatabase } = require('./backup-utils');
 const { Op } = require('sequelize');
 
 /**
@@ -155,6 +158,7 @@ const profileCommand = async (sock, message) => {
       const xpBar = createStatusBar(player.xp, xpNeeded);
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
+                          (player.isGod ? `🆔 *JID:* ${player.whatsappId}\n` : '') +
                           `👤 *JOUEUR:* ${player.name}\n` +
                           `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
@@ -185,6 +189,7 @@ const profileCommand = async (sock, message) => {
       const xpBar = createStatusBar(player.xp, xpNeeded);
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
+                          (player.isGod ? `🆔 *JID:* ${player.whatsappId}\n` : '') +
                           `👤 *JOUEUR:* ${player.name}\n` +
                           `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
@@ -232,7 +237,11 @@ commands.set('inspecter', async (sock, message) => {
     const xpNeeded = targetPlayer.level * 100;
     const xpBar = createStatusBar(targetPlayer.xp, xpNeeded);
 
+    const playerCaller = await Player.findOne({ where: { whatsappId: jid } });
+    const isGod = playerCaller && playerCaller.isGod;
+
     const profileText = `--- 🔍 INSPECTION - ${targetPlayer.name} --- \n\n` +
+                        (isGod ? `🆔 *JID:* ${targetPlayer.whatsappId}\n` : '') +
                         `👪 *FAMILLE:* ${targetPlayer.family}\n` +
                         `🎭 *CLASSE:* ${targetPlayer.class}\n` +
                         `🎖️ *RANG:* ${targetPlayer.rank}\n` +
@@ -431,6 +440,12 @@ commands.set('myjid', async (sock, message) => {
     await sock.sendMessage(message.key.remoteJid, { text: `Ton JID est : ${jid}` });
 });
 
+// Command: /botjid
+commands.set('botjid', async (sock, message) => {
+    const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+    await sock.sendMessage(message.key.remoteJid, { text: `Mon JID est : ${botJid}` });
+});
+
 // Command: /checkgod
 commands.set('checkgod', async (sock, message) => {
     const jid = getJid(message);
@@ -439,6 +454,85 @@ commands.set('checkgod', async (sock, message) => {
 
     const status = player.isGod ? "🟢 OUI" : "🔴 NON";
     await sock.sendMessage(message.key.remoteJid, { text: `Es-tu Dieu ? : ${status}\nJID: ${jid}` });
+});
+
+// Command: /dbbackup
+commands.set('dbbackup', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Accès refusé. Seuls les dieux peuvent manipuler la réalité." });
+        return;
+    }
+
+    try {
+        await sock.sendMessage(replyJid, { text: "⏳ *Génération du backup en cours...*" });
+        const data = await exportDatabase();
+        const json = JSON.stringify(data, null, 2);
+        const filename = `backup-${new Date().toISOString().split('T')[0]}.json`;
+        const filepath = path.join('/tmp', filename);
+
+        fs.writeFileSync(filepath, json);
+
+        await sock.sendMessage(replyJid, {
+            document: fs.readFileSync(filepath),
+            fileName: filename,
+            mimetype: 'application/json',
+            caption: `📦 *GHENO BACKUP COMPLET*\nDate: ${new Date().toLocaleString()}\nJoueurs: ${data.Player?.length || 0}`
+        });
+    } catch (e) {
+        console.error("[BACKUP] Erreur:", e);
+        await sock.sendMessage(replyJid, { text: `❌ Erreur lors du backup: ${e.message}` });
+    }
+});
+
+// Command: /dbrestore
+commands.set('dbrestore', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Accès refusé." });
+        return;
+    }
+
+    const type = getContentType(message.message);
+    let jsonData = null;
+
+    if (type === 'documentMessage') {
+        try {
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+            const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
+            jsonData = JSON.parse(buffer.toString());
+        } catch (e) {
+            await sock.sendMessage(replyJid, { text: "Erreur lecture fichier JSON." });
+            return;
+        }
+    } else {
+        const text = message.message.conversation || message.message.extendedTextMessage?.text;
+        const jsonStart = text.indexOf('{');
+        if (jsonStart !== -1) {
+            try {
+                jsonData = JSON.parse(text.substring(jsonStart));
+            } catch (e) {}
+        }
+    }
+
+    if (!jsonData) {
+        await sock.sendMessage(replyJid, { text: "Veuillez envoyer un fichier JSON de backup ou le texte JSON." });
+        return;
+    }
+
+    try {
+        await sock.sendMessage(replyJid, { text: "⏳ *Restauration de la base de données...*" });
+        await importDatabase(jsonData);
+        await sock.sendMessage(replyJid, { text: "✅ *RESTAURATION TERMINÉE*\nLa matrice a été mise à jour avec succès." });
+    } catch (e) {
+        await sock.sendMessage(replyJid, { text: `❌ Erreur restauration: ${e.message}` });
+    }
 });
 
 // Command: /examens

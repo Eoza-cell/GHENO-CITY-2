@@ -219,11 +219,11 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
+        { name: 'Pollinations POST', fn: callPollinationsPOST },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Ollama Local', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter Free', fn: callOpenRouterFree },
-        { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'MJ Hardcoded Fallback', fn: callMJFallback }
     ];
