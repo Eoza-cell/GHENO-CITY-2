@@ -132,15 +132,29 @@ function extractNarrative(content) {
             }
         }
 
+        let textSegments = [];
+        let currentPos = 0;
+
         if (jsonObjects.length > 0) {
             for (const potentialJson of jsonObjects) {
+                // Find where this JSON is in the cleaned text to keep track of text segments around it
+                const jsonIndex = cleaned.indexOf(potentialJson, currentPos);
+                if (jsonIndex > currentPos) {
+                    textSegments.push(cleaned.substring(currentPos, jsonIndex));
+                }
+                currentPos = jsonIndex + potentialJson.length;
+
                 try {
                     const parsed = JSON.parse(potentialJson);
-                    // Merge properties, prioritizing narrative and actions
+                    // Merge properties
                     if (parsed.narrative) {
-                        if (aiResponse.narrative) aiResponse.narrative += "\n\n" + parsed.narrative;
-                        else aiResponse.narrative = parsed.narrative;
+                        textSegments.push(parsed.narrative);
+                    } else if (parsed.message) {
+                        textSegments.push(parsed.message);
+                    } else if (parsed.content) {
+                        textSegments.push(parsed.content);
                     }
+
                     if (parsed.actions) {
                         if (Array.isArray(parsed.actions)) {
                             aiResponse.actions = [...(aiResponse.actions || []), ...parsed.actions];
@@ -149,25 +163,26 @@ function extractNarrative(content) {
                         }
                     }
                     if (parsed.tutorial_complete !== undefined) aiResponse.tutorial_complete = parsed.tutorial_complete;
-
-                    // Capture other potential fields
-                    if (parsed.message && !aiResponse.narrative) aiResponse.narrative = parsed.message;
-                    if (parsed.content && !aiResponse.narrative) aiResponse.narrative = parsed.content;
                 } catch (e) {
-                    // Not valid JSON or partial, skip
+                    // If it's not valid JSON, treat it as text
+                    textSegments.push(potentialJson);
                 }
+            }
+            // Add remaining text after last JSON
+            if (currentPos < cleaned.length) {
+                textSegments.push(cleaned.substring(currentPos));
             }
         }
 
+        // Combine all text segments, filtering out duplicates or purely technical strings
+        aiResponse.narrative = textSegments
+            .map(s => s.trim())
+            .filter(s => s.length > 0)
+            .join("\n\n");
+
         // If narrative is still empty or we didn't find JSON, use the whole cleaned text
-        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-            let finalNarrative = cleaned;
-            if (jsonObjects.length > 0) {
-                for (const match of jsonObjects) {
-                    finalNarrative = finalNarrative.replace(match, '');
-                }
-            }
-            aiResponse.narrative = finalNarrative.trim() || cleaned;
+        if (!aiResponse.narrative || aiResponse.narrative.length < 2) {
+            aiResponse.narrative = cleaned;
         }
     }
 
@@ -297,8 +312,10 @@ async function callOpenRouterFree(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'p1', 'searchgpt', 'qwen-coder'];
-    for (const model of models) {
+    const models = ['openai', 'mistral', 'llama', 'p1', 'searchgpt', 'qwen-coder', 'unity'];
+    const randomModels = [...models].sort(() => Math.random() - 0.5);
+
+    for (const model of randomModels) {
         try {
             console.log(`[AI] Pollinations POST - Tentative avec ${model}`);
             const response = await axios.post('https://text.pollinations.ai/', {
@@ -308,13 +325,15 @@ async function callPollinationsPOST(system, prompt) {
                 ],
                 model: model,
                 seed: Math.floor(Math.random() * 1000000),
-                jsonMode: system.toLowerCase().includes('json')
+                jsonMode: true
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${Math.floor(Math.random()*20)+110}.0.0.0 Safari/537.36`
+                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${Math.floor(Math.random()*20)+120}.0.0.0 Safari/537.36`,
+                    'Referer': 'https://pollinations.ai/',
+                    'Origin': 'https://pollinations.ai'
                 },
-                timeout: 30000
+                timeout: 25000
             });
 
             let data = response.data;
@@ -339,25 +358,29 @@ async function callPollinationsPOST(system, prompt) {
 
 async function callPollinationsGET(system, prompt) {
     try {
-        const models = ['openai', 'mistral', 'llama', 'unity'];
-        const reversed = [...models].reverse();
-        for (const model of reversed) {
+        const models = ['openai', 'mistral', 'llama', 'unity', 'p1', 'searchgpt'];
+        const randomModels = [...models].sort(() => Math.random() - 0.5);
+
+        for (const model of randomModels) {
             const seed = Math.floor(Math.random() * 1000000);
-            const tinySystem = "Tu es le MJ d'un RPG anime. Réponds en français. Format JSON: {\"narrative\": \"...\"}";
+            const tinySystem = "Tu es le MJ de Gheno City 2. Réponds en français (JSON).";
             const actionPart = prompt.includes('ACTION:') ? prompt.split('ACTION:').pop() : prompt;
-            const combined = `${tinySystem}\n\nContexte: ${prompt.substring(0, 400)}\n\nAction: ${actionPart.substring(0, 400)}`;
+            const combined = `${tinySystem}\nContexte: ${prompt.substring(0, 300)}\nAction: ${actionPart.substring(0, 300)}`;
 
-            const url = `https://text.pollinations.ai/${encodeURIComponent(combined.substring(0, 1500))}?model=${model}&seed=${seed}&cache=false`;
+            const url = `https://text.pollinations.ai/${encodeURIComponent(combined.substring(0, 1000))}?model=${model}&seed=${seed}&json=true&cache=false`;
 
+            console.log(`[AI] Pollinations GET - Tentative avec ${model}`);
             const response = await axios.get(url, {
-                timeout: 20000,
+                timeout: 15000,
                 headers: {
-                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${Math.floor(Math.random()*20)+110}.0.0.0 Safari/537.36`
+                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${Math.floor(Math.random()*20)+120}.0.0.0 Safari/537.36`,
+                    'Referer': 'https://pollinations.ai/',
+                    'Origin': 'https://pollinations.ai'
                 }
             });
 
             const data = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-            if (data && data.length > 10 && !data.toLowerCase().includes('rate limit') && !data.includes('Queue full')) {
+            if (data && data.length > 10 && !data.toLowerCase().includes('rate limit') && !data.includes('Queue full') && !data.includes('401')) {
                 return data;
             }
         }

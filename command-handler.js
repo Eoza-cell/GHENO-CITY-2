@@ -920,11 +920,42 @@ commands.set('checkai', async (sock, message, args) => {
     const openrouterKeySet = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.length > 5);
 
     let diagnosticStart = `🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*${isDebug ? ' [MODE DEBUG]' : ''}...\n\n`;
-    diagnosticStart += `🔑 Puter: ${puterKeySet ? '✅' : '❌ (Recommandé)'}\n`;
-    diagnosticStart += `🔑 OpenRouter: ${openrouterKeySet ? '✅' : '❌ (Optionnel)'}\n\n`;
-    diagnosticStart += `Test de connexion en cours...`;
+    diagnosticStart += `🔑 Puter: ${puterKeySet ? '✅' : '❌'}\n`;
+    diagnosticStart += `🔑 OpenRouter: ${openrouterKeySet ? '✅' : '❌'}\n\n`;
+    diagnosticStart += `Test des serveurs en cours...`;
 
     await sock.sendMessage(replyJid, { text: diagnosticStart });
+
+    if (isDebug) {
+        // Deep diagnostic mode
+        const aiUtils = require('./ai-utils');
+        const tests = [
+            { name: 'Pollinations POST', fn: aiUtils.callPollinationsPOST },
+            { name: 'Pollinations GET', fn: aiUtils.callPollinationsGET },
+            { name: 'Ollama', fn: aiUtils.callOllama },
+            { name: 'Puter', fn: aiUtils.callPuterSDK },
+            { name: 'OpenRouter', fn: aiUtils.callOpenRouterFree },
+            { name: 'Blackbox', fn: aiUtils.callBlackbox }
+        ];
+
+        let results = "📊 *RÉSULTATS DÉTAILLÉS:*\n\n";
+        for (const test of tests) {
+            const start = Date.now();
+            try {
+                const res = await test("Test de connexion.", "Réponds 'OK'");
+                const dur = (Date.now() - start) / 1000;
+                if (res) {
+                    results += `✅ ${test.name}: ${dur}s\n`;
+                } else {
+                    results += `❌ ${test.name}: Échec\n`;
+                }
+            } catch (err) {
+                results += `❌ ${test.name}: ${err.message}\n`;
+            }
+        }
+        await sock.sendMessage(replyJid, { text: results });
+        return;
+    }
 
     const startTime = Date.now();
     try {
@@ -932,28 +963,17 @@ commands.set('checkai', async (sock, message, args) => {
         const duration = (Date.now() - startTime) / 1000;
 
         if (result) {
-            let status = "🟢 *OPÉRATIONNEL*";
-            let details = `Latence: ${duration}s\n`;
-
-            if (isDebug) {
-                details += `Réponse brute: ${typeof result === 'string' ? result.substring(0, 200) : JSON.stringify(result).substring(0, 200)}...\n`;
-            }
-
             await sock.sendMessage(replyJid, {
                 text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
-                      `Statut: ${status}\n` +
-                      `${details}\n` +
-                      `_Le flux magique est stable._`
+                      `Statut: 🟢 *OPÉRATIONNEL*\n` +
+                      `Latence globale: ${duration}s\n\n` +
+                      `_Le flux magique est stable. Si le bot ne répond pas en RP, le problème vient probablement du format de réponse de l'IA._`
             });
         } else {
-            throw new Error("Tous les providers (Ollama, Puter, OpenRouter, Pollinations, Blackbox) ont échoué.");
+            throw new Error("Tous les providers ont échoué.");
         }
     } catch (e) {
-        let errorMsg = `🔴 *ERREUR CRITIQUE*\n\n${e.message}\n\n💡 *Conseil:* Assurez-vous d'avoir configuré PUTER_API_KEY dans votre fichier .env pour une meilleure stabilité.`;
-        if (isDebug) {
-            errorMsg += `\n\nStack: ${e.stack?.split('\n').slice(0, 3).join('\n')}`;
-        }
-        await sock.sendMessage(replyJid, { text: errorMsg });
+        await sock.sendMessage(replyJid, { text: `🔴 *ERREUR CRITIQUE*\n\n${e.message}\n\nTape /checkai debug pour plus d'infos.` });
     }
 });
 

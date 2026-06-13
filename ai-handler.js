@@ -154,7 +154,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Tu gères des interactions entre joueurs dans la même zone.
     - Si l'action du joueur implique un autre joueur, tu peux créer une notification directe à ce joueur via une action notify_player.
     - Si l'événement concerne tous les joueurs du lieu, utilise une action broadcast.
-    - Ne nomme jamais la JID ou d'autres données techniques, seulement les noms de personnages.
+    - Ne nomme jamais la JID ou d'autres données techniques (sauf si explicitement demandé en RP par un admin), privilégie toujours les noms de personnages.
 
     FORMAT DE RÉPONSE (JSON STRICT):
     {
