@@ -446,6 +446,42 @@ commands.set('botjid', async (sock, message) => {
     await sock.sendMessage(message.key.remoteJid, { text: `Mon JID est : ${botJid}` });
 });
 
+// Command: /config
+commands.set('config', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Accès refusé. Seuls les dieux peuvent reconfigurer la matrice." });
+        return;
+    }
+
+    if (args.length === 0) {
+        let currentConfig = "*CONFIGURATION ACTUELLE:*\n\n";
+        currentConfig += `🔗 OLLAMA_URL: \`${process.env.OLLAMA_URL || 'Non configuré'}\`\n`;
+        currentConfig += `🤖 OLLAMA_MODEL: \`${process.env.OLLAMA_MODEL || 'Non configuré'}\`\n`;
+        currentConfig += `🔑 PUTER_API_KEY: \`${process.env.PUTER_API_KEY ? '******' : 'Non configuré'}\`\n`;
+        currentConfig += `🔑 OPENROUTER_API_KEY: \`${process.env.OPENROUTER_API_KEY ? '******' : 'Non configuré'}\`\n\n`;
+        currentConfig += "Utilisation: `/config <CLE> <VALEUR>`\nEx: `/config OLLAMA_URL http://127.0.0.1:11434`";
+        await sock.sendMessage(replyJid, { text: currentConfig });
+        return;
+    }
+
+    const key = args[0].toUpperCase();
+    const value = args.slice(1).join(' ');
+
+    const allowedKeys = ['OLLAMA_URL', 'OLLAMA_MODEL', 'PUTER_API_KEY', 'OPENROUTER_API_KEY'];
+
+    if (!allowedKeys.includes(key)) {
+        await sock.sendMessage(replyJid, { text: `❌ Clé non autorisée. Clés possibles: ${allowedKeys.join(', ')}` });
+        return;
+    }
+
+    process.env[key] = value;
+    await sock.sendMessage(replyJid, { text: `✅ *MISE À JOUR RÉUSSIE*\n\n\`${key}\` est désormais fixé à: \`${value}\`` });
+});
+
 // Command: /checkgod
 commands.set('checkgod', async (sock, message) => {
     const jid = getJid(message);

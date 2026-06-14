@@ -1,4 +1,6 @@
 const axios = require('axios');
+const { getCurrentRPTime } = require('./world-clock');
+const { Ollama } = require('ollama');
 
 /**
  * AI Provider functions exported for diagnostics
@@ -99,15 +101,24 @@ async function callOpenRouterFree(system, prompt) {
 async function callOllama(system, prompt) {
     if (!process.env.OLLAMA_URL) return null;
     try {
-        const response = await axios.post(`${process.env.OLLAMA_URL}/api/generate`, {
-            model: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
-            prompt: prompt,
-            system: system,
-            stream: false
-        }, { timeout: 45000 });
-        return response.data?.response;
+        const ollama = new Ollama({ host: process.env.OLLAMA_URL });
+        const response = await ollama.chat({
+            model: process.env.OLLAMA_MODEL || 'Plexi09/SentientAI',
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: prompt }
+            ],
+            stream: false,
+            format: 'json',
+            options: {
+                num_ctx: 4096,
+                temperature: 0.7
+            }
+        });
+        return response.message.content;
     } catch (e) {
         console.error("[AI] Ollama Error:", e.message);
+        if (e.code === 'ECONNREFUSED') console.error("[AI] Ollama n'est pas lancé sur", process.env.OLLAMA_URL);
         return null;
     }
 }
@@ -227,8 +238,10 @@ async function callMJFallback(system, prompt) {
     const bodyPart = ["bras", "torse", "jambe", "épaule", "tête"][Math.floor(Math.random() * 5)];
     const technique = ["Coup précis", "Frappe lourde", "Mouvement fluide", "Assaut vif"][Math.floor(Math.random() * 4)];
 
+    const rpTime = getCurrentRPTime();
+
     const narrative = templates[Math.floor(Math.random() * templates.length)];
-    const enrichedNarrative = narrative + `\n\n*Précision Tactique:* Technique: ${technique} | Cible: ${bodyPart} | Distance: ${distance}m.`;
+    const enrichedNarrative = `${rpTime.full}\n\n` + narrative + `\n\n*Précision Tactique:* Technique: ${technique} | Cible: ${bodyPart} | Distance: ${distance}m.`;
 
     return {
         narrative: enrichedNarrative + "\n\n*(Note: Les flux magiques sont instables, le MJ utilise son intuition pour maintenir la réalité)*",
@@ -290,6 +303,9 @@ function extractNarrative(content) {
  */
 async function callAI(systemPrompt, userPrompt, depth = 0, onProviderSuccess = null) {
     if (depth > 2) return null;
+    if (!process.env.OLLAMA_URL) {
+        console.warn("[AI] OLLAMA_URL non configuré. Utilisation des fallbacks cloud.");
+    }
     const providers = [
         { name: 'Ollama', fn: callOllama },
         { name: 'Puter API', fn: callPuterAPI },
@@ -305,11 +321,18 @@ async function callAI(systemPrompt, userPrompt, depth = 0, onProviderSuccess = n
             console.log(`[AI] Tentative: ${p.name}...`);
             const res = await p.fn(systemPrompt, userPrompt);
             if (res) {
-                if (typeof res === 'string' && (res.includes('Unauthorized') || res.includes('401') || res.includes('429')) && res.length < 300) continue;
+                if (typeof res === 'string' && (res.includes('Unauthorized') || res.includes('401') || res.includes('429')) && res.length < 300) {
+                    console.warn(`[AI] ${p.name} a renvoyé une erreur de statut: ${res}`);
+                    continue;
+                }
                 if (onProviderSuccess) onProviderSuccess(p.name);
                 return res;
+            } else {
+                console.warn(`[AI] ${p.name} n'a rien renvoyé.`);
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error(`[AI] ${p.name} a échoué:`, e.message);
+        }
     }
     if (onProviderSuccess) onProviderSuccess("MJ Fallback");
     return await callMJFallback(systemPrompt, userPrompt);
