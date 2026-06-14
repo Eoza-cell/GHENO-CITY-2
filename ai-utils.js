@@ -371,6 +371,14 @@ function extractNarrative(content) {
         aiResponse.narrative = cleaned;
     }
 
+    // Ensure parameters key exists in actions if missing
+    if (aiResponse.actions) {
+        aiResponse.actions = aiResponse.actions.map(act => {
+            if (act.type && !act.parameters) act.parameters = {};
+            return act;
+        });
+    }
+
     return aiResponse;
 }
 

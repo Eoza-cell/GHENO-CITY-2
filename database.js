@@ -5,33 +5,22 @@ let sequelize;
 const dbUrl = process.env.DATABASE_URL;
 
 if (dbUrl) {
-  console.log('[DB] Vérification de la connexion PostgreSQL...');
-  try {
-    // Probe sync avec un timeout de 10 secondes
-    execSync(`node -e "const { Sequelize } = require('sequelize'); const s = new Sequelize(process.env.DB_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }); s.authenticate().then(() => process.exit(0)).catch((e) => { process.exit(1); })"`, {
-      env: { ...process.env, DB_URL: dbUrl },
-      timeout: 10000,
-      stdio: 'ignore'
-    });
-    console.log('[DB] PostgreSQL est accessible. Connexion en cours...');
-    sequelize = new Sequelize(dbUrl, {
-      dialect: 'postgres',
-      logging: false,
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        }
+  console.log('[DB] Utilisation de PostgreSQL (DATABASE_URL détectée).');
+  sequelize = new Sequelize(dbUrl, {
+    dialect: 'postgres',
+    logging: false,
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
       }
-    });
-  } catch (e) {
-    console.error('[DB] PostgreSQL inaccessible (ENOTFOUND ou Timeout). Basculement sur SQLite local.');
-    sequelize = new Sequelize({
-      dialect: 'sqlite',
-      storage: 'gheno-city.sqlite',
-      logging: false,
-    });
-  }
+    },
+    // Augmenter les retries pour la stabilité sur Render
+    retry: {
+      match: [/Deadlock/i, /SequelizeConnectionError/i, /SequelizeConnectionRefusedError/i, /SequelizeHostNotFoundError/i, /SequelizeHostNotReachableError/i, /SequelizeInvalidConnectionError/i, /SequelizeConnectionTimedOutError/i, /TimeoutError/i],
+      max: 5
+    }
+  });
 } else {
   console.log('[DB] Pas de DATABASE_URL. Utilisation de SQLite local.');
   sequelize = new Sequelize({
