@@ -13,21 +13,31 @@ function getCurrentRPTime() {
 
     const rpDate = new Date(START_DATE + elapsedGMS);
 
-    // Calculate custom components for "An X, Mois Y, Jour Z"
-    // Since we use standard Date object on top of a factor,
-    // it will follow calendar rules (leap years etc) but 9x faster.
-
     const day = rpDate.getUTCDate();
-    const month = rpDate.getUTCMonth() + 1; // 1-12
-    const year = rpDate.getUTCFullYear() - 2023; // An 1 starts in 2024
+    const month = rpDate.getUTCMonth() + 1;
+    const year = rpDate.getUTCFullYear() - 2023;
 
-    const hours = String(rpDate.getUTCHours()).padStart(2, '0');
-    const minutes = String(rpDate.getUTCMinutes()).padStart(2, '0');
+    const hoursNum = rpDate.getUTCHours();
+    const minsNum = rpDate.getUTCMinutes();
+    const hours = String(hoursNum).padStart(2, '0');
+    const minutes = String(minsNum).padStart(2, '0');
+
+    const dayNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+    const dayName = dayNames[rpDate.getUTCDay()];
+
+    // Progress bar for the day (24 hours)
+    const totalMinsInDay = 24 * 60;
+    const currentMins = (hoursNum * 60) + minsNum;
+    const progress = currentMins / totalMinsInDay;
+    const barLength = 20;
+    const filledCount = Math.floor(progress * barLength);
+    const emptyCount = barLength - filledCount;
+    const bar = "▰".repeat(filledCount) + "▱".repeat(emptyCount);
 
     return {
         time: `${hours}:${minutes}`,
-        date: `Jour ${day}, Mois ${month}, An ${year}`,
-        full: `[ 🕒 ${hours}:${minutes} | 📅 Jour ${day}, Mois ${month}, An ${year} ]`
+        date: `${dayName} ${day}, Mois ${month}, An ${year}`,
+        full: `╔═══════ 💠 ═══════╗\n  ${bar}\n  🕒 *HEURE:* ${hours}:${minutes}\n  📅 *DATE:* ${dayName} ${day}, Mois ${month}, An ${year}\n╚═══════ 💠 ═══════╝`
     };
 }
 

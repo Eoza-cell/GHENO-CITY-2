@@ -26,8 +26,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   const inventory = player.inventory || [];
+  // Truncate inventory to top 10 items to save tokens
   const inventoryState = inventory.length > 0
-    ? "Inventaire:\n" + inventory.map(i => `- ${i.name} (x${i.quantity})`).join('\n')
+    ? "Inventaire:\n" + inventory.slice(0, 10).map(i => `- ${i.name} (x${i.quantity})`).join('\n') + (inventory.length > 10 ? `\n... (+${inventory.length - 10} autres)` : "")
     : "Ton inventaire est vide.";
 
   const playerQuests = await player.getQuests();
@@ -87,7 +88,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       limit: 3
   });
   const historyState = history.length > 0
-    ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')
+    ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content.substring(0, 200)}${h.content.length > 200 ? "..." : ""}`).join('\n')
     : "";
 
   const playerSkills = await player.getSkills();
@@ -149,7 +150,9 @@ FORMAT JSON:
     const fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION DU JOUEUR: ${actionText}`;
 
   try {
-    let content = await callAI(systemPrompt, fullPrompt);
+    let usedProvider = "Unknown";
+    let content = await callAI(systemPrompt, fullPrompt, 0, (name) => { usedProvider = name; });
+
     if (!content) {
         throw new Error("L'IA a retourné une réponse vide.");
     }
@@ -161,8 +164,9 @@ FORMAT JSON:
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
         aiResponse.narrative = "🌀 *Le flux magique est instable.* La matrice de Skype semble s'obscurcir un instant. L'action est en suspens, réessaie dans quelques instants...";
     } else {
-        // Prepend World Clock to narrative
-        aiResponse.narrative = `${rpTime.full}\n\n${aiResponse.narrative}`;
+        // Prepend World Clock & Provider to narrative (Provider only for God/Admin)
+        const providerTag = player.isGod ? `\n\n_Flux: ${usedProvider}_` : "";
+        aiResponse.narrative = `${rpTime.full}\n\n${aiResponse.narrative}${providerTag}`;
     }
 
     console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
