@@ -1,6 +1,8 @@
 const axios = require('axios');
 const { getCurrentRPTime } = require('./world-clock');
-const { Ollama } = require('ollama');
+const ollamaLib = require('ollama');
+const OllamaClient = ollamaLib.Ollama || (ollamaLib.default && ollamaLib.default.Ollama) || ollamaLib.default;
+const ollama = new OllamaClient({ host: process.env.OLLAMA_URL || 'http://localhost:11434' });
 
 /**
  * AI Provider functions exported for diagnostics
@@ -101,7 +103,6 @@ async function callOpenRouterFree(system, prompt) {
 async function callOllama(system, prompt) {
     if (!process.env.OLLAMA_URL) return null;
     try {
-        const ollama = new Ollama({ host: process.env.OLLAMA_URL });
         const response = await ollama.chat({
             model: process.env.OLLAMA_MODEL || 'Plexi09/SentientAI',
             messages: [
@@ -109,13 +110,12 @@ async function callOllama(system, prompt) {
                 { role: 'user', content: prompt }
             ],
             stream: false,
-            format: 'json',
-            options: {
-                num_ctx: 4096,
-                temperature: 0.7
-            }
+            format: 'json'
         });
-        return response.message.content;
+
+        if (response && response.message) {
+            return response.message.content;
+        }
     } catch (e) {
         console.error("[AI] Ollama Error:", e.message);
         if (e.code === 'ECONNREFUSED') console.error("[AI] Ollama n'est pas lancé sur", process.env.OLLAMA_URL);
@@ -265,36 +265,111 @@ function cleanAIResponse(text) {
 function extractNarrative(content) {
     let aiResponse = { narrative: "", actions: [], tutorial_complete: false };
     if (!content) return aiResponse;
+
+    // Helper to normalize actions to always be an array
+    const normalizeActions = (obj) => {
+        let acts = obj.actions || [];
+        if (!Array.isArray(acts)) acts = [acts];
+        return acts;
+    };
+
+    // Handle case where content is already an object
     if (typeof content === 'object' && !Array.isArray(content)) {
-        aiResponse = { ...aiResponse, ...content };
-        if (!aiResponse.narrative) aiResponse.narrative = aiResponse.text || aiResponse.message || aiResponse.content || "";
+        const narrative = content.narrative || content.message || content.text || content.content || content.response || "";
+        const actions = normalizeActions(content);
+        aiResponse = { ...aiResponse, ...content, narrative, actions };
         return aiResponse;
     }
+
     const cleaned = cleanAIResponse(content);
+
+    // Try to parse the entire response as a single JSON
+    try {
+        const parsed = JSON.parse(cleaned);
+        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+            const narrative = parsed.narrative || parsed.message || parsed.text || parsed.content || parsed.response || "";
+            const actions = normalizeActions(parsed);
+            aiResponse = { ...aiResponse, ...parsed, narrative, actions };
+            // If we have a narrative, we are good.
+            if (aiResponse.narrative) return aiResponse;
+        }
+    } catch (e) {
+        // Not a single JSON
+    }
+
     const jsonObjects = [];
     let braceCount = 0, startIndex = -1;
     for (let i = 0; i < cleaned.length; i++) {
-        if (cleaned[i] === '{') { if (braceCount === 0) startIndex = i; braceCount++; }
-        else if (cleaned[i] === '}') { braceCount--; if (braceCount === 0 && startIndex !== -1) { jsonObjects.push(cleaned.substring(startIndex, i + 1)); startIndex = -1; } }
+        if (cleaned[i] === '{') {
+            if (braceCount === 0) startIndex = i;
+            braceCount++;
+        } else if (cleaned[i] === '}') {
+            braceCount--;
+            if (braceCount === 0 && startIndex !== -1) {
+                jsonObjects.push(cleaned.substring(startIndex, i + 1));
+                startIndex = -1;
+            }
+        }
     }
-    let textSegments = [], currentPos = 0;
+
+    let textSegments = [];
+    let currentPos = 0;
+
     if (jsonObjects.length > 0) {
         for (const potentialJson of jsonObjects) {
             const jsonIndex = cleaned.indexOf(potentialJson, currentPos);
-            if (jsonIndex > currentPos) textSegments.push(cleaned.substring(currentPos, jsonIndex));
+            if (jsonIndex > currentPos) {
+                textSegments.push(cleaned.substring(currentPos, jsonIndex));
+            }
             currentPos = jsonIndex + potentialJson.length;
+
             try {
                 const parsed = JSON.parse(potentialJson);
-                if (parsed.narrative) textSegments.push(parsed.narrative);
-                else if (parsed.message) textSegments.push(parsed.message);
-                if (parsed.actions) { if (Array.isArray(parsed.actions)) aiResponse.actions = [...aiResponse.actions, ...parsed.actions]; else aiResponse.actions.push(parsed.actions); }
-                if (parsed.tutorial_complete !== undefined) aiResponse.tutorial_complete = parsed.tutorial_complete;
-            } catch (e) { textSegments.push(potentialJson); }
+
+                // Merge narrative part
+                const narrativePart = parsed.narrative || parsed.message || parsed.text || parsed.content || parsed.response;
+                if (narrativePart) textSegments.push(narrativePart);
+
+                // Merge actions part robustly
+                if (parsed.actions) {
+                    const acts = normalizeActions(parsed);
+                    aiResponse.actions = [...aiResponse.actions, ...acts];
+                }
+
+                // Merge other fields (like imagePrompt, tutorial_complete, etc.)
+                for (const key in parsed) {
+                    if (!['narrative', 'message', 'text', 'content', 'response', 'actions'].includes(key)) {
+                        aiResponse[key] = parsed[key];
+                    }
+                }
+            } catch (e) {
+                textSegments.push(potentialJson);
+            }
         }
-        if (currentPos < cleaned.length) textSegments.push(cleaned.substring(currentPos));
+        // Remaining text after last JSON
+        if (currentPos < cleaned.length) {
+            textSegments.push(cleaned.substring(currentPos));
+        }
+    } else {
+        // No JSON found
+        aiResponse.narrative = cleaned;
+        return aiResponse;
     }
-    aiResponse.narrative = textSegments.map(s => s.trim()).filter(s => s.length > 0).join("\n\n");
-    if (!aiResponse.narrative || aiResponse.narrative.length < 2) aiResponse.narrative = cleaned;
+
+    // Merge all narrative segments
+    aiResponse.narrative = textSegments
+        .map(s => {
+            if (typeof s === 'string') return s.trim();
+            try { return JSON.stringify(s); } catch(e) { return String(s); }
+        })
+        .filter(s => s.length > 0)
+        .join("\n\n");
+
+    // Final fallback
+    if (!aiResponse.narrative || aiResponse.narrative.length < 2) {
+        aiResponse.narrative = cleaned;
+    }
+
     return aiResponse;
 }
 

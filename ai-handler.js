@@ -156,10 +156,18 @@ FORMAT JSON:
     if (!content) {
         throw new Error("L'IA a retourné une réponse vide.");
     }
-    console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : 'Object'}...`);
+
+    // Log the provider name and the beginning of the response
+    console.log(`[AI SUCCESS] Provider: ${usedProvider}`);
+    if (typeof content === 'string') {
+        console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 300)}...`);
+    } else {
+        console.log(`[AI RAW] Objet reçu:`, JSON.stringify(content).substring(0, 300));
+    }
 
     // Enhanced JSON & Narrative extraction using centralized logic
     const aiResponse = extractNarrative(content);
+    console.log(`[AI PARSED] Narrative length: ${aiResponse.narrative?.length || 0}`);
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
         aiResponse.narrative = "🌀 *Le flux magique est instable.* La matrice de Skype semble s'obscurcir un instant. L'action est en suspens, réessaie dans quelques instants...";
