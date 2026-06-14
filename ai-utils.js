@@ -23,11 +23,15 @@ async function callPollinationsPOST(system, prompt) {
 
 async function callPollinationsGET(system, prompt) {
     try {
-        const combined = `${system.substring(0, 100)}\n${prompt.substring(0, 150)}`;
-        const url = `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&json=true`;
-        const response = await axios.get(url, { timeout: 15000 });
+        const combined = `System: ${system}\n\nUser: ${prompt}`;
+        // No seed to increase cache hits if possible, or just keep it simple
+        const url = `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&cache=true`;
+        const response = await axios.get(url, { timeout: 30000 });
         if (response.data) return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-    } catch (e) { return null; }
+    } catch (e) {
+        console.error("[AI] Pollinations GET error:", e.message);
+        return null;
+    }
     return null;
 }
 
@@ -100,7 +104,9 @@ async function callPuterSDK(system, prompt) {
 async function callMJFallback(system, prompt) {
     console.warn("[AI] ⚠️ MJ Fallback activé.");
     let actionPart = "ton action";
-    if (prompt.includes('ACTION:')) actionPart = prompt.split('ACTION:').pop().trim();
+    if (prompt.includes('ACTION DU JOUEUR:')) actionPart = prompt.split('ACTION DU JOUEUR:').pop().trim();
+    else if (prompt.includes('ACTION:')) actionPart = prompt.split('ACTION:').pop().trim();
+
     let playerName = "Aventurier";
     if (prompt.includes('- Nom:')) playerName = prompt.split('- Nom:')[1].split('\n')[0].trim();
 

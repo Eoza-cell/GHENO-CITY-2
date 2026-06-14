@@ -3,6 +3,7 @@ const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
 const { sendWithImage } = require('./message-handler');
 const { callAI, cleanAIResponse, extractNarrative } = require('./ai-utils');
+const { getCurrentRPTime } = require('./world-clock');
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
@@ -168,18 +169,18 @@ async function handleTutorialAction(sock, message, player, actionText) {
             STYLE: Narratif riche, immersif, style anime. Pas de texte en anglais. PAS de parenthèses pour les sons.
             LONGUEUR: 2-3 paragraphes minimum.
 
-            RÈGLES DU TUTORIEL:
-            1. PROTAGONISTE: Traite le joueur comme le centre de son histoire, pas forcément comme un héros moral.
-            2. IMPACT DES STATS: Respecte l'échelle de puissance :
-               - FOR: ≥10 humain, ≥50 brise des murs, ≥150 pulvérise des bâtiments.
-               - AGI: Rang E (2m/s), Rang D (10m/s), Rang C (30m/s), B+ (Supersonique).
-            3. LIBERTÉ: Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
-            4. TON MENTOR: Sévère mais juste. "DODODO!"
-            5. FIN: tutorial_complete à true après une démonstration de force suffisante.
-            6. JSON: {"narrative": "...", "tutorial_complete": boolean}
+            RÈGLES DU TUTORIEL & COMBAT:
+            1. PROTAGONISTE: Traite le joueur comme le centre de son histoire.
+            2. PRÉCISION: Inclus impérativement les distances (en mètres), les techniques, les parties du corps visées, et les esquives.
+            3. IMPACT DES STATS: Respecte l'échelle de puissance (FOR, AGI).
+            4. LIBERTÉ: Décris les attaques de l'instructeur et laisse le joueur réagir.
+            5. TON MENTOR: Sévère mais juste. "DODODO!"
+            6. FIN: tutorial_complete à true après une démonstration de force suffisante.
+            7. JSON: {"narrative": "...", "tutorial_complete": boolean}
         `;
 
-        const fullPrompt = `ACTION DU JOUEUR: ${actionText}`;
+        const rpTime = getCurrentRPTime();
+        const fullPrompt = `DATE RP: ${rpTime.full}\nACTION DU JOUEUR: ${actionText}`;
 
         try {
             const contentRaw = await callAI(systemPrompt, fullPrompt);
@@ -192,6 +193,8 @@ async function handleTutorialAction(sock, message, player, actionText) {
             if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
                 const lastResort = cleanAIResponse(contentRaw);
                 aiResponse.narrative = lastResort.length > 10 ? lastResort : "🌀 *Flux instable...* L'Instructeur te regarde avec insistance, attendant ton prochain mouvement. Réessaie ton attaque.";
+            } else {
+                aiResponse.narrative = `${rpTime.full}\n\n${aiResponse.narrative}`;
             }
 
             if (aiResponse.tutorial_complete) {

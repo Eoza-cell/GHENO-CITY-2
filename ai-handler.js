@@ -2,6 +2,7 @@ const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Con
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI, cleanAIResponse, extractNarrative } = require('./ai-utils');
+const { getCurrentRPTime } = require('./world-clock');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -95,6 +96,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "Aucune compétence.";
 
   const kingdomState = "Monde: Empire d'Elion (Paix), Valkyrr (Trêve), Dominion Noir (Guerre).";
+  const rpTime = getCurrentRPTime();
 
   // Context-aware NPCs
   const npcs = await NPC.findAll({
@@ -128,21 +130,23 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `Tu es le MJ d'Arise/Aetherys. Style Anime/Solo Leveling.
 Réponds uniquement en JSON en FRANÇAIS.
 
-RÈGLES:
+RÈGLES DE COMBAT & RP:
 - Narration épique (2-3 paragraphes).
-- Valide l'action du joueur sans la contrôler.
-- Pas de parenthèses pour les sons.
+- PRÉCISION: Inclus impérativement les distances (en mètres), les techniques utilisées, les parties du corps visées/utilisées, et les tentatives d'esquives.
+- IMPACT: Décris l'impact réel sur l'environnement et l'adversaire.
+- RÉALISME: Respecte les stats du joueur.
+- Pas de parenthèses pour les sons ou onomatopées.
 
 FORMAT JSON:
 {
   "narrative": "Ton récit...",
   "actions": [
-    {"type": "update_player", "parameters": {"xp_gain": 10, "col_change": 5}},
+    {"type": "update_player", "parameters": {"xp_gain": 10, "col_change": 5, "health_change": -5}},
     {"type": "add_item", "parameters": {"itemName": "Potion", "quantity": 1}}
   ]
 }`;
 
-    const fullPrompt = `${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION: ${actionText}`;
+    const fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION DU JOUEUR: ${actionText}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -156,6 +160,9 @@ FORMAT JSON:
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
         aiResponse.narrative = "🌀 *Le flux magique est instable.* La matrice de Skype semble s'obscurcir un instant. L'action est en suspens, réessaie dans quelques instants...";
+    } else {
+        // Prepend World Clock to narrative
+        aiResponse.narrative = `${rpTime.full}\n\n${aiResponse.narrative}`;
     }
 
     console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
