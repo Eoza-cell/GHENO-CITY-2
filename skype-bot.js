@@ -111,15 +111,16 @@ async function connectToWhatsApp() {
           }
       }, 24 * 60 * 60 * 1000); // 24 heures
 
-      // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
-      if (!serverStarted) {
-          server.listen(PORT, () => {
-              console.log(`Server listening on port ${PORT} for Render health checks.`);
-              serverStarted = true;
-          });
-      }
     }
   });
+
+  // Démarre le serveur HTTP immédiatement pour Render
+  if (!serverStarted) {
+      server.listen(PORT, () => {
+          console.log(`Server listening on port ${PORT} for Render health checks.`);
+          serverStarted = true;
+      });
+  }
 
   sock.ev.on('creds.update', async () => {
     await saveCreds();

@@ -149,6 +149,7 @@ FORMAT JSON:
 
     const fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION DU JOUEUR: ${actionText}`;
 
+  console.log(`[AI] Envoi de la requête au MJ (Player: ${player.name})...`);
   try {
     let usedProvider = "Unknown";
     let content = await callAI(systemPrompt, fullPrompt, 0, (name) => { usedProvider = name; });

@@ -1,8 +1,6 @@
 const axios = require('axios');
 const { getCurrentRPTime } = require('./world-clock');
 const ollamaLib = require('ollama');
-const OllamaClient = ollamaLib.Ollama || (ollamaLib.default && ollamaLib.default.Ollama) || ollamaLib.default;
-const ollama = new OllamaClient({ host: process.env.OLLAMA_URL || 'http://localhost:11434' });
 
 /**
  * AI Provider functions exported for diagnostics
@@ -103,7 +101,10 @@ async function callOpenRouterFree(system, prompt) {
 async function callOllama(system, prompt) {
     if (!process.env.OLLAMA_URL) return null;
     try {
-        const response = await ollama.chat({
+        const OllamaClient = ollamaLib.Ollama || (ollamaLib.default && ollamaLib.default.Ollama) || ollamaLib.default;
+        const client = new OllamaClient({ host: process.env.OLLAMA_URL });
+
+        const response = await client.chat({
             model: process.env.OLLAMA_MODEL || 'Plexi09/SentientAI',
             messages: [
                 { role: 'system', content: system },
