@@ -1,19 +1,11 @@
 const axios = require('axios');
-let puter = null;
 
-function initPuter() {
-    if (!puter) {
-        try {
-            puter = require('@heyputer/puter.js').default || require('@heyputer/puter.js');
-            if (process.env.PUTER_API_KEY && process.env.PUTER_API_KEY.length > 5 && process.env.PUTER_API_KEY !== 'test_key') {
-                puter.setAuthToken(process.env.PUTER_API_KEY);
-            }
-        } catch (e) {
-            console.error("[AI] Erreur chargement SDK Puter.js:", e.message);
-        }
-    }
-    return puter;
-}
+// The @heyputer/puter.js SDK is browser-only: it opens a socket.io WebSocket and
+// throws an uncaught "Maximum call stack size exceeded" in Node, crashing the
+// process. We call Puter's HTTP driver endpoint directly instead.
+const PUTER_API_URL = "https://api.puter.com/drivers/call";
+// Models confirmed available on the configured Puter account.
+const PUTER_MODELS = ["gpt-4o", "gpt-4o-mini"];
 
 /**
  * Enemy power levels with stats
@@ -134,99 +126,55 @@ function parseSSEResponse(raw) {
 }
 
 /**
- * Call Puter.js AI with Gemini Free API
- * FIXED: Force proper response format and handle streaming correctly
+ * Extract plain text from a Puter chat-completion `message.content`,
+ * which may be a string or an array of content parts.
  */
-async function callPuterGeminiAI(system, prompt) {
-    try {
-        const p = initPuter();
-        if (!p || !p.ai) {
-            console.warn("[AI] Puter.js not properly initialized");
-            return null;
-        }
-
-        console.log("[AI] 🚀 Calling Puter.js Gemini...");
-        
-        // Add explicit instruction to return JUST the narrative
-        const enhancedPrompt = `${prompt}
-
-IMPORTANT: Répondre UNIQUEMENT avec le texte narratif. PAS de JSON, PAS de "data: [DONE]", PAS de balisage.
-Juste la narration pure en français.`;
-
-        const resp = await p.ai.chat(enhancedPrompt, {
-            system: system,
-            model: "gemini-1.5-flash",
-            stream: false
-        });
-
-        // Debug: Log the raw response
-        console.log("[AI DEBUG] Raw response type:", typeof resp);
-        console.log("[AI DEBUG] Raw response:", JSON.stringify(resp).substring(0, 200));
-
-        let text = null;
-
-        // Try multiple extraction methods
-        if (typeof resp === 'string') {
-            text = resp;
-            console.log("[AI] Method: String direct");
-        } else if (resp?.message?.content) {
-            if (Array.isArray(resp.message.content)) {
-                text = resp.message.content
-                    .map(c => typeof c === 'string' ? c : (c.text || ""))
-                    .filter(c => c.trim() !== "")
-                    .join(" ");
-            } else {
-                text = resp.message.content;
-            }
-            console.log("[AI] Method: message.content");
-        } else if (resp?.choices?.[0]?.message?.content) {
-            text = resp.choices[0].message.content;
-            console.log("[AI] Method: choices[0].message.content");
-        } else if (resp?.text) {
-            text = resp.text;
-            console.log("[AI] Method: .text");
-        } else if (resp?.content) {
-            text = resp.content;
-            console.log("[AI] Method: .content");
-        }
-
-        // Validate response
-        if (!text) {
-            console.warn("[AI] ❌ No text extracted from response");
-            console.warn("[AI] Response object keys:", Object.keys(resp || {}));
-            return null;
-        }
-
-        // Clean response
-        text = text
-            .trim()
-            .replace(/^data:\s*\[DONE\]\s*$/i, "") // Remove streaming marker
-            .replace(/^(json|JSON)\s*/i, "") // Remove language marker
-            .replace(/^```[\s\S]*?```/g, "") // Remove code blocks
-            .trim();
-
-        // Final validation
-        const isValid = text.length > 10 && 
-                       !text.includes("data: [DONE]") && 
-                       !text.includes("token_missing") &&
-                       text !== "[DONE]" &&
-                       text !== "";
-
-        if (!isValid) {
-            console.warn("[AI] ❌ Response failed validation");
-            console.warn("[AI] Response after cleanup:", text.substring(0, 100));
-            return null;
-        }
-
-        console.log("[AI] ✅ Success - Response valid");
-        console.log("[AI] Response length:", text.length);
-        return text;
-
-    } catch (e) {
-        console.error("[AI] ❌ Puter.js error:", e.message);
-        console.error("[AI] Stack:", e.stack?.substring(0, 200));
-        return null;
+function extractMessageContent(content) {
+    if (!content) return null;
+    if (typeof content === 'string') return content.trim();
+    if (Array.isArray(content)) {
+        return content.map(c => typeof c === 'string' ? c : (c.text || '')).join('').trim();
     }
+    return null;
+}
+
+/**
+ * Call Puter's AI over its HTTP driver endpoint (no browser SDK).
+ * Requires PUTER_API_KEY (a Puter auth token).
+ */
+async function callPuterAI(system, prompt) {
+    const key = process.env.PUTER_API_KEY;
+    if (!key || key.length < 6 || key === 'test_key') return null;
+
+    const messages = [
+        { role: "system", content: system },
+        { role: "user", content: prompt }
+    ];
+
+    for (const model of PUTER_MODELS) {
+        try {
+            console.log(`[AI] Puter HTTP - Modèle: ${model}`);
+            const resp = await axios.post(PUTER_API_URL, {
+                interface: "puter-chat-completion",
+                method: "complete",
+                args: { messages, model }
+            }, {
+                headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+                timeout: 30000
+            });
+
+            if (resp.data?.success === false) {
+                console.warn(`[AI] Puter ${model} erreur:`, resp.data?.error);
+                continue;
+            }
+            const content = extractMessageContent(resp.data?.result?.message?.content);
+            if (content && content.length > 5) return content;
+        } catch (e) {
+            console.warn(`[AI] Puter HTTP ${model} échec:`, e.response?.data?.error || e.message);
+            continue;
+        }
+    }
+    return null;
 }
 
 /**
@@ -240,9 +188,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     const sanitizedUser = userPrompt.length > 2000 ? userPrompt.substring(0, 2000) : userPrompt;
 
     const providers = [
-        { name: 'Puter.js Gemini (Free)', fn: callPuterGeminiAI },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'Puter API', fn: callPuterAPI },
+        { name: 'Puter HTTP', fn: callPuterAI },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'Local MJ', fn: localMJ }
@@ -271,55 +217,6 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     console.warn("[AI] Tous les providers ont échoué, utilisation du MJ Local");
     return localMJ(userPrompt, systemPrompt);
-}
-
-async function callPuterSDK(system, prompt) {
-    const p = initPuter();
-    if (!p) return null;
-
-    // Priority: GPT-4o (User Directive) > Gemini 1.5 Flash > others
-    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash", "gemini-1.5-pro", "openai/gpt-4o", "gpt-4o-mini"];
-    for (const model of models) {
-        try {
-            console.log(`[AI] SDK Puter - Modèle: ${model}`);
-            const resp = await p.ai.chat(prompt, { model, system, stream: false });
-            const text = parsePuterResponse(resp);
-            if (text && text.length > 5 && !text.includes("token_missing")) return text;
-        } catch (e) { continue; }
-    }
-    return null;
-}
-
-async function callPuterAPI(system, prompt) {
-    if (!process.env.PUTER_API_KEY || process.env.PUTER_API_KEY === 'test_key') return null;
-
-    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
-    for (const model of models) {
-        try {
-            console.log(`[AI] API Puter - Modèle: ${model}`);
-            const resp = await axios.post("https://api.puter.com/v1/chat/completions", {
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                model: model,
-                stream: false
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${process.env.PUTER_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
-            });
-
-            const content = resp.data?.choices?.[0]?.message?.content || resp.data?.message?.content;
-            if (content && content.length > 10) return content;
-        } catch (e) {
-            console.warn(`[AI] Puter API Model ${model} failed:`, e.message);
-            continue;
-        }
-    }
-    return null;
 }
 
 async function callOpenRouter(system, prompt) {
