@@ -1,17 +1,4 @@
 const axios = require('axios');
-let puter = null;
-
-function initPuter() {
-    if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
-        try {
-            puter = require('@heyputer/puter.js').default;
-            puter.setAuthToken(process.env.PUTER_API_KEY);
-        } catch (e) {
-            console.error("[IMG] Erreur chargement Puter.js:", e.message);
-        }
-    }
-    return puter;
-}
 
 /**
  * Sends a message with an optional AI-generated image.
@@ -43,28 +30,9 @@ async function sendWithImage(sock, jid, aiResponse) {
                 return;
             }
 
-            // Primary: Puter (Flux.1-schnell)
-            const puterInstance = initPuter();
-            if (puterInstance) {
-                try {
-                    console.log(`[IMG] Génération Puter (Flux) pour : "${imagePrompt}"`);
-                    const img = await puterInstance.ai.txt2img(imagePrompt);
-                    const imgStr = img.toString();
-                    let buffer;
-                    if (imgStr.includes(',')) {
-                        buffer = Buffer.from(imgStr.split(',')[1], 'base64');
-                    } else {
-                        buffer = Buffer.from(imgStr, 'base64');
-                    }
-                    await sock.sendMessage(jid, { image: buffer, caption: narrative, mimetype: 'image/jpeg' });
-                    return;
-                } catch (puterError) {
-                    console.error("[IMG] Échec Puter:", puterError.message);
-                }
-            }
-
-            // Fallback: Pollinations.ai
-            console.log(`[IMG] Fallback Pollinations pour : "${imagePrompt}"`);
+            // Image generation via Pollinations.ai (free, no auth).
+            // The Puter.js browser SDK can't run in Node, so we don't use it here.
+            console.log(`[IMG] Génération Pollinations pour : "${imagePrompt}"`);
             const encodedPrompt = encodeURIComponent(imagePrompt);
             const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
             const response = await axios.get(imageUrl, {
