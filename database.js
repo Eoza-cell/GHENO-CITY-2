@@ -5,7 +5,7 @@ let sequelize;
 const dbUrl = process.env.DATABASE_URL;
 
 if (dbUrl) {
-  console.log('[DB] Utilisation de PostgreSQL (DATABASE_URL détectée).');
+  console.log('[DB] Tentative de connexion à PostgreSQL...');
   sequelize = new Sequelize(dbUrl, {
     dialect: 'postgres',
     logging: false,
@@ -15,10 +15,10 @@ if (dbUrl) {
         rejectUnauthorized: false
       }
     },
-    // Augmenter les retries pour la stabilité sur Render
+    // Retries pour la stabilité initiale
     retry: {
-      match: [/Deadlock/i, /SequelizeConnectionError/i, /SequelizeConnectionRefusedError/i, /SequelizeHostNotFoundError/i, /SequelizeHostNotReachableError/i, /SequelizeInvalidConnectionError/i, /SequelizeConnectionTimedOutError/i, /TimeoutError/i],
-      max: 5
+      match: [/SequelizeConnectionError/i, /SequelizeConnectionRefusedError/i, /SequelizeHostNotFoundError/i, /SequelizeHostNotReachableError/i, /TimeoutError/i],
+      max: 3
     }
   });
 } else {
@@ -328,7 +328,22 @@ Skill.belongsToMany(Player, { through: PlayerSkill });
 
 async function setupDatabase() {
   try {
-    await sequelize.authenticate();
+    try {
+        await sequelize.authenticate();
+    } catch (e) {
+        if (process.env.DATABASE_URL) {
+            console.error('[DB] Erreur fatale PostgreSQL (Aiven/Render) :', e.message);
+            console.warn('[DB] ⚠️ Basculement d\'urgence sur SQLite local pour assurer le démarrage du bot.');
+            sequelize = new Sequelize({
+                dialect: 'sqlite',
+                storage: 'gheno-city.sqlite',
+                logging: false,
+            });
+            await sequelize.authenticate();
+        } else {
+            throw e;
+        }
+    }
     console.log('Connection established.');
     await sequelize.sync({ alter: true });
     console.log('Database synchronized.');
