@@ -1,7 +1,8 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
-const { callAI } = require('./ai-utils');
+const { callAI, cleanAIResponse, extractNarrative } = require('./ai-utils');
+const { getCurrentRPTime } = require('./world-clock');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -9,6 +10,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerState = `
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
+    - JID: ${player.whatsappId}
     - Description: ${player.characterDescription}
     - Famille: ${player.family}
     - Classe: ${player.class} (${player.derivative})
@@ -24,8 +26,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   `;
 
   const inventory = player.inventory || [];
+  // Truncate inventory to top 10 items to save tokens
   const inventoryState = inventory.length > 0
-    ? "Inventaire:\n" + inventory.map(i => `- ${i.name} (x${i.quantity})`).join('\n')
+    ? "Inventaire:\n" + inventory.slice(0, 10).map(i => `- ${i.name} (x${i.quantity})`).join('\n') + (inventory.length > 10 ? `\n... (+${inventory.length - 10} autres)` : "")
     : "Ton inventaire est vide.";
 
   const playerQuests = await player.getQuests();
@@ -70,13 +73,13 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const shopState = "Boutique (Aperçu):\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description.substring(0, 50)}...`).join('\n');
 
-  // Save current player message to memory
-  await RPMessage.create({
+  // Save current player message to memory (non-blocking)
+  RPMessage.create({
       senderJid: player.whatsappId,
       senderName: player.name,
       content: actionText,
       location: player.location
-  });
+  }).catch(e => console.error("[DB] RPMessage Error:", e.message));
 
   // Fetch small history for context
   const history = await RPMessage.findAll({
@@ -85,7 +88,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       limit: 3
   });
   const historyState = history.length > 0
-    ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')
+    ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content.substring(0, 200)}${h.content.length > 200 ? "..." : ""}`).join('\n')
     : "";
 
   const playerSkills = await player.getSkills();
@@ -94,6 +97,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "Aucune compétence.";
 
   const kingdomState = "Monde: Empire d'Elion (Paix), Valkyrr (Trêve), Dominion Noir (Guerre).";
+  const rpTime = getCurrentRPTime();
 
   // Context-aware NPCs
   const npcs = await NPC.findAll({
@@ -124,106 +128,61 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `
-    Tu es le MJ de "Arise / Aetherys". RPG de type Manhwa/Anime (style Solo Leveling, SAO, Overlord).
+  const systemPrompt = `MJ Arise/Aetherys (Solo Leveling style). JSON UNIQUEMENT, FRANÇAIS STRICT.
 
-    STYLE NARRATIF:
-    - Épique, dynamique et visuel. Mélange d'HUMOUR ANIME (exagérations, gags visuels, chutes ridicules) et de MOMENTS SÉRIEUX (tension dramatique, enjeux de vie ou de mort).
-    - Ajoute du "FAN SERVICE" (descriptions esthétiques, charisme frappant des PNJs, gros plans dramatiques sur les visages ou les poses).
-    - Pas de texte en anglais. PAS de parenthèses pour les sons (ex: PAS de "(Clang!)").
-    - LONGUEUR: Minimum 3-4 paragraphes riches en détails et émotions.
+RÈGLES:
+1. Narration épique + PRÉCISION TACTIQUE (distances en m, corps visé, techniques).
+2. RÉALISME: Selon les stats/rang. Pas d'anglais ni onomatopées entre ().
+3. MANA (Dérangement): Passive=0, Simple=-1, Complexe=-2, Ultime=-4.
+4. MULTI: Utilise "target_name" pour interagir.
 
-    RÈGLES MJ:
-    1. RÔLE DU JOUEUR: Le joueur est le PROTAGONISTE. Il n'est pas forcément un héros. Libre de ses choix, lié seulement à sa famille et ses capacités.
-    2. LIBERTÉ TOTALE: Tu ne contrôles PAS les actions du joueur. Tu es le monde qui réagit.
-    3. RECONNAISSANCE: Commence TOUJOURS par valider l'action du joueur avant d'enchaîner sur la narration.
-    4. NPCs ARCHÉTYPES: Utilise des archétypes anime marqués :
-       - Tsundere (froide puis douce), Kuudere (sans émotion), Dandere (timide), Ojou-sama (arrogante/noble).
-       - Rival arrogant qui finit par respecter le joueur, Maître pervers/excentrique, etc.
-    5. LÉTALITÉ & CONSÉQUENCES: Un échec peut être drôle (humiliation) ou tragique (blessure grave), mais ne doit jamais être ignoré.
+Lore: Empire d'Elion (Paix), Valkyrr (Trêve), Azrak (Paix), Vharos (Guerre).
 
-    ÉCHELLE DE PUISSANCE ET IMPACT DES STATS:
-    - FORCE (FOR): ≥10 (Humain simple), ≥50 (Détruit des murs, fissure le sol), ≥150 (Pulvérise des bâtiments, ondes de choc).
-    - VITESSE (AGI): Rang E (2m/s), Rang D (10m/s - Record humain), Rang C (30m/s - Image rémanente), Rang B+ (Vitesse supersonique, invisible).
-    - INTELLIGENCE (INT): ≥10 (Petits sorts, lumière), ≥50 (Explosions de zone, manipulation élémentaire majeure), ≥150 (Sorts cataclysmiques, altération de la réalité).
-    - DÉFENSE (DEF): ≥10 (Résistance humaine), ≥50 (Peau d'acier, ignore les lames communes), ≥150 (Invulnérabilité physique quasi-totale).
-    - CHANCE (LUCK): Influence les coïncidences heureuses et les loots rares.
+FORMAT JSON:
+{
+  "narrative": "...",
+  "actions": [{"type": "update_player", "parameters": {"xp_gain": 0, "mana_change": 0}}]
+}`;
 
-    SOCIAL:
-    - Tu gères des interactions entre joueurs dans la même zone.
-    - Si l'action du joueur implique un autre joueur, tu peux créer une notification directe à ce joueur via une action notify_player.
-    - Si l'événement concerne tous les joueurs du lieu, utilise une action broadcast.
-    - Ne nomme jamais la JID ou d'autres données techniques, seulement les noms de personnages.
+    let fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION DU JOUEUR: ${actionText}`;
 
-    FORMAT DE RÉPONSE (JSON STRICT):
-    {
-      "narrative": "Ton récit en français...",
-      "actions": [
-        {"type": "update_player", "parameters": {"col_change": 10, "xp_gain": 20, "new_class": "Optionnel"}},
-        {"type": "add_item", "parameters": {"itemName": "Objet", "quantity": 1}},
-        {"type": "notify_player", "parameters": {"target_name": "Nom du joueur", "message": "Texte de notification RP"}},
-        {"type": "broadcast", "parameters": {"message": "Annonce RP pour tous les joueurs présents"}}
-      ],
-      "imagePrompt": "Description visuelle pour l'IA d'image"
+    // Token safety: if prompt is extremely long, truncate history and social info
+    if (fullPrompt.length > 4000) {
+        console.warn("[AI] Prompt trop long, troncature activée.");
+        fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n\nACTION DU JOUEUR: ${actionText}`;
     }
-  `;
 
-    const fullPrompt = `${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION: ${actionText}`;
-
+  console.log(`[AI] Envoi de la requête au MJ (Player: ${player.name})...`);
   try {
-    let content = await callAI(systemPrompt, fullPrompt);
+    let usedProvider = "Unknown";
+    let content = await callAI(systemPrompt, fullPrompt, 0, (name) => { usedProvider = name; });
+
     if (!content) {
         throw new Error("L'IA a retourné une réponse vide.");
     }
-    console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 500)}...`);
 
-    // Enhanced JSON & Narrative extraction
-    let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
-
-    if (typeof content === 'object') {
-        aiResponse = { ...aiResponse, ...content };
+    // Log the provider name and the beginning of the response
+    console.log(`[AI SUCCESS] Provider: ${usedProvider}`);
+    if (typeof content === 'string') {
+        console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 300)}...`);
     } else {
-        // Find the JSON block boundaries
-        const firstBrace = content.indexOf('{');
-        const lastBrace = content.lastIndexOf('}');
-
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            const potentialJson = content.substring(firstBrace, lastBrace + 1);
-            try {
-                aiResponse = JSON.parse(potentialJson);
-            } catch (e) {
-                console.error("[MJ] Erreur parse JSON, tentative récupération narrative...");
-            }
-        }
-
-        // If narrative is missing or empty inside JSON, extract from surrounding text
-        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-            let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
-            let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
-
-            // Cleanup markers
-            const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
-            textBefore = cleanup(textBefore);
-            textAfter = cleanup(textAfter);
-
-            if (textBefore.length > 5) aiResponse.narrative = textBefore;
-            else if (textAfter.length > 5) aiResponse.narrative = textAfter;
-            else if (firstBrace === -1) aiResponse.narrative = cleanup(content);
-        }
+        console.log(`[AI RAW] Objet reçu:`, JSON.stringify(content).substring(0, 300));
     }
 
-    // Final scrub of ALL AI/JSON artifacts from narrative
-    if (aiResponse.narrative) {
-        aiResponse.narrative = aiResponse.narrative
-            .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
-            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-            .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-            .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '') // Remove accidental action-like lines
-            .trim();
-    }
+    // Enhanced JSON & Narrative extraction using centralized logic
+    const aiResponse = extractNarrative(content);
+    console.log(`[AI PARSED] Narrative length: ${aiResponse.narrative?.length || 0}`);
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
-        aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";
+        if (aiResponse.actions && aiResponse.actions.length > 0) {
+            aiResponse.narrative = "Tu accomplis ton action avec succès. Les conséquences se font déjà sentir dans ton état.";
+        } else {
+            aiResponse.narrative = "🌀 *Le flux magique est instable.* La matrice de Skype semble s'obscurcir un instant. L'action est en suspens, réessaie dans quelques instants...";
+        }
+    } else {
+        // Prepend World Clock & Provider to narrative (Provider only for God/Admin)
+        const providerTag = player.isGod ? `\n\n_Flux: ${usedProvider}_` : "";
+        aiResponse.narrative = `${rpTime.full}\n\n${aiResponse.narrative}${providerTag}`;
     }
 
     console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
@@ -233,13 +192,13 @@ async function handleFreeAction(sock, message, player, actionText) {
         aiResponse.narrative = "Il ne se passe rien de spécial.";
     }
 
-    // Save bot response to memory
-    await RPMessage.create({
+    // Save bot response to memory (non-blocking)
+    RPMessage.create({
         senderJid: 'bot',
         senderName: 'Arise MJ',
         content: aiResponse.narrative,
         location: player.location
-    });
+    }).catch(e => console.error("[DB] RPMessage Bot Error:", e.message));
 
     // Process AI actions
     for (const actionObj of actions) {
@@ -521,8 +480,9 @@ async function handleFreeAction(sock, message, player, actionText) {
     await sendWithImage(sock, jid, aiResponse);
 
   } catch (error) {
-    console.error('Erreur avec l\'API Puter.js:', error);
-    await sock.sendMessage(jid, { text: "Erreur critique du MJ. L'action n'a pas pu être traitée." });
+    console.error('Erreur MJ Arise:', error);
+    const fallbackMsg = "⚠️ *ERREUR MATRICE* ⚠️\n\nLe MJ n'a pas pu traiter cette action car la connexion avec l'IA a échoué ou est saturée. Veuillez réessayer dans quelques secondes. Tape /checkai pour diagnostiquer le flux.";
+    await sock.sendMessage(jid, { text: fallbackMsg });
   }
 }
 

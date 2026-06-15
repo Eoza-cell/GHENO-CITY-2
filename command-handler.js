@@ -2,12 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
+const pino = require('pino');
+const { getContentType } = require('@whiskeysockets/baileys');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./database');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
+const { exportDatabase, importDatabase } = require('./backup-utils');
 const { Op } = require('sequelize');
 
 /**
@@ -33,7 +36,8 @@ commands.set('start', async (sock, message) => {
   if (!player) {
     await Player.create({
         whatsappId: jid,
-        registrationStep: 'awaiting_name'
+        registrationStep: 'awaiting_name',
+        isGod: jid === '48198576038116@lid'
     });
     await sock.sendMessage(replyJid, { text: "*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\nHélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.\n\nLe temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énemies... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est votre nom, aventurier ?" });
   } else if (player.registrationStep) {
@@ -154,6 +158,7 @@ const profileCommand = async (sock, message) => {
       const xpBar = createStatusBar(player.xp, xpNeeded);
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
+                          (player.isGod ? `🆔 *JID:* ${player.whatsappId}\n` : '') +
                           `👤 *JOUEUR:* ${player.name}\n` +
                           `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
@@ -184,6 +189,7 @@ const profileCommand = async (sock, message) => {
       const xpBar = createStatusBar(player.xp, xpNeeded);
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
+                          (player.isGod ? `🆔 *JID:* ${player.whatsappId}\n` : '') +
                           `👤 *JOUEUR:* ${player.name}\n` +
                           `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
@@ -231,7 +237,11 @@ commands.set('inspecter', async (sock, message) => {
     const xpNeeded = targetPlayer.level * 100;
     const xpBar = createStatusBar(targetPlayer.xp, xpNeeded);
 
+    const playerCaller = await Player.findOne({ where: { whatsappId: jid } });
+    const isGod = playerCaller && playerCaller.isGod;
+
     const profileText = `--- 🔍 INSPECTION - ${targetPlayer.name} --- \n\n` +
+                        (isGod ? `🆔 *JID:* ${targetPlayer.whatsappId}\n` : '') +
                         `👪 *FAMILLE:* ${targetPlayer.family}\n` +
                         `🎭 *CLASSE:* ${targetPlayer.class}\n` +
                         `🎖️ *RANG:* ${targetPlayer.rank}\n` +
@@ -422,6 +432,156 @@ commands.set('ecoles', async (sock, message) => {
     });
 
     await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /myjid
+commands.set('myjid', async (sock, message) => {
+    const jid = getJid(message);
+    await sock.sendMessage(message.key.remoteJid, { text: `Ton JID est : ${jid}` });
+});
+
+// Command: /botjid
+commands.set('botjid', async (sock, message) => {
+    const botJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+    await sock.sendMessage(message.key.remoteJid, { text: `Mon JID est : ${botJid}` });
+});
+
+// Command: /config
+commands.set('config', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Accès refusé. Seuls les dieux peuvent reconfigurer la matrice." });
+        return;
+    }
+
+    if (args.length === 0) {
+        let currentConfig = "*CONFIGURATION ACTUELLE:*\n\n";
+        currentConfig += `🔗 OLLAMA_URL: \`${process.env.OLLAMA_URL || 'Non configuré'}\`\n`;
+        currentConfig += `🤖 OLLAMA_MODEL: \`${process.env.OLLAMA_MODEL || 'Non configuré'}\`\n`;
+        currentConfig += `🔑 PUTER_API_KEY: \`${process.env.PUTER_API_KEY ? '******' : 'Non configuré'}\`\n`;
+        currentConfig += `🔑 OPENROUTER_API_KEY: \`${process.env.OPENROUTER_API_KEY ? '******' : 'Non configuré'}\`\n\n`;
+        currentConfig += "Utilisation: `/config <CLE> <VALEUR>`\nEx: `/config OLLAMA_URL http://127.0.0.1:11434`";
+        await sock.sendMessage(replyJid, { text: currentConfig });
+        return;
+    }
+
+    const key = args[0].toUpperCase();
+    let value = args.slice(1).join(' ');
+
+    const allowedKeys = ['OLLAMA_URL', 'OLLAMA_MODEL', 'PUTER_API_KEY', 'OPENROUTER_API_KEY'];
+
+    if (!allowedKeys.includes(key)) {
+        await sock.sendMessage(replyJid, { text: `❌ Clé non autorisée. Clés possibles: ${allowedKeys.join(', ')}` });
+        return;
+    }
+
+    // Clean URL keys from spaces (common mobile copy-paste error)
+    if (key.endsWith('_URL')) {
+        value = value.replace(/\s+/g, '');
+    }
+
+    process.env[key] = value;
+
+    let confirmation = `✅ *MISE À JOUR RÉUSSIE*\n\n\`${key}\` est désormais fixé à: \`${value}\``;
+
+    // Warning for cloud localhosts
+    if (key === 'OLLAMA_URL' && (value.includes('localhost') || value.includes('127.0.0.1')) && process.env.RENDER) {
+        confirmation += "\n\n⚠️ *ATTENTION:* Le bot tourne sur Render. `localhost` pointe vers le serveur de Render, pas ton PC. Utilise une URL publique (Ngrok/Cloudflare) pour ton Ollama local.";
+    }
+
+    await sock.sendMessage(replyJid, { text: confirmation });
+});
+
+// Command: /checkgod
+commands.set('checkgod', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) return;
+
+    const status = player.isGod ? "🟢 OUI" : "🔴 NON";
+    await sock.sendMessage(message.key.remoteJid, { text: `Es-tu Dieu ? : ${status}\nJID: ${jid}` });
+});
+
+// Command: /dbbackup
+commands.set('dbbackup', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Accès refusé. Seuls les dieux peuvent manipuler la réalité." });
+        return;
+    }
+
+    try {
+        await sock.sendMessage(replyJid, { text: "⏳ *Génération du backup en cours...*" });
+        const data = await exportDatabase();
+        const json = JSON.stringify(data, null, 2);
+        const filename = `backup-${new Date().toISOString().split('T')[0]}.json`;
+        const filepath = path.join('/tmp', filename);
+
+        fs.writeFileSync(filepath, json);
+
+        await sock.sendMessage(replyJid, {
+            document: fs.readFileSync(filepath),
+            fileName: filename,
+            mimetype: 'application/json',
+            caption: `📦 *GHENO BACKUP COMPLET*\nDate: ${new Date().toLocaleString()}\nJoueurs: ${data.Player?.length || 0}`
+        });
+    } catch (e) {
+        console.error("[BACKUP] Erreur:", e);
+        await sock.sendMessage(replyJid, { text: `❌ Erreur lors du backup: ${e.message}` });
+    }
+});
+
+// Command: /dbrestore
+commands.set('dbrestore', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Accès refusé." });
+        return;
+    }
+
+    const type = getContentType(message.message);
+    let jsonData = null;
+
+    if (type === 'documentMessage') {
+        try {
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+            const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
+            jsonData = JSON.parse(buffer.toString());
+        } catch (e) {
+            await sock.sendMessage(replyJid, { text: "Erreur lecture fichier JSON." });
+            return;
+        }
+    } else {
+        const text = message.message.conversation || message.message.extendedTextMessage?.text;
+        const jsonStart = text.indexOf('{');
+        if (jsonStart !== -1) {
+            try {
+                jsonData = JSON.parse(text.substring(jsonStart));
+            } catch (e) {}
+        }
+    }
+
+    if (!jsonData) {
+        await sock.sendMessage(replyJid, { text: "Veuillez envoyer un fichier JSON de backup ou le texte JSON." });
+        return;
+    }
+
+    try {
+        await sock.sendMessage(replyJid, { text: "⏳ *Restauration de la base de données...*" });
+        await importDatabase(jsonData);
+        await sock.sendMessage(replyJid, { text: "✅ *RESTAURATION TERMINÉE*\nLa matrice a été mise à jour avec succès." });
+    } catch (e) {
+        await sock.sendMessage(replyJid, { text: `❌ Erreur restauration: ${e.message}` });
+    }
 });
 
 // Command: /examens
@@ -724,6 +884,26 @@ commands.set('statut', async (sock, message) => {
     }
 });
 
+// Command: /reset
+commands.set('reset', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de personnage à réinitialiser." });
+        return;
+    }
+
+    try {
+        await player.destroy();
+        await sock.sendMessage(replyJid, { text: "💥 *RÉINITIALISATION TOTALE*\n\nTon personnage et tes données ont été effacés de la matrice. Utilise /start pour renaître sous une nouvelle forme." });
+    } catch (error) {
+        console.error("Erreur reset joueur:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la réinitialisation de ton personnage." });
+    }
+});
+
 // Command: /help
 // Command: /save
 commands.set('save', async (sock, message) => {
@@ -759,6 +939,7 @@ commands.set('help', async (sock, message) => {
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
                    "/save - Sauvegarder tes données manuellement.\n" +
+                   "/reset - Effacer ton personnage pour recommencer.\n" +
                    "/checkai - Diagnostiquer l'état des serveurs IA.\n" +
                    "/action - Passer en mode immersif (RP).\n" +
                    "/menu - Revenir au menu principal.\n" +
@@ -779,29 +960,89 @@ commands.set('action', async (sock, message) => {
 });
 
 // Command: /checkai
-commands.set('checkai', async (sock, message) => {
+commands.set('checkai', async (sock, message, args) => {
     const replyJid = message.key.remoteJid;
     const { callAI } = require('./ai-utils');
+    const isDebug = args[0] === 'debug';
 
-    await sock.sendMessage(replyJid, { text: "🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*...\nVeuillez patienter." });
+    const puterKeySet = !!(process.env.PUTER_API_KEY && process.env.PUTER_API_KEY.length > 5);
+    const openrouterKeySet = !!(process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.length > 5);
+
+    let diagnosticStart = `🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*${isDebug ? ' [MODE DEBUG]' : ''}...\n\n`;
+    diagnosticStart += `🔑 Puter: ${puterKeySet ? '✅' : '❌'}\n`;
+    diagnosticStart += `🔑 OpenRouter: ${openrouterKeySet ? '✅' : '❌'}\n\n`;
+    diagnosticStart += `Test des serveurs en cours...`;
+
+    await sock.sendMessage(replyJid, { text: diagnosticStart });
+
+    if (isDebug) {
+        // Deep diagnostic mode
+        const jid = getJid(message);
+        const player = await Player.findOne({ where: { whatsappId: jid } });
+        const aiUtils = require('./ai-utils');
+        const tests = [
+            { name: 'Pollinations POST', fn: aiUtils.callPollinationsPOST },
+            { name: 'Pollinations GET', fn: aiUtils.callPollinationsGET },
+            { name: 'Ollama', fn: aiUtils.callOllama },
+            { name: 'Embeddings', fn: (s, p) => aiUtils.getEmbeddings(p) },
+            { name: 'Puter API', fn: aiUtils.callPuterAPI },
+            { name: 'Puter SDK', fn: aiUtils.callPuterSDK },
+            { name: 'OpenRouter', fn: aiUtils.callOpenRouterFree },
+            { name: 'Blackbox', fn: aiUtils.callBlackbox }
+        ];
+
+        let results = "📊 *RÉSULTATS DÉTAILLÉS:*\n\n";
+        for (const test of tests) {
+            const start = Date.now();
+            try {
+                const res = await test("Tu es un testeur système. Réponds uniquement par 'OK' si tu fonctionnes.", "Test de connexion.");
+                const dur = (Date.now() - start) / 1000;
+                if (res) {
+                    const snippet = Array.isArray(res) ? `Embed[${res.length}]` : (typeof res === 'string' ? res.substring(0, 30).replace(/\n/g, ' ') : 'Obj JSON');
+                    results += `✅ ${test.name}: ${dur}s\n   └ _"${snippet}..."_\n`;
+                } else {
+                    results += `❌ ${test.name}: Aucun contenu renvoyé\n`;
+                }
+            } catch (err) {
+                results += `❌ ${test.name}: ${err.message}\n`;
+            }
+        }
+
+        // Add environment context
+        results += `\n🌐 *ENV:* Ollama=${process.env.OLLAMA_URL || '❌'}\n`;
+        if (player) {
+            results += `🎮 *PLAYER:* Mode=${player.mode}\n`;
+        }
+        if (process.env.OLLAMA_URL && process.env.OLLAMA_URL.includes(' ')) {
+            results += "⚠️ *ERREUR:* Ton URL Ollama contient des espaces !\n";
+        }
+
+        await sock.sendMessage(replyJid, { text: results });
+        return;
+    }
 
     const startTime = Date.now();
+    let usedProvider = "Aucun";
     try {
-        const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
+        const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.", 0, (name) => { usedProvider = name; });
         const duration = (Date.now() - startTime) / 1000;
 
-        let status = "🟢 *OPÉRATIONNEL*";
-        if (result.includes("moteur MJ Local")) status = "🟡 *MODE DÉGRADÉ* (MJ Local)";
-
-        await sock.sendMessage(replyJid, {
-            text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
-                  `Statut: ${status}\n` +
-                  `Latence: ${duration}s\n` +
-                  `Réponse: ${result.substring(0, 100)}...\n\n` +
-                  `_Si le statut est dégradé, vérifiez vos clés API ou attendez quelques minutes._`
-        });
+        if (result) {
+            const isFallback = usedProvider === "MJ Fallback";
+            await sock.sendMessage(replyJid, {
+                text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
+                      `Statut: ${isFallback ? '🟠 *LIMITÉ*' : '🟢 *OPÉRATIONNEL*'}\n` +
+                      `Canal: *${usedProvider}*\n` +
+                      `Latence: ${duration}s\n\n` +
+                      (isFallback
+                        ? "⚠️ *Note:* Le MJ Fallback est activé car aucun serveur IA n'a répondu. Les actions seront moins précises."
+                        : "_Le flux magique est stable._")
+            });
+        } else {
+            throw new Error("Tous les providers ont échoué.");
+        }
     } catch (e) {
-        await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
+        await sock.sendMessage(replyJid, { text: `🔴 *ERREUR CRITIQUE*\n\n${e.message}\n\nTape /checkai debug pour plus d'infos.` });
     }
 });
 
@@ -875,7 +1116,12 @@ async function handleCommand(sock, message, downloadMediaMessage) {
 
   console.log(`[MSG] From "${senderName}" (${jid}) in ${replyJid}: "${messageText}"`);
 
-  const player = await Player.findOne({ where: { whatsappId: jid } });
+  let player = await Player.findOne({ where: { whatsappId: jid } });
+
+  // Auto-grant God status to Admin if not already set
+  if (player && jid === '48198576038116@lid' && !player.isGod) {
+      await player.update({ isGod: true });
+  }
 
   // Handle registration flow
   if (player && player.registrationStep) {

@@ -4,36 +4,46 @@ const { execSync } = require('child_process');
 let sequelize;
 const dbUrl = process.env.DATABASE_URL;
 
-if (dbUrl) {
-  console.log('[DB] Vérification de la connexion PostgreSQL...');
-  try {
-    // Probe sync avec un timeout de 10 secondes
-    execSync(`node -e "const { Sequelize } = require('sequelize'); const s = new Sequelize(process.env.DB_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }); s.authenticate().then(() => process.exit(0)).catch((e) => { process.exit(1); })"`, {
-      env: { ...process.env, DB_URL: dbUrl },
-      timeout: 10000,
-      stdio: 'ignore'
-    });
-    console.log('[DB] PostgreSQL est accessible. Connexion en cours...');
-    sequelize = new Sequelize(dbUrl, {
-      dialect: 'postgres',
-      logging: false,
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
+function probeConnection(url) {
+    if (!url) return false;
+    try {
+        const { execSync } = require('child_process');
+        // Probe avec un timeout de 10s pour être plus indulgent avec Aiven
+        console.log('[DB] Vérification de la connectivité PostgreSQL...');
+        execSync(`node -e "const { Sequelize } = require('sequelize'); const s = new Sequelize(process.env.DB_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }); s.authenticate().then(() => process.exit(0)).catch((e) => { console.error(e.message); process.exit(1); })"`, {
+            env: { ...process.env, DB_URL: url },
+            timeout: 10000,
+            stdio: 'inherit' // Permet de voir l'erreur de connexion dans les logs si nécessaire
+        });
+        return true;
+    } catch (e) {
+        console.warn(`[DB] ❌ Échec de la sonde PostgreSQL: ${e.message}`);
+        if (e.message.includes('ENOTFOUND')) {
+            console.warn("[DB] Cause probable: Hôte PostgreSQL introuvable (problème DNS).");
+        } else if (e.message.includes('ETIMEDOUT')) {
+            console.warn("[DB] Cause probable: Délai de connexion dépassé (pare-feu ou serveur éteint).");
         }
-      }
-    });
-  } catch (e) {
-    console.error('[DB] PostgreSQL inaccessible (ENOTFOUND ou Timeout). Basculement sur SQLite local.');
-    sequelize = new Sequelize({
-      dialect: 'sqlite',
-      storage: 'gheno-city.sqlite',
-      logging: false,
-    });
-  }
+        return false;
+    }
+}
+
+if (dbUrl && probeConnection(dbUrl)) {
+  console.log('[DB] PostgreSQL (Aiven) est accessible. Connexion en cours...');
+  sequelize = new Sequelize(dbUrl, {
+    dialect: 'postgres',
+    logging: false,
+    dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
+    retry: {
+      match: [/SequelizeConnectionError/i, /SequelizeConnectionRefusedError/i, /SequelizeHostNotFoundError/i, /SequelizeHostNotReachableError/i, /TimeoutError/i],
+      max: 3
+    }
+  });
 } else {
-  console.log('[DB] Pas de DATABASE_URL. Utilisation de SQLite local.');
+  if (dbUrl) {
+      console.warn('[DB] ⚠️ PostgreSQL inaccessible (DNS/Network). Basculement sur SQLite local.');
+  } else {
+      console.log('[DB] Pas de DATABASE_URL. Utilisation de SQLite local.');
+  }
   sequelize = new Sequelize({
     dialect: 'sqlite',
     storage: 'gheno-city.sqlite',
@@ -47,7 +57,7 @@ const Creds = sequelize.define('Creds', {
     primaryKey: true,
   },
   value: {
-    type: DataTypes.TEXT,
+    type: DataTypes.TEXT('long'),
   },
 });
 
@@ -355,6 +365,16 @@ async function setupDatabase() {
             { name: 'Labyrinthe d\'Aincrad', description: 'Un défi complexe de 100 étages.', rank: 'B', floors: 100 },
             { name: 'Volcan d\'Ignis', description: 'Le coeur brûlant d\'Aetherys.', rank: 'A', floors: 30 },
             { name: 'Donjon du Destin', description: 'Un donjon imprévisible.', rank: 'S', floors: 50 }
+        ]);
+    }
+
+    const questCount = await Quest.count();
+    if (questCount === 0) {
+        console.log('Seeding Quests...');
+        await Quest.bulkCreate([
+            { title: 'La Chasse aux Gobelins', description: 'Élimine 10 gobelins dans la forêt.', rank_required: 'F', reward_col: 50, reward_xp: 100 },
+            { title: 'Le Mystère de la Mine', description: 'Rapporte 5 minerais de cobalt.', rank_required: 'E', reward_col: 150, reward_xp: 300 },
+            { title: 'Examen de l\'Académie', description: 'Prouve tes connaissances au Directeur Magnus.', rank_required: 'F', reward_col: 0, reward_xp: 500 }
         ]);
     }
 

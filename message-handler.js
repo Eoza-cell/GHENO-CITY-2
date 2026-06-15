@@ -4,7 +4,7 @@ let puter = null;
 function initPuter() {
     if (!puter && process.env.PUTER_API_KEY && process.env.PUTER_API_KEY !== 'test_key') {
         try {
-            puter = require('@heyputer/puter.js').default;
+            puter = require('@heyputer/puter.js').default || require('@heyputer/puter.js');
             puter.setAuthToken(process.env.PUTER_API_KEY);
         } catch (e) {
             console.error("[IMG] Erreur chargement Puter.js:", e.message);
@@ -23,64 +23,42 @@ async function sendWithImage(sock, jid, aiResponse) {
     const narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
     const imagePrompt = aiResponse.imagePrompt;
 
+    let imageSent = false;
+
     if (imagePrompt) {
         try {
-            // Check if it's a local file
+            // ONLY LOCAL FILES OR DIRECT URLS. GENERATION IS DISABLED.
             const fs = require('fs');
             if (fs.existsSync(imagePrompt) && !imagePrompt.startsWith('http')) {
                 const imageBuffer = fs.readFileSync(imagePrompt);
                 await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
-                return;
-            }
-
-            if (imagePrompt.startsWith('http')) {
+                imageSent = true;
+            } else if (imagePrompt.startsWith('http')) {
                 const response = await axios.get(imagePrompt, {
                     responseType: 'arraybuffer',
-                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                    timeout: 10000
                 });
                 const imageBuffer = Buffer.from(response.data, 'binary');
                 await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
-                return;
+                imageSent = true;
             }
-
-            // Primary: Puter (Flux.1-schnell)
-            const puterInstance = initPuter();
-            if (puterInstance) {
-                try {
-                    console.log(`[IMG] Génération Puter (Flux) pour : "${imagePrompt}"`);
-                    const img = await puterInstance.ai.txt2img(imagePrompt);
-                    const imgStr = img.toString();
-                    let buffer;
-                    if (imgStr.includes(',')) {
-                        buffer = Buffer.from(imgStr.split(',')[1], 'base64');
-                    } else {
-                        buffer = Buffer.from(imgStr, 'base64');
-                    }
-                    await sock.sendMessage(jid, { image: buffer, caption: narrative, mimetype: 'image/jpeg' });
-                    return;
-                } catch (puterError) {
-                    console.error("[IMG] Échec Puter:", puterError.message);
-                }
-            }
-
-            // Fallback: Pollinations.ai
-            console.log(`[IMG] Fallback Pollinations pour : "${imagePrompt}"`);
-            const encodedPrompt = encodeURIComponent(imagePrompt);
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
-            const response = await axios.get(imageUrl, {
-                responseType: 'arraybuffer',
-                headers: { 'User-Agent': 'Mozilla/5.0' }
-            });
-            const imageBuffer = Buffer.from(response.data, 'binary');
-            await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
-            return;
         } catch (error) {
-            console.error(`[IMG] Erreur totale:`, error.message);
+            console.error(`[IMG] Error:`, error.message);
         }
     }
 
-    if (narrative) {
-        await sock.sendMessage(jid, { text: narrative });
+    // Fallback: send text if no image was successfully sent
+    if (!imageSent && narrative) {
+        const cleanNarrative = narrative
+            .replace(/data:\s*\[DONE\]/gi, "")
+            .replace(/data:\s*\{.*?\}/gi, "")
+            .replace(/data:\s*/gi, "")
+            .trim();
+
+        if (cleanNarrative.length > 0) {
+            await sock.sendMessage(jid, { text: cleanNarrative });
+        }
     }
 }
 

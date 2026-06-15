@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
 const { sendWithImage } = require('./message-handler');
-const { callAI } = require('./ai-utils');
+const { callAI, cleanAIResponse, extractNarrative } = require('./ai-utils');
+const { getCurrentRPTime } = require('./world-clock');
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
@@ -165,64 +166,35 @@ async function handleTutorialAction(sock, message, player, actionText) {
             Tu es l'Instructeur, un maître d'armes légendaire dans GHENO CITY 2. Ton but est d'évaluer le nouveau protagoniste.
             Le joueur est un ${player.class} de la famille ${player.family} (FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}).
 
-            STYLE: Narratif riche, immersif, style anime. Pas de texte en anglais. PAS de parenthèses pour les sons.
+            STYLE: Narratif riche, immersif, style anime. RÉPONSES ENTIÈREMENT EN FRANÇAIS, AUCUN MOT ANGLAIS. PAS de parenthèses pour les sons ou sensations (ex: pas de "(Bruit de choc)").
             LONGUEUR: 2-3 paragraphes minimum.
 
-            RÈGLES DU TUTORIEL:
-            1. PROTAGONISTE: Traite le joueur comme le centre de son histoire, pas forcément comme un héros moral.
-            2. IMPACT DES STATS: Respecte l'échelle de puissance :
-               - FOR: ≥10 humain, ≥50 brise des murs, ≥150 pulvérise des bâtiments.
-               - AGI: Rang E (2m/s), Rang D (10m/s), Rang C (30m/s), B+ (Supersonique).
-            3. LIBERTÉ: Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
-            4. TON MENTOR: Sévère mais juste. "DODODO!"
-            5. FIN: tutorial_complete à true après une démonstration de force suffisante.
-            6. JSON: {"narrative": "...", "tutorial_complete": boolean}
+            RÈGLES DU TUTORIEL & COMBAT:
+            1. PROTAGONISTE: Traite le joueur comme le centre de son histoire.
+            2. PRÉCISION: Inclus impérativement les distances (en mètres), les techniques, les parties du corps visées, et les esquives.
+            3. IMPACT DES STATS: Respecte l'échelle de puissance (FOR, AGI).
+            4. LIBERTÉ: Décris les attaques de l'instructeur et laisse le joueur réagir.
+            5. TON MENTOR: Sévère mais juste. "DODODO!"
+            6. FIN: tutorial_complete à true uniquement après une démonstration de force suffisante (2-3 échanges).
+            7. JSON: {"narrative": "...", "tutorial_complete": boolean}
         `;
 
-        const fullPrompt = `ACTION DU JOUEUR: ${actionText}`;
+        const rpTime = getCurrentRPTime();
+        const fullPrompt = `DATE RP: ${rpTime.full}\nACTION DU JOUEUR: ${actionText}`;
 
         try {
             const contentRaw = await callAI(systemPrompt, fullPrompt);
-            let content = contentRaw;
-            let aiResponse = { narrative: "", tutorial_complete: false };
-
-            if (typeof content === 'object') {
-                aiResponse = content;
-            } else {
-                const firstBrace = content.indexOf('{');
-                const lastBrace = content.lastIndexOf('}');
-
-                if (firstBrace !== -1 && lastBrace !== -1) {
-                    const potentialJson = content.substring(firstBrace, lastBrace + 1);
-                    try {
-                        aiResponse = JSON.parse(potentialJson);
-                    } catch (e) {}
-                }
-
-                if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-                    let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
-                    let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
-
-                    const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
-                    textBefore = cleanup(textBefore);
-                    textAfter = cleanup(textAfter);
-
-                    if (textBefore.length > 5) aiResponse.narrative = textBefore;
-                    else if (textAfter.length > 5) aiResponse.narrative = textAfter;
-                    else aiResponse.narrative = cleanup(content);
-                }
+            if (!contentRaw) {
+                throw new Error("L'IA n'a pas répondu.");
             }
 
-            if (aiResponse.narrative) {
-                aiResponse.narrative = aiResponse.narrative
-                    .replace(/\{[\s\S]*\}/g, '')
-                    .replace(/```[\s\S]*?```/g, '')
-                    .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-                    .trim();
-            }
+            const aiResponse = extractNarrative(contentRaw);
 
             if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-                aiResponse.narrative = "Instructeur : 'Impressionnant ! Tu apprends vite.'";
+                const lastResort = cleanAIResponse(contentRaw);
+                aiResponse.narrative = lastResort.length > 10 ? lastResort : "🌀 *Flux instable...* L'Instructeur te regarde avec insistance, attendant ton prochain mouvement. Réessaie ton attaque.";
+            } else {
+                aiResponse.narrative = `${rpTime.full}\n\n${aiResponse.narrative}`;
             }
 
             if (aiResponse.tutorial_complete) {
@@ -233,9 +205,8 @@ async function handleTutorialAction(sock, message, player, actionText) {
             await sendWithImage(sock, jid, aiResponse);
         } catch (error) {
             console.error("Erreur AI tutoriel:", error);
-            // Fallback to avoid blocking the user
-            await sock.sendMessage(jid, { text: "Instructeur : 'Pas mal ! C'est suffisant pour aujourd'hui. Bienvenue dans Skype.'\n\n*Utilise /menu pour commencer.*" });
-            await player.update({ tutorialStep: 3, mode: 'normal' });
+            const fallbackMsg = "⚠️ *CONNEXION INSTABLE* ⚠️\n\nL'Instructeur semble distrait par une faille dans la matrice. Les serveurs de l'IA sont peut-être saturés. Réessaie ton action dans quelques secondes ou utilise /checkai pour vérifier l'état.";
+            await sock.sendMessage(jid, { text: fallbackMsg });
         }
     }
 }

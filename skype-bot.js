@@ -16,6 +16,7 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startInactivePlayerCheck } = require('./inactive-handler');
 const { startDayNightCycle } = require('./game-state');
+const { exportDatabase } = require('./backup-utils');
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -90,12 +91,35 @@ async function connectToWhatsApp() {
       startDayNightCycle();
 
       // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
+      // On attend la connexion WhatsApp pour que Render ne finisse pas le déploiement trop tôt
       if (!serverStarted) {
           server.listen(PORT, () => {
               console.log(`Server listening on port ${PORT} for Render health checks.`);
               serverStarted = true;
           });
       }
+
+      // Planification du backup automatique toutes les 24 heures
+      const ADMIN_JID = '48198576038116@lid';
+      setInterval(async () => {
+          try {
+              console.log('[AUTO-BACKUP] Lancement du backup quotidien...');
+              const data = await exportDatabase();
+              const json = JSON.stringify(data, null, 2);
+              const filename = `autobackup-${new Date().toISOString().split('T')[0]}.json`;
+
+              await sock.sendMessage(ADMIN_JID, {
+                  document: Buffer.from(json),
+                  fileName: filename,
+                  mimetype: 'application/json',
+                  caption: `🤖 *BACKUP AUTOMATIQUE GHENO*\nDate: ${new Date().toLocaleString()}\nJoueurs: ${data.Player?.length || 0}\n_Ce backup est généré toutes les 24h._`
+              });
+              console.log('[AUTO-BACKUP] Backup envoyé à l\'admin.');
+          } catch (e) {
+              console.error('[AUTO-BACKUP] Erreur:', e.message);
+          }
+      }, 24 * 60 * 60 * 1000); // 24 heures
+
     }
   });
 
