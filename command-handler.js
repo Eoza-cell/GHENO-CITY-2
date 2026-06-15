@@ -977,6 +977,8 @@ commands.set('checkai', async (sock, message, args) => {
 
     if (isDebug) {
         // Deep diagnostic mode
+        const jid = getJid(message);
+        const player = await Player.findOne({ where: { whatsappId: jid } });
         const aiUtils = require('./ai-utils');
         const tests = [
             { name: 'Pollinations POST', fn: aiUtils.callPollinationsPOST },
@@ -1008,6 +1010,9 @@ commands.set('checkai', async (sock, message, args) => {
 
         // Add environment context
         results += `\n🌐 *ENV:* Ollama=${process.env.OLLAMA_URL || '❌'}\n`;
+        if (player) {
+            results += `🎮 *PLAYER:* Mode=${player.mode}\n`;
+        }
         if (process.env.OLLAMA_URL && process.env.OLLAMA_URL.includes(' ')) {
             results += "⚠️ *ERREUR:* Ton URL Ollama contient des espaces !\n";
         }

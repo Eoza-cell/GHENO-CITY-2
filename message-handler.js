@@ -27,7 +27,7 @@ async function sendWithImage(sock, jid, aiResponse) {
 
     if (imagePrompt) {
         try {
-            // Check if it's a local file
+            // ONLY LOCAL FILES OR DIRECT URLS. GENERATION IS DISABLED.
             const fs = require('fs');
             if (fs.existsSync(imagePrompt) && !imagePrompt.startsWith('http')) {
                 const imageBuffer = fs.readFileSync(imagePrompt);
@@ -36,37 +36,12 @@ async function sendWithImage(sock, jid, aiResponse) {
             } else if (imagePrompt.startsWith('http')) {
                 const response = await axios.get(imagePrompt, {
                     responseType: 'arraybuffer',
-                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                    timeout: 10000
                 });
                 const imageBuffer = Buffer.from(response.data, 'binary');
                 await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
                 imageSent = true;
-            } else {
-                // Generate via AI
-                const puterInstance = initPuter();
-                if (puterInstance) {
-                    try {
-                        const img = await puterInstance.ai.txt2img(imagePrompt);
-                        const imgStr = img.toString();
-                        const buffer = imgStr.includes(',') ? Buffer.from(imgStr.split(',')[1], 'base64') : Buffer.from(imgStr, 'base64');
-                        await sock.sendMessage(jid, { image: buffer, caption: narrative, mimetype: 'image/jpeg' });
-                        imageSent = true;
-                    } catch (e) {
-                        console.error("[IMG] Puter fail:", e.message);
-                    }
-                }
-
-                if (!imageSent) {
-                    const encodedPrompt = encodeURIComponent(imagePrompt);
-                    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
-                    const response = await axios.get(imageUrl, {
-                        responseType: 'arraybuffer',
-                        headers: { 'User-Agent': 'Mozilla/5.0' }
-                    });
-                    const imageBuffer = Buffer.from(response.data, 'binary');
-                    await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
-                    imageSent = true;
-                }
             }
         } catch (error) {
             console.error(`[IMG] Error:`, error.message);

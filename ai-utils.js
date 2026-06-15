@@ -8,19 +8,32 @@ const ollamaLib = require('ollama');
 
 async function callPollinationsPOST(system, prompt) {
     const models = ['openai', 'mistral', 'llama', 'unity', 'p1', 'searchgpt'];
-    for (let i = 0; i < 2; i++) { // Try twice with different models
+    const skipKeywords = ['Queue full', 'error', '429', 'Too many requests'];
+
+    for (let i = 0; i < 2; i++) {
         const model = models[Math.floor(Math.random() * models.length)];
         try {
             const response = await axios.post('https://text.pollinations.ai/', {
                 messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }],
-                model: model, jsonMode: true, seed: Math.floor(Math.random() * 1000000)
+                model: model,
+                jsonMode: true,
+                seed: Math.floor(Math.random() * 1000000)
             }, {
-                headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-                timeout: 20000
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Referer': 'https://pollinations.ai/',
+                    'Origin': 'https://pollinations.ai'
+                },
+                timeout: 25000
             });
             const data = response.data;
-            const content = data?.choices?.[0]?.message?.content || (typeof data === 'string' ? data : JSON.stringify(data));
-            if (content && content.length > 10 && !content.includes('Queue full')) return content;
+            let content = data?.choices?.[0]?.message?.content || (typeof data === 'string' ? data : JSON.stringify(data));
+
+            if (content && content.length > 5) {
+                if (skipKeywords.some(k => content.includes(k)) && content.length < 500) continue;
+                return content;
+            }
         } catch (e) {
             if (e.response?.status === 429) continue;
         }
@@ -167,29 +180,24 @@ async function getEmbeddings(text) {
 async function callOllama(system, prompt) {
     if (!process.env.OLLAMA_URL) return null;
     try {
-        // Sanitize URL: remove spaces and trailing API paths
         let host = process.env.OLLAMA_URL.replace(/\s+/g, '').trim();
-
-        // Ensure protocol exists
-        if (host && !host.startsWith('http')) {
-            host = 'http://' + host;
-        }
-
-        host = host.replace(/\/api\/(generate|chat)\/?$/, '');
-        host = host.replace(/\/$/, '');
+        if (host && !host.startsWith('http')) host = 'http://' + host;
+        host = host.replace(/\/api\/(generate|chat)\/?$/, '').replace(/\/$/, '');
 
         const OllamaClient = ollamaLib.Ollama || (ollamaLib.default && ollamaLib.default.Ollama) || ollamaLib.default;
         const client = new OllamaClient({ host });
 
-        const response = await client.chat({
-            model: process.env.OLLAMA_MODEL || 'Plexi09/SentientAI',
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
-            ],
-            stream: false,
-            format: 'json'
-        });
+        const response = await Promise.race([
+            client.chat({
+                model: process.env.OLLAMA_MODEL || 'Plexi09/SentientAI',
+                messages: [
+                    { role: 'system', content: system },
+                    { role: 'user', content: prompt }
+                ],
+                stream: false
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 30000))
+        ]);
 
         if (response && response.message) {
             return response.message.content;
@@ -400,7 +408,7 @@ function extractNarrative(content) {
         const narrative = content.narrative || content.message || content.text || content.content || content.response || "";
         const actions = normalizeActions(content);
         aiResponse = { ...aiResponse, ...content, narrative, actions };
-        return aiResponse;
+        if (aiResponse.narrative && aiResponse.narrative.length > 5) return aiResponse;
     }
 
     const cleaned = cleanAIResponse(content);
@@ -412,12 +420,18 @@ function extractNarrative(content) {
             const narrative = parsed.narrative || parsed.message || parsed.text || parsed.content || parsed.response || "";
             const actions = normalizeActions(parsed);
             aiResponse = { ...aiResponse, ...parsed, narrative, actions };
-            // If we have a narrative, we are good.
-            if (aiResponse.narrative) return aiResponse;
+            if (aiResponse.narrative && aiResponse.narrative.length > 5) return aiResponse;
         }
-    } catch (e) {
-        // Not a single JSON
-    }
+    } catch (e) {}
+
+    // Special case: check if it's a JSON array of actions directly
+    try {
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) {
+            aiResponse.actions = parsed;
+            return aiResponse;
+        }
+    } catch (e) {}
 
     const jsonObjects = [];
     let braceCount = 0, startIndex = -1;

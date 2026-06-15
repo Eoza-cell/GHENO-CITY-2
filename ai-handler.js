@@ -73,13 +73,13 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const shopState = "Boutique (Aperçu):\n" + items.map(i => `- ${i.name} (${i.price} Col): ${i.description.substring(0, 50)}...`).join('\n');
 
-  // Save current player message to memory
-  await RPMessage.create({
+  // Save current player message to memory (non-blocking)
+  RPMessage.create({
       senderJid: player.whatsappId,
       senderName: player.name,
       content: actionText,
       location: player.location
-  });
+  }).catch(e => console.error("[DB] RPMessage Error:", e.message));
 
   // Fetch small history for context
   const history = await RPMessage.findAll({
@@ -192,13 +192,13 @@ FORMAT JSON:
         aiResponse.narrative = "Il ne se passe rien de spécial.";
     }
 
-    // Save bot response to memory
-    await RPMessage.create({
+    // Save bot response to memory (non-blocking)
+    RPMessage.create({
         senderJid: 'bot',
         senderName: 'Arise MJ',
         content: aiResponse.narrative,
         location: player.location
-    });
+    }).catch(e => console.error("[DB] RPMessage Bot Error:", e.message));
 
     // Process AI actions
     for (const actionObj of actions) {
