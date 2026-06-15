@@ -1,5 +1,6 @@
 const { Quest, Player } = require('./database');
 const { Op } = require('sequelize');
+const { checkLevelUp } = require('./level-utils');
 
 /**
  * Find a quest by (fuzzy) title.
@@ -53,7 +54,7 @@ async function advanceQuest(player, title, progress, note) {
     const pq = await getPlayerQuest(player, quest);
     if (!pq || pq.status === 'completed') return null;
 
-    const newProgress = Math.max(0, Math.min(100, Number(progress) || pq.progress));
+    const newProgress = Math.max(0, Math.min(100, progress != null ? Number(progress) : pq.progress));
     await pq.update({ progress: newProgress, notes: note || pq.notes });
     return `📈 *${quest.title}* — progression : ${newProgress}%`;
 }
@@ -78,7 +79,7 @@ async function modifyQuest(player, title, branch, notes) {
  * Complete a quest: grant rewards, mark completed, auto-start the next quest
  * in the chain (ordered quests). Returns a multi-line narrative string.
  */
-async function completeQuest(player, title) {
+async function completeQuest(player, title, sock) {
     const quest = await findQuest(title);
     if (!quest) return null;
     const pq = await getPlayerQuest(player, quest);
@@ -87,7 +88,10 @@ async function completeQuest(player, title) {
     await pq.update({ status: 'completed', progress: 100 });
 
     if (quest.reward_col) await player.increment('col', { by: quest.reward_col });
-    if (quest.reward_xp) await player.increment('xp', { by: quest.reward_xp });
+    if (quest.reward_xp) {
+        await player.increment('xp', { by: quest.reward_xp });
+        await checkLevelUp(player, sock);
+    }
     await player.reload();
 
     let msg = `✅ *Quête terminée* : ${quest.title}\nRécompense : ${quest.reward_col} Col, ${quest.reward_xp} XP.`;

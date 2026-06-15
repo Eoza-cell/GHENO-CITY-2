@@ -3,6 +3,7 @@ const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
+const { checkLevelUp } = require('./level-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -311,25 +312,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           }
           if (parameters.xp_gain) {
               await target.increment('xp', { by: parameters.xp_gain });
-              await target.reload();
-              const xpNeeded = target.level * 100;
-              if (target.xp >= xpNeeded) {
-                  const levelsGained = Math.floor(target.xp / xpNeeded);
-                  await target.increment('level', { by: levelsGained });
-                  await target.update({
-                      xp: target.xp % xpNeeded,
-                      maxHealth: target.maxHealth + (levelsGained * 15),
-                      maxMana: target.maxMana + (levelsGained * 8),
-                      health: target.maxHealth + (levelsGained * 15),
-                      mana: target.maxMana + (levelsGained * 8),
-                      strength: target.strength + (levelsGained * 1),
-                      agility: target.agility + (levelsGained * 1),
-                      intelligence: target.intelligence + (levelsGained * 1)
-                  });
-                  await sock.sendMessage(target.whatsappId, {
-                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes stats ont augmenté.`
-                  });
-              }
+              await checkLevelUp(target, sock);
               targetModified = true;
           }
           if (parameters.health_change) {
@@ -545,7 +528,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
         case 'complete_quest':
             if (parameters.questTitle) {
-                const line = await questUtils.completeQuest(target, parameters.questTitle);
+                const line = await questUtils.completeQuest(target, parameters.questTitle, sock);
                 if (line) questFeedback.push(line);
             }
             break;

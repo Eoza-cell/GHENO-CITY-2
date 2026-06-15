@@ -461,26 +461,26 @@ async function setupDatabase() {
                 title: 'Premiers Pas à Eldoria', description: 'Le départ de ton aventure à Eldoria.',
                 objective: "Parle à un PNJ d'Eldoria et accepte ta première mission de chasse.",
                 type: 'main', chain: "L'Ascension de l'Aventurier", step: 1,
-                nextQuestTitle: 'La Chasse aux Gobelins', rank_required: 'E', reward_col: 100, reward_xp: 80
+                nextQuestTitle: 'La Chasse aux Gobelins', rank_required: 'F', reward_col: 100, reward_xp: 80
             },
             {
                 title: 'La Chasse aux Gobelins', description: 'Les gobelins menacent les routes commerciales.',
                 objective: 'Élimine 5 gobelins dans la Forêt des Gobelins.',
                 type: 'main', chain: "L'Ascension de l'Aventurier", step: 2,
-                nextQuestTitle: "L'Antre du Chef Gobelin", rank_required: 'E', reward_col: 250, reward_xp: 150
+                nextQuestTitle: "L'Antre du Chef Gobelin", rank_required: 'F', reward_col: 250, reward_xp: 150
             },
             {
                 title: "L'Antre du Chef Gobelin", description: 'Le chef gobelin doit tomber.',
                 objective: 'Affronte et vaincs le Chef Gobelin au fond de la forêt.',
                 type: 'main', chain: "L'Ascension de l'Aventurier", step: 3,
-                nextQuestTitle: null, rank_required: 'E', reward_col: 500, reward_xp: 400
+                nextQuestTitle: null, rank_required: 'F', reward_col: 500, reward_xp: 400
             },
             // Multiplayer / co-op quest
             {
                 title: 'Le Raid du Donjon Maudit', description: 'Un donjon de rang D nécessite une équipe.',
                 objective: "Rassemble d'autres aventuriers dans ta zone et franchissez le donjon ensemble.",
                 type: 'raid', chain: 'Raids Coopératifs', step: 1, isMultiplayer: true,
-                nextQuestTitle: null, rank_required: 'E', reward_col: 800, reward_xp: 600
+                nextQuestTitle: null, rank_required: 'F', reward_col: 800, reward_xp: 600
             }
         ]);
     }
