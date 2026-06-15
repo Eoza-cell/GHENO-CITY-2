@@ -6,6 +6,7 @@ const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./da
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
 const { generateWorldMapImage } = require('./world-map');
+const { generateMainMenuImage } = require('./menu-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
@@ -840,32 +841,15 @@ commands.set('menu', async (sock, message) => {
                    "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
                    "❓ `/help` - Guide de survie.";
 
-  // Try sending the local menu image first
   try {
-    if (fs.existsSync('./menu_image.jpg')) {
-        await sock.sendMessage(message.key.remoteJid, {
-            image: fs.readFileSync('./menu_image.jpg'),
-            caption: menuText
-        });
-    } else {
-        throw new Error("Local menu image not found");
-    }
+    const menuImage = await generateMainMenuImage();
+    await sock.sendMessage(message.key.remoteJid, {
+        image: menuImage,
+        caption: menuText
+    });
   } catch (error) {
-    console.warn("Erreur envoi image menu locale, tentative fallback URL:", error.message);
-    const saoMenuUrl = "https://images.alphacoders.com/264/264350.jpg";
-    try {
-        const response = await axios.get(saoMenuUrl, {
-            responseType: 'arraybuffer',
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-        const imageBuffer = Buffer.from(response.data, 'binary');
-        await sock.sendMessage(message.key.remoteJid, {
-            image: imageBuffer,
-            caption: menuText
-        });
-    } catch (fallbackError) {
-        await sock.sendMessage(message.key.remoteJid, { text: menuText });
-    }
+    console.warn("Erreur génération image menu:", error.message);
+    await sock.sendMessage(message.key.remoteJid, { text: menuText });
   }
 });
 

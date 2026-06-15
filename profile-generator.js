@@ -50,15 +50,19 @@ async function generateProfileCard(player) {
             <!-- Stats Bars Overlay -->
             ${statsSvg}
 
-            <!-- Inventory Summary (Top 3) -->
-            <text x="60" y="775" class="text value">${player.inventory?.[0]?.name || ''}</text>
+            <!-- Inventory Summary (Equipment & Weapons) -->
+            <text x="60" y="730" class="header">ÉQUIPEMENT & ARMES</text>
+            <text x="60" y="775" class="text value">${player.inventory?.[0] ? `⚔️ ${player.inventory[0].name}` : ''}</text>
             <text x="350" y="775" class="text value">${player.inventory?.[0]?.quantity || ''}</text>
 
-            <text x="60" y="810" class="text value">${player.inventory?.[1]?.name || ''}</text>
+            <text x="60" y="810" class="text value">${player.inventory?.[1] ? `🛡️ ${player.inventory[1].name}` : ''}</text>
             <text x="350" y="810" class="text value">${player.inventory?.[1]?.quantity || ''}</text>
 
+            <text x="60" y="845" class="text value">${player.inventory?.[2] ? `📦 ${player.inventory[2].name}` : ''}</text>
+            <text x="350" y="845" class="text value">${player.inventory?.[2]?.quantity || ''}</text>
+
             <!-- Resources -->
-            <text x="150" y="650" class="text value">💰 ${player.col} Col</text>
+            <text x="150" y="650" class="text value">💰 ARGENT: ${player.col} Col</text>
         </svg>
     `;
 

@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
+const { generateLinkStartImage } = require('./start-image-generator');
+const { generateProfileCard } = require('./profile-generator');
 const { sendWithImage } = require('./message-handler');
 const { callAI } = require('./ai-utils');
 
@@ -14,6 +16,10 @@ async function startTutorial(sock, jid, player) {
                         "'Choisis ton destin, ton arme et ton âme. *Quelle est ta classe ?*'";
 
     try {
+        // Send Link Start Intro first
+        const introImg = await generateLinkStartImage();
+        await sock.sendMessage(jid, { image: introImg, caption: "⚡ INITIALISATION DU SYSTÈME..." });
+
         const imageBuffer = await generateClassSelectionImage();
         await sock.sendMessage(jid, {
             image: imageBuffer,
@@ -62,16 +68,22 @@ async function handleTutorialAction(sock, message, player, actionText) {
             luck: player.luck + (bonus.luck || 0)
         });
 
-        const nextText = `Instructeur : 'Un style ${derivative}, parfait. Passons maintenant à la destruction !\n\n` +
+        const nextText = `Instructeur : 'Un style ${derivative}, parfait. Voici ton profil actuel mis à jour dans la matrice.'\n\n` +
+                         `*GÉNÉRATION DU PROFIL...*\n\n` +
+                         "Instructeur : 'Maintenant, passons à la destruction !'\n\n" +
                          "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre.\n\n" +
                          "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
                          "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
                          "Décris tes attaques avec passion pour maximiser tes dégâts.";
 
         try {
+            const profileCard = await generateProfileCard(player);
+            await sock.sendMessage(jid, { image: profileCard, caption: "📇 *TON PROFIL DE DÉPART*" });
+
             const bossImage = fs.readFileSync(path.join('assets', 'tutorial_boss.jpg'));
             await sock.sendMessage(jid, { image: bossImage, caption: nextText });
         } catch (error) {
+            console.error("Error sending tutorial images:", error);
             await sock.sendMessage(jid, { text: nextText });
         }
         return;
@@ -151,7 +163,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
                         "5. **Équilibré** (Polyvalence)\n\n" +
                         "Réponds par le nom du style choisi.";
 
-            await sock.sendMessage(jid, { text: nextText });
+            await sock.sendMessage(message.key.remoteJid, { text: nextText });
             return;
         } else {
             await sock.sendMessage(jid, { text: "Instructeur : 'Concentrate-toi ! Tu dois choisir une classe parmi les 13 disponibles (Guerrier, Mage, Assassin, Archer, Prêtre, Moine, Paladin, Invocateur, Nécromancien, Samouraï, Chevalier-Dragon, Alchimiste, Barde).'" });
