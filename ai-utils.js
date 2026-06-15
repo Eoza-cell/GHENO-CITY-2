@@ -101,8 +101,19 @@ async function callOpenRouterFree(system, prompt) {
 async function callOllama(system, prompt) {
     if (!process.env.OLLAMA_URL) return null;
     try {
+        // Sanitize URL: remove spaces and trailing API paths
+        let host = process.env.OLLAMA_URL.replace(/\s+/g, '').trim();
+
+        // Ensure protocol exists
+        if (host && !host.startsWith('http')) {
+            host = 'http://' + host;
+        }
+
+        host = host.replace(/\/api\/(generate|chat)\/?$/, '');
+        host = host.replace(/\/$/, '');
+
         const OllamaClient = ollamaLib.Ollama || (ollamaLib.default && ollamaLib.default.Ollama) || ollamaLib.default;
-        const client = new OllamaClient({ host: process.env.OLLAMA_URL });
+        const client = new OllamaClient({ host });
 
         const response = await client.chat({
             model: process.env.OLLAMA_MODEL || 'Plexi09/SentientAI',
@@ -119,7 +130,11 @@ async function callOllama(system, prompt) {
         }
     } catch (e) {
         console.error("[AI] Ollama Error:", e.message);
-        if (e.code === 'ECONNREFUSED') console.error("[AI] Ollama n'est pas lancé sur", process.env.OLLAMA_URL);
+        if (e.code === 'ECONNREFUSED') {
+            console.error("[AI] Ollama n'est pas lancé ou inaccessible sur", process.env.OLLAMA_URL);
+        } else if (e.message.includes('not found')) {
+            console.error("[AI] Modèle Ollama non trouvé:", process.env.OLLAMA_MODEL || 'Plexi09/SentientAI');
+        }
         return null;
     }
 }

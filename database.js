@@ -8,14 +8,21 @@ function probeConnection(url) {
     if (!url) return false;
     try {
         const { execSync } = require('child_process');
-        // Probe avec un petit timeout
-        execSync(`node -e "const { Sequelize } = require('sequelize'); const s = new Sequelize(process.env.DB_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }); s.authenticate().then(() => process.exit(0)).catch(() => process.exit(1))"`, {
+        // Probe avec un timeout de 10s pour être plus indulgent avec Aiven
+        console.log('[DB] Vérification de la connectivité PostgreSQL...');
+        execSync(`node -e "const { Sequelize } = require('sequelize'); const s = new Sequelize(process.env.DB_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }); s.authenticate().then(() => process.exit(0)).catch((e) => { console.error(e.message); process.exit(1); })"`, {
             env: { ...process.env, DB_URL: url },
-            timeout: 8000,
-            stdio: 'ignore'
+            timeout: 10000,
+            stdio: 'inherit' // Permet de voir l'erreur de connexion dans les logs si nécessaire
         });
         return true;
     } catch (e) {
+        console.warn(`[DB] ❌ Échec de la sonde PostgreSQL: ${e.message}`);
+        if (e.message.includes('ENOTFOUND')) {
+            console.warn("[DB] Cause probable: Hôte PostgreSQL introuvable (problème DNS).");
+        } else if (e.message.includes('ETIMEDOUT')) {
+            console.warn("[DB] Cause probable: Délai de connexion dépassé (pare-feu ou serveur éteint).");
+        }
         return false;
     }
 }

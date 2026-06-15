@@ -469,7 +469,7 @@ commands.set('config', async (sock, message, args) => {
     }
 
     const key = args[0].toUpperCase();
-    const value = args.slice(1).join(' ');
+    let value = args.slice(1).join(' ');
 
     const allowedKeys = ['OLLAMA_URL', 'OLLAMA_MODEL', 'PUTER_API_KEY', 'OPENROUTER_API_KEY'];
 
@@ -478,8 +478,21 @@ commands.set('config', async (sock, message, args) => {
         return;
     }
 
+    // Clean URL keys from spaces (common mobile copy-paste error)
+    if (key.endsWith('_URL')) {
+        value = value.replace(/\s+/g, '');
+    }
+
     process.env[key] = value;
-    await sock.sendMessage(replyJid, { text: `✅ *MISE À JOUR RÉUSSIE*\n\n\`${key}\` est désormais fixé à: \`${value}\`` });
+
+    let confirmation = `✅ *MISE À JOUR RÉUSSIE*\n\n\`${key}\` est désormais fixé à: \`${value}\``;
+
+    // Warning for cloud localhosts
+    if (key === 'OLLAMA_URL' && (value.includes('localhost') || value.includes('127.0.0.1')) && process.env.RENDER) {
+        confirmation += "\n\n⚠️ *ATTENTION:* Le bot tourne sur Render. `localhost` pointe vers le serveur de Render, pas ton PC. Utilise une URL publique (Ngrok/Cloudflare) pour ton Ollama local.";
+    }
+
+    await sock.sendMessage(replyJid, { text: confirmation });
 });
 
 // Command: /checkgod
@@ -969,7 +982,8 @@ commands.set('checkai', async (sock, message, args) => {
             { name: 'Pollinations POST', fn: aiUtils.callPollinationsPOST },
             { name: 'Pollinations GET', fn: aiUtils.callPollinationsGET },
             { name: 'Ollama', fn: aiUtils.callOllama },
-            { name: 'Puter', fn: aiUtils.callPuterSDK },
+            { name: 'Puter API', fn: aiUtils.callPuterAPI },
+            { name: 'Puter SDK', fn: aiUtils.callPuterSDK },
             { name: 'OpenRouter', fn: aiUtils.callOpenRouterFree },
             { name: 'Blackbox', fn: aiUtils.callBlackbox }
         ];
@@ -978,17 +992,26 @@ commands.set('checkai', async (sock, message, args) => {
         for (const test of tests) {
             const start = Date.now();
             try {
-                const res = await test("Test de connexion.", "Réponds 'OK'");
+                const res = await test("Tu es un testeur système. Réponds uniquement par 'OK' si tu fonctionnes.", "Test de connexion.");
                 const dur = (Date.now() - start) / 1000;
                 if (res) {
-                    results += `✅ ${test.name}: ${dur}s\n`;
+                    // Extract a snippet of the response to show it's working
+                    const snippet = typeof res === 'string' ? res.substring(0, 30).replace(/\n/g, ' ') : 'Obj JSON';
+                    results += `✅ ${test.name}: ${dur}s\n   └ _"${snippet}..."_\n`;
                 } else {
-                    results += `❌ ${test.name}: Échec\n`;
+                    results += `❌ ${test.name}: Aucun contenu renvoyé\n`;
                 }
             } catch (err) {
                 results += `❌ ${test.name}: ${err.message}\n`;
             }
         }
+
+        // Add environment context
+        results += `\n🌐 *ENV:* Ollama=${process.env.OLLAMA_URL || '❌'}\n`;
+        if (process.env.OLLAMA_URL && process.env.OLLAMA_URL.includes(' ')) {
+            results += "⚠️ *ERREUR:* Ton URL Ollama contient des espaces !\n";
+        }
+
         await sock.sendMessage(replyJid, { text: results });
         return;
     }
