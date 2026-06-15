@@ -28,10 +28,11 @@ async function generateLinkStartImage() {
         </g>
 
         <!-- "LINK START" Text -->
-        <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="90" fill="white" style="filter: drop-shadow(0 0 15px #00ffff);">LINK START</text>
+        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="110" fill="white" style="filter: drop-shadow(0 0 20px #00ffff);">LINK START</text>
 
         <!-- Subtitle -->
-        <text x="50%" y="65%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="30" fill="#00aaff">CHARGEMENT DE LA MATRICE...</text>
+        <text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="35" fill="#00aaff" style="letter-spacing: 10px;">AETHERYS ONLINE</text>
+        <text x="50%" y="70%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="20" fill="rgba(0, 255, 255, 0.5)">GHENO CITY v2.0 - INITIALIZING SESSION</text>
 
         <!-- Progress Bar (Fake) -->
         <rect x="300" y="450" width="400" height="10" fill="none" stroke="#004466" stroke-width="1" />

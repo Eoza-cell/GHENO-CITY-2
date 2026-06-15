@@ -1,4 +1,4 @@
-const { createCanvas } = require('canvas');
+const sharp = require('sharp');
 
 // ---- Canonical world data (mirrors the seeds in database.js) ----
 const WORLD_NAME = 'AETHERYS';
@@ -24,7 +24,6 @@ const KINGDOMS = [
     }
 ];
 
-// Coastline of the continent (single landmass)
 const CONTINENT = [
     [330, 290], [350, 160], [520, 90], [760, 110], [880, 200], [900, 330],
     [1010, 470], [1075, 620], [1040, 800], [880, 880], [690, 860], [560, 800],
@@ -38,7 +37,6 @@ const CITIES = [
     { name: 'Solis', sub: "Capitale d'Elion", x: 660, y: 600, capital: true }
 ];
 
-// Dungeons by rank. Color scales with danger (E -> S).
 const RANK_COLORS = {
     E: '#7bd88f', D: '#69b7ff', C: '#ffd24d', B: '#ff9a3d', A: '#ff5d5d', S: '#c34bff'
 };
@@ -51,253 +49,127 @@ const DUNGEONS = [
     { name: 'Donjon du Destin', rank: 'S', x: 950, y: 790, glyph: 'skull' }
 ];
 
-function poly(ctx, points, close = true) {
-    ctx.beginPath();
-    ctx.moveTo(points[0][0], points[0][1]);
-    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
-    if (close) ctx.closePath();
-}
-
-function star(ctx, cx, cy, spikes, outer, inner) {
-    let rot = -Math.PI / 2;
-    const step = Math.PI / spikes;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(rot) * outer, cy + Math.sin(rot) * outer);
-    for (let i = 0; i < spikes; i++) {
-        rot += step; ctx.lineTo(cx + Math.cos(rot) * inner, cy + Math.sin(rot) * inner);
-        rot += step; ctx.lineTo(cx + Math.cos(rot) * outer, cy + Math.sin(rot) * outer);
-    }
-    ctx.closePath();
-}
-
-function diamond(ctx, cx, cy, r) {
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy);
-    ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy);
-    ctx.closePath();
-}
-
-function drawGlyph(ctx, glyph, x, y, color) {
-    ctx.save();
-    ctx.strokeStyle = '#2a2118';
-    ctx.lineWidth = 1.5;
-    ctx.fillStyle = color;
+function getGlyphSvg(glyph, x, y, color) {
     const s = 11;
-    if (glyph === 'tree') {
-        ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.7, y + s * 0.4); ctx.lineTo(x - s * 0.7, y + s * 0.4); ctx.closePath(); ctx.fill(); ctx.stroke();
-    } else if (glyph === 'mountain') {
-        ctx.beginPath(); ctx.moveTo(x - s, y + s * 0.5); ctx.lineTo(x, y - s); ctx.lineTo(x + s, y + s * 0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
-    } else if (glyph === 'volcano') {
-        ctx.beginPath(); ctx.moveTo(x - s, y + s * 0.5); ctx.lineTo(x - s * 0.3, y - s * 0.6); ctx.lineTo(x + s * 0.3, y - s * 0.6); ctx.lineTo(x + s, y + s * 0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#ff7a2d'; ctx.beginPath(); ctx.moveTo(x - s * 0.3, y - s * 0.6); ctx.lineTo(x, y - s * 1.3); ctx.lineTo(x + s * 0.3, y - s * 0.6); ctx.closePath(); ctx.fill();
-    } else if (glyph === 'cave') {
-        ctx.beginPath(); ctx.arc(x, y, s * 0.8, Math.PI, 0); ctx.lineTo(x + s * 0.8, y + s * 0.5); ctx.lineTo(x - s * 0.8, y + s * 0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
-    } else if (glyph === 'tower') {
-        ctx.fillRect(x - s * 0.5, y - s, s, s * 1.6); ctx.strokeRect(x - s * 0.5, y - s, s, s * 1.6);
-    } else if (glyph === 'skull') {
-        ctx.beginPath(); ctx.arc(x, y - 2, s * 0.7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = '#1a1410'; ctx.beginPath(); ctx.arc(x - 3, y - 3, 1.8, 0, Math.PI * 2); ctx.arc(x + 3, y - 3, 1.8, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
+    if (glyph === 'tree') return `<path d="M ${x},${y - s} L ${x + s * 0.7},${y + s * 0.4} L ${x - s * 0.7},${y + s * 0.4} Z" fill="${color}" stroke="#2a2118" stroke-width="1.5" />`;
+    if (glyph === 'mountain') return `<path d="M ${x - s},${y + s * 0.5} L ${x},${y - s} L ${x + s},${y + s * 0.5} Z" fill="${color}" stroke="#2a2118" stroke-width="1.5" />`;
+    if (glyph === 'volcano') return `
+        <path d="M ${x - s},${y + s * 0.5} L ${x - s * 0.3},${y - s * 0.6} L ${x + s * 0.3},${y - s * 0.6} L ${x + s},${y + s * 0.5} Z" fill="${color}" stroke="#2a2118" stroke-width="1.5" />
+        <path d="M ${x - s * 0.3},${y - s * 0.6} L ${x},${y - s * 1.3} L ${x + s * 0.3},${y - s * 0.6} Z" fill="#ff7a2d" />`;
+    if (glyph === 'cave') return `<path d="M ${x - s * 0.8},${y + s * 0.5} L ${x + s * 0.8},${y + s * 0.5} A ${s * 0.8},${s * 0.8} 0 0,0 ${x - s * 0.8},${y + s * 0.5} Z" fill="${color}" stroke="#2a2118" stroke-width="1.5" />`;
+    if (glyph === 'tower') return `<rect x="${x - s * 0.5}" y="${y - s}" width="${s}" height="${s * 1.6}" fill="${color}" stroke="#2a2118" stroke-width="1.5" />`;
+    if (glyph === 'skull') return `
+        <circle cx="${x}" cy="${y - 2}" r="${s * 0.7}" fill="${color}" stroke="#2a2118" stroke-width="1.5" />
+        <circle cx="${x - 3}" cy="${y - 3}" r="1.8" fill="#1a1410" />
+        <circle cx="${x + 3}" cy="${y - 3}" r="1.8" fill="#1a1410" />`;
+    return '';
 }
 
-function drawCompass(ctx, cx, cy, r) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(60,45,25,0.7)';
-    ctx.fillStyle = 'rgba(60,45,25,0.7)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.7, 0, Math.PI * 2); ctx.stroke();
-    for (let i = 0; i < 4; i++) {
-        const a = i * Math.PI / 2 - Math.PI / 2;
-        const a2 = a + Math.PI / 4;
-        ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-        ctx.lineTo(cx + Math.cos(a2) * r * 0.25, cy + Math.sin(a2) * r * 0.25);
-        ctx.lineTo(cx + Math.cos(a + Math.PI / 2) * r, cy + Math.sin(a + Math.PI / 2) * r);
-        ctx.lineTo(cx + Math.cos(a2 + Math.PI / 2) * r * 0.25, cy + Math.sin(a2 + Math.PI / 2) * r * 0.25);
-        if (i % 2 === 0) { ctx.fillStyle = 'rgba(120,40,30,0.75)'; ctx.fill(); }
-        ctx.stroke();
-    }
-    ctx.fillStyle = '#3c2d19';
-    ctx.font = 'bold 18px serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('N', cx, cy - r - 14);
-    ctx.fillText('S', cx, cy + r + 14);
-    ctx.fillText('O', cx - r - 14, cy);
-    ctx.fillText('E', cx + r + 14, cy);
-    ctx.restore();
-}
-
-/**
- * Generates a stylized fantasy world map of Aetherys.
- * @returns {Promise<Buffer>}
- */
 async function generateWorldMapImage() {
     const W = 1400, H = 1000;
-    const canvas = createCanvas(W, H);
-    const ctx = canvas.getContext('2d');
 
-    // Ocean
-    const ocean = ctx.createLinearGradient(0, 0, W, H);
-    ocean.addColorStop(0, '#1b3a55');
-    ocean.addColorStop(1, '#0e2236');
-    ctx.fillStyle = ocean;
-    ctx.fillRect(0, 0, W, H);
+    const continentPath = `M ${CONTINENT.map(p => p.join(',')).join(' L ')} Z`;
 
-    // Ocean wave lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.lineWidth = 1;
-    for (let y = 40; y < H; y += 36) {
-        ctx.beginPath();
-        for (let x = 0; x <= W; x += 20) ctx.lineTo(x, y + Math.sin((x + y) / 60) * 4);
-        ctx.stroke();
-    }
-
-    // Landmass shadow + fill (parchment)
-    ctx.save();
-    ctx.shadowBlur = 40; ctx.shadowColor = 'rgba(0,0,0,0.55)';
-    poly(ctx, CONTINENT);
-    const land = ctx.createLinearGradient(0, 100, 0, 900);
-    land.addColorStop(0, '#e9dcb5');
-    land.addColorStop(1, '#cdb988');
-    ctx.fillStyle = land;
-    ctx.fill();
-    ctx.restore();
-
-    // Coastline
-    poly(ctx, CONTINENT);
-    ctx.strokeStyle = '#5c4a2a';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    // Kingdom regions (clipped to land)
-    ctx.save();
-    poly(ctx, CONTINENT); ctx.clip();
+    let kingdomsSvg = '';
     KINGDOMS.forEach(k => {
-        poly(ctx, k.polygon);
-        ctx.fillStyle = k.fill;
-        ctx.fill();
-        ctx.strokeStyle = k.color;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([8, 6]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-    });
-    ctx.restore();
-
-    // Kingdom labels
-    ctx.textAlign = 'center';
-    KINGDOMS.forEach(k => {
-        const cx = k.labelPos ? k.labelPos[0] : k.polygon.reduce((a, p) => a + p[0], 0) / k.polygon.length;
-        const cy = k.labelPos ? k.labelPos[1] : k.polygon.reduce((a, p) => a + p[1], 0) / k.polygon.length;
-        ctx.fillStyle = k.color;
-        ctx.font = 'bold 22px serif';
-        ctx.shadowBlur = 6; ctx.shadowColor = 'rgba(0,0,0,0.6)';
-        ctx.fillText(k.short, cx, cy - 6);
-        ctx.font = 'italic 15px serif';
-        ctx.fillStyle = '#3c2d19';
-        ctx.shadowBlur = 0;
-        ctx.fillText(`« ${k.status} »`, cx, cy + 16);
+        const polyPath = `M ${k.polygon.map(p => p.join(',')).join(' L ')} Z`;
+        kingdomsSvg += `<path d="${polyPath}" fill="${k.fill}" stroke="${k.color}" stroke-width="2" stroke-dasharray="8,6" />`;
     });
 
-    // Dungeons
+    let labelsSvg = '';
+    KINGDOMS.forEach(k => {
+        const cx = k.labelPos[0], cy = k.labelPos[1];
+        labelsSvg += `
+            <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-family="serif" font-weight="bold" font-size="22" fill="${k.color}" style="filter: drop-shadow(0 0 4px rgba(0,0,0,0.6));">${k.short}</text>
+            <text x="${cx}" y="${cy + 16}" text-anchor="middle" font-family="serif" font-style="italic" font-size="15" fill="#3c2d19">« ${k.status} »</text>
+        `;
+    });
+
+    let dungeonsSvg = '';
     DUNGEONS.forEach(d => {
-        const color = RANK_COLORS[d.rank] || '#fff';
-        drawGlyph(ctx, d.glyph, d.x, d.y - 16, color);
-        // marker diamond + rank
-        ctx.save();
-        ctx.shadowBlur = 8; ctx.shadowColor = color;
-        diamond(ctx, d.x, d.y, 9);
-        ctx.fillStyle = color; ctx.fill();
-        ctx.strokeStyle = '#2a2118'; ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.restore();
-        ctx.fillStyle = '#1a1410';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(d.rank, d.x, d.y);
-        // label
-        ctx.fillStyle = '#2a2118';
-        ctx.font = '13px serif';
-        ctx.textBaseline = 'top';
-        ctx.fillText(d.name, d.x, d.y + 12);
+        const color = RANK_COLORS[d.rank];
+        dungeonsSvg += `
+            ${getGlyphSvg(d.glyph, d.x, d.y - 16, color)}
+            <path d="M ${d.x},${d.y - 9} L ${d.x + 9},${d.y} L ${d.x},${d.y + 9} L ${d.x - 9},${d.y} Z" fill="${color}" stroke="#2a2118" stroke-width="1.5" style="filter: drop-shadow(0 0 5px ${color});" />
+            <text x="${d.x}" y="${d.y}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-weight="bold" font-size="11" fill="#1a1410">${d.rank}</text>
+            <text x="${d.x}" y="${d.y + 12}" text-anchor="middle" dominant-baseline="hanging" font-family="serif" font-size="13" fill="#2a2118">${d.name}</text>
+        `;
     });
 
-    // Cities
+    let citiesSvg = '';
     CITIES.forEach(c => {
-        ctx.save();
         if (c.capital) {
-            ctx.shadowBlur = 10; ctx.shadowColor = '#f4c542';
-            star(ctx, c.x, c.y, 5, 13, 6);
-            ctx.fillStyle = '#f4c542'; ctx.fill();
-            ctx.strokeStyle = '#5c4a2a'; ctx.lineWidth = 1.5; ctx.stroke();
+            citiesSvg += `
+                <path d="M ${c.x},${c.y - 13} L ${c.x + 3},${c.y - 6} L ${c.x + 10},${c.y - 6} L ${c.x + 5},${c.y} L ${c.x + 7},${c.y + 7} L ${c.x},${c.y + 3} L ${c.x - 7},${c.y + 7} L ${c.x - 5},${c.y} L ${c.x - 10},${c.y - 6} L ${c.x - 3},${c.y - 6} Z" fill="#f4c542" stroke="#5c4a2a" stroke-width="1.5" style="filter: drop-shadow(0 0 8px #f4c542);" />
+            `;
         } else {
-            ctx.beginPath(); ctx.arc(c.x, c.y, 7, 0, Math.PI * 2);
-            ctx.fillStyle = '#f6f1e3'; ctx.fill();
-            ctx.lineWidth = 3; ctx.strokeStyle = '#8a2b22'; ctx.stroke();
-            ctx.beginPath(); ctx.arc(c.x, c.y, 3, 0, Math.PI * 2);
-            ctx.fillStyle = '#8a2b22'; ctx.fill();
+            citiesSvg += `
+                <circle cx="${c.x}" cy="${c.y}" r="7" fill="#f6f1e3" stroke="#8a2b22" stroke-width="3" />
+                <circle cx="${c.x}" cy="${c.y}" r="3" fill="#8a2b22" />
+            `;
         }
-        ctx.restore();
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#1a1410';
-        ctx.font = `bold ${c.capital ? 18 : 16}px serif`;
-        ctx.fillText(c.name, c.x + 14, c.y - 2);
-        ctx.font = 'italic 12px serif';
-        ctx.fillStyle = '#5c4a2a';
-        ctx.fillText(c.sub, c.x + 14, c.y + 13);
+        citiesSvg += `
+            <text x="${c.x + 14}" y="${c.y - 2}" dominant-baseline="middle" font-family="serif" font-weight="bold" font-size="${c.capital ? 18 : 16}" fill="#1a1410">${c.name}</text>
+            <text x="${c.x + 14}" y="${c.y + 13}" dominant-baseline="middle" font-family="serif" font-style="italic" font-size="12" fill="#5c4a2a">${c.sub}</text>
+        `;
     });
 
-    // Compass
-    drawCompass(ctx, W - 110, 150, 56);
+    const svg = `
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#1b3a55;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#0e2236;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="landGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#e9dcb5;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#cdb988;stop-opacity:1" />
+            </linearGradient>
+            <clipPath id="continentClip">
+                <path d="${continentPath}" />
+            </clipPath>
+        </defs>
 
-    // Title banner
-    ctx.save();
-    ctx.fillStyle = 'rgba(20,12,6,0.72)';
-    ctx.fillRect(W / 2 - 320, 24, 640, 78);
-    ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = 3;
-    ctx.strokeRect(W / 2 - 320, 24, 640, 78);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#f4e3b0';
-    ctx.font = 'bold 44px serif';
-    ctx.fillText(`CARTE DU MONDE — ${WORLD_NAME}`, W / 2, 64);
-    ctx.fillStyle = '#cbb682';
-    ctx.font = 'italic 18px serif';
-    ctx.fillText('Continent de l\'Empire, des terres libres et du Dominion Noir', W / 2, 90);
-    ctx.restore();
+        <rect width="100%" height="100%" fill="url(#oceanGrad)" />
 
-    // Legend
-    const lx = 40, ly = H - 240, lw = 320, lh = 200;
-    ctx.fillStyle = 'rgba(20,12,6,0.78)';
-    ctx.fillRect(lx, ly, lw, lh);
-    ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = 2;
-    ctx.strokeRect(lx, ly, lw, lh);
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#f4e3b0';
-    ctx.font = 'bold 18px serif';
-    ctx.fillText('LÉGENDE', lx + 16, ly + 26);
+        <!-- Landmass -->
+        <path d="${continentPath}" fill="url(#landGrad)" stroke="#5c4a2a" stroke-width="4" style="filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));" />
 
-    ctx.font = '14px sans-serif';
-    let yy = ly + 52;
-    // city + capital
-    ctx.fillStyle = '#8a2b22'; ctx.beginPath(); ctx.arc(lx + 24, yy, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#e9dcb5'; ctx.fillText('Cité / lieu', lx + 40, yy + 4);
-    ctx.fillStyle = '#f4c542'; star(ctx, lx + 170, yy, 5, 8, 4); ctx.fill();
-    ctx.fillStyle = '#e9dcb5'; ctx.fillText('Capitale', lx + 186, yy + 4);
-    yy += 28;
-    ctx.fillStyle = '#e9dcb5'; ctx.fillText('Donjons par rang :', lx + 16, yy + 4);
-    yy += 24;
-    const ranks = Object.keys(RANK_COLORS);
-    ranks.forEach((r, i) => {
-        const rx = lx + 24 + (i % 3) * 95;
-        const ry = yy + Math.floor(i / 3) * 30;
-        diamond(ctx, rx, ry, 7); ctx.fillStyle = RANK_COLORS[r]; ctx.fill();
-        ctx.strokeStyle = '#2a2118'; ctx.lineWidth = 1; ctx.stroke();
-        ctx.fillStyle = '#e9dcb5'; ctx.fillText(`Rang ${r}`, rx + 14, ry + 4);
-    });
+        <g clip-path="url(#continentClip)">
+            ${kingdomsSvg}
+        </g>
 
-    return canvas.toBuffer('image/png');
+        ${labelsSvg}
+        ${dungeonsSvg}
+        ${citiesSvg}
+
+        <!-- Title -->
+        <rect x="${W/2 - 320}" y="24" width="640" height="78" fill="rgba(20,12,6,0.72)" stroke="#c9a24a" stroke-width="3" />
+        <text x="${W/2}" y="64" text-anchor="middle" font-family="serif" font-weight="bold" font-size="44" fill="#f4e3b0">CARTE DU MONDE — ${WORLD_NAME}</text>
+        <text x="${W/2}" y="90" text-anchor="middle" font-family="serif" font-style="italic" font-size="18" fill="#cbb682">Continent de l'Empire, des terres libres et du Dominion Noir</text>
+
+        <!-- Legend -->
+        <g transform="translate(40, ${H - 240})">
+            <rect width="320" height="200" fill="rgba(20,12,6,0.78)" stroke="#c9a24a" stroke-width="2" />
+            <text x="16" y="26" font-family="serif" font-weight="bold" font-size="18" fill="#f4e3b0">LÉGENDE</text>
+            <circle cx="24" cy="52" r="6" fill="#8a2b22" />
+            <text x="40" y="57" font-family="sans-serif" font-size="14" fill="#e9dcb5">Cité / lieu</text>
+            <path d="M 170,44 L 172,48 L 176,48 L 173,51 L 174,56 L 170,53 L 166,56 L 167,51 L 164,48 L 168,48 Z" fill="#f4c542" />
+            <text x="186" y="57" font-family="sans-serif" font-size="14" fill="#e9dcb5">Capitale</text>
+            <text x="16" y="84" font-family="sans-serif" font-size="14" fill="#e9dcb5">Donjons par rang :</text>
+            ${Object.keys(RANK_COLORS).map((r, i) => {
+                const rx = 24 + (i % 3) * 95;
+                const ry = 110 + Math.floor(i / 3) * 30;
+                return `
+                <path d="M ${rx},${ry-7} L ${rx+7},${ry} L ${rx},${ry+7} L ${rx-7},${ry} Z" fill="${RANK_COLORS[r]}" stroke="#2a2118" />
+                <text x="${rx+14}" y="${ry+5}" font-family="sans-serif" font-size="14" fill="#e9dcb5">Rang ${r}</text>
+                `;
+            }).join('')}
+        </g>
+    </svg>
+    `;
+
+    return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 module.exports = { generateWorldMapImage, WORLD_NAME };

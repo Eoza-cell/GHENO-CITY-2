@@ -30,11 +30,12 @@ async function generateMainMenuImage() {
         </g>
 
         <!-- Title Section -->
-        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="70" fill="white" style="filter: drop-shadow(0 0 10px #00aaff);">ARISE : AETHERYS</text>
-        <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="30" fill="#00ccff">GHENO CITY 2 • LINK START</text>
+        <text x="50%" y="40%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="80" fill="white" style="filter: drop-shadow(0 0 15px #00aaff);">ARISE</text>
+        <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="40" fill="#00ccff" style="letter-spacing: 5px;">AETHERYS</text>
+        <text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="20" fill="rgba(255, 255, 255, 0.5)">GHENO CITY 2 • SYSTEM INTERFACE</text>
 
         <!-- Bottom Decorative Bar -->
-        <rect x="0" y="${height-100}" width="${width}" height="100" fill="url(#barGrad)" />
+        <rect x="0" y="${height-120}" width="${width}" height="120" fill="url(#barGrad)" />
         <line x1="100" y1="${height-50}" x2="${width-100}" y2="${height-50}" stroke="#00aaff" stroke-width="4" />
 
         <text x="50%" y="${height-20}" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-style="italic" font-size="18" fill="rgba(255, 255, 255, 0.7)">Le destin est entre tes mains, voyageur.</text>

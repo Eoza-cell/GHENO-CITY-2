@@ -52,17 +52,15 @@ async function generateProfileCard(player) {
 
             <!-- Inventory Summary (Equipment & Weapons) -->
             <text x="60" y="730" class="header">ÉQUIPEMENT & ARMES</text>
-            <text x="60" y="775" class="text value">${player.inventory?.[0] ? `⚔️ ${player.inventory[0].name}` : ''}</text>
-            <text x="350" y="775" class="text value">${player.inventory?.[0]?.quantity || ''}</text>
-
-            <text x="60" y="810" class="text value">${player.inventory?.[1] ? `🛡️ ${player.inventory[1].name}` : ''}</text>
-            <text x="350" y="810" class="text value">${player.inventory?.[1]?.quantity || ''}</text>
-
-            <text x="60" y="845" class="text value">${player.inventory?.[2] ? `📦 ${player.inventory[2].name}` : ''}</text>
-            <text x="350" y="845" class="text value">${player.inventory?.[2]?.quantity || ''}</text>
+            <g transform="translate(60, 775)">
+                ${(player.inventory || []).slice(0, 6).map((item, i) => `
+                    <text y="${i * 35}" class="text value">${item.name.length > 20 ? item.name.substring(0, 17) + '...' : item.name} x${item.quantity}</text>
+                `).join('')}
+            </g>
 
             <!-- Resources -->
-            <text x="150" y="650" class="text value">💰 ARGENT: ${player.col} Col</text>
+            <rect x="50" y="630" width="300" height="40" fill="rgba(0, 170, 255, 0.2)" rx="5" />
+            <text x="60" y="658" class="text value" style="fill: #ffd700;">💰 COL: ${(player.col || 0).toLocaleString()}</text>
         </svg>
     `;
 

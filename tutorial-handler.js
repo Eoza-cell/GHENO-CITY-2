@@ -133,10 +133,22 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 familyBonus = { strength: 8, agility: 8, intelligence: 8, luck: 8, defense: 8 };
             }
 
+            let startingItems = [];
+            if (['Guerrier', 'Samouraï', 'Paladin', 'Chevalier-Dragon'].includes(chosenClass)) {
+                startingItems = [{ name: 'Épée de Fer', quantity: 1 }, { name: 'Armure de Cuir', quantity: 1 }];
+            } else if (['Mage', 'Invocateur', 'Nécromancien', 'Alchimiste', 'Prêtre'].includes(chosenClass)) {
+                startingItems = [{ name: 'Bâton Apprenti', quantity: 1 }, { name: 'Robe en Tissu', quantity: 1 }];
+            } else if (['Assassin', 'Archer'].includes(chosenClass)) {
+                startingItems = [{ name: 'Dague Simple', quantity: 1 }, { name: 'Vêtements de Furtivité', quantity: 1 }];
+            } else {
+                startingItems = [{ name: 'Bâton de Voyage', quantity: 1 }, { name: 'Tunique Simple', quantity: 1 }];
+            }
+
             await player.update({
                 class: chosenClass,
                 family: family,
                 tutorialStep: 1.5, // Intermediate step for Derivative
+                inventory: startingItems,
                 strength: (chosenClass === 'Guerrier' || chosenClass === 'Paladin' || chosenClass === 'Samouraï') ? 20 + familyBonus.strength : 10 + familyBonus.strength,
                 intelligence: (chosenClass === 'Mage' || chosenClass === 'Invocateur' || chosenClass === 'Nécromancien' || chosenClass === 'Alchimiste') ? 20 + familyBonus.intelligence : 10 + familyBonus.intelligence,
                 agility: (chosenClass === 'Assassin' || chosenClass === 'Archer' || chosenClass === 'Moine') ? 20 + familyBonus.agility : 10 + familyBonus.agility,
