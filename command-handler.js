@@ -1017,16 +1017,21 @@ commands.set('checkai', async (sock, message, args) => {
     }
 
     const startTime = Date.now();
+    let usedProvider = "Aucun";
     try {
-        const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
+        const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.", 0, (name) => { usedProvider = name; });
         const duration = (Date.now() - startTime) / 1000;
 
         if (result) {
+            const isFallback = usedProvider === "MJ Fallback";
             await sock.sendMessage(replyJid, {
                 text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
-                      `Statut: 🟢 *OPÉRATIONNEL*\n` +
-                      `Latence globale: ${duration}s\n\n` +
-                      `_Le flux magique est stable. Si le bot ne répond pas en RP, le problème vient probablement du format de réponse de l'IA._`
+                      `Statut: ${isFallback ? '🟠 *LIMITÉ*' : '🟢 *OPÉRATIONNEL*'}\n` +
+                      `Canal: *${usedProvider}*\n` +
+                      `Latence: ${duration}s\n\n` +
+                      (isFallback
+                        ? "⚠️ *Note:* Le MJ Fallback est activé car aucun serveur IA n'a répondu. Les actions seront moins précises."
+                        : "_Le flux magique est stable._")
             });
         } else {
             throw new Error("Tous les providers ont échoué.");

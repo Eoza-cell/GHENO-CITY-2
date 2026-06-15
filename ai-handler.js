@@ -164,7 +164,13 @@ FORMAT JSON:
   ]
 }`;
 
-    const fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION DU JOUEUR: ${actionText}`;
+    let fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION DU JOUEUR: ${actionText}`;
+
+    // Token safety: if prompt is extremely long, truncate history and social info
+    if (fullPrompt.length > 4000) {
+        console.warn("[AI] Prompt trop long, troncature activée.");
+        fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n\nACTION DU JOUEUR: ${actionText}`;
+    }
 
   console.log(`[AI] Envoi de la requête au MJ (Player: ${player.name})...`);
   try {

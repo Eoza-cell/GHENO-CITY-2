@@ -30,12 +30,18 @@ async function callPollinationsPOST(system, prompt) {
 
 async function callPollinationsGET(system, prompt) {
     try {
-        const combined = `System: ${system}\n\nUser: ${prompt}`;
-        const url = `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&cache=true`;
+        // Pollinations GET has URL length limits. Truncate prompts if necessary.
+        const maxLen = 1500;
+        let combined = `System: ${system}\n\nUser: ${prompt}`;
+        if (combined.length > maxLen) {
+            combined = `System: ${system.substring(0, 500)}\n\nUser: ${prompt.substring(0, 1000)}`;
+        }
+
+        const url = `https://text.pollinations.ai/${encodeURIComponent(combined)}?model=openai&cache=true&seed=${Math.floor(Math.random() * 1000)}`;
         const response = await axios.get(url, { timeout: 30000 });
         if (response.data) {
             const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-            if (text.length > 5 && !text.includes('Queue full')) return text;
+            if (text.length > 5 && !text.includes('Queue full') && !text.includes('error')) return text;
         }
     } catch (e) { return null; }
     return null;
@@ -56,9 +62,22 @@ async function callBlackbox(system, prompt) {
         const resp = await axios.post("https://www.blackbox.ai/api/chat", {
             messages: [{ role: "user", content: `SYSTEM: ${system}\n\nUSER: ${prompt}` }],
             model: "deepseek-v3",
-            max_tokens: 1024
+            max_tokens: 1024,
+            clickedContinue: false,
+            previewToken: null,
+            codeModelMode: true,
+            agentMode: {},
+            trendingAgentMode: {},
+            isMicMode: false,
+            isChromeExt: false,
+            githubToken: null
         }, {
-            headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Origin': 'https://www.blackbox.ai',
+                'Referer': 'https://www.blackbox.ai/'
+            },
             timeout: 20000
         });
         let data = resp.data;
@@ -86,16 +105,38 @@ async function callBlackbox(system, prompt) {
 
 async function callOpenRouterFree(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
-    try {
-        const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "google/gemini-2.0-flash-exp:free",
-            messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
-        }, {
-            headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`, 'HTTP-Referer': 'https://github.com/Eoza-cell/GHENO-CITY-2' },
-            timeout: 25000
-        });
-        return resp.data?.choices?.[0]?.message?.content;
-    } catch (e) { return null; }
+    const models = [
+        "google/gemini-2.0-flash-exp:free",
+        "google/gemini-2.0-pro-exp-02-05:free",
+        "deepseek/deepseek-r1:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "mistralai/pixtral-12b:free",
+        "google/gemini-flash-1.5-8b:free"
+    ];
+
+    // Try up to 3 different models from the free list
+    for (let i = 0; i < 3; i++) {
+        const model = models[Math.floor(Math.random() * models.length)];
+        try {
+            const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+                model: model,
+                messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    'HTTP-Referer': 'https://github.com/Eoza-cell/GHENO-CITY-2',
+                    'X-Title': 'Arise RPG Bot'
+                },
+                timeout: 30000
+            });
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (content && content.length > 10) return content;
+        } catch (e) {
+            console.error(`[AI] OpenRouter (${model}) error:`, e.response?.data || e.message);
+            continue;
+        }
+    }
+    return null;
 }
 
 async function callOllama(system, prompt) {
@@ -141,9 +182,23 @@ async function callOllama(system, prompt) {
 
 async function callPuterAPI(system, prompt) {
     try {
-        const models = ["gpt-4o-mini", "claude-3-5-sonnet", "gemini-1.5-flash"];
+        const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash", "gpt-4o-mini"];
         for (const model of models) {
             try {
+                const config = {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': 'https://puter.com',
+                        'Referer': 'https://puter.com/',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    },
+                    timeout: 15000
+                };
+
+                if (process.env.PUTER_API_KEY) {
+                    config.headers['Authorization'] = `Bearer ${process.env.PUTER_API_KEY}`;
+                }
+
                 const response = await axios.post('https://api.puter.com/v1/chat/completions', {
                     model: model,
                     messages: [
@@ -151,20 +206,17 @@ async function callPuterAPI(system, prompt) {
                         { role: 'user', content: prompt }
                     ],
                     stream: false
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': process.env.PUTER_API_KEY ? `Bearer ${process.env.PUTER_API_KEY}` : undefined,
-                        'Origin': 'https://puter.com',
-                        'Referer': 'https://puter.com/',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                    },
-                    timeout: 15000
-                });
+                }, config);
+
                 if (response.data?.choices?.[0]?.message?.content) {
                     return response.data.choices[0].message.content;
                 }
-            } catch (err) {}
+            } catch (err) {
+                // If 401/403 and no key, maybe keyless is dead for this model
+                if (err.response?.status === 401 || err.response?.status === 403) {
+                    if (!process.env.PUTER_API_KEY) continue;
+                }
+            }
         }
     } catch (e) {}
     return null;
@@ -402,19 +454,23 @@ function extractNarrative(content) {
  */
 async function callAI(systemPrompt, userPrompt, depth = 0, onProviderSuccess = null) {
     if (depth > 2) return null;
-    if (!process.env.OLLAMA_URL) {
-        console.warn("[AI] OLLAMA_URL non configuré. Utilisation des fallbacks cloud.");
-    }
-    const providers = [
-        { name: 'Ollama', fn: callOllama },
-        { name: 'Puter API', fn: callPuterAPI },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'OpenRouter Free', fn: callOpenRouterFree },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
+
+    // Priority List: Fast/Configured -> Slow/Fallback
+    const providers = [];
+
+    if (process.env.OLLAMA_URL) providers.push({ name: 'Ollama', fn: callOllama });
+    if (process.env.PUTER_API_KEY) providers.push({ name: 'Puter API', fn: callPuterAPI });
+    if (process.env.OPENROUTER_API_KEY) providers.push({ name: 'OpenRouter Free', fn: callOpenRouterFree });
+
+    // Public/Free Fallbacks
+    providers.push(
+        { name: 'Blackbox AI', fn: callBlackbox },
         { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Pollinations Emergency', fn: callPollinationsEmergency },
-        { name: 'Blackbox AI', fn: callBlackbox }
-    ];
+        { name: 'Puter API (Keyless)', fn: callPuterAPI },
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'Pollinations Emergency', fn: callPollinationsEmergency }
+    );
     for (const p of providers) {
         try {
             console.log(`[AI] Tentative: ${p.name}...`);
