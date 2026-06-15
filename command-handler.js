@@ -5,6 +5,7 @@ const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./database');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
+const { generateWorldMapImage } = require('./world-map');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
@@ -285,13 +286,19 @@ commands.set('map', async (sock, message) => {
     }
 
     const dungeons = await Dungeon.findAll();
-    const mapText = `--- 🗺️ CARTE D'AETHERYS --- \n\n` +
-                    `📍 *POSITION:* ${player.location}\n\n` +
-                    `🏰 *DONJONS DÉCOUVERTS:* \n` +
+    const mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
+                    `📍 *Position:* ${player.location}\n\n` +
+                    `🏰 *Donjons par rang:*\n` +
                     dungeons.map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
                     `\n\n_Le monde est vaste. Déplace-toi via le mode /action._`;
 
-    await sock.sendMessage(replyJid, { text: mapText });
+    try {
+        const mapImage = await generateWorldMapImage();
+        await sock.sendMessage(replyJid, { image: mapImage, caption: mapText });
+    } catch (err) {
+        console.error('[MAP] Échec génération carte:', err.message);
+        await sock.sendMessage(replyJid, { text: mapText });
+    }
 });
 
 // Command: /boutique
