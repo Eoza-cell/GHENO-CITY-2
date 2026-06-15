@@ -349,7 +349,8 @@ function localMJ(userPrompt, systemPrompt) {
         }
 
     } else if (actionType === "Mouvement") {
-        narrative += `Tu te mets en route à travers les terres d'Aetherys. Le voyage se déroule ${result === 'Réussite Critique' ? 'magnifiquement' : result === 'Échec Critique' ? 'désastreusement' : 'sans encombre majeur'}, et tu atteins ton but sous un ciel chargé d'éclairs de mana.`;
+        const meters = 10 + Math.floor(Math.random() * 90);
+        narrative += `Tu parcours environ ${meters} mètres vers ta destination à travers les terres d'Aetherys. Le voyage se déroule ${result === 'Réussite Critique' ? 'magnifiquement' : result === 'Échec Critique' ? 'désastreusement' : 'sans encombre majeur'}, et tu progresses sous un ciel chargé d'éclairs de mana.`;
     } else {
         narrative += `Tu agis avec assurance dans ce monde de dangers. Le destin semble te ${result === 'Réussite Critique' ? 'sourire grandement' : result === 'Échec Critique' ? 'tourner le dos' : 'sourire'} alors que tu traces ton chemin à Eldoria.`;
     }

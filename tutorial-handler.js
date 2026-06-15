@@ -161,6 +161,10 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
     if (player.tutorialStep === 2) {
         // Combat training logic powered by AI
+        const turnsSoFar = player.tutorialTurns || 0;
+        const MAX_TUTORIAL_TURNS = 2; // force completion after this many combat exchanges
+        const mustFinish = turnsSoFar >= MAX_TUTORIAL_TURNS;
+
         const systemPrompt = `
             Tu es l'Instructeur, un maître d'armes légendaire dans GHENO CITY 2. Ton but est d'évaluer le nouveau protagoniste.
             Le joueur est un ${player.class} de la famille ${player.family} (FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}).
@@ -175,11 +179,15 @@ async function handleTutorialAction(sock, message, player, actionText) {
                - AGI: Rang E (2m/s), Rang D (10m/s), Rang C (30m/s), B+ (Supersonique).
             3. LIBERTÉ: Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
             4. TON MENTOR: Sévère mais juste. "DODODO!"
-            5. FIN: tutorial_complete à true après une démonstration de force suffisante.
-            6. JSON: {"narrative": "...", "tutorial_complete": boolean}
+            5. FIN: Le tutoriel est COURT. Dès que le joueur tente une attaque ou une action de combat déterminée, mets tutorial_complete à true et félicite-le.
+            ${mustFinish ? "6. IMPÉRATIF: Le joueur s'est assez entraîné. Tu DOIS conclure le tutoriel MAINTENANT : tutorial_complete = true, OBLIGATOIRE." : ""}
+            7. JSON STRICT: {"narrative": "...", "tutorial_complete": boolean}
         `;
 
         const fullPrompt = `ACTION DU JOUEUR: ${actionText}`;
+
+        await player.increment('tutorialTurns', { by: 1 });
+        await player.reload();
 
         try {
             const contentRaw = await callAI(systemPrompt, fullPrompt);
@@ -225,7 +233,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 aiResponse.narrative = "Instructeur : 'Impressionnant ! Tu apprends vite.'";
             }
 
-            if (aiResponse.tutorial_complete) {
+            if (aiResponse.tutorial_complete || mustFinish) {
                 await player.update({ tutorialStep: 3, mode: 'normal' });
                 aiResponse.narrative += "\n\n*FÉLICITATIONS ! Tu as terminé le tutoriel. Utilise /menu pour commencer.*";
             }

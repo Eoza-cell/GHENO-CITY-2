@@ -2,6 +2,7 @@ const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Con
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
+const questUtils = require('./quest-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -32,14 +33,26 @@ async function handleFreeAction(sock, message, player, actionText) {
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
 
   const questState = activeQuests.length > 0
-    ? "Quêtes Actives:\n" + activeQuests.map(q => `- ${q.title}: ${q.description}`).join('\n')
+    ? "Quêtes Actives:\n" + activeQuests.map(q => {
+        const pq = q.PlayerQuest;
+        const chainInfo = q.chain ? ` [${q.chain} • étape ${q.step}]` : '';
+        const prog = ` (${pq.progress || 0}%)`;
+        const branch = pq.branch ? ` [voie: ${pq.branch}]` : '';
+        const obj = q.objective ? ` | Objectif: ${q.objective}` : '';
+        return `- ${q.title}${chainInfo}${prog}${branch}: ${q.description}${obj}`;
+      }).join('\n')
     : "Aucune quête active.";
 
   const availableQuests = await Quest.findAll({
       where: { rank_required: player.rank },
-      limit: 3
+      order: [['chain', 'ASC'], ['step', 'ASC']],
+      limit: 5
   });
-  const availableQuestState = "Quêtes dispo (Rang " + player.rank + "):\n" + availableQuests.map(q => `- ${q.title}`).join('\n');
+  const availableQuestState = "Quêtes dispo (Rang " + player.rank + "):\n" + availableQuests.map(q => {
+      const chainInfo = q.chain ? ` [${q.chain} • étape ${q.step}]` : '';
+      const coop = q.isMultiplayer ? ' (COOP)' : '';
+      return `- ${q.title}${chainInfo}${coop}: ${q.objective || q.description}`;
+  }).join('\n');
 
   const dungeons = await Dungeon.findAll({ limit: 5 });
   const dungeonState = "Donjons:\n" + dungeons.map(d => `- ${d.name} (${d.rank})`).join('\n');
@@ -149,11 +162,31 @@ async function handleFreeAction(sock, message, player, actionText) {
     - DÉFENSE (DEF): ≥10 (Résistance humaine), ≥50 (Peau d'acier, ignore les lames communes), ≥150 (Invulnérabilité physique quasi-totale).
     - CHANCE (LUCK): Influence les coïncidences heureuses et les loots rares.
 
+    DÉPLACEMENT (OBLIGATOIRE):
+    - À CHAQUE déplacement, précise TOUJOURS la distance parcourue EN MÈTRES (ex: "Tu cours sur 25 mètres") et le LIEU/POINT VISÉ exact (ex: "vers la porte nord de la taverne").
+    - La distance doit être cohérente avec l'AGI/vitesse du joueur et le temps de l'action. Un humain (AGI ~10) couvre ~2 m/s en marche, ~10 m/s en sprint ; AGI élevée = distances bien plus grandes.
+    - Si la destination est trop loin pour l'action décrite, indique la distance réellement franchie et ce qu'il reste à parcourir.
+
+    COMBAT — VITESSE, RÉACTIVITÉ & BLOCAGE (RÈGLE STRICTE):
+    - Compare la VITESSE/RÉACTIVITÉ (AGI) des deux combattants AVANT de résoudre une attaque.
+    - Si l'attaquant est PLUS RAPIDE/réactif que sa cible : la cible NE PEUT PAS esquiver. Elle peut SEULEMENT BLOQUER (si elle a la FORCE/DÉFENSE suffisante pour encaisser/parer le coup).
+    - Si la cible n'a PAS la FORCE nécessaire pour bloquer : elle PREND LE COUP DE PLEIN FOUET (dégâts complets, applique health_change négatif).
+    - Si la cible est aussi rapide ou plus rapide que l'attaquant : elle peut esquiver ou contrer.
+    - Précise toujours QUI est le plus rapide et POURQUOI le coup est esquivé / bloqué / encaissé, avec les chiffres de stats à l'appui.
+
     SOCIAL:
     - Tu gères des interactions entre joueurs dans la même zone.
     - Si l'action du joueur implique un autre joueur, tu peux créer une notification directe à ce joueur via une action notify_player.
     - Si l'événement concerne tous les joueurs du lieu, utilise une action broadcast.
     - Ne nomme jamais la JID ou d'autres données techniques, seulement les noms de personnages.
+
+    QUÊTES (IMPORTANT):
+    - Les quêtes sont ORDONNÉES en chaînes (étape 1, 2, 3...). Le joueur suit les étapes dans l'ordre.
+    - Quand le joueur accepte une quête, utilise l'action "start_quest" avec son titre EXACT (voir "Quêtes dispo").
+    - Quand il progresse, utilise "advance_quest" (progress = 0-100). Quand l'objectif est atteint, utilise "complete_quest" : la quête suivante de la chaîne se débloque AUTOMATIQUEMENT.
+    - Tu peux MODIFIER LE COURS d'une quête selon les choix du joueur avec "update_quest" (branch = nom de la voie, notes = nouvelle direction). Ex: trahir un PNJ ouvre une voie différente.
+    - INTERACTION ENTRE JOUEURS: pour une quête coopérative (marquée COOP) ou quand plusieurs joueurs sont présents, utilise "start_multiplayer_quest" : tous les joueurs de la zone reçoivent la quête et peuvent la faire progresser ensemble.
+    - N'invente PAS de titres de quête : utilise uniquement ceux listés dans "Quêtes dispo" / "Quêtes Actives".
 
     FORMAT DE RÉPONSE (JSON STRICT):
     {
@@ -162,7 +195,12 @@ async function handleFreeAction(sock, message, player, actionText) {
         {"type": "update_player", "parameters": {"col_change": 10, "xp_gain": 20, "new_class": "Optionnel"}},
         {"type": "add_item", "parameters": {"itemName": "Objet", "quantity": 1}},
         {"type": "notify_player", "parameters": {"target_name": "Nom du joueur", "message": "Texte de notification RP"}},
-        {"type": "broadcast", "parameters": {"message": "Annonce RP pour tous les joueurs présents"}}
+        {"type": "broadcast", "parameters": {"message": "Annonce RP pour tous les joueurs présents"}},
+        {"type": "start_quest", "parameters": {"questTitle": "Titre exact de la quête"}},
+        {"type": "advance_quest", "parameters": {"questTitle": "Titre", "progress": 50, "note": "Optionnel"}},
+        {"type": "complete_quest", "parameters": {"questTitle": "Titre"}},
+        {"type": "update_quest", "parameters": {"questTitle": "Titre", "branch": "Voie choisie", "notes": "Nouvelle direction de la quête"}},
+        {"type": "start_multiplayer_quest", "parameters": {"questTitle": "Titre de la quête COOP"}}
       ],
       "imagePrompt": "Description visuelle pour l'IA d'image"
     }
@@ -240,6 +278,9 @@ async function handleFreeAction(sock, message, player, actionText) {
         content: aiResponse.narrative,
         location: player.location
     });
+
+    // Collected quest feedback lines appended to the narrative after the loop.
+    const questFeedback = [];
 
     // Process AI actions
     for (const actionObj of actions) {
@@ -487,6 +528,48 @@ async function handleFreeAction(sock, message, player, actionText) {
                 }
             }
             break;
+
+        case 'start_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.startQuest(target, parameters.questTitle);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'advance_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'complete_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.completeQuest(target, parameters.questTitle);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'update_quest': // AI modifies the course of a quest
+            if (parameters.questTitle) {
+                const line = await questUtils.modifyQuest(target, parameters.questTitle, parameters.branch, parameters.notes);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'start_multiplayer_quest':
+            if (parameters.questTitle) {
+                const res = await questUtils.startMultiplayerQuest(player, parameters.questTitle);
+                if (res) {
+                    questFeedback.push(`🤝 *Quête coopérative lancée* : ${res.quest.title}`);
+                    for (const n of res.notified) {
+                        await sock.sendMessage(n.player.whatsappId, {
+                            text: `🤝 *Quête coopérative !*\n${player.name} t'embarque dans une quête.\n\n${n.line}`
+                        });
+                    }
+                }
+            }
+            break;
       }
 
       // Notify target if it's not the current player
@@ -516,6 +599,11 @@ async function handleFreeAction(sock, message, player, actionText) {
           text: `📣 *Annonce RP*\n\n${aiResponse.broadcastMessage}`
         });
       }
+    }
+
+    // Append quest progression feedback to the narrative.
+    if (questFeedback.length > 0) {
+      aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
 
     await sendWithImage(sock, jid, aiResponse);
