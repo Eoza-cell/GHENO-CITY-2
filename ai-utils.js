@@ -107,15 +107,17 @@ async function callOpenRouterFree(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
         "google/gemini-2.0-flash-exp:free",
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",
         "deepseek/deepseek-r1:free",
         "meta-llama/llama-3.3-70b-instruct:free",
         "mistralai/pixtral-12b:free",
-        "google/gemini-flash-1.5-8b:free"
+        "google/gemini-flash-1.5-8b:free",
+        "nvidia/llama-3.1-nemotron-70b-instruct:free"
     ];
 
-    // Try up to 3 different models from the free list
-    for (let i = 0; i < 3; i++) {
+    // Try up to 4 different models from the free list
+    for (let i = 0; i < 4; i++) {
         const model = models[Math.floor(Math.random() * models.length)];
         try {
             const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
@@ -132,11 +134,34 @@ async function callOpenRouterFree(system, prompt) {
             const content = resp.data?.choices?.[0]?.message?.content;
             if (content && content.length > 10) return content;
         } catch (e) {
-            console.error(`[AI] OpenRouter (${model}) error:`, e.response?.data || e.message);
+            const errorMsg = e.response?.data?.error?.message || e.message;
+            console.error(`[AI] OpenRouter (${model}) error:`, errorMsg);
+            if (errorMsg.includes('credits') || errorMsg.includes('balance')) return null;
             continue;
         }
     }
     return null;
+}
+
+async function getEmbeddings(text) {
+    if (!process.env.OLLAMA_URL) return null;
+    try {
+        let host = process.env.OLLAMA_URL.replace(/\s+/g, '').trim();
+        if (host && !host.startsWith('http')) host = 'http://' + host;
+        host = host.replace(/\/api\/(generate|chat)\/?$/, '').replace(/\/$/, '');
+
+        const OllamaClient = ollamaLib.Ollama || (ollamaLib.default && ollamaLib.default.Ollama) || ollamaLib.default;
+        const client = new OllamaClient({ host });
+
+        const response = await client.embed({
+            model: process.env.OLLAMA_EMBED_MODEL || 'qwen3-embedding',
+            input: text,
+        });
+        return response.embeddings;
+    } catch (e) {
+        console.error("[AI] Ollama Embedding Error:", e.message);
+        return null;
+    }
 }
 
 async function callOllama(system, prompt) {
@@ -322,10 +347,39 @@ async function callMJFallback(system, prompt) {
  */
 function cleanAIResponse(text) {
     if (!text || typeof text !== 'string') return "";
-    return text
+
+    let cleaned = text;
+
+    // Handle SSE fragments specifically if they leaked into the string
+    if (cleaned.includes('data:')) {
+        const lines = cleaned.split('\n');
+        let combinedText = "";
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                const fragment = line.substring(6).trim();
+                if (fragment === '[DONE]') continue;
+                try {
+                    const json = JSON.parse(fragment);
+                    if (json.choices?.[0]?.delta?.content) combinedText += json.choices[0].delta.content;
+                    else if (json.content) combinedText += json.content;
+                    // Handle string arrays [\"Hello \", \"world\"]
+                    else if (Array.isArray(json)) combinedText += json.join('');
+                } catch (e) {
+                    // Not valid JSON, might be raw fragment
+                    if (!fragment.startsWith('{') && !fragment.startsWith('[')) combinedText += fragment;
+                }
+            } else if (line.trim().length > 0 && !line.includes('data:')) {
+                combinedText += line + "\n";
+            }
+        }
+        if (combinedText.length > 5) cleaned = combinedText;
+    }
+
+    return cleaned
         .replace(/^```(json|JSON)?\s*/i, "")
         .replace(/```\s*$/i, "")
         .replace(/data:\s*\[DONE\]/gi, "")
+        .replace(/data:\s*\{.*?\}/gi, "")
         .replace(/data:\s*/gi, "")
         .trim();
 }
@@ -471,13 +525,17 @@ async function callAI(systemPrompt, userPrompt, depth = 0, onProviderSuccess = n
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations Emergency', fn: callPollinationsEmergency }
     );
+
+    const skipKeywords = ['Unauthorized', '401', '429', 'Rate limit', 'Internal Server Error', 'Queue full', 'Too Many Requests'];
+
     for (const p of providers) {
         try {
-            console.log(`[AI] Tentative: ${p.name}...`);
+            console.log(`[AI] Tentative: ${p.name}... (depth: ${depth})`);
             const res = await p.fn(systemPrompt, userPrompt);
             if (res) {
-                if (typeof res === 'string' && (res.includes('Unauthorized') || res.includes('401') || res.includes('429')) && res.length < 300) {
-                    console.warn(`[AI] ${p.name} a renvoyé une erreur de statut: ${res}`);
+                const resStr = typeof res === 'string' ? res : JSON.stringify(res);
+                if (resStr.length < 500 && skipKeywords.some(k => resStr.includes(k))) {
+                    console.warn(`[AI] ${p.name} a renvoyé une erreur technique: ${resStr.substring(0, 50)}`);
                     continue;
                 }
                 if (onProviderSuccess) onProviderSuccess(p.name);
@@ -489,11 +547,19 @@ async function callAI(systemPrompt, userPrompt, depth = 0, onProviderSuccess = n
             console.error(`[AI] ${p.name} a échoué:`, e.message);
         }
     }
+
+    // If everything failed, retry the whole loop once after a delay
+    if (depth === 0) {
+        console.warn("[AI] 🔄 Tous les providers ont échoué. Tentative de retry global dans 2s...");
+        await new Promise(r => setTimeout(r, 2000));
+        return await callAI(systemPrompt, userPrompt, depth + 1, onProviderSuccess);
+    }
+
     if (onProviderSuccess) onProviderSuccess("MJ Fallback");
     return await callMJFallback(systemPrompt, userPrompt);
 }
 
 module.exports = {
-    callAI, cleanAIResponse, extractNarrative,
+    callAI, cleanAIResponse, extractNarrative, getEmbeddings,
     callPollinationsPOST, callPollinationsGET, callBlackbox, callOpenRouterFree, callOllama, callPuterSDK, callMJFallback
 };

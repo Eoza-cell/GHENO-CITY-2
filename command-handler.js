@@ -982,6 +982,7 @@ commands.set('checkai', async (sock, message, args) => {
             { name: 'Pollinations POST', fn: aiUtils.callPollinationsPOST },
             { name: 'Pollinations GET', fn: aiUtils.callPollinationsGET },
             { name: 'Ollama', fn: aiUtils.callOllama },
+            { name: 'Embeddings', fn: (s, p) => aiUtils.getEmbeddings(p) },
             { name: 'Puter API', fn: aiUtils.callPuterAPI },
             { name: 'Puter SDK', fn: aiUtils.callPuterSDK },
             { name: 'OpenRouter', fn: aiUtils.callOpenRouterFree },
@@ -995,8 +996,7 @@ commands.set('checkai', async (sock, message, args) => {
                 const res = await test("Tu es un testeur système. Réponds uniquement par 'OK' si tu fonctionnes.", "Test de connexion.");
                 const dur = (Date.now() - start) / 1000;
                 if (res) {
-                    // Extract a snippet of the response to show it's working
-                    const snippet = typeof res === 'string' ? res.substring(0, 30).replace(/\n/g, ' ') : 'Obj JSON';
+                    const snippet = Array.isArray(res) ? `Embed[${res.length}]` : (typeof res === 'string' ? res.substring(0, 30).replace(/\n/g, ' ') : 'Obj JSON');
                     results += `✅ ${test.name}: ${dur}s\n   └ _"${snippet}..."_\n`;
                 } else {
                     results += `❌ ${test.name}: Aucun contenu renvoyé\n`;

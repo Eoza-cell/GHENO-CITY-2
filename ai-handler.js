@@ -128,40 +128,20 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `Tu es le MJ d'Arise/Aetherys. Style Anime/Solo Leveling.
-Réponds uniquement en JSON, ENTIÈREMENT EN FRANÇAIS. Évite tout mot anglais.
+  const systemPrompt = `MJ Arise/Aetherys (Solo Leveling style). JSON UNIQUEMENT, FRANÇAIS STRICT.
 
-RÈGLES DE COMBAT & RP:
-- Narration épique et immersive (2-3 paragraphes).
-- PRÉCISION TACTIQUE: Inclus impérativement les distances (en mètres), les techniques, les parties du corps visées, et les esquives.
-- IMPACT: Décris l'impact sur l'environnement et l'adversaire.
-- RÉALISME: Respecte strictement les stats et le rang du joueur.
-- Pas de parenthèses pour les sons ou sensations (ex: pas de "(Bruit d'épée)").
+RÈGLES:
+1. Narration épique + PRÉCISION TACTIQUE (distances en m, corps visé, techniques).
+2. RÉALISME: Selon les stats/rang. Pas d'anglais ni onomatopées entre ().
+3. MANA (Dérangement): Passive=0, Simple=-1, Complexe=-2, Ultime=-4.
+4. MULTI: Utilise "target_name" pour interagir.
 
-SYSTÈME DE DÉRANGEMENT (MANA):
-Évalue l'action du joueur et applique un coût en mana via "mana_change":
-- Action Passive/Dialogue: 0 PM
-- Action Simple (Coup d'épée basique): -1 PM
-- Action Complexe (Sort mineur, technique spéciale): -2 PM
-- Action Très Complexe (Sort ultime, combo massif): -4 PM
-
-INTERACTIONS MULTI-JOUEURS:
-- Si le joueur interagit avec un autre joueur présent, utilise le champ "target_name" dans les actions pour modifier l'état de la cible.
-- Encourage la coopération ou le conflit entre joueurs.
-
-LORE GÉOPOLITIQUE:
-- Empire d'Elion (Paix)
-- Valkyrr (Trêve)
-- Sultanat d'Azrak (Paix)
-- Dominion Noir de Vharos (Guerre)
+Lore: Empire d'Elion (Paix), Valkyrr (Trêve), Azrak (Paix), Vharos (Guerre).
 
 FORMAT JSON:
 {
-  "narrative": "Ton récit...",
-  "actions": [
-    {"type": "update_player", "parameters": {"xp_gain": 10, "col_change": 5, "health_change": -5}},
-    {"type": "add_item", "parameters": {"itemName": "Potion", "quantity": 1}}
-  ]
+  "narrative": "...",
+  "actions": [{"type": "update_player", "parameters": {"xp_gain": 0, "mana_change": 0}}]
 }`;
 
     let fullPrompt = `DATE RP: ${rpTime.full}\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION DU JOUEUR: ${actionText}`;
@@ -194,7 +174,11 @@ FORMAT JSON:
     console.log(`[AI PARSED] Narrative length: ${aiResponse.narrative?.length || 0}`);
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
-        aiResponse.narrative = "🌀 *Le flux magique est instable.* La matrice de Skype semble s'obscurcir un instant. L'action est en suspens, réessaie dans quelques instants...";
+        if (aiResponse.actions && aiResponse.actions.length > 0) {
+            aiResponse.narrative = "Tu accomplis ton action avec succès. Les conséquences se font déjà sentir dans ton état.";
+        } else {
+            aiResponse.narrative = "🌀 *Le flux magique est instable.* La matrice de Skype semble s'obscurcir un instant. L'action est en suspens, réessaie dans quelques instants...";
+        }
     } else {
         // Prepend World Clock & Provider to narrative (Provider only for God/Admin)
         const providerTag = player.isGod ? `\n\n_Flux: ${usedProvider}_` : "";

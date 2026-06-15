@@ -20,23 +20,24 @@ async function testProvider(name, fn) {
 
 async function runTests() {
     console.log("Starting AI Provider Diagnostics...");
-    console.log("Environment Keys:");
-    console.log("- OPENROUTER_API_KEY:", process.env.OPENROUTER_API_KEY ? "SET" : "MISSING");
-    console.log("- PUTER_API_KEY:", process.env.PUTER_API_KEY ? "SET" : "MISSING");
-    console.log("- OLLAMA_URL:", process.env.OLLAMA_URL || "MISSING");
+
+    console.log("\n--- Testing Embeddings ---");
+    try {
+        const emb = await aiUtils.getEmbeddings("Le ciel est bleu à cause de la diffusion de Rayleigh");
+        if (emb) {
+            console.log("✅ Embeddings received!");
+            console.log("Dimensions:", emb.length);
+        } else {
+            console.log("❌ Embeddings failed (returned null)");
+        }
+    } catch (e) {
+        console.log("❌ Embeddings error:", e.message);
+    }
 
     await testProvider('Pollinations POST', aiUtils.callPollinationsPOST);
     await testProvider('Pollinations GET', aiUtils.callPollinationsGET);
     await testProvider('Blackbox AI', aiUtils.callBlackbox);
     await testProvider('OpenRouter Free', aiUtils.callOpenRouterFree);
-    await testProvider('Ollama', aiUtils.callOllama);
-    await testProvider('Puter SDK', aiUtils.callPuterSDK);
-
-    console.log("\n--- Testing Main callAI Loop ---");
-    const mainStart = Date.now();
-    const mainRes = await aiUtils.callAI("Tu es un MJ.", "Test global.", 0, (name) => console.log(`Chosen provider: ${name}`));
-    console.log(`Main Loop took ${(Date.now() - mainStart) / 1000}s`);
-    console.log(`Final Response snippet: ${typeof mainRes === 'string' ? mainRes.substring(0, 50) : JSON.stringify(mainRes).substring(0, 50)}`);
 }
 
 runTests();
