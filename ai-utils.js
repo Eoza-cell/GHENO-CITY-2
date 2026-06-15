@@ -66,6 +66,74 @@ function generateCounterAttack(enemy, playerRoll) {
 }
 
 /**
+ * Detect responses that are not real narrative content (auth errors,
+ * raw SSE streams, empty/control-only frames). Any provider returning such
+ * a payload must be rejected so we fall through to the next provider / local MJ.
+ */
+function isValidAIResponse(text) {
+    if (!text || typeof text !== 'string') return false;
+
+    const cleaned = text.trim();
+    if (cleaned.length < 10) return false;
+
+    const lower = cleaned.toLowerCase();
+    const errorMarkers = [
+        'token_missing',
+        'missing authentication token',
+        'authentication error',
+        'no api key',
+        '"type":"error"',
+        'errortext',
+        'data: [done]',
+        '[done]'
+    ];
+    if (errorMarkers.some(m => lower.includes(m))) return false;
+
+    return true;
+}
+
+/**
+ * Parse a (possibly) Server-Sent Events / chunked response into plain text.
+ * Returns null if the stream only contains control/error frames.
+ */
+function parseSSEResponse(raw) {
+    if (raw == null) return null;
+    if (typeof raw === 'object') {
+        const parsed = parsePuterResponse(raw);
+        return parsed && parsed !== JSON.stringify(raw) ? parsed : null;
+    }
+    if (typeof raw !== 'string') return null;
+
+    // Plain text (no SSE framing): return as-is.
+    if (!raw.includes('data:')) return raw.trim();
+
+    let out = '';
+    for (const line of raw.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        if (payload.startsWith('{')) {
+            try {
+                const obj = JSON.parse(payload);
+                if (obj.type === 'error' || obj.errorText || obj.error) return null;
+                const chunk = obj.text || obj.content || obj.delta?.content
+                    || obj.choices?.[0]?.delta?.content || '';
+                out += chunk;
+            } catch {
+                // Non-JSON data line: treat as literal text chunk.
+                out += payload;
+            }
+        } else {
+            out += payload;
+        }
+    }
+
+    out = out.trim();
+    return out.length > 0 ? out : null;
+}
+
+/**
  * Call Puter.js AI with Gemini Free API
  * FIXED: Force proper response format and handle streaming correctly
  */
@@ -184,9 +252,17 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         try {
             console.log(`[AI] Tentative: ${provider.name}...`);
             const result = await provider.fn(sanitizedSystem, sanitizedUser);
-            if (result && result.length > 10) {
+            // localMJ is the deterministic last resort: always trust it.
+            if (provider.fn === localMJ && result) {
                 console.log(`[AI] ✅ Succès avec ${provider.name}`);
                 return result;
+            }
+            if (isValidAIResponse(result)) {
+                console.log(`[AI] ✅ Succès avec ${provider.name}`);
+                return result;
+            }
+            if (result) {
+                console.warn(`[AI] ⚠️ ${provider.name} a renvoyé une réponse invalide (rejetée).`);
             }
         } catch (e) {
             console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
@@ -269,7 +345,7 @@ async function callBlackbox(system, prompt) {
             trendingAgentMode: {},
             userSelectedModel: "deepseek-v3"
         }, { timeout: 15000 });
-        return resp.data;
+        return parseSSEResponse(resp.data);
     } catch (e) { return null; }
 }
 
