@@ -25,8 +25,7 @@ try {
     console.warn("[AI] Puter SDK could not be loaded:", e.message);
 }
 
-const PUTER_API_URL = "https://api.puter.com/drivers/call";
-const PUTER_MODELS = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+const PUTER_MODELS = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash", "meta-llama-3.1-70b-instruct"];
 
 /**
  * Detect responses that are not real narrative content.
@@ -107,7 +106,7 @@ function extractMessageContent(content) {
 }
 
 /**
- * Call Puter's AI over its HTTP driver endpoint (Keyed).
+ * Call Puter's AI over its V1 OpenAI-compatible endpoint.
  */
 async function callPuterAPI(system, prompt) {
     const key = process.env.PUTER_API_KEY;
@@ -120,20 +119,25 @@ async function callPuterAPI(system, prompt) {
 
     for (const model of PUTER_MODELS) {
         try {
-            console.log(`[AI] Puter HTTP API - Modèle: ${model}`);
-            const resp = await axios.post(PUTER_API_URL, {
-                interface: "puter-chat-completion",
-                method: "complete",
-                args: { messages, model }
+            console.log(`[AI] Puter V1 API - Modèle: ${model}`);
+            const resp = await axios.post("https://api.puter.com/v1/chat/completions", {
+                messages,
+                model,
+                stream: false
             }, {
-                headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+                headers: {
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json'
+                },
                 timeout: 30000
             });
 
-            if (resp.data?.success === false) continue;
-            const content = extractMessageContent(resp.data?.result?.message?.content);
+            const content = resp.data?.choices?.[0]?.message?.content;
             if (content && content.length > 5) return content;
-        } catch (e) { continue; }
+        } catch (e) {
+            console.warn(`[AI] Puter V1 API Error (${model}):`, e.response?.data || e.message);
+            continue;
+        }
     }
     return null;
 }
@@ -145,12 +149,15 @@ async function callPuterSDK(system, prompt) {
     if (!puter || !puter.ai) return null;
     try {
         console.log(`[AI] Puter SDK (Keyless)...`);
-        const result = await puter.ai.chat(`SYSTEM: ${system}\n\nUSER: ${prompt}`, { model: 'gpt-4o' });
-        if (result && typeof result === 'object') {
-            return result.toString();
-        }
-        return result;
+        // Using array format for better system prompt adherence
+        const result = await puter.ai.chat([
+            { role: "system", content: system },
+            { role: "user", content: prompt }
+        ], { model: 'gpt-4o' });
+
+        return parsePuterResponse(result);
     } catch (e) {
+        console.warn(`[AI] Puter SDK Error:`, e.message);
         return null;
     }
 }

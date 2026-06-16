@@ -150,8 +150,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     RÈGLES MJ:
     1. PROTAGONISTE : Le joueur est le centre de SON histoire. Ses choix, aussi stupides ou géniaux soient-ils, DOIVENT être le moteur du récit.
-    2. RÉACTIVITÉ ABSOLUE : N'ignore JAMAIS les actions du joueur. Si un joueur dit "Je lui donne un coup de pied", il DOIT y avoir une réaction immédiate liée à ce coup de pied.
-    3. PNJ VIVANTS : Chaque PNJ ( Instructeur, Marchand, Passant) doit être bien écrit. Donne-leur une voix unique, du charisme et de la profondeur. Ils ne sont pas des robots, ils ont des émotions (colère, mépris, respect).
+    2. RÉACTIVITÉ ABSOLUE : N'ignore JAMAIS les actions du joueur. Si un joueur dit "Je lui donne un coup de pied", il DOIT y avoir une réaction immédiate liée à ce coup de pied. N'invente jamais d'actions pour le joueur.
+    3. PNJ VIVANTS : Chaque PNJ (Instructeur, Marchand, Passant, Ennemi) doit être écrit avec un soin extrême. Donne-leur une voix unique, des motivations, et une personnalité marquante (style anime). Ils doivent réagir intelligemment aux propos du joueur.
     4. CONSÉQUENCES : Si le joueur échoue, l'échec doit être aussi intéressant que la réussite. Pas de "Tu rates et rien ne se passe".
 
     ÉCHELLE DE PUISSANCE ET IMPACT DES STATS:
@@ -167,11 +167,12 @@ async function handleFreeAction(sock, message, player, actionText) {
     - Si la destination est trop loin pour l'action décrite, indique la distance réellement franchie et ce qu'il reste à parcourir.
 
     COMBAT, ESQUIVE & CONTRE-ATTAQUE (RÈGLE ABSOLUE) :
-    1. COMPARAISON DE PUISSANCE : Évalue la différence de Niveau et d'Agilité entre le joueur et l'adversaire.
-    2. RÈGLE DU DÉSAVANTAGE (2/3) : Si le joueur est plus faible ou plus lent :
-       - 1/3 (33%) de probabilité : Il est terrassé. Il encaisse l'attaque DE PLEIN FOUET. Aucune esquive possible. Décris la violence du choc et applique un health_change important.
-       - 2/3 (66%) de probabilité : Il a une mince chance de TENTER une esquive ou un contre. Mais ce n'est jamais garanti.
-    3. RÉACTIVITÉ : Si le joueur annonce une esquive alors qu'il est en désavantage, tu DOIS arbitrer selon ces probabilités. S'il échoue, il subit les dégâts sans discuter.
+    1. COMPARAISON DE PUISSANCE : Évalue la différence de Niveau, Force et Agilité entre le joueur et l'adversaire.
+    2. RÈGLE DU DÉSAVANTAGE CRITIQUE : Si le joueur esquive mal ou est trop faible comparé à l'ennemi, il se prend l'attaque de PLEIN FOUET.
+    3. ARBITRAGE (1/3 vs 2/3) :
+       - Il n'y a que 2 chances sur 3 (66%) de laisser le joueur TENTER un contre ou une esquive.
+       - Il y a 1 chance sur 3 (33%) que l'attaque soit imparable. Dans ce cas, décris l'impact violent et applique des dégâts massifs immédiatement.
+    4. RÉACTIVITÉ : Si le joueur annonce une esquive en étant en désavantage, applique cette règle de probabilité. S'il échoue, il subit les dégâts.
     4. IMPACT VISUEL : Un coup encaissé de plein fouet doit être décrit de manière viscérale (sang, os brisés, souffle coupé).
 
     SOCIAL:

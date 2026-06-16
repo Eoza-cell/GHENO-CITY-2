@@ -34,8 +34,8 @@ async function generateMainMenuImage() {
         <path d="M 30 100 L 100 30 M ${width-100} ${height-30} L ${width-30} ${height-100}" stroke="#ffd700" stroke-width="4" />
 
         <!-- Title -->
-        <text x="50%" y="30%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="100" fill="white" style="filter: drop-shadow(0 0 20px #ffd700); letter-spacing: 15px;">ARISE</text>
-        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="40" fill="#00ffff" style="letter-spacing: 8px; filter: drop-shadow(0 0 10px #00ffff);">AETHERYS ONLINE</text>
+        <text x="50%" y="30%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="110" fill="white" style="filter: drop-shadow(0 0 25px #ffd700); letter-spacing: 18px;">ARISE II</text>
+        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="40" fill="#00ffff" style="letter-spacing: 8px; filter: drop-shadow(0 0 10px #00ffff);">GHENO CITY : LINK START</text>
 
         <rect x="250" y="52%" width="500" height="2" fill="url(#goldGrad)" />
         <text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="25" fill="rgba(255, 255, 255, 0.7)">SYSTÈME MJ v3.0 - ALPHA PHASE</text>

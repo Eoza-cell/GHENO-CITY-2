@@ -34,6 +34,7 @@ async function startTutorial(sock, jid, player) {
 
 async function handleTutorialAction(sock, message, player, actionText) {
     const jid = message.key.remoteJid;
+    console.log(`[TUTORIAL] Step: ${player.tutorialStep}, Action: "${actionText}"`);
 
     if (player.tutorialStep === 1.5) {
         const lowerAction = actionText.toLowerCase();
@@ -144,17 +145,24 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 startingItems = [{ name: 'Bâton de Voyage', quantity: 1 }, { name: 'Tunique Simple', quantity: 1 }];
             }
 
-            await player.update({
-                class: chosenClass,
-                family: family,
-                tutorialStep: 1.5, // Intermediate step for Derivative
-                inventory: startingItems,
-                strength: (chosenClass === 'Guerrier' || chosenClass === 'Paladin' || chosenClass === 'Samouraï') ? 20 + familyBonus.strength : 10 + familyBonus.strength,
-                intelligence: (chosenClass === 'Mage' || chosenClass === 'Invocateur' || chosenClass === 'Nécromancien' || chosenClass === 'Alchimiste') ? 20 + familyBonus.intelligence : 10 + familyBonus.intelligence,
-                agility: (chosenClass === 'Assassin' || chosenClass === 'Archer' || chosenClass === 'Moine') ? 20 + familyBonus.agility : 10 + familyBonus.agility,
-                luck: 5 + familyBonus.luck,
-                defense: 10 + familyBonus.defense
-            });
+            console.log(`[TUTORIAL] Class chosen: ${chosenClass}, Family: ${family}`);
+            try {
+                await player.update({
+                    class: chosenClass,
+                    family: family,
+                    tutorialStep: 1.5, // Intermediate step for Derivative
+                    inventory: startingItems,
+                    strength: (chosenClass === 'Guerrier' || chosenClass === 'Paladin' || chosenClass === 'Samouraï') ? 20 + familyBonus.strength : 10 + familyBonus.strength,
+                    intelligence: (chosenClass === 'Mage' || chosenClass === 'Invocateur' || chosenClass === 'Nécromancien' || chosenClass === 'Alchimiste') ? 20 + familyBonus.intelligence : 10 + familyBonus.intelligence,
+                    agility: (chosenClass === 'Assassin' || chosenClass === 'Archer' || chosenClass === 'Moine') ? 20 + familyBonus.agility : 10 + familyBonus.agility,
+                    luck: 5 + familyBonus.luck,
+                    defense: 10 + familyBonus.defense
+                });
+                console.log(`[TUTORIAL] Player updated successfully.`);
+            } catch (err) {
+                console.error(`[TUTORIAL] Failed to update player:`, err);
+                throw err;
+            }
 
             let nextText = `Instructeur : 'Un ${chosenClass}, hein ? *DODODO!* Un choix qui en dit long sur ton tempérament.\n\n`;
 
@@ -260,6 +268,12 @@ async function handleTutorialAction(sock, message, player, actionText) {
             if (aiResponse.tutorial_complete || mustFinish) {
                 await player.update({ tutorialStep: 3, mode: 'normal' });
                 aiResponse.narrative += "\n\n*FÉLICITATIONS ! Tu as terminé le tutoriel. Utilise /menu pour commencer.*";
+
+                // Show final profile card
+                try {
+                    const finalProfile = await generateProfileCard(player);
+                    await sock.sendMessage(jid, { image: finalProfile, caption: "🏆 *AVENTURE COMMENCÉE ! Voici ton profil final.*" });
+                } catch (e) {}
             }
 
             await sendWithImage(sock, jid, aiResponse);
