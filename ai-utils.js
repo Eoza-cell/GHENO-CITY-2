@@ -245,8 +245,18 @@ async function callPollinationsPOST(system, prompt) {
                 model: model,
                 jsonMode: true,
                 seed: Math.floor(Math.random() * 1000000)
-            }, { timeout: 20000 });
-            const resText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 20000
+            });
+
+            let resText = "";
+            if (typeof resp.data === 'object') {
+                resText = resp.data.narrative || resp.data.content || JSON.stringify(resp.data);
+            } else {
+                resText = resp.data;
+            }
+
             if (isValidAIResponse(resText)) return resText;
         } catch (e) { continue; }
     }
@@ -280,9 +290,9 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     const providers = [
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations GET', fn: callPollinationsGET }
     ];
 
