@@ -903,14 +903,15 @@ commands.set('checkai', async (sock, message) => {
         const duration = (Date.now() - startTime) / 1000;
 
         let status = "🟢 *OPÉRATIONNEL*";
-        if (result.includes("moteur MJ Local")) status = "🟡 *MODE DÉGRADÉ* (MJ Local)";
+        if (result.includes("Le flux magique est instable")) status = "🔴 *LIMITE ATTEINTE*";
 
         await sock.sendMessage(replyJid, {
             text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
                   `Statut: ${status}\n` +
                   `Latence: ${duration}s\n` +
+                  `Serveur Ollama: ${process.env.OLLAMA_URL || 'http://localhost:11434'}\n` +
                   `Réponse: ${result.substring(0, 100)}...\n\n` +
-                  `_Si le statut est dégradé, vérifiez vos clés API ou attendez quelques minutes._`
+                  `_Si le statut est dégradé, vérifiez vos clés API ou la connexion Ollama._`
         });
     } catch (e) {
         await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });

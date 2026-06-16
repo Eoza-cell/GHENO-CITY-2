@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
+const { Ollama } = require('ollama');
 
 // Setup JSDOM for Puter SDK if needed
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -286,6 +287,34 @@ async function callPollinationsGET(system, prompt) {
 }
 
 /**
+ * Call a local Ollama instance if available.
+ */
+async function callOllama(system, prompt) {
+    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    try {
+        console.log(`[AI] Ollama - Tentative sur ${ollamaUrl}`);
+        const ollama = new Ollama({ host: ollamaUrl });
+        const response = await ollama.chat({
+            model: process.env.OLLAMA_MODEL || 'llama3.1:8b',
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: prompt }
+            ],
+            stream: false,
+            options: {
+                temperature: 0.7,
+            }
+        });
+
+        const content = response.message.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Ollama inaccessible ou erreur: ${e.message}`);
+    }
+    return null;
+}
+
+/**
  * Call a local LM Studio instance if available.
  */
 async function callLMStudio(system, prompt) {
@@ -325,6 +354,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
+        { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
