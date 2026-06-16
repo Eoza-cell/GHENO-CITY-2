@@ -275,6 +275,31 @@ async function callPollinationsGET(system, prompt) {
 }
 
 /**
+ * Call a local LM Studio instance if available.
+ */
+async function callLMStudio(system, prompt) {
+    const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
+    try {
+        console.log(`[AI] LM Studio - Tentative sur ${url}`);
+        const resp = await axios.post(url, {
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: -1,
+            stream: false
+        }, { timeout: 15000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] LM Studio inaccessible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
  * Main AI entry point.
  */
 async function callAI(systemPrompt, userPrompt, depth = 0) {
@@ -288,6 +313,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
+        { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Puter SDK', fn: callPuterSDK },
