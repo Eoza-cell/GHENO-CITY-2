@@ -396,11 +396,11 @@ Quest.belongsToMany(Player, { through: PlayerQuest });
 Player.belongsToMany(Skill, { through: PlayerSkill });
 Skill.belongsToMany(Player, { through: PlayerSkill });
 
-Player.belongsToMany(Entity, { through: Pact });
-Entity.belongsToMany(Player, { through: Pact });
+Player.belongsToMany(Entity, { through: Pact, as: 'Entities' });
+Entity.belongsToMany(Player, { through: Pact, as: 'Players' });
 
-Player.belongsToMany(Club, { through: PlayerClub });
-Club.belongsToMany(Player, { through: PlayerClub });
+Player.belongsToMany(Club, { through: PlayerClub, as: 'Clubs' });
+Club.belongsToMany(Player, { through: PlayerClub, as: 'Players' });
 
 async function setupDatabase() {
   try {
@@ -573,6 +573,6 @@ async function setupDatabase() {
 
 module.exports = {
   sequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, Entity, Pact, Club, PlayerClub,
   setupDatabase,
 };

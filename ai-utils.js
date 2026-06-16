@@ -293,20 +293,18 @@ async function callOllama(system, prompt) {
     const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
     try {
         console.log(`[AI] Ollama - Tentative sur ${ollamaUrl}`);
-        const ollama = new Ollama({ host: ollamaUrl });
-        const response = await ollama.chat({
+        // Use axios for a manual check/call with a strict timeout to avoid hanging the whole chain
+        const resp = await axios.post(`${ollamaUrl}/api/chat`, {
             model: process.env.OLLAMA_MODEL || 'llama3.1:8b',
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
             ],
             stream: false,
-            options: {
-                temperature: 0.7,
-            }
-        });
+            options: { temperature: 0.7 }
+        }, { timeout: 10000 }); // 10s timeout for local Ollama
 
-        const content = response.message.content;
+        const content = resp.data?.message?.content;
         if (isValidAIResponse(content)) return content;
     } catch (e) {
         console.warn(`[AI] Ollama inaccessible ou erreur: ${e.message}`);
@@ -337,6 +335,37 @@ async function callLMStudio(system, prompt) {
         console.warn(`[AI] LM Studio inaccessible: ${e.message}`);
     }
     return null;
+}
+
+/**
+ * Local MJ Fallback in case all AI providers fail.
+ * Generates a simple but immersive response based on the action.
+ */
+function callMJFallback(prompt) {
+    console.log("[AI] Utilisation du MJ Fallback Local.");
+
+    // Extract player name and action if possible
+    let name = "Aventurier";
+    const nameMatch = prompt.match(/- Nom: ([^\n]+)/);
+    if (nameMatch) name = nameMatch[1].trim();
+
+    let action = "ton action";
+    const actionMatch = prompt.match(/### ACTION DU JOUEUR[^#]*###\n([\s\S]*)$/);
+    if (actionMatch) action = actionMatch[1].trim();
+
+    const responses = [
+        `Tu t'efforces de réaliser "${action}", mais une étrange brume semble ralentir tes mouvements. Tu réussis malgré tout l'essentiel, bien que les conséquences précises restent floues.`,
+        `Le destin semble incertain alors que tu tentes "${action}". L'énergie ambiante crépite mais ne se stabilise pas. Tu agis avec prudence.`,
+        `"${action}" est accompli. Tu sens le poids de tes décisions peser sur l'air ambiant, même si le monde autour de toi reste étrangement silencieux pour l'instant.`,
+        `Alors que tu effectues "${action}", tu as l'impression d'être observé par une entité lointaine. Ton geste est précis, mais le flux magique est trop instable pour une conclusion spectaculaire.`
+    ];
+
+    const narrative = responses[Math.floor(Math.random() * responses.length)];
+
+    return JSON.stringify({
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}`,
+        actions: []
+    });
 }
 
 /**
@@ -389,16 +418,15 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         }
     }
 
-    console.warn("[AI] Tous les providers ont échoué. Tentative finale (retry)...");
+    console.warn("[AI] Tous les providers ont échoué.");
     if (depth < 1) {
+        console.log("[AI] Nouvelle tentative dans 2s...");
         await new Promise(r => setTimeout(r, 2000));
         return callAI(systemPrompt, userPrompt, depth + 1);
     }
 
-    return JSON.stringify({
-        narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels... (Tous les serveurs IA sont hors ligne, réessaye dans un instant).",
-        actions: []
-    });
+    // Ultimate fallback if even retry fails
+    return callMJFallback(userPrompt);
 }
 
 function parsePuterResponse(resp) {

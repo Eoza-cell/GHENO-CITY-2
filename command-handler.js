@@ -419,7 +419,7 @@ commands.set('royaumes', async (sock, message) => {
 commands.set('pacts', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid }, include: Entity });
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Entities' });
 
     if (!player) return;
 
@@ -453,7 +453,7 @@ commands.set('pacts', async (sock, message) => {
 commands.set('clubs', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid }, include: Club });
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Clubs' });
 
     if (!player) return;
 

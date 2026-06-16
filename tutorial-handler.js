@@ -288,7 +288,10 @@ async function handleTutorialAction(sock, message, player, actionText) {
         await player.reload();
 
         try {
-            const contentRaw = await callAI(systemPrompt, fullPrompt);
+            let contentRaw = await callAI(systemPrompt, fullPrompt);
+            if (!contentRaw) {
+                contentRaw = JSON.stringify({ narrative: "Instructeur : 'Debout ! Ne t'endors pas pendant l'entraînement !'", tutorial_complete: false });
+            }
             let content = contentRaw;
             let aiResponse = { narrative: "", tutorial_complete: false };
 

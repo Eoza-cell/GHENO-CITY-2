@@ -125,7 +125,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "Aucun pacte avec une entité.";
 
   const playerClubs = await player.getClubs();
-  const clubState = playerClubs.length > 0
+  const clubState = (playerClubs && playerClubs.length > 0)
     ? "Clubs Extrascolaires:\n" + playerClubs.map(c => `- ${c.name} (${c.PlayerClub.rank}): ${c.specialty}`).join('\n')
     : "Membre d'aucun club.";
 
@@ -233,9 +233,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   try {
     let content = await callAI(systemPrompt, fullPrompt);
     if (!content) {
-        throw new Error("L'IA a retourné une réponse vide.");
+        content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...", actions: [] });
     }
-    console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 500)}...`);
+    console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : '[Object]'}`);
 
     // Enhanced JSON & Narrative extraction
     let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
@@ -318,6 +318,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     // Process AI actions
     for (const actionObj of actions) {
+      try {
       const { type, parameters } = actionObj;
       if (!parameters) continue;
 
@@ -627,6 +628,9 @@ async function handleFreeAction(sock, message, player, actionText) {
           await sock.sendMessage(target.whatsappId, {
               text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
           });
+      }
+      } catch (actionError) {
+          console.error(`[AI] Erreur lors du traitement d'une action (${actionObj.type}):`, actionError);
       }
     }
 
