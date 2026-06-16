@@ -20,7 +20,11 @@ global.Element = dom.window.Element;
 
 let puter = null;
 try {
-    puter = require('@heyputer/puter.js');
+    const importedPuter = require('@heyputer/puter.js');
+    puter = importedPuter?.default || importedPuter;
+    if (puter && puter.ai) {
+        console.log('[AI] Puter SDK loaded via', importedPuter?.default ? 'default export' : 'direct export');
+    }
 } catch (e) {
     console.warn("[AI] Puter SDK could not be loaded:", e.message);
 }
