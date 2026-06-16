@@ -11,7 +11,6 @@ const { generateMainMenuImage } = require('./menu-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
-const { Op } = require('sequelize');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
