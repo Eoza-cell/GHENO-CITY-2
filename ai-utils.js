@@ -26,11 +26,10 @@ try {
 }
 
 const PUTER_MODELS = [
-    "gemini-3.5-flash",
-    "gemini-3.1-pro-preview",
-    "gemini-3.1-flash-lite",
     "gpt-4o",
     "claude-3-5-sonnet",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash",
     "meta-llama-3.1-70b-instruct"
 ];
 
@@ -41,7 +40,7 @@ function isValidAIResponse(text) {
     if (!text || typeof text !== 'string') return false;
 
     const cleaned = text.trim();
-    if (cleaned.length < 5) return false;
+    if (cleaned.length < 10) return false;
 
     const lower = cleaned.toLowerCase();
     const errorMarkers = [
@@ -51,8 +50,6 @@ function isValidAIResponse(text) {
         'no api key',
         '"type":"error"',
         'errortext',
-        'data: [done]',
-        '[done]',
         'unauthorized',
         'rate limit',
         '401',
@@ -63,7 +60,12 @@ function isValidAIResponse(text) {
         'invalid_request_error',
         'insufficient_quota'
     ];
-    if (errorMarkers.some(m => lower.includes(m))) return false;
+
+    // If it's a tiny response with an error marker, it's definitely an error
+    if (cleaned.length < 100 && errorMarkers.some(m => lower.includes(m))) return false;
+
+    // If it's just technical jargon without narrative content
+    if (cleaned.startsWith('data: [DONE]') || cleaned === '[DONE]') return false;
 
     return true;
 }
@@ -156,7 +158,7 @@ async function callPuterAPI(system, prompt) {
  */
 async function callPuterSDK(system, prompt) {
     if (!puter || !puter.ai) return null;
-    const models = ["gemini-3.5-flash", "gpt-4o", "claude-3-5-sonnet"];
+    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
 
     for (const model of models) {
         try {
@@ -215,6 +217,7 @@ async function callOpenRouter(system, prompt) {
 
 async function callBlackbox(system, prompt) {
     try {
+        console.log(`[AI] Blackbox - Tentative...`);
         const resp = await axios.post("https://www.blackbox.ai/api/chat", {
             messages: [{ role: "user", content: `SYSTEM: ${system}\n\nUSER: ${prompt}` }],
             model: "deepseek-v3",
@@ -231,13 +234,14 @@ async function callBlackbox(system, prompt) {
                 'Origin': 'https://www.blackbox.ai/',
                 'Content-Type': 'application/json'
             },
-            timeout: 20000
+            timeout: 25000
         });
-        return parseSSEResponse(resp.data);
+        const result = parseSSEResponse(resp.data);
+        if (isValidAIResponse(result)) return result;
     } catch (e) {
         console.warn(`[AI] Blackbox error: ${e.message}`);
-        return null;
     }
+    return null;
 }
 
 async function callPollinationsPOST(system, prompt) {

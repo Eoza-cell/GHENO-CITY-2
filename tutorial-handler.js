@@ -79,6 +79,11 @@ async function handleTutorialAction(sock, message, player, actionText) {
                          "5. **Simple Citoyen** (Polyvalence modeste)\n\n" +
                          "Réponds par le nom de ton métier choisi.";
 
+        try {
+            const profileCard = await generateProfileCard(player);
+            await sock.sendMessage(jid, { image: profileCard, caption: `📇 *STATUT DE LA MATRICE - PHASE 2*\n\nStyle ${derivative} enregistré.` });
+        } catch (e) {}
+
         await sock.sendMessage(jid, { text: nextText });
         return;
     }
@@ -234,7 +239,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
             try {
                 const profileCard = await generateProfileCard(player);
-                await sock.sendMessage(message.key.remoteJid, { image: profileCard, caption: "📇 *STATUT DE LA MATRICE - PHASE 1*" });
+                await sock.sendMessage(message.key.remoteJid, { image: profileCard, caption: "📇 *STATUT DE LA MATRICE - PHASE 1*\n\nVoici ton enregistrement initial." });
             } catch (e) {
                 console.error("Error sending mid-tutorial profile card:", e);
             }
@@ -263,12 +268,15 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
             RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
             1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé ou un protagoniste spécial. C'est une personne lambda qui doit lutter pour survivre. Ne sois pas indulgent.
-            2. RÉACTIVITÉ ABSOLUE : N'invente JAMAIS d'actions pour le joueur. Réagis strictement à ce qu'il vient d'écrire.
-            3. PNJ EXCELLENTS & IMPACTANTS : L'Instructeur est impitoyable et son humeur affecte la simulation. S'il est en colère, la simulation devient plus dure.
-            4. IMPACT SOCIAL : Mentionne brièvement comment son métier ou son influence pourrait l'aider ou le desservir si la situation était réelle.
-            5. LIBERTÉ : Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
-            6. COMBAT (1/3 vs 2/3) :
-               - Si le joueur est imprécis ou faible : 33% de chance de se prendre le coup de plein fouet (-15 PV), 66% de chance de lui laisser une ouverture pour tenter une esquive.
+            2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR) : N'invente JAMAIS d'actions futures, de pensées ou de mouvements pour le joueur. Tes phrases DOIVENT commencer par les conséquences directes de l'action du joueur.
+            3. ADHÉRENCE STRICTE : Respecte la logique physique. Si le joueur est faible, il ne peut pas faire de miracles.
+            4. PNJ EXCELLENTS & IMPACTANTS : L'Instructeur est impitoyable, vivant, et a une personnalité forte (ex: grognon, finit ses phrases par "...tocard !"). Ses réactions ont un impact sur le moral du joueur.
+            5. IMPACT SOCIAL : Mentionne brièvement comment son métier ou son influence pourrait l'aider ou le desservir si la situation était réelle.
+            6. LIBERTÉ : Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
+            7. COMBAT (1/3 vs 2/3) :
+               - Si le joueur est trop faible ou si son action de défense est médiocre/vague :
+                 - Dans 33% des cas (1/3) : L'attaque touche DIRECTEMENT. Le joueur se prend le coup DE PLEIN FOUET sans possibilité de réaction. Décris l'impact violent. Applique "health_change" négatif conséquent (-15 à -30 PV).
+                 - Dans 66% des cas (2/3) : Tu décris l'attaque imminente et dévastatrice, et tu laisses le joueur TENTER une esquive ou un contre désespéré au prochain tour.
             5. FIN: Le tutoriel est COURT. Dès que le joueur tente une attaque ou une action de combat déterminée, mets tutorial_complete à true et félicite-le de manière grandiose.
             ${mustFinish ? "6. IMPÉRATIF: Le joueur s'est assez entraîné. Tu DOIS conclure le tutoriel MAINTENANT : tutorial_complete = true, OBLIGATOIRE." : ""}
             7. JSON STRICT: {"narrative": "...", "tutorial_complete": boolean, "health_change": number}

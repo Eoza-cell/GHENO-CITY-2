@@ -45,8 +45,8 @@ async function generateMainMenuImage() {
 
         <!-- Main Title -->
         <g filter="url(#glow)">
-            <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="140" fill="white" style="letter-spacing: 20px; filter: drop-shadow(0 0 15px rgba(0,255,255,0.8));">ARISE</text>
-            <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="45" fill="url(#goldGrad)" style="letter-spacing: 10px;">THE FINAL AWAKENING</text>
+            <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="160" fill="white" style="letter-spacing: 25px; filter: drop-shadow(0 0 20px rgba(0,255,255,0.9));">ARISE</text>
+            <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="55" fill="url(#goldGrad)" style="letter-spacing: 12px;">GHENO CITY: AWAKENING</text>
         </g>
 
         <!-- Central Bar -->

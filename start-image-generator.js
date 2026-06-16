@@ -57,7 +57,7 @@ async function generateLinkStartImage() {
 
         <!-- "LINK START" Main Text -->
         <g filter="url(#glow)">
-            <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="150" fill="url(#textGrad)" style="letter-spacing: 30px; filter: drop-shadow(0 0 20px #00ffff);">LINK START</text>
+            <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="180" fill="url(#textGrad)" style="letter-spacing: 40px; filter: drop-shadow(0 0 30px #00ffff);">LINK START</text>
         </g>
 
         <!-- Decorative Circles -->
