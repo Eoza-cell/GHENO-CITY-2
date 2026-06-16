@@ -171,6 +171,18 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
+  occupation: {
+    type: DataTypes.STRING,
+    defaultValue: 'Citoyen',
+  },
+  organization: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucune',
+  },
+  influence: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
   tutorialStep: {
     type: DataTypes.FLOAT,
     defaultValue: 0,

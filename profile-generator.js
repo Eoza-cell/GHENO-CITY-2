@@ -74,8 +74,9 @@ async function addOverlay(baseImg, player, width, height) {
             <text x="210" y="301" class="text value">${player.schoolName || 'Aventurier Libre'}</text>
             <text x="210" y="334" class="text value">RANG ${player.rank}</text>
 
-            <text x="600" y="235" class="text value" text-anchor="end">${player.class}</text>
-            <text x="600" y="268" class="text value" text-anchor="end">${player.derivative || 'Standard'}</text>
+            <text x="600" y="235" class="text value" text-anchor="end">${player.occupation || 'Citoyen'}</text>
+            <text x="600" y="268" class="text value" text-anchor="end">${player.organization || 'Aucune'}</text>
+            <text x="600" y="301" class="text value" text-anchor="end">INF: ${player.influence || 0}</text>
             <text x="600" y="334" class="text value" text-anchor="end">GRADE ${player.academicGrade || 0}</text>
 
             <!-- Stats Bars Overlay -->

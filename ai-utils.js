@@ -313,10 +313,11 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 2) return null;
 
     // Sanitize prompts
-    const sanitizedSystem = systemPrompt.length > 6000 ? systemPrompt.substring(0, 6000) : systemPrompt;
+    const sanitizedSystem = systemPrompt.length > 7000 ? systemPrompt.substring(0, 7000) : systemPrompt;
     let sanitizedUser = userPrompt;
-    if (userPrompt.length > 4000) {
-        sanitizedUser = userPrompt.substring(0, 1000) + "\n... [TRUNCATED] ...\n" + userPrompt.substring(userPrompt.length - 3000);
+    if (userPrompt.length > 5000) {
+        // Keep the very beginning and the very end (most recent action)
+        sanitizedUser = userPrompt.substring(0, 1500) + "\n... [TRUNCATED MIDDLE] ...\n" + userPrompt.substring(userPrompt.length - 3000);
     }
 
     const providers = [
@@ -335,6 +336,16 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             const result = await provider.fn(sanitizedSystem, sanitizedUser);
             if (isValidAIResponse(result)) {
                 console.log(`[AI] ✅ Succès avec ${provider.name}`);
+                // Verify the result is not just a technical JSON dump without narrative
+                if (result.trim().startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(result);
+                        if (!parsed.narrative && !parsed.message && !parsed.text) {
+                             console.warn(`[AI] ⚠️ ${provider.name} JSON sans narration. Fallback.`);
+                             continue;
+                        }
+                    } catch(e) {}
+                }
                 return result;
             } else {
                 console.warn(`[AI] ⚠️ ${provider.name} réponse invalide ou erreur.`);

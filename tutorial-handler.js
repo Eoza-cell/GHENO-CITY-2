@@ -9,11 +9,11 @@ const { callAI } = require('./ai-utils');
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
 
-    const welcomeText = "--- ⚔️ *START: LINK START!* --- \n\n" +
-                        "Un homme à la carrure imposante et aux cheveux rouges se tient devant toi, une aura de puissance écrasante se dégageant de lui. Il s'agit de ton instructeur.\n\n" +
-                        "Instructeur : 'Alors comme ça, un nouveau visage apparaît dans ce monde condamné ? Voyons si tu as la flamme d'un héros ou si tu n'es qu'une erreur de la matrice.'\n\n" +
-                        "Il te tend trois parchemins anciens entourés d'éclairs de mana.\n\n" +
-                        "'Choisis ton destin, ton arme et ton âme. *Quelle est ta classe ?*'";
+    const welcomeText = "--- 🧬 *START: INITIALISATION DE LA MATRICE* --- \n\n" +
+                        "Tu te réveilles dans une salle blanche et stérile. Un homme en costume sombre, l'air fatigué, te regarde à travers une vitre.\n\n" +
+                        "Superviseur : 'Encore un... Ne te fais pas d'illusions. Tu n'es pas un héros, juste une autre personne essayant de survivre dans ce système.'\n\n" +
+                        "Il pianote sur une console virtuelle.\n\n" +
+                        "'Pour t'enregistrer, nous devons définir ton profil de base. *Quelle voie souhaites-tu suivre ?* (Guerrier, Mage, Assassin, etc.)'";
 
     try {
         // Send Link Start Intro first
@@ -61,7 +61,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
         await player.update({
             derivative: derivative,
-            tutorialStep: 2,
+            tutorialStep: 1.7, // Move to Occupation selection
             strength: player.strength + bonus.strength,
             defense: player.defense + bonus.defense,
             intelligence: player.intelligence + bonus.intelligence,
@@ -69,17 +69,61 @@ async function handleTutorialAction(sock, message, player, actionText) {
             luck: player.luck + (bonus.luck || 0)
         });
 
-            const nextText = `Instructeur : 'Un style ${derivative}, parfait. Voici ton profil mis à jour dans la matrice.'\n\n` +
+        const nextText = `Superviseur : 'Style ${derivative} enregistré.'\n\n` +
+                         "Il te regarde avec indifférence.\n\n" +
+                         "'Le combat n'est pas tout dans cette vie. Quelle sera ta place dans la société d'Aetherys ?'\n\n" +
+                         "1. **Artisan** (Forge et création)\n" +
+                         "2. **Commerçant** (Économie et négoce)\n" +
+                         "3. **Politicien** (Influence et pouvoir social)\n" +
+                         "4. **Chercheur** (Connaissance et science)\n" +
+                         "5. **Simple Citoyen** (Polyvalence modeste)\n\n" +
+                         "Réponds par le nom de ton métier choisi.";
+
+        await sock.sendMessage(jid, { text: nextText });
+        return;
+    }
+
+    if (player.tutorialStep === 1.7) {
+        const lowerAction = actionText.toLowerCase();
+        let occupation = "Simple Citoyen";
+        let bonus = { intelligence: 0, luck: 0, col: 0, influence: 0 };
+
+        if (lowerAction.includes("artisan")) {
+            occupation = "Artisan";
+            bonus.intelligence = 5;
+            bonus.col = 200;
+        } else if (lowerAction.includes("commerçant")) {
+            occupation = "Commerçant";
+            bonus.luck = 10;
+            bonus.col = 500;
+        } else if (lowerAction.includes("politicien")) {
+            occupation = "Politicien";
+            bonus.influence = 20;
+            bonus.intelligence = 10;
+        } else if (lowerAction.includes("chercheur")) {
+            occupation = "Chercheur";
+            bonus.intelligence = 15;
+        }
+
+        await player.update({
+            occupation: occupation,
+            influence: bonus.influence,
+            intelligence: player.intelligence + bonus.intelligence,
+            luck: player.luck + bonus.luck,
+            col: player.col + bonus.col,
+            tutorialStep: 2
+        });
+
+        const nextText = `Superviseur : 'Un ${occupation}... C'est noté. Voici ton profil complet dans la matrice.'\n\n` +
                          `*GÉNÉRATION DU PROFIL...*\n\n` +
-                         "Instructeur : 'Maintenant, voyons si tu sais manier ce potentiel. Passons à la destruction !'\n\n" +
-                         "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre. L'onde de choc brise le sol sous ses pieds.\n\n" +
-                         "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
-                         "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
-                         "Décris tes attaques avec passion pour maximiser tes dégâts.";
+                         "Il appuie sur un bouton et le sol se dérobe. Tu tombes dans une simulation de combat.\n\n" +
+                         "Instructeur : 'Debout, vermisseau ! Tu n'es personne ici, mais si tu ne veux pas mourir, apprends à te battre !'\n\n" +
+                         "--- 💡 *CONSEIL DE SURVIE* --- \n" +
+                         "Décris tes actions avec précision. L'IA réagira à ta logique, pas à ton statut de 'héros'.";
 
         try {
             const profileCard = await generateProfileCard(player);
-            await sock.sendMessage(jid, { image: profileCard, caption: "📇 *TON PROFIL INITIALISÉ*" });
+            await sock.sendMessage(jid, { image: profileCard, caption: "📇 *TON PROFIL COMPLET*" });
 
             let bossImage;
             try {
@@ -179,12 +223,12 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 nextText += `Tu n'as peut-être pas de nom illustre (75% de chance d'être "Sans Famille"), mais ta volonté semble d'acier.'\n\n`;
             }
 
-            nextText += "Mais ce n'est pas tout. Chaque combattant a un style qui lui est propre, une *dérivée* de sa classe de base.\n\n" +
-                        "Quel est ton style de prédilection ?\n" +
-                        "1. **Berserker** (Force brute, peu de défense)\n" +
-                        "2. **Tank** (Défense absolue, lent)\n" +
-                        "3. **Sniper/Assassin** (Frappes critiques, fragile)\n" +
-                        "4. **Tacticien/Mage de Soutien** (Contrôle et mana)\n" +
+            nextText += "Mais ce n'est pas tout. Chaque individu a un style qui lui est propre, une *dérivée* de ses capacités de base.\n\n" +
+                        "Quel est ton style de combat de prédilection ?\n" +
+                        "1. **Berserker** (Force brute)\n" +
+                        "2. **Tank** (Défense)\n" +
+                        "3. **Sniper/Assassin** (Agilité)\n" +
+                        "4. **Tacticien/Mage de Soutien** (Intelligence)\n" +
                         "5. **Équilibré** (Polyvalence)\n\n" +
                         "Réponds par le nom du style choisi.";
 
@@ -210,18 +254,19 @@ async function handleTutorialAction(sock, message, player, actionText) {
         const mustFinish = turnsSoFar >= MAX_TUTORIAL_TURNS;
 
         const systemPrompt = `
-            Tu es l'Instructeur, un maître d'armes légendaire dans GHENO CITY 2. Ton but est d'évaluer le nouveau protagoniste.
-            Le joueur est un ${player.class} de la famille ${player.family} (FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}).
+            Tu es l'Instructeur dans la simulation de GHENO CITY. Ton but est de tester les réflexes d'une personne ordinaire.
+            Le joueur est un ${player.class} (${player.derivative}), métier: ${player.occupation}.
+            Stats: FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}.
 
-            STYLE: Narratif riche, immersif, style anime. Pas de texte en anglais. PAS de parenthèses pour les sensations.
-            LONGUEUR: 3-4 paragraphes minimum.
+            STYLE: Narratif riche, immersif, style anime/manhwa. Pas de texte en anglais. PAS de parenthèses pour les sensations.
+            LONGUEUR: 3-4 paragraphes.
 
-            RÈGLES DU TUTORIEL:
-            1. PROTAGONISTE: Traite le joueur comme le centre de son histoire.
+            RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
+            1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé ou un protagoniste spécial. C'est une personne lambda qui doit lutter pour survivre. Ne sois pas indulgent.
             2. RÉACTIVITÉ ABSOLUE : N'invente JAMAIS d'actions pour le joueur. Réagis strictement à ce qu'il vient d'écrire.
-            3. PNJ EXCELLENTS : L'Instructeur est charismatique, sévère, et impressionnant. Ses répliques doivent être mémorables (ex: "DODODO!", "PITOYABLE!", "TES MOUVEMENTS SONT LENTS!").
-            4. IMPACT DES STATS: Respecte l'échelle de puissance.
-            5. LIBERTÉ: Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
+            3. PNJ EXCELLENTS & IMPACTANTS : L'Instructeur est impitoyable et son humeur affecte la simulation. S'il est en colère, la simulation devient plus dure.
+            4. IMPACT SOCIAL : Mentionne brièvement comment son métier ou son influence pourrait l'aider ou le desservir si la situation était réelle.
+            5. LIBERTÉ : Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
             6. COMBAT (1/3 vs 2/3) :
                - Si le joueur est imprécis ou faible : 33% de chance de se prendre le coup de plein fouet (-15 PV), 66% de chance de lui laisser une ouverture pour tenter une esquive.
             5. FIN: Le tutoriel est COURT. Dès que le joueur tente une attaque ou une action de combat déterminée, mets tutorial_complete à true et félicite-le de manière grandiose.
