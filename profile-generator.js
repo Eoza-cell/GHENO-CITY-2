@@ -82,11 +82,12 @@ async function addOverlay(baseImg, player, width, height) {
             ${statsSvg}
 
             <!-- Resources Box -->
-            <rect x="50" y="620" width="350" height="65" fill="rgba(0,0,0,0.7)" stroke="#ffd700" stroke-width="2" rx="10" />
-            <text x="75" y="663" class="money">💰 ${(player.col || 0).toLocaleString()} COL</text>
+            <rect x="50" y="615" width="350" height="75" fill="rgba(0,0,0,0.8)" stroke="#ffd700" stroke-width="3" rx="15" />
+            <text x="75" y="665" class="money">💰 ${(player.col || 0).toLocaleString()} COL</text>
 
             <!-- Family Tag -->
-            <text x="450" y="655" class="text header" style="fill: #ff00ff;">FAMILLE: ${player.family || 'Sans Famille'}</text>
+            <rect x="420" y="615" width="330" height="75" fill="rgba(0,0,0,0.8)" stroke="#ff00ff" stroke-width="2" rx="15" />
+            <text x="585" y="660" class="text header" text-anchor="middle" style="fill: #ff00ff; font-size: 20px;">${player.family || 'SANS FAMILLE'}</text>
 
             <!-- Grid: Weapons -->
             <rect x="50" y="710" width="340" height="280" fill="rgba(0,0,0,0.6)" stroke="#ff4444" stroke-width="1" rx="10" />

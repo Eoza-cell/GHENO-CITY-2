@@ -69,10 +69,10 @@ async function handleTutorialAction(sock, message, player, actionText) {
             luck: player.luck + (bonus.luck || 0)
         });
 
-        const nextText = `Instructeur : 'Un style ${derivative}, parfait. Voici ton profil actuel mis à jour dans la matrice.'\n\n` +
+            const nextText = `Instructeur : 'Un style ${derivative}, parfait. Voici ton profil mis à jour dans la matrice.'\n\n` +
                          `*GÉNÉRATION DU PROFIL...*\n\n` +
-                         "Instructeur : 'Maintenant, passons à la destruction !'\n\n" +
-                         "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre.\n\n" +
+                         "Instructeur : 'Maintenant, voyons si tu sais manier ce potentiel. Passons à la destruction !'\n\n" +
+                         "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre. L'onde de choc brise le sol sous ses pieds.\n\n" +
                          "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
                          "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
                          "Décris tes attaques avec passion pour maximiser tes dégâts.";
@@ -188,6 +188,13 @@ async function handleTutorialAction(sock, message, player, actionText) {
                         "5. **Équilibré** (Polyvalence)\n\n" +
                         "Réponds par le nom du style choisi.";
 
+            try {
+                const profileCard = await generateProfileCard(player);
+                await sock.sendMessage(message.key.remoteJid, { image: profileCard, caption: "📇 *STATUT DE LA MATRICE - PHASE 1*" });
+            } catch (e) {
+                console.error("Error sending mid-tutorial profile card:", e);
+            }
+
             await sock.sendMessage(message.key.remoteJid, { text: nextText });
             return;
         } else {
@@ -211,12 +218,12 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
             RÈGLES DU TUTORIEL:
             1. PROTAGONISTE: Traite le joueur comme le centre de son histoire.
-            2. RÉACTIVITÉ ABSOLUE : N'invente JAMAIS d'actions pour le joueur. S'il dit "Je frappe", décris l'impact, mais ne le fais pas bouger ou parler à sa place.
-            3. PNJ BIEN ÉCRITS : L'Instructeur est charismatique, dur, et a une voix unique. Il utilise des expressions comme "DODODO!", "PITOYABLE!", "INCROYABLE!". Ses réactions doivent être marquantes.
+            2. RÉACTIVITÉ ABSOLUE : N'invente JAMAIS d'actions pour le joueur. Réagis strictement à ce qu'il vient d'écrire.
+            3. PNJ EXCELLENTS : L'Instructeur est charismatique, sévère, et impressionnant. Ses répliques doivent être mémorables (ex: "DODODO!", "PITOYABLE!", "TES MOUVEMENTS SONT LENTS!").
             4. IMPACT DES STATS: Respecte l'échelle de puissance.
             5. LIBERTÉ: Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
-            6. COMBAT (33/66) :
-               - Si le joueur est faible/lent : 33% de chance de se prendre un coup direct (-10 PV), 66% de chance de lui laisser une ouverture pour esquiver.
+            6. COMBAT (1/3 vs 2/3) :
+               - Si le joueur est imprécis ou faible : 33% de chance de se prendre le coup de plein fouet (-15 PV), 66% de chance de lui laisser une ouverture pour tenter une esquive.
             5. FIN: Le tutoriel est COURT. Dès que le joueur tente une attaque ou une action de combat déterminée, mets tutorial_complete à true et félicite-le de manière grandiose.
             ${mustFinish ? "6. IMPÉRATIF: Le joueur s'est assez entraîné. Tu DOIS conclure le tutoriel MAINTENANT : tutorial_complete = true, OBLIGATOIRE." : ""}
             7. JSON STRICT: {"narrative": "...", "tutorial_complete": boolean, "health_change": number}

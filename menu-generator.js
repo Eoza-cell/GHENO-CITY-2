@@ -18,7 +18,7 @@ async function generateMainMenuImage() {
             </linearGradient>
             <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" style="stop-color:#00ffff;stop-opacity:0.8" />
-                <stop offset="100%" style="stop-color:#0088ff;stop-opacity:0.8" />
+                <stop offset="100%" style="stop-color:#7000ff;stop-opacity:0.8" />
             </linearGradient>
             <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
@@ -45,8 +45,8 @@ async function generateMainMenuImage() {
 
         <!-- Main Title -->
         <g filter="url(#glow)">
-            <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="160" fill="white" style="letter-spacing: 25px;">ARISE II</text>
-            <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="50" fill="url(#goldGrad)" style="letter-spacing: 12px;">GHENO CITY : MATRIX REBORN</text>
+            <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="140" fill="white" style="letter-spacing: 20px; filter: drop-shadow(0 0 15px rgba(0,255,255,0.8));">ARISE</text>
+            <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="45" fill="url(#goldGrad)" style="letter-spacing: 10px;">THE FINAL AWAKENING</text>
         </g>
 
         <!-- Central Bar -->
@@ -59,7 +59,7 @@ async function generateMainMenuImage() {
 
         <!-- Signature / Version -->
         <g transform="translate(30, 670)">
-            <text font-family="monospace" font-size="14" fill="rgba(255, 255, 255, 0.4)">VERSION: 2.1.0_STABLE</text>
+            <text font-family="monospace" font-size="14" fill="rgba(255, 255, 255, 0.4)">VERSION: 3.0.0_ULTRA</text>
         </g>
         <g transform="translate(1170, 670)">
             <text text-anchor="end" font-family="monospace" font-size="14" fill="rgba(255, 255, 255, 0.4)">ENGINE: SHARP_SVG_RENDERER</text>

@@ -220,17 +220,24 @@ async function callBlackbox(system, prompt) {
             model: "deepseek-v3",
             agentMode: {},
             trendingAgentMode: {},
-            userSelectedModel: "deepseek-v3"
+            userSelectedModel: "deepseek-v3",
+            clickedContinue: false,
+            previewToken: null,
+            codeModelMode: true
         }, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://www.blackbox.ai/',
-                'Origin': 'https://www.blackbox.ai/'
+                'Origin': 'https://www.blackbox.ai/',
+                'Content-Type': 'application/json'
             },
-            timeout: 15000
+            timeout: 20000
         });
         return parseSSEResponse(resp.data);
-    } catch (e) { return null; }
+    } catch (e) {
+        console.warn(`[AI] Blackbox error: ${e.message}`);
+        return null;
+    }
 }
 
 async function callPollinationsPOST(system, prompt) {
@@ -316,9 +323,9 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'Pollinations POST', fn: callPollinationsPOST },
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations GET', fn: callPollinationsGET }
     ];
 
