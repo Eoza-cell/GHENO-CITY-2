@@ -233,28 +233,32 @@ async function handleFreeAction(sock, message, player, actionText) {
     if (typeof content === 'object') {
         aiResponse = { ...aiResponse, ...content };
     } else {
-        // Find all JSON-like blocks. Some AIs output multiple or nested.
-        const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
-        let parsedSuccess = false;
+        // Robust JSON extraction: Find the largest JSON block possible
+        let start = content.indexOf('{');
+        let end = content.lastIndexOf('}');
 
-        for (const match of matches) {
+        if (start !== -1 && end !== -1 && end > start) {
+            const potentialJson = content.substring(start, end + 1);
             try {
-                const potential = JSON.parse(match[0]);
-                // Merge actions if found
-                if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
-                // Take narrative if not already set or if longer
-                if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
-                    aiResponse.narrative = potential.narrative;
-                }
-                // Other fields
-                if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
-                parsedSuccess = true;
+                const parsed = JSON.parse(potentialJson);
+                aiResponse = { ...aiResponse, ...parsed };
             } catch (e) {
-                // Ignore failed partial parses
+                // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
+                const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
+                for (const match of matches) {
+                    try {
+                        const potential = JSON.parse(match[0]);
+                        if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
+                        if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
+                            aiResponse.narrative = potential.narrative;
+                        }
+                        if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
+                    } catch (innerE) {}
+                }
             }
         }
 
-        // If no narrative found in JSON, or parse failed, use the whole text excluding the JSON parts
+        // If no narrative found in JSON, or parse failed, use the whole text excluding all JSON-like blocks
         if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
             let plainText = content.replace(/\{[\s\S]*?\}/g, '').trim();
             aiResponse.narrative = cleanupNarrative(plainText);
