@@ -52,7 +52,9 @@ function isValidAIResponse(text) {
         '429',
         'internal server error',
         'queue full',
-        'too many requests'
+        'too many requests',
+        'invalid_request_error',
+        'insufficient_quota'
     ];
     if (errorMarkers.some(m => lower.includes(m))) return false;
 
@@ -164,16 +166,36 @@ async function callPuterSDK(system, prompt) {
 
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
-    try {
-        const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "google/gemini-2.0-flash-exp:free",
-            messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
-        }, {
-            headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` },
-            timeout: 20000
-        });
-        return resp.data?.choices?.[0]?.message?.content;
-    } catch (e) { return null; }
+    const models = [
+        "google/gemini-2.0-flash-exp:free",
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "google/gemini-2.0-pro-exp-02-05:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-r1:free"
+    ];
+
+    for (const model of models) {
+        try {
+            console.log(`[AI] OpenRouter - Tentative avec ${model}`);
+            const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+                model: model,
+                messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    'HTTP-Referer': 'https://github.com/skype-bot/arise',
+                    'X-Title': 'Arise RPG'
+                },
+                timeout: 20000
+            });
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] OpenRouter Error (${model}):`, e.response?.data || e.message);
+            continue;
+        }
+    }
+    return null;
 }
 
 async function callBlackbox(system, prompt) {

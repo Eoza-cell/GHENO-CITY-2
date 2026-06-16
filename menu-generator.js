@@ -45,8 +45,8 @@ async function generateMainMenuImage() {
 
         <!-- Main Title -->
         <g filter="url(#glow)">
-            <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="160" fill="white" style="letter-spacing: 25px;">ARISE</text>
-            <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="50" fill="url(#goldGrad)" style="letter-spacing: 12px;">GHENO CITY 2 : LINK START</text>
+            <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="160" fill="white" style="letter-spacing: 25px;">ARISE II</text>
+            <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="50" fill="url(#goldGrad)" style="letter-spacing: 12px;">GHENO CITY : MATRIX REBORN</text>
         </g>
 
         <!-- Central Bar -->

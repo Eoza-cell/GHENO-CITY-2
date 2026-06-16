@@ -51,9 +51,10 @@ async function addOverlay(baseImg, player, width, height) {
 
     // Handle inventory categories
     const inventory = player.inventory || [];
-    // Just a basic filtering for weapons vs equipment for display
-    const weapons = inventory.filter(i => /épée|lame|dague|bâton|arc|lance|hache/i.test(i.name)).slice(0, 4);
-    const equipment = inventory.filter(i => !/épée|lame|dague|bâton|arc|lance|hache/i.test(i.name)).slice(0, 4);
+    // Enhanced filtering for weapons vs equipment
+    const weaponKeywords = ['épée', 'lame', 'dague', 'bâton', 'arc', 'lance', 'hache', 'sword', 'blade', 'dagger', 'staff', 'bow', 'spear', 'axe', 'katana', 'rapier'];
+    const weapons = inventory.filter(i => weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
+    const equipment = inventory.filter(i => !weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
 
     const overlaySvg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
