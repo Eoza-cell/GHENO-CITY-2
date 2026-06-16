@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster, Entity, Club, Pact } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
@@ -117,7 +117,17 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: { location: { [Op.like]: `%${player.location}%` } },
       limit: 3
   });
-  const npcState = "PNJ ici:\n" + npcs.map(n => `- ${n.name} (${n.role})`).join('\n');
+  const npcState = "PNJ ici:\n" + npcs.map(n => `- ${n.name} (${n.role}) [Niveau: ${n.powerLevel}, Spécialité: ${n.specialty}]`).join('\n');
+
+  const playerPacts = await player.getEntities();
+  const pactState = playerPacts.length > 0
+    ? "Pactes Actifs:\n" + playerPacts.map(e => `- ${e.name} (${e.type}): ${e.power}`).join('\n')
+    : "Aucun pacte avec une entité.";
+
+  const playerClubs = await player.getClubs();
+  const clubState = playerClubs.length > 0
+    ? "Clubs Extrascolaires:\n" + playerClubs.map(c => `- ${c.name} (${c.PlayerClub.rank}): ${c.specialty}`).join('\n')
+    : "Membre d'aucun club.";
 
   const monsters = await Monster.findAll({
       where: { rank: player.rank },
@@ -152,6 +162,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     - ÉCRITURE DES PNJ & IMPACT : Les PNJ sont des personnages COMPLEXES, TRÈS BIEN ÉCRITS et VIVANTS. Ils ont une âme. Donne-leur des noms, des motivations secrètes, des tics de langage (ex: un vieux qui finit ses phrases par "...héhé", un garde arrogant), et des émotions réelles. Ils ne sont pas juste des distributeurs de quêtes. Ils se souviennent de tes actes.
     - LOGIQUE SOCIALE & POLITIQUE : Prends en compte le métier (occupation), l'organisation et l'influence du joueur. Un politicien pourra influencer une foule mais se fera écraser en combat singulier contre un monstre, tandis qu'un artisan aura des facilités avec les marchands.
     - LOGIQUE DE MONDE : Respecte scrupuleusement la hiérarchie de puissance. Un joueur faible ne peut pas intimider un garde d'élite sans conséquence immédiate.
+    - PACTES ET ENTITÉS : Les joueurs peuvent forger des pactes avec des entités Célestes (Lumière), Bestiales (Instinct) ou Anciennes (Savoir). Ces pactes sont rares, dangereux et offrent une puissance immense au prix de leur liberté ou de leur âme.
+    - VIE SCOLAIRE (ANIME STYLE) : L'Académie n'est pas seulement un lieu d'étude, c'est une microsociété style "Lycée Japonais" avec des clubs extrascolaires (Kendo, Occultisme, Musique, etc.) qui ont leurs propres hiérarchies, rivalités et avantages.
     - Pas de texte en anglais. PAS de parenthèses pour les sensations.
     - LONGUEUR: 4-5 paragraphes immersifs et détaillés.
 
@@ -208,13 +220,15 @@ async function handleFreeAction(sock, message, player, actionText) {
         {"type": "advance_quest", "parameters": {"questTitle": "Titre", "progress": 50, "note": "Optionnel"}},
         {"type": "complete_quest", "parameters": {"questTitle": "Titre"}},
         {"type": "update_quest", "parameters": {"questTitle": "Titre", "branch": "Voie choisie", "notes": "Nouvelle direction de la quête"}},
-        {"type": "start_multiplayer_quest", "parameters": {"questTitle": "Titre de la quête COOP"}}
+        {"type": "start_multiplayer_quest", "parameters": {"questTitle": "Titre de la quête COOP"}},
+        {"type": "forge_pact", "parameters": {"entityName": "Nom de l'entité"}},
+        {"type": "join_club", "parameters": {"clubName": "Nom du club"}}
       ],
       "imagePrompt": "Description visuelle pour l'IA d'image"
     }
   `;
 
-    const fullPrompt = `### CONTEXTE DU JOUEUR ###\n${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\n### ACTION DU JOUEUR (À TRAITER PRIORITAIREMENT) ###\n${actionText}`;
+    const fullPrompt = `### CONTEXTE DU JOUEUR ###\n${playerState}\n${inventoryState}\n${skillState}\n${pactState}\n${clubState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\n### ACTION DU JOUEUR (À TRAITER PRIORITAIREMENT) ###\n${actionText}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -568,6 +582,40 @@ async function handleFreeAction(sock, message, player, actionText) {
                         await sock.sendMessage(n.player.whatsappId, {
                             text: `🤝 *Quête coopérative !*\n${player.name} t'embarque dans une quête.\n\n${n.line}`
                         });
+                    }
+                }
+            }
+            break;
+
+        case 'forge_pact':
+            if (parameters.entityName) {
+                const entity = await Entity.findOne({ where: { name: { [Op.like]: `%${parameters.entityName}%` } } });
+                if (entity) {
+                    const hasPact = await target.hasEntity(entity);
+                    if (!hasPact) {
+                        await target.addEntity(entity);
+                        const bonuses = entity.pactBonus || {};
+                        for (const [stat, value] of Object.entries(bonuses)) {
+                            if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                                await target.increment(stat, { by: value });
+                            }
+                        }
+                        await target.save();
+                        await target.reload();
+                        questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
+                    }
+                }
+            }
+            break;
+
+        case 'join_club':
+            if (parameters.clubName) {
+                const club = await Club.findOne({ where: { name: { [Op.like]: `%${parameters.clubName}%` } } });
+                if (club) {
+                    const hasClub = await target.hasClub(club);
+                    if (!hasClub) {
+                        await target.addClub(club);
+                        questFeedback.push(`🏫 *CLUB REJOINT* : Tu es désormais membre du ${club.name}.`);
                     }
                 }
             }

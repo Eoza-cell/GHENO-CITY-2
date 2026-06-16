@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -411,6 +411,75 @@ commands.set('royaumes', async (sock, message) => {
         text += `├ 📊 Influence: ${k.influence}\n`;
         text += `└ 📜 ${k.description}\n\n`;
     });
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /pacts
+commands.set('pacts', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: Entity });
+
+    if (!player) return;
+
+    const entities = await Entity.findAll();
+    const playerEntities = player.Entities || [];
+
+    let text = "--- ✨ PACTES ET ENTITÉS --- \n\n";
+
+    if (playerEntities.length > 0) {
+        text += "*Tes Pactes Actifs:*\n";
+        playerEntities.forEach(e => {
+            text += `🔥 *${e.name}* (${e.type})\n└ Pouvoir: ${e.power}\n`;
+        });
+        text += "\n";
+    }
+
+    text += "*Entités Connues d'Aetherys:*\n";
+    entities.forEach(e => {
+        const isLinked = playerEntities.some(pe => pe.id === e.id);
+        text += `${isLinked ? '✅' : '❓'} *${e.name}* (${e.type})\n`;
+        text += `├ 📜 ${e.description}\n`;
+        text += `└ ✨ Bonus: ${JSON.stringify(e.pactBonus)}\n\n`;
+    });
+
+    text += "_Pour forger un pacte, trouve l'entité via /action._";
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /clubs
+commands.set('clubs', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: Club });
+
+    if (!player) return;
+
+    const clubs = await Club.findAll();
+    const playerClubs = player.Clubs || [];
+
+    let text = "--- 🏫 CLUBS DE L'ACADÉMIE --- \n\n";
+
+    if (playerClubs.length > 0) {
+        text += "*Tes Clubs:*\n";
+        playerClubs.forEach(c => {
+            text += `🔹 *${c.name}* (${c.PlayerClub.rank})\n`;
+        });
+        text += "\n";
+    }
+
+    text += "*Clubs Extrascolaires:*\n";
+    clubs.forEach(c => {
+        const isMember = playerClubs.some(pc => pc.id === c.id);
+        text += `${isMember ? '✅' : '⚪'} *${c.name.toUpperCase()}*\n`;
+        text += `├ 🧪 Spécialité: ${c.specialty}\n`;
+        text += `├ 👑 Leader: ${c.leaderName}\n`;
+        text += `└ 📜 ${c.description}\n\n`;
+    });
+
+    text += "_Rejoins un club via /action en parlant au leader._";
 
     await sock.sendMessage(replyJid, { text: text });
 });
@@ -870,11 +939,17 @@ commands.set('help', async (sock, message) => {
                    "/joueurs - Voir les joueurs à proximité.\n" +
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
-                   "/save - Sauvegarder tes données manuellement.\n" +
-                   "/checkai - Diagnostiquer l'état des serveurs IA.\n" +
-                   "/action - Passer en mode immersif (RP).\n" +
-                   "/menu - Revenir au menu principal.\n" +
-                   "/help - Afficher cette aide.";
+                   "/royaumes - Géopolitique mondiale.\n" +
+                   "/conflits - Guerres en cours.\n" +
+                   "/ecoles - Liste des académies.\n" +
+                   "/examens - Dossier scolaire.\n" +
+                   "/clubs - Clubs extrascolaires.\n" +
+                   "/pacts - Pactes avec les entités.\n" +
+                   "/save - Sauvegarder tes données.\n" +
+                   "/checkai - Diagnostic IA.\n" +
+                   "/action - Mode immersif (RP).\n" +
+                   "/menu - Menu principal.\n" +
+                   "/help - Cette aide.";
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
 });
 
@@ -943,6 +1018,8 @@ commands.set('menu', async (sock, message) => {
                    "🛡️ `/conflits` - Guerres en cours.\n" +
                    "🏫 `/ecoles` - Liste des académies.\n" +
                    "📝 `/examens` - Ton dossier scolaire.\n" +
+                   "✨ `/clubs` - Clubs extrascolaires.\n" +
+                   "🔥 `/pacts` - Pactes avec les entités.\n" +
                    "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
                    "❓ `/help` - Guide de survie.";
 
