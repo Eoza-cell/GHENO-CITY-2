@@ -2,6 +2,8 @@ const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Con
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
+const questUtils = require('./quest-utils');
+const { checkLevelUp } = require('./level-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -32,14 +34,26 @@ async function handleFreeAction(sock, message, player, actionText) {
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
 
   const questState = activeQuests.length > 0
-    ? "Quêtes Actives:\n" + activeQuests.map(q => `- ${q.title}: ${q.description}`).join('\n')
+    ? "Quêtes Actives:\n" + activeQuests.map(q => {
+        const pq = q.PlayerQuest;
+        const chainInfo = q.chain ? ` [${q.chain} • étape ${q.step}]` : '';
+        const prog = ` (${pq.progress || 0}%)`;
+        const branch = pq.branch ? ` [voie: ${pq.branch}]` : '';
+        const obj = q.objective ? ` | Objectif: ${q.objective}` : '';
+        return `- ${q.title}${chainInfo}${prog}${branch}: ${q.description}${obj}`;
+      }).join('\n')
     : "Aucune quête active.";
 
   const availableQuests = await Quest.findAll({
       where: { rank_required: player.rank },
-      limit: 3
+      order: [['chain', 'ASC'], ['step', 'ASC']],
+      limit: 5
   });
-  const availableQuestState = "Quêtes dispo (Rang " + player.rank + "):\n" + availableQuests.map(q => `- ${q.title}`).join('\n');
+  const availableQuestState = "Quêtes dispo (Rang " + player.rank + "):\n" + availableQuests.map(q => {
+      const chainInfo = q.chain ? ` [${q.chain} • étape ${q.step}]` : '';
+      const coop = q.isMultiplayer ? ' (COOP)' : '';
+      return `- ${q.title}${chainInfo}${coop}: ${q.objective || q.description}`;
+  }).join('\n');
 
   const dungeons = await Dungeon.findAll({ limit: 5 });
   const dungeonState = "Donjons:\n" + dungeons.map(d => `- ${d.name} (${d.rank})`).join('\n');
@@ -82,7 +96,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 3
+      limit: 5
   });
   const historyState = history.length > 0
     ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')
@@ -127,20 +141,18 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `
     Tu es le MJ de "Arise / Aetherys". RPG de type Manhwa/Anime (style Solo Leveling, SAO, Overlord).
 
-    STYLE NARRATIF:
-    - Épique, dynamique et visuel. Mélange d'HUMOUR ANIME (exagérations, gags visuels, chutes ridicules) et de MOMENTS SÉRIEUX (tension dramatique, enjeux de vie ou de mort).
-    - Ajoute du "FAN SERVICE" (descriptions esthétiques, charisme frappant des PNJs, gros plans dramatiques sur les visages ou les poses).
-    - Pas de texte en anglais. PAS de parenthèses pour les sons (ex: PAS de "(Clang!)").
+    STYLE NARRATIF & LOGIQUE:
+    - Épique, dynamique et visuel. Mélange d'HUMOUR ANIME (exagérations, gags visuels, chutes ridicules) et de MOMENTS SÉRIEUX.
+    - RÉACTIVITÉ ABSOLUE : Tu es un MJ réactif, pas proactif. N'invente JAMAIS d'actions pour le joueur. Écoute ce qu'il fait et décris les conséquences directes. Si le joueur donne un coup, décris l'impact, pas le coup suivant qu'il "devrait" donner.
+    - LOGIQUE INTERNE : Si un joueur est dans une taverne, il ne peut pas voir ce qui se passe à l'autre bout de la ville sans magie. Respecte les limites physiques et spatiales.
+    - Pas de texte en anglais. PAS de parenthèses pour les sons. PAS de "..." excessifs.
     - LONGUEUR: Minimum 3-4 paragraphes riches en détails et émotions.
 
     RÈGLES MJ:
-    1. RÔLE DU JOUEUR: Le joueur est le PROTAGONISTE. Il n'est pas forcément un héros. Libre de ses choix, lié seulement à sa famille et ses capacités.
-    2. LIBERTÉ TOTALE: Tu ne contrôles PAS les actions du joueur. Tu es le monde qui réagit.
-    3. RECONNAISSANCE: Commence TOUJOURS par valider l'action du joueur avant d'enchaîner sur la narration.
-    4. NPCs ARCHÉTYPES: Utilise des archétypes anime marqués :
-       - Tsundere (froide puis douce), Kuudere (sans émotion), Dandere (timide), Ojou-sama (arrogante/noble).
-       - Rival arrogant qui finit par respecter le joueur, Maître pervers/excentrique, etc.
-    5. LÉTALITÉ & CONSÉQUENCES: Un échec peut être drôle (humiliation) ou tragique (blessure grave), mais ne doit jamais être ignoré.
+    1. PROTAGONISTE : Le joueur est le centre de SON histoire. Ses choix, aussi stupides ou géniaux soient-ils, DOIVENT être le moteur du récit.
+    2. RÉACTIVITÉ ABSOLUE : N'ignore JAMAIS les actions du joueur. Si un joueur dit "Je lui donne un coup de pied", il DOIT y avoir une réaction immédiate liée à ce coup de pied.
+    3. PNJ VIVANTS : Chaque PNJ ( Instructeur, Marchand, Passant) doit être bien écrit. Donne-leur une voix unique, du charisme et de la profondeur. Ils ne sont pas des robots, ils ont des émotions (colère, mépris, respect).
+    4. CONSÉQUENCES : Si le joueur échoue, l'échec doit être aussi intéressant que la réussite. Pas de "Tu rates et rien ne se passe".
 
     ÉCHELLE DE PUISSANCE ET IMPACT DES STATS:
     - FORCE (FOR): ≥10 (Humain simple), ≥50 (Détruit des murs, fissure le sol), ≥150 (Pulvérise des bâtiments, ondes de choc).
@@ -149,11 +161,32 @@ async function handleFreeAction(sock, message, player, actionText) {
     - DÉFENSE (DEF): ≥10 (Résistance humaine), ≥50 (Peau d'acier, ignore les lames communes), ≥150 (Invulnérabilité physique quasi-totale).
     - CHANCE (LUCK): Influence les coïncidences heureuses et les loots rares.
 
+    DÉPLACEMENT (OBLIGATOIRE):
+    - À CHAQUE déplacement, précise TOUJOURS la distance parcourue EN MÈTRES (ex: "Tu cours sur 25 mètres") et le LIEU/POINT VISÉ exact (ex: "vers la porte nord de la taverne").
+    - La distance doit être cohérente avec l'AGI/vitesse du joueur et le temps de l'action. Un humain (AGI ~10) couvre ~2 m/s en marche, ~10 m/s en sprint ; AGI élevée = distances bien plus grandes.
+    - Si la destination est trop loin pour l'action décrite, indique la distance réellement franchie et ce qu'il reste à parcourir.
+
+    COMBAT, ESQUIVE & CONTRE-ATTAQUE (RÈGLE ABSOLUE) :
+    1. COMPARAISON DE PUISSANCE : Évalue la différence de Niveau et d'Agilité entre le joueur et l'adversaire.
+    2. RÈGLE DU DÉSAVANTAGE (2/3) : Si le joueur est plus faible ou plus lent :
+       - 1/3 (33%) de probabilité : Il est terrassé. Il encaisse l'attaque DE PLEIN FOUET. Aucune esquive possible. Décris la violence du choc et applique un health_change important.
+       - 2/3 (66%) de probabilité : Il a une mince chance de TENTER une esquive ou un contre. Mais ce n'est jamais garanti.
+    3. RÉACTIVITÉ : Si le joueur annonce une esquive alors qu'il est en désavantage, tu DOIS arbitrer selon ces probabilités. S'il échoue, il subit les dégâts sans discuter.
+    4. IMPACT VISUEL : Un coup encaissé de plein fouet doit être décrit de manière viscérale (sang, os brisés, souffle coupé).
+
     SOCIAL:
     - Tu gères des interactions entre joueurs dans la même zone.
     - Si l'action du joueur implique un autre joueur, tu peux créer une notification directe à ce joueur via une action notify_player.
     - Si l'événement concerne tous les joueurs du lieu, utilise une action broadcast.
     - Ne nomme jamais la JID ou d'autres données techniques, seulement les noms de personnages.
+
+    QUÊTES (IMPORTANT):
+    - Les quêtes sont ORDONNÉES en chaînes (étape 1, 2, 3...). Le joueur suit les étapes dans l'ordre.
+    - Quand le joueur accepte une quête, utilise l'action "start_quest" avec son titre EXACT (voir "Quêtes dispo").
+    - Quand il progresse, utilise "advance_quest" (progress = 0-100). Quand l'objectif est atteint, utilise "complete_quest" : la quête suivante de la chaîne se débloque AUTOMATIQUEMENT.
+    - Tu peux MODIFIER LE COURS d'une quête selon les choix du joueur avec "update_quest" (branch = nom de la voie, notes = nouvelle direction). Ex: trahir un PNJ ouvre une voie différente.
+    - INTERACTION ENTRE JOUEURS: pour une quête coopérative (marquée COOP) ou quand plusieurs joueurs sont présents, utilise "start_multiplayer_quest" : tous les joueurs de la zone reçoivent la quête et peuvent la faire progresser ensemble.
+    - N'invente PAS de titres de quête : utilise uniquement ceux listés dans "Quêtes dispo" / "Quêtes Actives".
 
     FORMAT DE RÉPONSE (JSON STRICT):
     {
@@ -162,7 +195,12 @@ async function handleFreeAction(sock, message, player, actionText) {
         {"type": "update_player", "parameters": {"col_change": 10, "xp_gain": 20, "new_class": "Optionnel"}},
         {"type": "add_item", "parameters": {"itemName": "Objet", "quantity": 1}},
         {"type": "notify_player", "parameters": {"target_name": "Nom du joueur", "message": "Texte de notification RP"}},
-        {"type": "broadcast", "parameters": {"message": "Annonce RP pour tous les joueurs présents"}}
+        {"type": "broadcast", "parameters": {"message": "Annonce RP pour tous les joueurs présents"}},
+        {"type": "start_quest", "parameters": {"questTitle": "Titre exact de la quête"}},
+        {"type": "advance_quest", "parameters": {"questTitle": "Titre", "progress": 50, "note": "Optionnel"}},
+        {"type": "complete_quest", "parameters": {"questTitle": "Titre"}},
+        {"type": "update_quest", "parameters": {"questTitle": "Titre", "branch": "Voie choisie", "notes": "Nouvelle direction de la quête"}},
+        {"type": "start_multiplayer_quest", "parameters": {"questTitle": "Titre de la quête COOP"}}
       ],
       "imagePrompt": "Description visuelle pour l'IA d'image"
     }
@@ -180,47 +218,59 @@ async function handleFreeAction(sock, message, player, actionText) {
     // Enhanced JSON & Narrative extraction
     let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
 
+    const cleanupNarrative = (t) => {
+        if (!t) return "";
+        return t.replace(/```json/gi, '')
+                .replace(/```/g, '')
+                .replace(/^(json|JSON)/g, '')
+                .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
+                .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
+                .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '')
+                .trim();
+    };
+
     if (typeof content === 'object') {
         aiResponse = { ...aiResponse, ...content };
     } else {
-        // Find the JSON block boundaries
-        const firstBrace = content.indexOf('{');
-        const lastBrace = content.lastIndexOf('}');
+        // Robust JSON extraction: Find the largest JSON block possible
+        let start = content.indexOf('{');
+        let end = content.lastIndexOf('}');
 
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            const potentialJson = content.substring(firstBrace, lastBrace + 1);
+        if (start !== -1 && end !== -1 && end > start) {
+            const potentialJson = content.substring(start, end + 1);
             try {
-                aiResponse = JSON.parse(potentialJson);
+                const parsed = JSON.parse(potentialJson);
+                aiResponse = { ...aiResponse, ...parsed };
             } catch (e) {
-                console.error("[MJ] Erreur parse JSON, tentative récupération narrative...");
+                // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
+                const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
+                for (const match of matches) {
+                    try {
+                        const potential = JSON.parse(match[0]);
+                        if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
+                        if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
+                            aiResponse.narrative = potential.narrative;
+                        }
+                        if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
+                    } catch (innerE) {}
+                }
             }
         }
 
-        // If narrative is missing or empty inside JSON, extract from surrounding text
-        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-            let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
-            let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
+        // If no narrative found in JSON, or parse failed, use the whole text excluding all JSON-like blocks
+        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
+            let plainText = content.replace(/\{[\s\S]*?\}/g, '').trim();
+            aiResponse.narrative = cleanupNarrative(plainText);
+        }
 
-            // Cleanup markers
-            const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
-            textBefore = cleanup(textBefore);
-            textAfter = cleanup(textAfter);
-
-            if (textBefore.length > 5) aiResponse.narrative = textBefore;
-            else if (textAfter.length > 5) aiResponse.narrative = textAfter;
-            else if (firstBrace === -1) aiResponse.narrative = cleanup(content);
+        // Final fallback: if still empty, use content but clean it hard
+        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
+            aiResponse.narrative = cleanupNarrative(content);
         }
     }
 
-    // Final scrub of ALL AI/JSON artifacts from narrative
-    if (aiResponse.narrative) {
-        aiResponse.narrative = aiResponse.narrative
-            .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
-            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-            .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-            .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '') // Remove accidental action-like lines
-            .trim();
-    }
+    // Ensure narrative is clean
+    aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
         aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";
@@ -240,6 +290,9 @@ async function handleFreeAction(sock, message, player, actionText) {
         content: aiResponse.narrative,
         location: player.location
     });
+
+    // Collected quest feedback lines appended to the narrative after the loop.
+    const questFeedback = [];
 
     // Process AI actions
     for (const actionObj of actions) {
@@ -270,25 +323,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           }
           if (parameters.xp_gain) {
               await target.increment('xp', { by: parameters.xp_gain });
-              await target.reload();
-              const xpNeeded = target.level * 100;
-              if (target.xp >= xpNeeded) {
-                  const levelsGained = Math.floor(target.xp / xpNeeded);
-                  await target.increment('level', { by: levelsGained });
-                  await target.update({
-                      xp: target.xp % xpNeeded,
-                      maxHealth: target.maxHealth + (levelsGained * 15),
-                      maxMana: target.maxMana + (levelsGained * 8),
-                      health: target.maxHealth + (levelsGained * 15),
-                      mana: target.maxMana + (levelsGained * 8),
-                      strength: target.strength + (levelsGained * 1),
-                      agility: target.agility + (levelsGained * 1),
-                      intelligence: target.intelligence + (levelsGained * 1)
-                  });
-                  await sock.sendMessage(target.whatsappId, {
-                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes stats ont augmenté.`
-                  });
-              }
+              await checkLevelUp(target, sock);
               targetModified = true;
           }
           if (parameters.health_change) {
@@ -487,6 +522,48 @@ async function handleFreeAction(sock, message, player, actionText) {
                 }
             }
             break;
+
+        case 'start_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.startQuest(target, parameters.questTitle);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'advance_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'complete_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.completeQuest(target, parameters.questTitle, sock);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'update_quest': // AI modifies the course of a quest
+            if (parameters.questTitle) {
+                const line = await questUtils.modifyQuest(target, parameters.questTitle, parameters.branch, parameters.notes);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'start_multiplayer_quest':
+            if (parameters.questTitle) {
+                const res = await questUtils.startMultiplayerQuest(player, parameters.questTitle);
+                if (res) {
+                    questFeedback.push(`🤝 *Quête coopérative lancée* : ${res.quest.title}`);
+                    for (const n of res.notified) {
+                        await sock.sendMessage(n.player.whatsappId, {
+                            text: `🤝 *Quête coopérative !*\n${player.name} t'embarque dans une quête.\n\n${n.line}`
+                        });
+                    }
+                }
+            }
+            break;
       }
 
       // Notify target if it's not the current player
@@ -516,6 +593,11 @@ async function handleFreeAction(sock, message, player, actionText) {
           text: `📣 *Annonce RP*\n\n${aiResponse.broadcastMessage}`
         });
       }
+    }
+
+    // Append quest progression feedback to the narrative.
+    if (questFeedback.length > 0) {
+      aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
 
     await sendWithImage(sock, jid, aiResponse);

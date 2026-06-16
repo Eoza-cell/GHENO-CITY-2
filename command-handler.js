@@ -2,13 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, sequelize } = require('./database');
+const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
+const { generateWorldMapImage } = require('./world-map');
+const { generateMainMenuImage } = require('./menu-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
-const { Op } = require('sequelize');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -285,13 +287,19 @@ commands.set('map', async (sock, message) => {
     }
 
     const dungeons = await Dungeon.findAll();
-    const mapText = `--- 🗺️ CARTE D'AETHERYS --- \n\n` +
-                    `📍 *POSITION:* ${player.location}\n\n` +
-                    `🏰 *DONJONS DÉCOUVERTS:* \n` +
+    const mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
+                    `📍 *Position:* ${player.location}\n\n` +
+                    `🏰 *Donjons par rang:*\n` +
                     dungeons.map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
                     `\n\n_Le monde est vaste. Déplace-toi via le mode /action._`;
 
-    await sock.sendMessage(replyJid, { text: mapText });
+    try {
+        const mapImage = await generateWorldMapImage();
+        await sock.sendMessage(replyJid, { image: mapImage, caption: mapText });
+    } catch (err) {
+        console.error('[MAP] Échec génération carte:', err.message);
+        await sock.sendMessage(replyJid, { text: mapText });
+    }
 });
 
 // Command: /boutique
@@ -462,15 +470,28 @@ commands.set('god', async (sock, message, args) => {
     }
 
     const subCommand = args.shift()?.toLowerCase();
-    const targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    let targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
 
-    if (!subCommand) {
-        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set @joueur <stat> <valeur>\n/god give @joueur <item> <quantité>\n/god rank @joueur <rang>\n/god col @joueur <montant>" });
-        return;
+    // Check if the first remaining arg is a mention (sometimes it's not in contextInfo but in text)
+    if (!targetJid && args[0] && args[0].startsWith('@')) {
+        const potentialId = args[0].substring(1);
+        const found = await Player.findOne({ where: { whatsappId: { [Op.like]: `${potentialId}%` } } });
+        if (found) {
+            targetJid = found.whatsappId;
+            args.shift();
+        }
+    } else if (targetJid && args[0] && args[0].startsWith('@')) {
+        // Remove mention from args if it's there
+        args.shift();
     }
 
+    // If no mention found, target self
     if (!targetJid) {
-        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un mortel pour exercer ton pouvoir." });
+        targetJid = jid;
+    }
+
+    if (!subCommand) {
+        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur] <stat> <valeur>\n/god give [@joueur] <item> <quantité>\n/god rank [@joueur] <rang>\n/god col [@joueur] <montant>\n/god max [@joueur] (met toutes les stats à 999)\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
         return;
     }
 
@@ -510,6 +531,22 @@ commands.set('god', async (sock, message, args) => {
                 await targetPlayer.increment('col', { by: amount });
                 await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${amount} Col de la part du créateur.` });
             }
+            break;
+        case 'max':
+            await targetPlayer.update({
+                strength: 999,
+                agility: 999,
+                intelligence: 999,
+                defense: 999,
+                luck: 999,
+                level: 100,
+                health: 9999,
+                maxHealth: 9999,
+                mana: 9999,
+                maxMana: 9999,
+                rank: 'S'
+            });
+            await sock.sendMessage(replyJid, { text: `La puissance absolue a été accordée à ${targetPlayer.name}.` });
             break;
     }
 });
@@ -724,6 +761,81 @@ commands.set('statut', async (sock, message) => {
     }
 });
 
+// Command: /dbbackup
+commands.set('dbbackup', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les dieux peuvent extraire l'essence de la matrice." });
+        return;
+    }
+
+    try {
+        const models = sequelize.models;
+        const backup = {};
+        for (const [name, model] of Object.entries(models)) {
+            backup[name] = await model.findAll();
+        }
+
+        const backupPath = path.join(__dirname, `backup_${Date.now()}.json`);
+        fs.writeFileSync(backupPath, JSON.stringify(backup, null, 2));
+
+        await sock.sendMessage(replyJid, {
+            document: { url: backupPath },
+            mimetype: 'application/json',
+            fileName: 'Aetherys_Matrix_Backup.json',
+            caption: "💾 *BACKUP DE LA MATRICE RÉUSSI*"
+        });
+
+        fs.unlinkSync(backupPath);
+    } catch (error) {
+        console.error("Backup error:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la création du backup." });
+    }
+});
+
+// Command: /dbrestore
+commands.set('dbrestore', async (sock, message, args, downloadMediaMessage) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les dieux peuvent réécrire la matrice." });
+        return;
+    }
+
+    const docMessage = message.message.documentMessage || message.message.extendedTextMessage?.contextInfo?.quotedMessage?.documentMessage;
+
+    if (!docMessage) {
+        await sock.sendMessage(replyJid, { text: "Envoie ou cite un fichier JSON de backup pour restaurer la matrice." });
+        return;
+    }
+
+    try {
+        const targetMessage = message.message.documentMessage ? message : { message: message.message.extendedTextMessage.contextInfo.quotedMessage };
+        const buffer = await downloadMediaMessage(targetMessage, 'buffer');
+        const backup = JSON.parse(buffer.toString());
+
+        await sequelize.transaction(async (t) => {
+            for (const [name, data] of Object.entries(backup)) {
+                const model = sequelize.models[name];
+                if (model) {
+                    await model.destroy({ where: {}, transaction: t });
+                    await model.bulkCreate(data, { transaction: t });
+                }
+            }
+        });
+
+        await sock.sendMessage(replyJid, { text: "✅ *MATRICE RESTAURÉE AVEC SUCCÈS*" });
+    } catch (error) {
+        console.error("Restore error:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la restauration : " + error.message });
+    }
+});
+
 // Command: /help
 // Command: /save
 commands.set('save', async (sock, message) => {
@@ -833,32 +945,15 @@ commands.set('menu', async (sock, message) => {
                    "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
                    "❓ `/help` - Guide de survie.";
 
-  // Try sending the local menu image first
   try {
-    if (fs.existsSync('./menu_image.jpg')) {
-        await sock.sendMessage(message.key.remoteJid, {
-            image: fs.readFileSync('./menu_image.jpg'),
-            caption: menuText
-        });
-    } else {
-        throw new Error("Local menu image not found");
-    }
+    const menuImage = await generateMainMenuImage();
+    await sock.sendMessage(message.key.remoteJid, {
+        image: menuImage,
+        caption: menuText
+    });
   } catch (error) {
-    console.warn("Erreur envoi image menu locale, tentative fallback URL:", error.message);
-    const saoMenuUrl = "https://images.alphacoders.com/264/264350.jpg";
-    try {
-        const response = await axios.get(saoMenuUrl, {
-            responseType: 'arraybuffer',
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-        const imageBuffer = Buffer.from(response.data, 'binary');
-        await sock.sendMessage(message.key.remoteJid, {
-            image: imageBuffer,
-            caption: menuText
-        });
-    } catch (fallbackError) {
-        await sock.sendMessage(message.key.remoteJid, { text: menuText });
-    }
+    console.warn("Erreur génération image menu:", error.message);
+    await sock.sendMessage(message.key.remoteJid, { text: menuText });
   }
 });
 
