@@ -219,47 +219,55 @@ async function handleFreeAction(sock, message, player, actionText) {
     // Enhanced JSON & Narrative extraction
     let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
 
+    const cleanupNarrative = (t) => {
+        if (!t) return "";
+        return t.replace(/```json/gi, '')
+                .replace(/```/g, '')
+                .replace(/^(json|JSON)/g, '')
+                .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
+                .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
+                .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '')
+                .trim();
+    };
+
     if (typeof content === 'object') {
         aiResponse = { ...aiResponse, ...content };
     } else {
-        // Find the JSON block boundaries
-        const firstBrace = content.indexOf('{');
-        const lastBrace = content.lastIndexOf('}');
+        // Find all JSON-like blocks. Some AIs output multiple or nested.
+        const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
+        let parsedSuccess = false;
 
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            const potentialJson = content.substring(firstBrace, lastBrace + 1);
+        for (const match of matches) {
             try {
-                aiResponse = JSON.parse(potentialJson);
+                const potential = JSON.parse(match[0]);
+                // Merge actions if found
+                if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
+                // Take narrative if not already set or if longer
+                if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
+                    aiResponse.narrative = potential.narrative;
+                }
+                // Other fields
+                if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
+                parsedSuccess = true;
             } catch (e) {
-                console.error("[MJ] Erreur parse JSON, tentative récupération narrative...");
+                // Ignore failed partial parses
             }
         }
 
-        // If narrative is missing or empty inside JSON, extract from surrounding text
-        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-            let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
-            let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
+        // If no narrative found in JSON, or parse failed, use the whole text excluding the JSON parts
+        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
+            let plainText = content.replace(/\{[\s\S]*?\}/g, '').trim();
+            aiResponse.narrative = cleanupNarrative(plainText);
+        }
 
-            // Cleanup markers
-            const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
-            textBefore = cleanup(textBefore);
-            textAfter = cleanup(textAfter);
-
-            if (textBefore.length > 5) aiResponse.narrative = textBefore;
-            else if (textAfter.length > 5) aiResponse.narrative = textAfter;
-            else if (firstBrace === -1) aiResponse.narrative = cleanup(content);
+        // Final fallback: if still empty, use content but clean it hard
+        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
+            aiResponse.narrative = cleanupNarrative(content);
         }
     }
 
-    // Final scrub of ALL AI/JSON artifacts from narrative
-    if (aiResponse.narrative) {
-        aiResponse.narrative = aiResponse.narrative
-            .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
-            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-            .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-            .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '') // Remove accidental action-like lines
-            .trim();
-    }
+    // Ensure narrative is clean
+    aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
         aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";

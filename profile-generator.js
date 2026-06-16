@@ -4,8 +4,11 @@ const axios = require('axios');
 
 async function generateProfileCard(player) {
     const templatePath = path.join(__dirname, 'assets/templates/profile_template.jpg');
-    const width = 800;
-    const height = 1200;
+
+    // Get metadata to ensure overlay matches dimensions
+    const metadata = await sharp(templatePath).metadata();
+    const width = metadata.width;
+    const height = metadata.height;
 
     // Calculate bar widths (template bars are approx 150px wide in the design)
     const maxBarWidth = 150;
@@ -35,6 +38,7 @@ async function generateProfileCard(player) {
                 .name { font-size: 24px; }
                 .value { font-size: 20px; }
                 .header { font-size: 22px; fill: #4fb3ff; }
+                .money { font-size: 28px; fill: #ffd700; font-weight: 900; }
             </style>
 
             <!-- Player Info -->
@@ -51,16 +55,22 @@ async function generateProfileCard(player) {
             ${statsSvg}
 
             <!-- Inventory Summary (Equipment & Weapons) -->
-            <text x="60" y="730" class="header">ÉQUIPEMENT & ARMES</text>
-            <g transform="translate(60, 775)">
-                ${(player.inventory || []).slice(0, 6).map((item, i) => `
-                    <text y="${i * 35}" class="text value">${item.name.length > 20 ? item.name.substring(0, 17) + '...' : item.name} x${item.quantity}</text>
-                `).join('')}
+            <rect x="50" y="700" width="700" height="400" fill="rgba(0,0,0,0.4)" rx="10" />
+            <text x="70" y="740" class="header">📦 INVENTAIRE ET ÉQUIPEMENT</text>
+            <line x1="70" y1="755" x2="400" y2="755" stroke="#4fb3ff" stroke-width="2" />
+
+            <g transform="translate(70, 800)">
+                ${(player.inventory || []).length > 0 ? (player.inventory || []).slice(0, 10).map((item, i) => `
+                    <text x="${(i % 2) * 350}" y="${Math.floor(i / 2) * 45}" class="text value">▶ ${item.name.length > 22 ? item.name.substring(0, 19) + '...' : item.name} (x${item.quantity})</text>
+                `).join('') : '<text y="40" class="text value" style="fill: #888;">Aucun équipement...</text>'}
             </g>
 
             <!-- Resources -->
-            <rect x="50" y="630" width="300" height="40" fill="rgba(0, 170, 255, 0.2)" rx="5" />
-            <text x="60" y="658" class="text value" style="fill: #ffd700;">💰 COL: ${(player.col || 0).toLocaleString()}</text>
+            <rect x="50" y="620" width="350" height="60" fill="rgba(0,0,0,0.6)" stroke="#ffd700" stroke-width="2" rx="5" />
+            <text x="70" y="660" class="money">💰 ${(player.col || 0).toLocaleString()} COL</text>
+
+            <!-- Family Tag -->
+            <text x="500" y="660" class="text header" style="fill: #ff00ff;">FAMILLE: ${player.family || 'Inconnue'}</text>
         </svg>
     `;
 

@@ -183,9 +183,14 @@ async function callPuterAI(system, prompt) {
 async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 2) return localMJ(userPrompt, systemPrompt);
 
-    // Sanitize prompts
-    const sanitizedSystem = systemPrompt.length > 4000 ? systemPrompt.substring(0, 4000) : systemPrompt;
-    const sanitizedUser = userPrompt.length > 2000 ? userPrompt.substring(0, 2000) : userPrompt;
+    // Sanitize prompts.
+    // If userPrompt is too long, we preserve the end (which contains the current action)
+    const sanitizedSystem = systemPrompt.length > 6000 ? systemPrompt.substring(0, 6000) : systemPrompt;
+    let sanitizedUser = userPrompt;
+    if (userPrompt.length > 4000) {
+        // Keep the first 1000 (stats/context) and last 3000 (history/action)
+        sanitizedUser = userPrompt.substring(0, 1000) + "\n... [TRUNCATED] ...\n" + userPrompt.substring(userPrompt.length - 3000);
+    }
 
     const providers = [
         { name: 'Puter HTTP', fn: callPuterAI },
