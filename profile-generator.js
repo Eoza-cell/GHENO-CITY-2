@@ -55,14 +55,18 @@ async function generateProfileCard(player) {
             ${statsSvg}
 
             <!-- Inventory Summary (Equipment & Weapons) -->
-            <rect x="50" y="700" width="700" height="400" fill="rgba(0,0,0,0.4)" rx="10" />
-            <text x="70" y="740" class="header">📦 INVENTAIRE ET ÉQUIPEMENT</text>
+            <rect x="50" y="700" width="700" height="350" fill="rgba(0,0,0,0.6)" stroke="#4fb3ff" stroke-width="1" rx="10" />
+            <text x="70" y="740" class="header" style="fill: #00ffff;">⚔️ ÉQUIPEMENT ET ARMES</text>
             <line x1="70" y1="755" x2="400" y2="755" stroke="#4fb3ff" stroke-width="2" />
 
             <g transform="translate(70, 800)">
-                ${(player.inventory || []).length > 0 ? (player.inventory || []).slice(0, 10).map((item, i) => `
-                    <text x="${(i % 2) * 350}" y="${Math.floor(i / 2) * 45}" class="text value">▶ ${item.name.length > 22 ? item.name.substring(0, 19) + '...' : item.name} (x${item.quantity})</text>
-                `).join('') : '<text y="40" class="text value" style="fill: #888;">Aucun équipement...</text>'}
+                ${(player.inventory || []).length > 0 ? (player.inventory || []).slice(0, 8).map((item, i) => `
+                    <g transform="translate(${(i % 2) * 350}, ${Math.floor(i / 2) * 60})">
+                        <rect width="320" height="50" fill="rgba(255,255,255,0.05)" rx="5" />
+                        <text x="10" y="32" class="text value" style="font-size: 18px;">${item.name.length > 25 ? item.name.substring(0, 22) + '..' : item.name}</text>
+                        <text x="260" y="32" class="text value" style="fill: #00ffff; font-size: 16px;">x${item.quantity}</text>
+                    </g>
+                `).join('') : '<text y="40" class="text value" style="fill: #888;">Emplacements vides...</text>'}
             </g>
 
             <!-- Resources -->

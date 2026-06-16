@@ -5,7 +5,7 @@ const axios = require('axios');
 // process. We call Puter's HTTP driver endpoint directly instead.
 const PUTER_API_URL = "https://api.puter.com/drivers/call";
 // Models confirmed available on the configured Puter account.
-const PUTER_MODELS = ["gpt-4o", "gpt-4o-mini"];
+const PUTER_MODELS = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
 
 /**
  * Enemy power levels with stats
@@ -196,6 +196,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
         { name: 'Puter HTTP', fn: callPuterAI },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Pollinations POST', fn: callPollinationsPOST },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Local MJ', fn: localMJ }
     ];
 
@@ -251,6 +253,33 @@ async function callBlackbox(system, prompt) {
     } catch (e) { return null; }
 }
 
+async function callPollinationsPOST(system, prompt) {
+    try {
+        const models = ['openai', 'mistral', 'llama'];
+        const model = models[Math.floor(Math.random() * models.length)];
+        const resp = await axios.post("https://text.pollinations.ai/", {
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            model: model,
+            jsonMode: true,
+            seed: Math.floor(Math.random() * 1000000)
+        }, { timeout: 20000 });
+        return typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+    } catch (e) { return null; }
+}
+
+async function callPollinationsGET(system, prompt) {
+    try {
+        const fullPrompt = encodeURIComponent(`SYSTEM: ${system}\n\nUSER: ${prompt}`.substring(0, 1500));
+        const seed = Math.floor(Math.random() * 1000000);
+        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}`;
+        const resp = await axios.get(url, { timeout: 15000 });
+        return resp.data;
+    } catch (e) { return null; }
+}
+
 function parsePuterResponse(resp) {
     if (!resp) return null;
     if (typeof resp === 'string') return resp;
@@ -278,6 +307,10 @@ function parsePuterResponse(resp) {
  */
 function localMJ(userPrompt, systemPrompt) {
     console.log("[AI] MJ Local activé.");
+
+    // Extract action from userPrompt (assuming it ends with "ACTION: ...")
+    const actionMatch = userPrompt.match(/ACTION: (.*)$/s);
+    const playerAction = actionMatch ? actionMatch[1].trim() : "ton action";
 
     const up = userPrompt.toLowerCase();
     const statsMatch = systemPrompt.match(/STATS: (.*)/);
@@ -357,7 +390,7 @@ function localMJ(userPrompt, systemPrompt) {
         const meters = 10 + Math.floor(Math.random() * 90);
         narrative += `Tu parcours environ ${meters} mètres vers ta destination à travers les terres d'Aetherys. Le voyage se déroule ${result === 'Réussite Critique' ? 'magnifiquement' : result === 'Échec Critique' ? 'désastreusement' : 'sans encombre majeur'}, et tu progresses sous un ciel chargé d'éclairs de mana.`;
     } else {
-        narrative += `Tu agis avec assurance dans ce monde de dangers. Le destin semble te ${result === 'Réussite Critique' ? 'sourire grandement' : result === 'Échec Critique' ? 'tourner le dos' : 'sourire'} alors que tu traces ton chemin à Eldoria.`;
+        narrative += `Tu décides de : "${playerAction}".\n\nLe destin semble te ${result === 'Réussite Critique' ? 'sourire grandement' : result === 'Échec Critique' ? 'tourner le dos' : 'sourire'} alors que tu traces ton chemin à Aetherys. Tu parviens à accomplir ce que tu souhaitais avec une efficacité relative à ton jet de dé.`;
     }
 
     return JSON.stringify({

@@ -34,9 +34,9 @@ async function generateMainMenuImage() {
         <path d="M 50 150 L 150 50 M ${width-150} ${height-50} L ${width-50} ${height-150}" stroke="#00ffff" stroke-width="5" />
 
         <!-- Title Section -->
-        <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="120" fill="white" style="filter: drop-shadow(0 0 20px #ff00ff); letter-spacing: 15px;">ARISE</text>
-        <rect x="250" y="42%" width="500" height="4" fill="url(#neonGrad)" />
-        <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="50" fill="#00ffff" style="letter-spacing: 8px; filter: drop-shadow(0 0 10px #00ffff);">AETHERYS ONLINE</text>
+        <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="120" fill="white" style="filter: drop-shadow(0 0 30px #00ffff); letter-spacing: 20px;">LINK START</text>
+        <rect x="200" y="42%" width="600" height="4" fill="url(#neonGrad)" />
+        <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="50" fill="#ff00ff" style="letter-spacing: 10px; filter: drop-shadow(0 0 15px #ff00ff);">GATEWAY TO AETHERYS</text>
 
         <text x="50%" y="65%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="22" fill="rgba(255, 255, 255, 0.8)">- SYSTÈME DE JEU v2.5 -</text>
 
