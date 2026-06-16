@@ -25,7 +25,14 @@ try {
     console.warn("[AI] Puter SDK could not be loaded:", e.message);
 }
 
-const PUTER_MODELS = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash", "meta-llama-3.1-70b-instruct"];
+const PUTER_MODELS = [
+    "gemini-3.5-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite",
+    "gpt-4o",
+    "claude-3-5-sonnet",
+    "meta-llama-3.1-70b-instruct"
+];
 
 /**
  * Detect responses that are not real narrative content.
@@ -149,19 +156,25 @@ async function callPuterAPI(system, prompt) {
  */
 async function callPuterSDK(system, prompt) {
     if (!puter || !puter.ai) return null;
-    try {
-        console.log(`[AI] Puter SDK (Keyless)...`);
-        // Using array format for better system prompt adherence
-        const result = await puter.ai.chat([
-            { role: "system", content: system },
-            { role: "user", content: prompt }
-        ], { model: 'gpt-4o' });
+    const models = ["gemini-3.5-flash", "gpt-4o", "claude-3-5-sonnet"];
 
-        return parsePuterResponse(result);
-    } catch (e) {
-        console.warn(`[AI] Puter SDK Error:`, e.message);
-        return null;
+    for (const model of models) {
+        try {
+            console.log(`[AI] Puter SDK (Keyless) - Tentative avec ${model}...`);
+            // Using array format for better system prompt adherence
+            const result = await puter.ai.chat([
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ], { model: model });
+
+            const content = parsePuterResponse(result);
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] Puter SDK Error (${model}):`, e.message);
+            continue;
+        }
     }
+    return null;
 }
 
 async function callOpenRouter(system, prompt) {
@@ -171,7 +184,9 @@ async function callOpenRouter(system, prompt) {
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "deepseek/deepseek-r1:free"
+        "deepseek/deepseek-r1:free",
+        "qwen/qwen-2.5-72b-instruct:free",
+        "nvidia/llama-3.1-nemotron-70b-instruct:free"
     ];
 
     for (const model of models) {
