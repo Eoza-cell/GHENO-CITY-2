@@ -2,52 +2,74 @@ const sharp = require('sharp');
 
 /**
  * Generates a visually appealing main menu image using Sharp and SVG.
+ * Optimized for ARISE II - GHENO CITY theme.
  */
 async function generateMainMenuImage() {
-    const width = 1000;
-    const height = 600;
+    const width = 1200;
+    const height = 700;
 
     const svg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
             <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#020205;stop-opacity:1" />
-                <stop offset="50%" style="stop-color:#050520;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#020205;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#050510;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#0a0a25;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#050510;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#00ffff;stop-opacity:0.8" />
+                <stop offset="100%" style="stop-color:#0088ff;stop-opacity:0.8" />
             </linearGradient>
             <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#ffd700;stop-opacity:0.9" />
-                <stop offset="100%" style="stop-color:#ffa500;stop-opacity:0.9" />
+                <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ff8800;stop-opacity:1" />
             </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="8" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
         </defs>
 
         <rect width="100%" height="100%" fill="url(#bgGrad)" />
 
-        <!-- Cyber Hex Grid -->
-        <pattern id="hexagons" width="50" height="43.4" patternUnits="userSpaceOnUse" patternTransform="scale(2)">
-            <path d="M25 0 L50 14.4 L50 28.8 L25 43.4 L0 28.8 L0 14.4 Z" fill="none" stroke="rgba(0, 255, 255, 0.05)" stroke-width="1" />
-        </pattern>
-        <rect width="100%" height="100%" fill="url(#hexagons)" />
-
-        <!-- Main Frame -->
-        <rect x="30" y="30" width="${width-60}" height="${height-60}" fill="none" stroke="url(#goldGrad)" stroke-width="1" rx="15" />
-        <path d="M 30 100 L 100 30 M ${width-100} ${height-30} L ${width-30} ${height-100}" stroke="#ffd700" stroke-width="4" />
-
-        <!-- Title -->
-        <text x="50%" y="30%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="110" fill="white" style="filter: drop-shadow(0 0 25px #ffd700); letter-spacing: 18px;">ARISE II</text>
-        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="40" fill="#00ffff" style="letter-spacing: 8px; filter: drop-shadow(0 0 10px #00ffff);">GHENO CITY : LINK START</text>
-
-        <rect x="250" y="52%" width="500" height="2" fill="url(#goldGrad)" />
-        <text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="25" fill="rgba(255, 255, 255, 0.7)">SYSTÈME MJ v3.0 - ALPHA PHASE</text>
-
-        <!-- Navigation Mockup -->
-        <g transform="translate(150, 450)">
-            <rect width="700" height="80" fill="rgba(255, 255, 255, 0.05)" stroke="rgba(255, 255, 255, 0.2)" stroke-width="1" rx="10" />
-            <text x="350" y="45" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="20" fill="white" style="letter-spacing: 3px;">UTILISEZ LES COMMANDES POUR NAVIGUER</text>
+        <!-- Cyber grid with perspective effect -->
+        <g stroke="rgba(0, 255, 255, 0.1)" stroke-width="1">
+            ${Array.from({length: 25}).map((_, i) => `<line x1="${i*50}" y1="0" x2="${i*50}" y2="${height}" />`).join('')}
+            ${Array.from({length: 15}).map((_, i) => `<line x1="0" y1="${i*50}" x2="${width}" y2="${i*50}" />`).join('')}
         </g>
 
-        <!-- Signature -->
-        <text x="950" y="570" text-anchor="end" font-family="monospace" font-size="12" fill="rgba(255, 255, 255, 0.3)">CORE_ENGINE_STABLE // NO_GHOST_IN_THE_SHELL</text>
+        <!-- Background decorative elements -->
+        <circle cx="900" cy="150" r="200" fill="url(#blueGrad)" opacity="0.05" filter="url(#glow)" />
+        <rect x="50" y="50" width="100" height="2" fill="#00ffff" opacity="0.5" />
+        <rect x="50" y="50" width="2" height="100" fill="#00ffff" opacity="0.5" />
+
+        <!-- Main Title -->
+        <g filter="url(#glow)">
+            <text x="50%" y="35%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="160" fill="white" style="letter-spacing: 25px;">ARISE</text>
+            <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="50" fill="url(#goldGrad)" style="letter-spacing: 12px;">GHENO CITY 2 : LINK START</text>
+        </g>
+
+        <!-- Central Bar -->
+        <rect x="200" y="58%" width="800" height="2" fill="url(#blueGrad)" />
+        <circle cx="500" cy="58%" r="4" fill="#00ffff" />
+
+        <!-- Menu Text Mockup -->
+        <text x="50%" y="68%" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-size="22" fill="rgba(255, 255, 255, 0.6)" style="letter-spacing: 4px;">INITIALIZING_NEURAL_LINK... OK</text>
+        <text x="50%" y="74%" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-size="18" fill="#00ffff" opacity="0.8">TAPEZ /action POUR ENTRER DANS LA MATRICE</text>
+
+        <!-- Signature / Version -->
+        <g transform="translate(30, 670)">
+            <text font-family="monospace" font-size="14" fill="rgba(255, 255, 255, 0.4)">VERSION: 2.1.0_STABLE</text>
+        </g>
+        <g transform="translate(1170, 670)">
+            <text text-anchor="end" font-family="monospace" font-size="14" fill="rgba(255, 255, 255, 0.4)">ENGINE: SHARP_SVG_RENDERER</text>
+        </g>
+
+        <!-- Corners -->
+        <path d="M 30 100 L 30 30 L 100 30" fill="none" stroke="url(#goldGrad)" stroke-width="4" />
+        <path d="M ${width-100} 30 L ${width-30} 30 L ${width-30} 100" fill="none" stroke="url(#goldGrad)" stroke-width="4" />
+        <path d="M 30 ${height-100} L 30 ${height-30} L 100 ${height-30}" fill="none" stroke="url(#goldGrad)" stroke-width="4" />
+        <path d="M ${width-100} ${height-30} L ${width-30} ${height-30} L ${width-30} ${height-100}" fill="none" stroke="url(#goldGrad)" stroke-width="4" />
     </svg>
     `;
 

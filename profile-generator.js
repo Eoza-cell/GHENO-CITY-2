@@ -121,10 +121,12 @@ async function addOverlay(baseImg, player, width, height) {
         let profileImg;
         if (player.profilePicUrl) {
             try {
-                const response = await axios.get(player.profilePicUrl, { responseType: 'arraybuffer' });
-                profileImg = await sharp(response.data)
-                    .resize(150, 150)
-                    .toBuffer();
+                if (player.profilePicUrl.startsWith('http')) {
+                    const response = await axios.get(player.profilePicUrl, { responseType: 'arraybuffer' });
+                    profileImg = await sharp(response.data).resize(150, 150).toBuffer();
+                } else if (fs.existsSync(player.profilePicUrl)) {
+                    profileImg = await sharp(player.profilePicUrl).resize(150, 150).toBuffer();
+                }
             } catch (e) {
                 console.warn("Could not load profile pic:", e.message);
             }

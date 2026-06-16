@@ -172,7 +172,7 @@ const Player = sequelize.define('Player', {
     defaultValue: 0,
   },
   tutorialStep: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 0,
   },
   tutorialTurns: {

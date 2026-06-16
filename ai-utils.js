@@ -218,7 +218,7 @@ async function callPollinationsPOST(system, prompt) {
 
 async function callPollinationsGET(system, prompt) {
     try {
-        const fullPrompt = encodeURIComponent(`SYSTEM: ${system}\n\nUSER: ${prompt}`.substring(0, 1000));
+        const fullPrompt = encodeURIComponent(`SYSTEM: ${system}\n\nUSER: ${prompt}`.substring(0, 1500));
         const seed = Math.floor(Math.random() * 1000000);
         const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}`;
         const resp = await axios.get(url, { timeout: 15000 });
