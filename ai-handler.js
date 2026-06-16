@@ -1,7 +1,9 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster, Entity, Club, Pact } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
+const questUtils = require('./quest-utils');
+const { checkLevelUp } = require('./level-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -9,6 +11,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerState = `
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
+    - Métier: ${player.occupation}
+    - Organisation: ${player.organization}
+    - Influence Sociale: ${player.influence}
     - Description: ${player.characterDescription}
     - Famille: ${player.family}
     - Classe: ${player.class} (${player.derivative})
@@ -32,14 +37,26 @@ async function handleFreeAction(sock, message, player, actionText) {
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
 
   const questState = activeQuests.length > 0
-    ? "Quêtes Actives:\n" + activeQuests.map(q => `- ${q.title}: ${q.description}`).join('\n')
+    ? "Quêtes Actives:\n" + activeQuests.map(q => {
+        const pq = q.PlayerQuest;
+        const chainInfo = q.chain ? ` [${q.chain} • étape ${q.step}]` : '';
+        const prog = ` (${pq.progress || 0}%)`;
+        const branch = pq.branch ? ` [voie: ${pq.branch}]` : '';
+        const obj = q.objective ? ` | Objectif: ${q.objective}` : '';
+        return `- ${q.title}${chainInfo}${prog}${branch}: ${q.description}${obj}`;
+      }).join('\n')
     : "Aucune quête active.";
 
   const availableQuests = await Quest.findAll({
       where: { rank_required: player.rank },
-      limit: 3
+      order: [['chain', 'ASC'], ['step', 'ASC']],
+      limit: 5
   });
-  const availableQuestState = "Quêtes dispo (Rang " + player.rank + "):\n" + availableQuests.map(q => `- ${q.title}`).join('\n');
+  const availableQuestState = "Quêtes dispo (Rang " + player.rank + "):\n" + availableQuests.map(q => {
+      const chainInfo = q.chain ? ` [${q.chain} • étape ${q.step}]` : '';
+      const coop = q.isMultiplayer ? ' (COOP)' : '';
+      return `- ${q.title}${chainInfo}${coop}: ${q.objective || q.description}`;
+  }).join('\n');
 
   const dungeons = await Dungeon.findAll({ limit: 5 });
   const dungeonState = "Donjons:\n" + dungeons.map(d => `- ${d.name} (${d.rank})`).join('\n');
@@ -82,7 +99,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 3
+      limit: 5
   });
   const historyState = history.length > 0
     ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')
@@ -100,7 +117,17 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: { location: { [Op.like]: `%${player.location}%` } },
       limit: 3
   });
-  const npcState = "PNJ ici:\n" + npcs.map(n => `- ${n.name} (${n.role})`).join('\n');
+  const npcState = "PNJ ici:\n" + npcs.map(n => `- ${n.name} (${n.role}) [Niveau: ${n.powerLevel}, Spécialité: ${n.specialty}]`).join('\n');
+
+  const playerPacts = await player.getEntities();
+  const pactState = playerPacts.length > 0
+    ? "Pactes Actifs:\n" + playerPacts.map(e => `- ${e.name} (${e.type}): ${e.power}`).join('\n')
+    : "Aucun pacte avec une entité.";
+
+  const playerClubs = await player.getClubs();
+  const clubState = (playerClubs && playerClubs.length > 0)
+    ? "Clubs Extrascolaires:\n" + playerClubs.map(c => `- ${c.name} (${c.PlayerClub.rank}): ${c.specialty}`).join('\n')
+    : "Membre d'aucun club.";
 
   const monsters = await Monster.findAll({
       where: { rank: player.rank },
@@ -127,20 +154,24 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `
     Tu es le MJ de "Arise / Aetherys". RPG de type Manhwa/Anime (style Solo Leveling, SAO, Overlord).
 
-    STYLE NARRATIF:
-    - Épique, dynamique et visuel. Mélange d'HUMOUR ANIME (exagérations, gags visuels, chutes ridicules) et de MOMENTS SÉRIEUX (tension dramatique, enjeux de vie ou de mort).
-    - Ajoute du "FAN SERVICE" (descriptions esthétiques, charisme frappant des PNJs, gros plans dramatiques sur les visages ou les poses).
-    - Pas de texte en anglais. PAS de parenthèses pour les sons (ex: PAS de "(Clang!)").
-    - LONGUEUR: Minimum 3-4 paragraphes riches en détails et émotions.
+    STYLE NARRATIF & LOGIQUE:
+    - Épique, réaliste et visuel. Style Manhwa/Seinen (type Solo Leveling).
+    - LE JOUEUR N'EST PAS UN HÉROS : Le joueur est une personne ordinaire dans un monde dangereux. Il n'a pas d'armure de scénario. S'il fait une erreur, il en paie le prix fort. Ne le traite pas comme un protagoniste spécial.
+    - RÉACTIVITÉ ABSOLUE (RÈGLE D'OR) : Tu es un MJ réactif. Tu ne dois JAMAIS inventer ou décrire les actions futures, les pensées ou les mouvements du joueur. Tes phrases DOIVENT commencer par les conséquences directes de l'action du joueur.
+    - ADHÉRENCE STRICTE : Si le joueur dit "Je marche", il marche. Ne le fais pas courir ou s'arrêter ailleurs sans raison. Ne "téléporte" pas le joueur.
+    - ÉCRITURE DES PNJ & IMPACT : Les PNJ sont des personnages COMPLEXES, TRÈS BIEN ÉCRITS et VIVANTS. Ils ont une âme. Donne-leur des noms, des motivations secrètes, des tics de langage (ex: un vieux qui finit ses phrases par "...héhé", un garde arrogant), et des émotions réelles. Ils ne sont pas juste des distributeurs de quêtes. Ils se souviennent de tes actes.
+    - LOGIQUE SOCIALE & POLITIQUE : Prends en compte le métier (occupation), l'organisation et l'influence du joueur. Un politicien pourra influencer une foule mais se fera écraser en combat singulier contre un monstre, tandis qu'un artisan aura des facilités avec les marchands.
+    - LOGIQUE DE MONDE : Respecte scrupuleusement la hiérarchie de puissance. Un joueur faible ne peut pas intimider un garde d'élite sans conséquence immédiate.
+    - PACTES ET ENTITÉS : Les joueurs peuvent forger des pactes avec des entités Célestes (Lumière), Bestiales (Instinct) ou Anciennes (Savoir). Ces pactes sont rares, dangereux et offrent une puissance immense au prix de leur liberté ou de leur âme.
+    - VIE SCOLAIRE (ANIME STYLE) : L'Académie n'est pas seulement un lieu d'étude, c'est une microsociété style "Lycée Japonais" avec des clubs extrascolaires (Kendo, Occultisme, Musique, etc.) qui ont leurs propres hiérarchies, rivalités et avantages.
+    - Pas de texte en anglais. PAS de parenthèses pour les sensations.
+    - LONGUEUR: 4-5 paragraphes immersifs et détaillés.
 
-    RÈGLES MJ:
-    1. RÔLE DU JOUEUR: Le joueur est le PROTAGONISTE. Il n'est pas forcément un héros. Libre de ses choix, lié seulement à sa famille et ses capacités.
-    2. LIBERTÉ TOTALE: Tu ne contrôles PAS les actions du joueur. Tu es le monde qui réagit.
-    3. RECONNAISSANCE: Commence TOUJOURS par valider l'action du joueur avant d'enchaîner sur la narration.
-    4. NPCs ARCHÉTYPES: Utilise des archétypes anime marqués :
-       - Tsundere (froide puis douce), Kuudere (sans émotion), Dandere (timide), Ojou-sama (arrogante/noble).
-       - Rival arrogant qui finit par respecter le joueur, Maître pervers/excentrique, etc.
-    5. LÉTALITÉ & CONSÉQUENCES: Un échec peut être drôle (humiliation) ou tragique (blessure grave), mais ne doit jamais être ignoré.
+    RÈGLES MJ (IMPÉRATIVES):
+    1. PROTAGONISTE : Le joueur est l'unique héros. Le monde tourne autour de ses décisions.
+    2. RÉACTIVITÉ TOTALE : Si le joueur fait une action stupide, il subit une conséquence stupide. S'il fait une action héroïque, décris-la de manière grandiose. Mais n'ajoute JAMAIS d'action de ton cru pour lui.
+    3. PNJ DÉTAILLÉS : Donne un nom et une personnalité unique à chaque PNJ rencontré. Ils doivent rester cohérents.
+    4. ARBITRAGE STATISTIQUE : Utilise les stats du joueur pour décider si une action réussit.
 
     ÉCHELLE DE PUISSANCE ET IMPACT DES STATS:
     - FORCE (FOR): ≥10 (Humain simple), ≥50 (Détruit des murs, fissure le sol), ≥150 (Pulvérise des bâtiments, ondes de choc).
@@ -149,11 +180,33 @@ async function handleFreeAction(sock, message, player, actionText) {
     - DÉFENSE (DEF): ≥10 (Résistance humaine), ≥50 (Peau d'acier, ignore les lames communes), ≥150 (Invulnérabilité physique quasi-totale).
     - CHANCE (LUCK): Influence les coïncidences heureuses et les loots rares.
 
+    DÉPLACEMENT (OBLIGATOIRE):
+    - À CHAQUE déplacement, précise TOUJOURS la distance parcourue EN MÈTRES (ex: "Tu cours sur 25 mètres") et le LIEU/POINT VISÉ exact (ex: "vers la porte nord de la taverne").
+    - La distance doit être cohérente avec l'AGI/vitesse du joueur et le temps de l'action. Un humain (AGI ~10) couvre ~2 m/s en marche, ~10 m/s en sprint ; AGI élevée = distances bien plus grandes.
+    - Si la destination est trop loin pour l'action décrite, indique la distance réellement franchie et ce qu'il reste à parcourir.
+
+    COMBAT, ESQUIVE & IMPACT (RÈGLE DE RÉALISME) :
+    1. COMPARAISON DE PUISSANCE : Si l'ennemi est plus puissant (Niveau/FOR/AGI), le joueur est en danger de mort.
+    2. RÈGLE DU 1/3 (IMPACT BRUTAL) :
+       - Si le joueur est trop faible ou si son action de défense est médiocre/vague :
+         - Dans 33% des cas (1/3) : L'attaque touche DIRECTEMENT. Le joueur se prend le coup DE PLEIN FOUET sans possibilité de réaction. Décris l'impact violent, le choc, la douleur. Applique "health_change" négatif conséquent.
+         - Dans 66% des cas (2/3) : Tu décris l'attaque imminente et dévastatrice, et tu laisses le joueur TENTER une esquive ou un contre désespéré au prochain tour.
+    3. RÉACTIVITÉ VISCÉRALE : Les coups font mal. Décris le sang, la douleur, le recul, le craquement des os. Sois cru et réaliste.
+    4. PAS D'INVENTION : Si le joueur dit "J'esquive", ne dis JAMAIS "Tu esquives et tu frappes". Dis seulement "Tu esquives de justesse, ton souffle est court. Que fais-tu ?".
+
     SOCIAL:
     - Tu gères des interactions entre joueurs dans la même zone.
     - Si l'action du joueur implique un autre joueur, tu peux créer une notification directe à ce joueur via une action notify_player.
     - Si l'événement concerne tous les joueurs du lieu, utilise une action broadcast.
     - Ne nomme jamais la JID ou d'autres données techniques, seulement les noms de personnages.
+
+    QUÊTES (IMPORTANT):
+    - Les quêtes sont ORDONNÉES en chaînes (étape 1, 2, 3...). Le joueur suit les étapes dans l'ordre.
+    - Quand le joueur accepte une quête, utilise l'action "start_quest" avec son titre EXACT (voir "Quêtes dispo").
+    - Quand il progresse, utilise "advance_quest" (progress = 0-100). Quand l'objectif est atteint, utilise "complete_quest" : la quête suivante de la chaîne se débloque AUTOMATIQUEMENT.
+    - Tu peux MODIFIER LE COURS d'une quête selon les choix du joueur avec "update_quest" (branch = nom de la voie, notes = nouvelle direction). Ex: trahir un PNJ ouvre une voie différente.
+    - INTERACTION ENTRE JOUEURS: pour une quête coopérative (marquée COOP) ou quand plusieurs joueurs sont présents, utilise "start_multiplayer_quest" : tous les joueurs de la zone reçoivent la quête et peuvent la faire progresser ensemble.
+    - N'invente PAS de titres de quête : utilise uniquement ceux listés dans "Quêtes dispo" / "Quêtes Actives".
 
     FORMAT DE RÉPONSE (JSON STRICT):
     {
@@ -162,65 +215,84 @@ async function handleFreeAction(sock, message, player, actionText) {
         {"type": "update_player", "parameters": {"col_change": 10, "xp_gain": 20, "new_class": "Optionnel"}},
         {"type": "add_item", "parameters": {"itemName": "Objet", "quantity": 1}},
         {"type": "notify_player", "parameters": {"target_name": "Nom du joueur", "message": "Texte de notification RP"}},
-        {"type": "broadcast", "parameters": {"message": "Annonce RP pour tous les joueurs présents"}}
+        {"type": "broadcast", "parameters": {"message": "Annonce RP pour tous les joueurs présents"}},
+        {"type": "start_quest", "parameters": {"questTitle": "Titre exact de la quête"}},
+        {"type": "advance_quest", "parameters": {"questTitle": "Titre", "progress": 50, "note": "Optionnel"}},
+        {"type": "complete_quest", "parameters": {"questTitle": "Titre"}},
+        {"type": "update_quest", "parameters": {"questTitle": "Titre", "branch": "Voie choisie", "notes": "Nouvelle direction de la quête"}},
+        {"type": "start_multiplayer_quest", "parameters": {"questTitle": "Titre de la quête COOP"}},
+        {"type": "forge_pact", "parameters": {"entityName": "Nom de l'entité"}},
+        {"type": "join_club", "parameters": {"clubName": "Nom du club"}}
       ],
       "imagePrompt": "Description visuelle pour l'IA d'image"
     }
   `;
 
-    const fullPrompt = `${playerState}\n${inventoryState}\n${skillState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\nACTION: ${actionText}`;
+    const fullPrompt = `### CONTEXTE DU JOUEUR ###\n${playerState}\n${inventoryState}\n${skillState}\n${pactState}\n${clubState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\n### ACTION DU JOUEUR (À TRAITER PRIORITAIREMENT) ###\n${actionText}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
     if (!content) {
-        throw new Error("L'IA a retourné une réponse vide.");
+        content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...", actions: [] });
     }
-    console.log(`[AI RAW] Contenu reçu: ${content.substring(0, 500)}...`);
+    console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : '[Object]'}`);
 
     // Enhanced JSON & Narrative extraction
     let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
 
+    const cleanupNarrative = (t) => {
+        if (!t) return "";
+        return t.replace(/```json/gi, '')
+                .replace(/```/g, '')
+                .replace(/^(json|JSON)/g, '')
+                .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
+                .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
+                .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '')
+                .trim();
+    };
+
     if (typeof content === 'object') {
         aiResponse = { ...aiResponse, ...content };
     } else {
-        // Find the JSON block boundaries
-        const firstBrace = content.indexOf('{');
-        const lastBrace = content.lastIndexOf('}');
+        // Robust JSON extraction: Find the largest JSON block possible
+        let start = content.indexOf('{');
+        let end = content.lastIndexOf('}');
 
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            const potentialJson = content.substring(firstBrace, lastBrace + 1);
+        if (start !== -1 && end !== -1 && end > start) {
+            const potentialJson = content.substring(start, end + 1);
             try {
-                aiResponse = JSON.parse(potentialJson);
+                const parsed = JSON.parse(potentialJson);
+                aiResponse = { ...aiResponse, ...parsed };
             } catch (e) {
-                console.error("[MJ] Erreur parse JSON, tentative récupération narrative...");
+                // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
+                const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
+                for (const match of matches) {
+                    try {
+                        const potential = JSON.parse(match[0]);
+                        if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
+                        if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
+                            aiResponse.narrative = potential.narrative;
+                        }
+                        if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
+                    } catch (innerE) {}
+                }
             }
         }
 
-        // If narrative is missing or empty inside JSON, extract from surrounding text
-        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-            let textBefore = firstBrace !== -1 ? content.substring(0, firstBrace).trim() : "";
-            let textAfter = lastBrace !== -1 ? content.substring(lastBrace + 1).trim() : "";
+        // If no narrative found in JSON, or parse failed, use the whole text excluding all JSON-like blocks
+        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
+            let plainText = content.replace(/\{[\s\S]*?\}/g, '').trim();
+            aiResponse.narrative = cleanupNarrative(plainText);
+        }
 
-            // Cleanup markers
-            const cleanup = (t) => t.replace(/```json/gi, '').replace(/```/g, '').replace(/^(json|JSON)/g, '').trim();
-            textBefore = cleanup(textBefore);
-            textAfter = cleanup(textAfter);
-
-            if (textBefore.length > 5) aiResponse.narrative = textBefore;
-            else if (textAfter.length > 5) aiResponse.narrative = textAfter;
-            else if (firstBrace === -1) aiResponse.narrative = cleanup(content);
+        // Final fallback: if still empty, use content but clean it hard
+        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
+            aiResponse.narrative = cleanupNarrative(content);
         }
     }
 
-    // Final scrub of ALL AI/JSON artifacts from narrative
-    if (aiResponse.narrative) {
-        aiResponse.narrative = aiResponse.narrative
-            .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
-            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-            .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-            .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '') // Remove accidental action-like lines
-            .trim();
-    }
+    // Ensure narrative is clean
+    aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
         aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";
@@ -241,8 +313,12 @@ async function handleFreeAction(sock, message, player, actionText) {
         location: player.location
     });
 
+    // Collected quest feedback lines appended to the narrative after the loop.
+    const questFeedback = [];
+
     // Process AI actions
     for (const actionObj of actions) {
+      try {
       const { type, parameters } = actionObj;
       if (!parameters) continue;
 
@@ -270,25 +346,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           }
           if (parameters.xp_gain) {
               await target.increment('xp', { by: parameters.xp_gain });
-              await target.reload();
-              const xpNeeded = target.level * 100;
-              if (target.xp >= xpNeeded) {
-                  const levelsGained = Math.floor(target.xp / xpNeeded);
-                  await target.increment('level', { by: levelsGained });
-                  await target.update({
-                      xp: target.xp % xpNeeded,
-                      maxHealth: target.maxHealth + (levelsGained * 15),
-                      maxMana: target.maxMana + (levelsGained * 8),
-                      health: target.maxHealth + (levelsGained * 15),
-                      mana: target.maxMana + (levelsGained * 8),
-                      strength: target.strength + (levelsGained * 1),
-                      agility: target.agility + (levelsGained * 1),
-                      intelligence: target.intelligence + (levelsGained * 1)
-                  });
-                  await sock.sendMessage(target.whatsappId, {
-                      text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${target.level} !\nTes stats ont augmenté.`
-                  });
-              }
+              await checkLevelUp(target, sock);
               targetModified = true;
           }
           if (parameters.health_change) {
@@ -487,6 +545,82 @@ async function handleFreeAction(sock, message, player, actionText) {
                 }
             }
             break;
+
+        case 'start_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.startQuest(target, parameters.questTitle);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'advance_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'complete_quest':
+            if (parameters.questTitle) {
+                const line = await questUtils.completeQuest(target, parameters.questTitle, sock);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'update_quest': // AI modifies the course of a quest
+            if (parameters.questTitle) {
+                const line = await questUtils.modifyQuest(target, parameters.questTitle, parameters.branch, parameters.notes);
+                if (line) questFeedback.push(line);
+            }
+            break;
+
+        case 'start_multiplayer_quest':
+            if (parameters.questTitle) {
+                const res = await questUtils.startMultiplayerQuest(player, parameters.questTitle);
+                if (res) {
+                    questFeedback.push(`🤝 *Quête coopérative lancée* : ${res.quest.title}`);
+                    for (const n of res.notified) {
+                        await sock.sendMessage(n.player.whatsappId, {
+                            text: `🤝 *Quête coopérative !*\n${player.name} t'embarque dans une quête.\n\n${n.line}`
+                        });
+                    }
+                }
+            }
+            break;
+
+        case 'forge_pact':
+            if (parameters.entityName) {
+                const entity = await Entity.findOne({ where: { name: { [Op.like]: `%${parameters.entityName}%` } } });
+                if (entity) {
+                    const hasPact = await target.hasEntity(entity);
+                    if (!hasPact) {
+                        await target.addEntity(entity);
+                        const bonuses = entity.pactBonus || {};
+                        for (const [stat, value] of Object.entries(bonuses)) {
+                            if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                                await target.increment(stat, { by: value });
+                            }
+                        }
+                        await target.save();
+                        await target.reload();
+                        questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
+                    }
+                }
+            }
+            break;
+
+        case 'join_club':
+            if (parameters.clubName) {
+                const club = await Club.findOne({ where: { name: { [Op.like]: `%${parameters.clubName}%` } } });
+                if (club) {
+                    const hasClub = await target.hasClub(club);
+                    if (!hasClub) {
+                        await target.addClub(club);
+                        questFeedback.push(`🏫 *CLUB REJOINT* : Tu es désormais membre du ${club.name}.`);
+                    }
+                }
+            }
+            break;
       }
 
       // Notify target if it's not the current player
@@ -494,6 +628,9 @@ async function handleFreeAction(sock, message, player, actionText) {
           await sock.sendMessage(target.whatsappId, {
               text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
           });
+      }
+      } catch (actionError) {
+          console.error(`[AI] Erreur lors du traitement d'une action (${actionObj.type}):`, actionError);
       }
     }
 
@@ -516,6 +653,11 @@ async function handleFreeAction(sock, message, player, actionText) {
           text: `📣 *Annonce RP*\n\n${aiResponse.broadcastMessage}`
         });
       }
+    }
+
+    // Append quest progression feedback to the narrative.
+    if (questFeedback.length > 0) {
+      aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
 
     await sendWithImage(sock, jid, aiResponse);

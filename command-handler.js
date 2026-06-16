@@ -2,13 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, sequelize } = require('./database');
+const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
+const { generateWorldMapImage } = require('./world-map');
+const { generateMainMenuImage } = require('./menu-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
-const { Op } = require('sequelize');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -285,13 +287,19 @@ commands.set('map', async (sock, message) => {
     }
 
     const dungeons = await Dungeon.findAll();
-    const mapText = `--- 🗺️ CARTE D'AETHERYS --- \n\n` +
-                    `📍 *POSITION:* ${player.location}\n\n` +
-                    `🏰 *DONJONS DÉCOUVERTS:* \n` +
+    const mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
+                    `📍 *Position:* ${player.location}\n\n` +
+                    `🏰 *Donjons par rang:*\n` +
                     dungeons.map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
                     `\n\n_Le monde est vaste. Déplace-toi via le mode /action._`;
 
-    await sock.sendMessage(replyJid, { text: mapText });
+    try {
+        const mapImage = await generateWorldMapImage();
+        await sock.sendMessage(replyJid, { image: mapImage, caption: mapText });
+    } catch (err) {
+        console.error('[MAP] Échec génération carte:', err.message);
+        await sock.sendMessage(replyJid, { text: mapText });
+    }
 });
 
 // Command: /boutique
@@ -407,6 +415,75 @@ commands.set('royaumes', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: text });
 });
 
+// Command: /pacts
+commands.set('pacts', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Entities' });
+
+    if (!player) return;
+
+    const entities = await Entity.findAll();
+    const playerEntities = player.Entities || [];
+
+    let text = "--- ✨ PACTES ET ENTITÉS --- \n\n";
+
+    if (playerEntities.length > 0) {
+        text += "*Tes Pactes Actifs:*\n";
+        playerEntities.forEach(e => {
+            text += `🔥 *${e.name}* (${e.type})\n└ Pouvoir: ${e.power}\n`;
+        });
+        text += "\n";
+    }
+
+    text += "*Entités Connues d'Aetherys:*\n";
+    entities.forEach(e => {
+        const isLinked = playerEntities.some(pe => pe.id === e.id);
+        text += `${isLinked ? '✅' : '❓'} *${e.name}* (${e.type})\n`;
+        text += `├ 📜 ${e.description}\n`;
+        text += `└ ✨ Bonus: ${JSON.stringify(e.pactBonus)}\n\n`;
+    });
+
+    text += "_Pour forger un pacte, trouve l'entité via /action._";
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /clubs
+commands.set('clubs', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Clubs' });
+
+    if (!player) return;
+
+    const clubs = await Club.findAll();
+    const playerClubs = player.Clubs || [];
+
+    let text = "--- 🏫 CLUBS DE L'ACADÉMIE --- \n\n";
+
+    if (playerClubs.length > 0) {
+        text += "*Tes Clubs:*\n";
+        playerClubs.forEach(c => {
+            text += `🔹 *${c.name}* (${c.PlayerClub.rank})\n`;
+        });
+        text += "\n";
+    }
+
+    text += "*Clubs Extrascolaires:*\n";
+    clubs.forEach(c => {
+        const isMember = playerClubs.some(pc => pc.id === c.id);
+        text += `${isMember ? '✅' : '⚪'} *${c.name.toUpperCase()}*\n`;
+        text += `├ 🧪 Spécialité: ${c.specialty}\n`;
+        text += `├ 👑 Leader: ${c.leaderName}\n`;
+        text += `└ 📜 ${c.description}\n\n`;
+    });
+
+    text += "_Rejoins un club via /action en parlant au leader._";
+
+    await sock.sendMessage(replyJid, { text: text });
+});
+
 // Command: /ecoles
 commands.set('ecoles', async (sock, message) => {
     const replyJid = message.key.remoteJid;
@@ -462,15 +539,28 @@ commands.set('god', async (sock, message, args) => {
     }
 
     const subCommand = args.shift()?.toLowerCase();
-    const targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    let targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
 
-    if (!subCommand) {
-        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set @joueur <stat> <valeur>\n/god give @joueur <item> <quantité>\n/god rank @joueur <rang>\n/god col @joueur <montant>" });
-        return;
+    // Check if the first remaining arg is a mention (sometimes it's not in contextInfo but in text)
+    if (!targetJid && args[0] && args[0].startsWith('@')) {
+        const potentialId = args[0].substring(1);
+        const found = await Player.findOne({ where: { whatsappId: { [Op.like]: `${potentialId}%` } } });
+        if (found) {
+            targetJid = found.whatsappId;
+            args.shift();
+        }
+    } else if (targetJid && args[0] && args[0].startsWith('@')) {
+        // Remove mention from args if it's there
+        args.shift();
     }
 
+    // If no mention found, target self
     if (!targetJid) {
-        await sock.sendMessage(replyJid, { text: "Tu dois mentionner un mortel pour exercer ton pouvoir." });
+        targetJid = jid;
+    }
+
+    if (!subCommand) {
+        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur] <stat> <valeur>\n/god give [@joueur] <item> <quantité>\n/god rank [@joueur] <rang>\n/god col [@joueur] <montant>\n/god max [@joueur] (met toutes les stats à 999)\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
         return;
     }
 
@@ -510,6 +600,22 @@ commands.set('god', async (sock, message, args) => {
                 await targetPlayer.increment('col', { by: amount });
                 await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${amount} Col de la part du créateur.` });
             }
+            break;
+        case 'max':
+            await targetPlayer.update({
+                strength: 999,
+                agility: 999,
+                intelligence: 999,
+                defense: 999,
+                luck: 999,
+                level: 100,
+                health: 9999,
+                maxHealth: 9999,
+                mana: 9999,
+                maxMana: 9999,
+                rank: 'S'
+            });
+            await sock.sendMessage(replyJid, { text: `La puissance absolue a été accordée à ${targetPlayer.name}.` });
             break;
     }
 });
@@ -724,6 +830,81 @@ commands.set('statut', async (sock, message) => {
     }
 });
 
+// Command: /dbbackup
+commands.set('dbbackup', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les dieux peuvent extraire l'essence de la matrice." });
+        return;
+    }
+
+    try {
+        const models = sequelize.models;
+        const backup = {};
+        for (const [name, model] of Object.entries(models)) {
+            backup[name] = await model.findAll();
+        }
+
+        const backupPath = path.join(__dirname, `backup_${Date.now()}.json`);
+        fs.writeFileSync(backupPath, JSON.stringify(backup, null, 2));
+
+        await sock.sendMessage(replyJid, {
+            document: { url: backupPath },
+            mimetype: 'application/json',
+            fileName: 'Aetherys_Matrix_Backup.json',
+            caption: "💾 *BACKUP DE LA MATRICE RÉUSSI*"
+        });
+
+        fs.unlinkSync(backupPath);
+    } catch (error) {
+        console.error("Backup error:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la création du backup." });
+    }
+});
+
+// Command: /dbrestore
+commands.set('dbrestore', async (sock, message, args, downloadMediaMessage) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les dieux peuvent réécrire la matrice." });
+        return;
+    }
+
+    const docMessage = message.message.documentMessage || message.message.extendedTextMessage?.contextInfo?.quotedMessage?.documentMessage;
+
+    if (!docMessage) {
+        await sock.sendMessage(replyJid, { text: "Envoie ou cite un fichier JSON de backup pour restaurer la matrice." });
+        return;
+    }
+
+    try {
+        const targetMessage = message.message.documentMessage ? message : { message: message.message.extendedTextMessage.contextInfo.quotedMessage };
+        const buffer = await downloadMediaMessage(targetMessage, 'buffer');
+        const backup = JSON.parse(buffer.toString());
+
+        await sequelize.transaction(async (t) => {
+            for (const [name, data] of Object.entries(backup)) {
+                const model = sequelize.models[name];
+                if (model) {
+                    await model.destroy({ where: {}, transaction: t });
+                    await model.bulkCreate(data, { transaction: t });
+                }
+            }
+        });
+
+        await sock.sendMessage(replyJid, { text: "✅ *MATRICE RESTAURÉE AVEC SUCCÈS*" });
+    } catch (error) {
+        console.error("Restore error:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la restauration : " + error.message });
+    }
+});
+
 // Command: /help
 // Command: /save
 commands.set('save', async (sock, message) => {
@@ -758,11 +939,17 @@ commands.set('help', async (sock, message) => {
                    "/joueurs - Voir les joueurs à proximité.\n" +
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
-                   "/save - Sauvegarder tes données manuellement.\n" +
-                   "/checkai - Diagnostiquer l'état des serveurs IA.\n" +
-                   "/action - Passer en mode immersif (RP).\n" +
-                   "/menu - Revenir au menu principal.\n" +
-                   "/help - Afficher cette aide.";
+                   "/royaumes - Géopolitique mondiale.\n" +
+                   "/conflits - Guerres en cours.\n" +
+                   "/ecoles - Liste des académies.\n" +
+                   "/examens - Dossier scolaire.\n" +
+                   "/clubs - Clubs extrascolaires.\n" +
+                   "/pacts - Pactes avec les entités.\n" +
+                   "/save - Sauvegarder tes données.\n" +
+                   "/checkai - Diagnostic IA.\n" +
+                   "/action - Mode immersif (RP).\n" +
+                   "/menu - Menu principal.\n" +
+                   "/help - Cette aide.";
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
 });
 
@@ -791,14 +978,15 @@ commands.set('checkai', async (sock, message) => {
         const duration = (Date.now() - startTime) / 1000;
 
         let status = "🟢 *OPÉRATIONNEL*";
-        if (result.includes("moteur MJ Local")) status = "🟡 *MODE DÉGRADÉ* (MJ Local)";
+        if (result.includes("Le flux magique est instable")) status = "🔴 *LIMITE ATTEINTE*";
 
         await sock.sendMessage(replyJid, {
             text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
                   `Statut: ${status}\n` +
                   `Latence: ${duration}s\n` +
+                  `Serveur Ollama: ${process.env.OLLAMA_URL || 'http://localhost:11434'}\n` +
                   `Réponse: ${result.substring(0, 100)}...\n\n` +
-                  `_Si le statut est dégradé, vérifiez vos clés API ou attendez quelques minutes._`
+                  `_Si le statut est dégradé, vérifiez vos clés API ou la connexion Ollama._`
         });
     } catch (e) {
         await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
@@ -830,35 +1018,20 @@ commands.set('menu', async (sock, message) => {
                    "🛡️ `/conflits` - Guerres en cours.\n" +
                    "🏫 `/ecoles` - Liste des académies.\n" +
                    "📝 `/examens` - Ton dossier scolaire.\n" +
+                   "✨ `/clubs` - Clubs extrascolaires.\n" +
+                   "🔥 `/pacts` - Pactes avec les entités.\n" +
                    "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
                    "❓ `/help` - Guide de survie.";
 
-  // Try sending the local menu image first
   try {
-    if (fs.existsSync('./menu_image.jpg')) {
-        await sock.sendMessage(message.key.remoteJid, {
-            image: fs.readFileSync('./menu_image.jpg'),
-            caption: menuText
-        });
-    } else {
-        throw new Error("Local menu image not found");
-    }
+    const menuImage = await generateMainMenuImage();
+    await sock.sendMessage(message.key.remoteJid, {
+        image: menuImage,
+        caption: menuText
+    });
   } catch (error) {
-    console.warn("Erreur envoi image menu locale, tentative fallback URL:", error.message);
-    const saoMenuUrl = "https://images.alphacoders.com/264/264350.jpg";
-    try {
-        const response = await axios.get(saoMenuUrl, {
-            responseType: 'arraybuffer',
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
-        const imageBuffer = Buffer.from(response.data, 'binary');
-        await sock.sendMessage(message.key.remoteJid, {
-            image: imageBuffer,
-            caption: menuText
-        });
-    } catch (fallbackError) {
-        await sock.sendMessage(message.key.remoteJid, { text: menuText });
-    }
+    console.warn("Erreur génération image menu:", error.message);
+    await sock.sendMessage(message.key.remoteJid, { text: menuText });
   }
 });
 

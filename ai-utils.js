@@ -1,245 +1,179 @@
 const axios = require('axios');
+const { JSDOM } = require('jsdom');
+const { Ollama } = require('ollama');
+
+// Setup JSDOM for Puter SDK if needed
+const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
+    url: "https://localhost",
+    referrer: "https://localhost",
+    contentType: "text/html",
+});
+global.window = dom.window;
+global.document = dom.window.document;
+global.navigator = dom.window.navigator;
+global.location = dom.window.location;
+global.localStorage = dom.window.localStorage;
+global.sessionStorage = dom.window.sessionStorage;
+global.customElements = dom.window.customElements;
+global.HTMLElement = dom.window.HTMLElement;
+global.Node = dom.window.Node;
+global.Element = dom.window.Element;
+
 let puter = null;
-
-function initPuter() {
-    if (!puter) {
-        try {
-            puter = require('@heyputer/puter.js').default || require('@heyputer/puter.js');
-            if (process.env.PUTER_API_KEY && process.env.PUTER_API_KEY.length > 5 && process.env.PUTER_API_KEY !== 'test_key') {
-                puter.setAuthToken(process.env.PUTER_API_KEY);
-            }
-        } catch (e) {
-            console.error("[AI] Erreur chargement SDK Puter.js:", e.message);
-        }
-    }
-    return puter;
+try {
+    puter = require('@heyputer/puter.js');
+} catch (e) {
+    console.warn("[AI] Puter SDK could not be loaded:", e.message);
 }
 
-/**
- * Enemy power levels with stats
- */
-const ENEMY_LEVELS = {
-    1: { name: "Goblin Faible", power: 1, defense: 2, speed: 8, reactionTime: 800, counterChance: 0.3 },
-    2: { name: "Orc Guerrier", power: 2, defense: 4, speed: 6, reactionTime: 600, counterChance: 0.5 },
-    3: { name: "Chevalier Noir", power: 3, defense: 6, speed: 5, reactionTime: 500, counterChance: 0.65 },
-    4: { name: "Sorcier Ancien", power: 4, defense: 5, speed: 8, reactionTime: 400, counterChance: 0.75 },
-    5: { name: "Dragon Antique", power: 5, defense: 8, speed: 7, reactionTime: 300, counterChance: 0.9 }
-};
+const PUTER_MODELS = [
+    "gpt-4o",
+    "claude-3-5-sonnet",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash",
+    "meta-llama-3.1-70b-instruct"
+];
 
 /**
- * Get random enemy with difficulty scaling
+ * Detect responses that are not real narrative content.
  */
-function generateEnemy(difficulty = 1) {
-    const level = Math.max(1, Math.min(5, difficulty));
-    const enemy = { ...ENEMY_LEVELS[level], level };
-    // Add variance
-    enemy.power += Math.floor(Math.random() * 3) - 1;
-    enemy.defense += Math.floor(Math.random() * 2);
-    return enemy;
-}
+function isValidAIResponse(text) {
+    if (!text || typeof text !== 'string') return false;
 
-/**
- * Calculate enemy reaction time delay
- */
-function getReactionDelay(enemy) {
-    const baseDelay = enemy.reactionTime;
-    const variance = Math.random() * 200 - 100;
-    return Math.max(100, baseDelay + variance);
-}
+    const cleaned = text.trim();
+    if (cleaned.length < 10) return false;
 
-/**
- * Simulate enemy counter-attack
- */
-function generateCounterAttack(enemy, playerRoll) {
-    const willCounter = Math.random() < enemy.counterChance;
-    if (!willCounter) return null;
-
-    const counterRoll = Math.floor(Math.random() * 20) + 1;
-    const enemyModifier = enemy.power * 2;
-    const counterStrength = counterRoll + enemyModifier;
-
-    return {
-        willCounter: true,
-        strength: counterStrength,
-        severity: counterStrength > playerRoll + 10 ? "Critique" : counterStrength > playerRoll ? "Puissante" : "Modérée"
-    };
-}
-
-/**
- * Call Puter.js AI with Gemini Free API
- * FIXED: Force proper response format and handle streaming correctly
- */
-async function callPuterGeminiAI(system, prompt) {
-    try {
-        const p = initPuter();
-        if (!p || !p.ai) {
-            console.warn("[AI] Puter.js not properly initialized");
-            return null;
-        }
-
-        console.log("[AI] 🚀 Calling Puter.js Gemini...");
-        
-        // Add explicit instruction to return JUST the narrative
-        const enhancedPrompt = `${prompt}
-
-IMPORTANT: Répondre UNIQUEMENT avec le texte narratif. PAS de JSON, PAS de "data: [DONE]", PAS de balisage.
-Juste la narration pure en français.`;
-
-        const resp = await p.ai.chat(enhancedPrompt, {
-            system: system,
-            model: "gemini-1.5-flash",
-            stream: false
-        });
-
-        // Debug: Log the raw response
-        console.log("[AI DEBUG] Raw response type:", typeof resp);
-        console.log("[AI DEBUG] Raw response:", JSON.stringify(resp).substring(0, 200));
-
-        let text = null;
-
-        // Try multiple extraction methods
-        if (typeof resp === 'string') {
-            text = resp;
-            console.log("[AI] Method: String direct");
-        } else if (resp?.message?.content) {
-            if (Array.isArray(resp.message.content)) {
-                text = resp.message.content
-                    .map(c => typeof c === 'string' ? c : (c.text || ""))
-                    .filter(c => c.trim() !== "")
-                    .join(" ");
-            } else {
-                text = resp.message.content;
-            }
-            console.log("[AI] Method: message.content");
-        } else if (resp?.choices?.[0]?.message?.content) {
-            text = resp.choices[0].message.content;
-            console.log("[AI] Method: choices[0].message.content");
-        } else if (resp?.text) {
-            text = resp.text;
-            console.log("[AI] Method: .text");
-        } else if (resp?.content) {
-            text = resp.content;
-            console.log("[AI] Method: .content");
-        }
-
-        // Validate response
-        if (!text) {
-            console.warn("[AI] ❌ No text extracted from response");
-            console.warn("[AI] Response object keys:", Object.keys(resp || {}));
-            return null;
-        }
-
-        // Clean response
-        text = text
-            .trim()
-            .replace(/^data:\s*\[DONE\]\s*$/i, "") // Remove streaming marker
-            .replace(/^(json|JSON)\s*/i, "") // Remove language marker
-            .replace(/^```[\s\S]*?```/g, "") // Remove code blocks
-            .trim();
-
-        // Final validation
-        const isValid = text.length > 10 && 
-                       !text.includes("data: [DONE]") && 
-                       !text.includes("token_missing") &&
-                       text !== "[DONE]" &&
-                       text !== "";
-
-        if (!isValid) {
-            console.warn("[AI] ❌ Response failed validation");
-            console.warn("[AI] Response after cleanup:", text.substring(0, 100));
-            return null;
-        }
-
-        console.log("[AI] ✅ Success - Response valid");
-        console.log("[AI] Response length:", text.length);
-        return text;
-
-    } catch (e) {
-        console.error("[AI] ❌ Puter.js error:", e.message);
-        console.error("[AI] Stack:", e.stack?.substring(0, 200));
-        return null;
-    }
-}
-
-/**
- * Main AI entry point.
- */
-async function callAI(systemPrompt, userPrompt, depth = 0) {
-    if (depth > 2) return localMJ(userPrompt, systemPrompt);
-
-    // Sanitize prompts
-    const sanitizedSystem = systemPrompt.length > 4000 ? systemPrompt.substring(0, 4000) : systemPrompt;
-    const sanitizedUser = userPrompt.length > 2000 ? userPrompt.substring(0, 2000) : userPrompt;
-
-    const providers = [
-        { name: 'Puter.js Gemini (Free)', fn: callPuterGeminiAI },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'Puter API', fn: callPuterAPI },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Local MJ', fn: localMJ }
+    const lower = cleaned.toLowerCase();
+    const errorMarkers = [
+        'token_missing',
+        'missing authentication token',
+        'authentication error',
+        'no api key',
+        '"type":"error"',
+        'errortext',
+        'unauthorized',
+        'rate limit',
+        '401',
+        '429',
+        'internal server error',
+        'queue full',
+        'too many requests',
+        'invalid_request_error',
+        'insufficient_quota'
     ];
 
-    for (const provider of providers) {
-        try {
-            console.log(`[AI] Tentative: ${provider.name}...`);
-            const result = await provider.fn(sanitizedSystem, sanitizedUser);
-            if (result && result.length > 10) {
-                console.log(`[AI] ✅ Succès avec ${provider.name}`);
-                return result;
+    // If it's a tiny response with an error marker, it's definitely an error
+    if (cleaned.length < 100 && errorMarkers.some(m => lower.includes(m))) return false;
+
+    // If it's just technical jargon without narrative content
+    if (cleaned.startsWith('data: [DONE]') || cleaned === '[DONE]') return false;
+
+    return true;
+}
+
+/**
+ * Parse a (possibly) Server-Sent Events / chunked response into plain text.
+ */
+function parseSSEResponse(raw) {
+    if (raw == null) return null;
+    if (typeof raw === 'object') {
+        const parsed = parsePuterResponse(raw);
+        return parsed && parsed !== JSON.stringify(raw) ? parsed : null;
+    }
+    if (typeof raw !== 'string') return null;
+
+    if (!raw.includes('data:')) return raw.trim();
+
+    let out = '';
+    const lines = raw.split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        if (payload.startsWith('{')) {
+            try {
+                const obj = JSON.parse(payload);
+                if (obj.type === 'error' || obj.errorText || obj.error) continue;
+                const chunk = obj.text || obj.content || obj.delta?.content
+                    || obj.choices?.[0]?.delta?.content || '';
+                out += chunk;
+            } catch {
+                // If it's not JSON, might be raw text
             }
-        } catch (e) {
-            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
         }
     }
 
-    console.warn("[AI] Tous les providers ont échoué, utilisation du MJ Local");
-    return localMJ(userPrompt, systemPrompt);
+    out = out.trim();
+    return out.length > 0 ? out : null;
 }
 
-async function callPuterSDK(system, prompt) {
-    const p = initPuter();
-    if (!p) return null;
-
-    // Priority: GPT-4o (User Directive) > Gemini 1.5 Flash > others
-    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash", "gemini-1.5-pro", "openai/gpt-4o", "gpt-4o-mini"];
-    for (const model of models) {
-        try {
-            console.log(`[AI] SDK Puter - Modèle: ${model}`);
-            const resp = await p.ai.chat(prompt, { model, system, stream: false });
-            const text = parsePuterResponse(resp);
-            if (text && text.length > 5 && !text.includes("token_missing")) return text;
-        } catch (e) { continue; }
+function extractMessageContent(content) {
+    if (!content) return null;
+    if (typeof content === 'string') return content.trim();
+    if (Array.isArray(content)) {
+        return content.map(c => typeof c === 'string' ? c : (c.text || '')).join('').trim();
     }
     return null;
 }
 
+/**
+ * Call Puter's AI over its V1 OpenAI-compatible endpoint.
+ */
 async function callPuterAPI(system, prompt) {
-    if (!process.env.PUTER_API_KEY || process.env.PUTER_API_KEY === 'test_key') return null;
+    const key = process.env.PUTER_API_KEY;
+    if (!key || key.length < 6 || key === 'test_key') return null;
 
-    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
-    for (const model of models) {
+    const messages = [
+        { role: "system", content: system },
+        { role: "user", content: prompt }
+    ];
+
+    for (const model of PUTER_MODELS) {
         try {
-            console.log(`[AI] API Puter - Modèle: ${model}`);
+            console.log(`[AI] Puter V1 API - Modèle: ${model}`);
             const resp = await axios.post("https://api.puter.com/v1/chat/completions", {
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                model: model,
+                messages,
+                model,
                 stream: false
             }, {
                 headers: {
-                    'Authorization': `Bearer ${process.env.PUTER_API_KEY}`,
+                    'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 15000
+                timeout: 30000
             });
 
-            const content = resp.data?.choices?.[0]?.message?.content || resp.data?.message?.content;
-            if (content && content.length > 10) return content;
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (content && content.length > 5) return content;
         } catch (e) {
-            console.warn(`[AI] Puter API Model ${model} failed:`, e.message);
+            console.warn(`[AI] Puter V1 API Error (${model}):`, e.response?.data || e.message);
+            continue;
+        }
+    }
+    return null;
+}
+
+/**
+ * Try Puter SDK (Keyless).
+ */
+async function callPuterSDK(system, prompt) {
+    if (!puter || !puter.ai) return null;
+    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+
+    for (const model of models) {
+        try {
+            console.log(`[AI] Puter SDK (Keyless) - Tentative avec ${model}...`);
+            // Using array format for better system prompt adherence
+            const result = await puter.ai.chat([
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ], { model: model });
+
+            const content = parsePuterResponse(result);
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] Puter SDK Error (${model}):`, e.message);
             continue;
         }
     }
@@ -248,36 +182,257 @@ async function callPuterAPI(system, prompt) {
 
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
-    try {
-        const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "nvidia/llama-3.3-nemotron-super-49b-v1.5", // Good free alternative
-            messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
-        }, {
-            headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}` },
-            timeout: 20000
-        });
-        return resp.data?.choices?.[0]?.message?.content;
-    } catch (e) { return null; }
+    const models = [
+        "google/gemini-2.0-flash-exp:free",
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "google/gemini-2.0-pro-exp-02-05:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-r1:free",
+        "qwen/qwen-2.5-72b-instruct:free",
+        "nvidia/llama-3.1-nemotron-70b-instruct:free"
+    ];
+
+    for (const model of models) {
+        try {
+            console.log(`[AI] OpenRouter - Tentative avec ${model}`);
+            const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+                model: model,
+                messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    'HTTP-Referer': 'https://github.com/skype-bot/arise',
+                    'X-Title': 'Arise RPG'
+                },
+                timeout: 20000
+            });
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] OpenRouter Error (${model}):`, e.response?.data || e.message);
+            continue;
+        }
+    }
+    return null;
 }
 
 async function callBlackbox(system, prompt) {
     try {
+        console.log(`[AI] Blackbox - Tentative...`);
         const resp = await axios.post("https://www.blackbox.ai/api/chat", {
             messages: [{ role: "user", content: `SYSTEM: ${system}\n\nUSER: ${prompt}` }],
             model: "deepseek-v3",
             agentMode: {},
             trendingAgentMode: {},
-            userSelectedModel: "deepseek-v3"
-        }, { timeout: 15000 });
-        return resp.data;
+            userSelectedModel: "deepseek-v3",
+            clickedContinue: false,
+            previewToken: null,
+            codeModelMode: true
+        }, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.blackbox.ai/',
+                'Origin': 'https://www.blackbox.ai/',
+                'Content-Type': 'application/json'
+            },
+            timeout: 25000
+        });
+        const result = parseSSEResponse(resp.data);
+        if (isValidAIResponse(result)) return result;
+    } catch (e) {
+        console.warn(`[AI] Blackbox error: ${e.message}`);
+    }
+    return null;
+}
+
+async function callPollinationsPOST(system, prompt) {
+    const models = ['openai', 'mistral', 'llama', 'unity'];
+    for (const model of models) {
+        try {
+            const resp = await axios.post("https://text.pollinations.ai/", {
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ],
+                model: model,
+                jsonMode: true,
+                seed: Math.floor(Math.random() * 1000000)
+            }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 20000
+            });
+
+            let resText = "";
+            if (typeof resp.data === 'object') {
+                resText = resp.data.narrative || resp.data.content || JSON.stringify(resp.data);
+            } else {
+                resText = resp.data;
+            }
+
+            if (isValidAIResponse(resText)) return resText;
+        } catch (e) { continue; }
+    }
+    return null;
+}
+
+async function callPollinationsGET(system, prompt) {
+    try {
+        const fullPrompt = encodeURIComponent(`SYSTEM: ${system}\n\nUSER: ${prompt}`.substring(0, 1500));
+        const seed = Math.floor(Math.random() * 1000000);
+        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}`;
+        const resp = await axios.get(url, { timeout: 15000 });
+        if (isValidAIResponse(resp.data)) return resp.data;
     } catch (e) { return null; }
+    return null;
+}
+
+/**
+ * Call a local Ollama instance if available.
+ */
+async function callOllama(system, prompt) {
+    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    try {
+        console.log(`[AI] Ollama - Tentative sur ${ollamaUrl}`);
+        // Use axios for a manual check/call with a strict timeout to avoid hanging the whole chain
+        const resp = await axios.post(`${ollamaUrl}/api/chat`, {
+            model: process.env.OLLAMA_MODEL || 'llama3.1:8b',
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: prompt }
+            ],
+            stream: false,
+            options: { temperature: 0.7 }
+        }, { timeout: 10000 }); // 10s timeout for local Ollama
+
+        const content = resp.data?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Ollama inaccessible ou erreur: ${e.message}`);
+    }
+    return null;
+}
+
+/**
+ * Call a local LM Studio instance if available.
+ */
+async function callLMStudio(system, prompt) {
+    const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
+    try {
+        console.log(`[AI] LM Studio - Tentative sur ${url}`);
+        const resp = await axios.post(url, {
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: -1,
+            stream: false
+        }, { timeout: 15000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] LM Studio inaccessible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
+ * Local MJ Fallback in case all AI providers fail.
+ * Generates a simple but immersive response based on the action.
+ */
+function callMJFallback(prompt) {
+    console.log("[AI] Utilisation du MJ Fallback Local.");
+
+    // Extract player name and action if possible
+    let name = "Aventurier";
+    const nameMatch = prompt.match(/- Nom: ([^\n]+)/);
+    if (nameMatch) name = nameMatch[1].trim();
+
+    let action = "ton action";
+    const actionMatch = prompt.match(/### ACTION DU JOUEUR[^#]*###\n([\s\S]*)$/);
+    if (actionMatch) action = actionMatch[1].trim();
+
+    const responses = [
+        `Tu t'efforces de réaliser "${action}", mais une étrange brume semble ralentir tes mouvements. Tu réussis malgré tout l'essentiel, bien que les conséquences précises restent floues.`,
+        `Le destin semble incertain alors que tu tentes "${action}". L'énergie ambiante crépite mais ne se stabilise pas. Tu agis avec prudence.`,
+        `"${action}" est accompli. Tu sens le poids de tes décisions peser sur l'air ambiant, même si le monde autour de toi reste étrangement silencieux pour l'instant.`,
+        `Alors que tu effectues "${action}", tu as l'impression d'être observé par une entité lointaine. Ton geste est précis, mais le flux magique est trop instable pour une conclusion spectaculaire.`
+    ];
+
+    const narrative = responses[Math.floor(Math.random() * responses.length)];
+
+    return JSON.stringify({
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}`,
+        actions: []
+    });
+}
+
+/**
+ * Main AI entry point.
+ */
+async function callAI(systemPrompt, userPrompt, depth = 0) {
+    if (depth > 2) return null;
+
+    // Sanitize prompts
+    const sanitizedSystem = systemPrompt.length > 7000 ? systemPrompt.substring(0, 7000) : systemPrompt;
+    let sanitizedUser = userPrompt;
+    if (userPrompt.length > 5000) {
+        // Keep the very beginning and the very end (most recent action)
+        sanitizedUser = userPrompt.substring(0, 1500) + "\n... [TRUNCATED MIDDLE] ...\n" + userPrompt.substring(userPrompt.length - 3000);
+    }
+
+    const providers = [
+        { name: 'Ollama (Local)', fn: callOllama },
+        { name: 'LM Studio (Local)', fn: callLMStudio },
+        { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Pollinations POST', fn: callPollinationsPOST },
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Pollinations GET', fn: callPollinationsGET }
+    ];
+
+    for (const provider of providers) {
+        try {
+            console.log(`[AI] Tentative: ${provider.name}...`);
+            const result = await provider.fn(sanitizedSystem, sanitizedUser);
+            if (isValidAIResponse(result)) {
+                console.log(`[AI] ✅ Succès avec ${provider.name}`);
+                // Verify the result is not just a technical JSON dump without narrative
+                if (result.trim().startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(result);
+                        if (!parsed.narrative && !parsed.message && !parsed.text) {
+                             console.warn(`[AI] ⚠️ ${provider.name} JSON sans narration. Fallback.`);
+                             continue;
+                        }
+                    } catch(e) {}
+                }
+                return result;
+            } else {
+                console.warn(`[AI] ⚠️ ${provider.name} réponse invalide ou erreur.`);
+            }
+        } catch (e) {
+            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
+        }
+    }
+
+    console.warn("[AI] Tous les providers ont échoué.");
+    if (depth < 1) {
+        console.log("[AI] Nouvelle tentative dans 2s...");
+        await new Promise(r => setTimeout(r, 2000));
+        return callAI(systemPrompt, userPrompt, depth + 1);
+    }
+
+    // Ultimate fallback if even retry fails
+    return callMJFallback(userPrompt);
 }
 
 function parsePuterResponse(resp) {
     if (!resp) return null;
     if (typeof resp === 'string') return resp;
 
-    // Extract from message.content (SDK v2)
     if (resp.message && resp.message.content) {
         if (Array.isArray(resp.message.content)) {
             return resp.message.content.map(c => typeof c === 'string' ? c : (c.text || "")).join("");
@@ -285,7 +440,6 @@ function parsePuterResponse(resp) {
         return resp.message.content;
     }
 
-    // Extract from choices (OpenAI style)
     if (resp.choices && resp.choices[0]?.message?.content) {
         return resp.choices[0].message.content;
     }
@@ -295,97 +449,4 @@ function parsePuterResponse(resp) {
     return JSON.stringify(resp);
 }
 
-/**
- * Final Fallback: Immersive local MJ with enemy system.
- */
-function localMJ(userPrompt, systemPrompt) {
-    console.log("[AI] MJ Local activé.");
-
-    const up = userPrompt.toLowerCase();
-    const statsMatch = systemPrompt.match(/STATS: (.*)/);
-    const stats = statsMatch ? statsMatch[1] : "Moyennes";
-    const difficultyMatch = systemPrompt.match(/DIFFICULTY: (\d+)/);
-    const difficulty = difficultyMatch ? parseInt(difficultyMatch[1]) : 1;
-
-    // Generate or retrieve enemy if in combat
-    const isCombat = up.includes("attaque") || up.includes("frappe") || up.includes("tue") || up.includes("combat");
-    const enemy = isCombat ? generateEnemy(difficulty) : null;
-
-    let actionType = "Action";
-    let roll = Math.floor(Math.random() * 20) + 1;
-    let result = "Réussite";
-
-    if (up.includes("attaque") || up.includes("frappe") || up.includes("tue")) actionType = "Combat";
-    else if (up.includes("va à") || up.includes("déplace") || up.includes("entre")) actionType = "Mouvement";
-    else if (up.includes("parle") || up.includes("dis") || up.includes("demande")) actionType = "Social";
-
-    if (roll === 1) result = "Échec Critique";
-    else if (roll < 8) result = "Échec";
-    else if (roll < 14) result = "Réussite mitigée";
-    else if (roll === 20) result = "Réussite Critique";
-
-    let narrative = `[MJ Local] (Dé: ${roll} - ${result})\n\n`;
-    const actions = [{ type: "update_player", parameters: { xp_gain: 10 } }];
-    const metadata = { enemy: null, reactionTime: 0, counterAttack: null };
-
-    if (actionType === "Combat" && enemy) {
-        const reactionTime = getReactionDelay(enemy);
-        const counterAttack = generateCounterAttack(enemy, roll);
-        
-        metadata.enemy = enemy;
-        metadata.reactionTime = reactionTime;
-        metadata.counterAttack = counterAttack;
-
-        narrative += `⚔️ **${enemy.name}** (Niv. ${enemy.level}) apparaît !\n`;
-        narrative += `├─ Puissance: ${enemy.power}/5 | Défense: ${enemy.defense} | Vitesse: ${enemy.speed}\n`;
-        narrative += `├─ Temps de réaction: ${Math.round(reactionTime)}ms\n`;
-        narrative += `└─ Chance de contre-attaque: ${Math.round(enemy.counterChance * 100)}%\n\n`;
-
-        if (result === 'Réussite Critique') {
-            narrative += `🎯 Tu lances une attaque foudroyante ! L'énergie crépitante te propulse en avant. Ton coup atteint directement le ${enemy.name} de plein fouet ! `;
-            narrative += `Les dégâts sont dévastateurs et l'ennemi vacille sous la violence du choc.`;
-            actions[0].parameters.xp_gain = 25;
-        } else if (result === 'Réussite mitigée') {
-            narrative += `⚡ Ton attaque déroutante tente de traverser la garde du ${enemy.name}. `;
-            if (counterAttack && counterAttack.willCounter) {
-                narrative += `Mais en ${counterAttack.severity === 'Critique' ? Math.round(reactionTime / 2) : Math.round(reactionTime)}ms, `;
-                narrative += `l'ennemi contre-attaque avec une force ${counterAttack.severity.toLowerCase()} ! Tu dois te défendre d'urgence !`;
-                actions[0].parameters.xp_gain = 15;
-            } else {
-                narrative += `Tu gratignes légèrement ta cible, mais l'adversaire demeure vigilant.`;
-                actions[0].parameters.xp_gain = 12;
-            }
-        } else if (result === 'Échec') {
-            narrative += `❌ Ta tentative d'attaque est repérée trop tard ! Le ${enemy.name} esquive avec aisance. `;
-            if (counterAttack && counterAttack.willCounter) {
-                narrative += `En seulement ${Math.round(reactionTime)}ms, il riposte avec une attaque ${counterAttack.severity.toLowerCase()}. Attention !`;
-                actions[0].parameters.xp_gain = 5;
-            } else {
-                narrative += `L'ennemi se repositionne, prêt à la prochaine offensive.`;
-                actions[0].parameters.xp_gain = 3;
-            }
-        } else if (result === 'Échec Critique') {
-            narrative += `💥 **DÉSASTRE** ! Tu trébuches en tentant ton attaque ! Le ${enemy.name} te voit vulnérable. `;
-            narrative += `En moins de ${Math.round(reactionTime / 2)}ms, il lance une contre-attaque DÉVASTATRICE. Tu subis des dégâts massifs !`;
-            actions[0].parameters.xp_gain = 1;
-        }
-
-        // Add environmental hazard for high-level enemies
-        if (enemy.level >= 4) {
-            narrative += `\n\n🌪️ L'arène commence à se déchirer sous la puissance du combat ! Des fragments de réalité flottent autour de vous.`;
-        }
-
-    } else if (actionType === "Mouvement") {
-        narrative += `Tu te mets en route à travers les terres d'Aetherys. Le voyage se déroule ${result === 'Réussite Critique' ? 'magnifiquement' : result === 'Échec Critique' ? 'désastreusement' : 'sans encombre majeur'}, et tu atteins ton but sous un ciel chargé d'éclairs de mana.`;
-    } else {
-        narrative += `Tu agis avec assurance dans ce monde de dangers. Le destin semble te ${result === 'Réussite Critique' ? 'sourire grandement' : result === 'Échec Critique' ? 'tourner le dos' : 'sourire'} alors que tu traces ton chemin à Eldoria.`;
-    }
-
-    return JSON.stringify({
-        narrative: narrative,
-        actions: actions,
-        metadata: metadata
-    });
-}
-
-module.exports = { callAI, generateEnemy, getReactionDelay, generateCounterAttack, ENEMY_LEVELS };
+module.exports = { callAI };

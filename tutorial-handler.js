@@ -1,19 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 const { generateClassSelectionImage } = require('./class-visualizer');
+const { generateLinkStartImage } = require('./start-image-generator');
+const { generateProfileCard } = require('./profile-generator');
 const { sendWithImage } = require('./message-handler');
 const { callAI } = require('./ai-utils');
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
 
-    const welcomeText = "--- ⚔️ *START: LINK START!* --- \n\n" +
-                        "Un homme à la carrure imposante et aux cheveux rouges se tient devant toi, une aura de puissance écrasante se dégageant de lui. Il s'agit de ton instructeur.\n\n" +
-                        "Instructeur : 'Alors comme ça, un nouveau visage apparaît dans ce monde condamné ? Voyons si tu as la flamme d'un héros ou si tu n'es qu'une erreur de la matrice.'\n\n" +
-                        "Il te tend trois parchemins anciens entourés d'éclairs de mana.\n\n" +
-                        "'Choisis ton destin, ton arme et ton âme. *Quelle est ta classe ?*'";
+    const welcomeText = "--- 🧬 *START: INITIALISATION DE LA MATRICE* --- \n\n" +
+                        "Tu te réveilles dans une salle blanche et stérile. Un homme en costume sombre, l'air fatigué, te regarde à travers une vitre.\n\n" +
+                        "Superviseur : 'Encore un... Ne te fais pas d'illusions. Tu n'es pas un héros, juste une autre personne essayant de survivre dans ce système.'\n\n" +
+                        "Il pianote sur une console virtuelle.\n\n" +
+                        "'Pour t'enregistrer, nous devons définir ton profil de base. *Quelle voie souhaites-tu suivre ?* (Guerrier, Mage, Assassin, etc.)'";
 
     try {
+        // Send Link Start Intro first
+        const introImg = await generateLinkStartImage();
+        await sock.sendMessage(jid, { image: introImg, caption: "⚡ INITIALISATION DU SYSTÈME..." });
+
         const imageBuffer = await generateClassSelectionImage();
         await sock.sendMessage(jid, {
             image: imageBuffer,
@@ -28,6 +34,7 @@ async function startTutorial(sock, jid, player) {
 
 async function handleTutorialAction(sock, message, player, actionText) {
     const jid = message.key.remoteJid;
+    console.log(`[TUTORIAL] Step: ${player.tutorialStep}, Action: "${actionText}"`);
 
     if (player.tutorialStep === 1.5) {
         const lowerAction = actionText.toLowerCase();
@@ -54,7 +61,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
         await player.update({
             derivative: derivative,
-            tutorialStep: 2,
+            tutorialStep: 1.7, // Move to Occupation selection
             strength: player.strength + bonus.strength,
             defense: player.defense + bonus.defense,
             intelligence: player.intelligence + bonus.intelligence,
@@ -62,16 +69,76 @@ async function handleTutorialAction(sock, message, player, actionText) {
             luck: player.luck + (bonus.luck || 0)
         });
 
-        const nextText = `Instructeur : 'Un style ${derivative}, parfait. Passons maintenant à la destruction !\n\n` +
-                         "Il dégaine une lame massive d'un geste si rapide que l'œil humain peut à peine le suivre.\n\n" +
-                         "'Montre-moi ta détermination ! Frappe avec l'intention de tuer, ou tu ne survivras pas une seconde dans les donjons de Rang S !'\n\n" +
-                         "--- 💡 *CONSEIL DE COMBAT ANIME* --- \n" +
-                         "Décris tes attaques avec passion pour maximiser tes dégâts.";
+        const nextText = `Superviseur : 'Style ${derivative} enregistré.'\n\n` +
+                         "Il te regarde avec indifférence.\n\n" +
+                         "'Le combat n'est pas tout dans cette vie. Quelle sera ta place dans la société d'Aetherys ?'\n\n" +
+                         "1. **Artisan** (Forge et création)\n" +
+                         "2. **Commerçant** (Économie et négoce)\n" +
+                         "3. **Politicien** (Influence et pouvoir social)\n" +
+                         "4. **Chercheur** (Connaissance et science)\n" +
+                         "5. **Simple Citoyen** (Polyvalence modeste)\n\n" +
+                         "Réponds par le nom de ton métier choisi.";
 
         try {
-            const bossImage = fs.readFileSync(path.join('assets', 'tutorial_boss.jpg'));
-            await sock.sendMessage(jid, { image: bossImage, caption: nextText });
+            const profileCard = await generateProfileCard(player);
+            await sock.sendMessage(jid, { image: profileCard, caption: `📇 *STATUT DE LA MATRICE - PHASE 2*\n\nStyle ${derivative} enregistré.` });
+        } catch (e) {}
+
+        await sock.sendMessage(jid, { text: nextText });
+        return;
+    }
+
+    if (player.tutorialStep === 1.7) {
+        const lowerAction = actionText.toLowerCase();
+        let occupation = "Simple Citoyen";
+        let bonus = { intelligence: 0, luck: 0, col: 0, influence: 0 };
+
+        if (lowerAction.includes("artisan")) {
+            occupation = "Artisan";
+            bonus.intelligence = 5;
+            bonus.col = 200;
+        } else if (lowerAction.includes("commerçant")) {
+            occupation = "Commerçant";
+            bonus.luck = 10;
+            bonus.col = 500;
+        } else if (lowerAction.includes("politicien")) {
+            occupation = "Politicien";
+            bonus.influence = 20;
+            bonus.intelligence = 10;
+        } else if (lowerAction.includes("chercheur")) {
+            occupation = "Chercheur";
+            bonus.intelligence = 15;
+        }
+
+        await player.update({
+            occupation: occupation,
+            influence: bonus.influence,
+            intelligence: player.intelligence + bonus.intelligence,
+            luck: player.luck + bonus.luck,
+            col: player.col + bonus.col,
+            tutorialStep: 2
+        });
+
+        const nextText = `Superviseur : 'Un ${occupation}... C'est noté. Voici ton profil complet dans la matrice.'\n\n` +
+                         `*GÉNÉRATION DU PROFIL...*\n\n` +
+                         "Il appuie sur un bouton et le sol se dérobe. Tu tombes dans une simulation de combat.\n\n" +
+                         "Instructeur : 'Debout, vermisseau ! Tu n'es personne ici, mais si tu ne veux pas mourir, apprends à te battre !'\n\n" +
+                         "--- 💡 *CONSEIL DE SURVIE* --- \n" +
+                         "Décris tes actions avec précision. L'IA réagira à ta logique, pas à ton statut de 'héros'.";
+
+        try {
+            const profileCard = await generateProfileCard(player);
+            await sock.sendMessage(jid, { image: profileCard, caption: "📇 *TON PROFIL COMPLET*" });
+
+            let bossImage;
+            try {
+                bossImage = fs.readFileSync(path.join('assets', 'tutorial_boss.jpg'));
+                await sock.sendMessage(jid, { image: bossImage, caption: nextText });
+            } catch (e) {
+                await sock.sendMessage(jid, { text: nextText });
+            }
         } catch (error) {
+            console.error("Error sending tutorial images:", error);
             await sock.sendMessage(jid, { text: nextText });
         }
         return;
@@ -121,16 +188,35 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 familyBonus = { strength: 8, agility: 8, intelligence: 8, luck: 8, defense: 8 };
             }
 
-            await player.update({
-                class: chosenClass,
-                family: family,
-                tutorialStep: 1.5, // Intermediate step for Derivative
-                strength: (chosenClass === 'Guerrier' || chosenClass === 'Paladin' || chosenClass === 'Samouraï') ? 20 + familyBonus.strength : 10 + familyBonus.strength,
-                intelligence: (chosenClass === 'Mage' || chosenClass === 'Invocateur' || chosenClass === 'Nécromancien' || chosenClass === 'Alchimiste') ? 20 + familyBonus.intelligence : 10 + familyBonus.intelligence,
-                agility: (chosenClass === 'Assassin' || chosenClass === 'Archer' || chosenClass === 'Moine') ? 20 + familyBonus.agility : 10 + familyBonus.agility,
-                luck: 5 + familyBonus.luck,
-                defense: 10 + familyBonus.defense
-            });
+            let startingItems = [];
+            if (['Guerrier', 'Samouraï', 'Paladin', 'Chevalier-Dragon'].includes(chosenClass)) {
+                startingItems = [{ name: 'Épée de Fer', quantity: 1 }, { name: 'Armure de Cuir', quantity: 1 }];
+            } else if (['Mage', 'Invocateur', 'Nécromancien', 'Alchimiste', 'Prêtre'].includes(chosenClass)) {
+                startingItems = [{ name: 'Bâton Apprenti', quantity: 1 }, { name: 'Robe en Tissu', quantity: 1 }];
+            } else if (['Assassin', 'Archer'].includes(chosenClass)) {
+                startingItems = [{ name: 'Dague Simple', quantity: 1 }, { name: 'Vêtements de Furtivité', quantity: 1 }];
+            } else {
+                startingItems = [{ name: 'Bâton de Voyage', quantity: 1 }, { name: 'Tunique Simple', quantity: 1 }];
+            }
+
+            console.log(`[TUTORIAL] Class chosen: ${chosenClass}, Family: ${family}`);
+            try {
+                await player.update({
+                    class: chosenClass,
+                    family: family,
+                    tutorialStep: 1.5, // Intermediate step for Derivative
+                    inventory: startingItems,
+                    strength: (chosenClass === 'Guerrier' || chosenClass === 'Paladin' || chosenClass === 'Samouraï') ? 20 + familyBonus.strength : 10 + familyBonus.strength,
+                    intelligence: (chosenClass === 'Mage' || chosenClass === 'Invocateur' || chosenClass === 'Nécromancien' || chosenClass === 'Alchimiste') ? 20 + familyBonus.intelligence : 10 + familyBonus.intelligence,
+                    agility: (chosenClass === 'Assassin' || chosenClass === 'Archer' || chosenClass === 'Moine') ? 20 + familyBonus.agility : 10 + familyBonus.agility,
+                    luck: 5 + familyBonus.luck,
+                    defense: 10 + familyBonus.defense
+                });
+                console.log(`[TUTORIAL] Player updated successfully.`);
+            } catch (err) {
+                console.error(`[TUTORIAL] Failed to update player:`, err);
+                throw err;
+            }
 
             let nextText = `Instructeur : 'Un ${chosenClass}, hein ? *DODODO!* Un choix qui en dit long sur ton tempérament.\n\n`;
 
@@ -142,16 +228,23 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 nextText += `Tu n'as peut-être pas de nom illustre (75% de chance d'être "Sans Famille"), mais ta volonté semble d'acier.'\n\n`;
             }
 
-            nextText += "Mais ce n'est pas tout. Chaque combattant a un style qui lui est propre, une *dérivée* de sa classe de base.\n\n" +
-                        "Quel est ton style de prédilection ?\n" +
-                        "1. **Berserker** (Force brute, peu de défense)\n" +
-                        "2. **Tank** (Défense absolue, lent)\n" +
-                        "3. **Sniper/Assassin** (Frappes critiques, fragile)\n" +
-                        "4. **Tacticien/Mage de Soutien** (Contrôle et mana)\n" +
+            nextText += "Mais ce n'est pas tout. Chaque individu a un style qui lui est propre, une *dérivée* de ses capacités de base.\n\n" +
+                        "Quel est ton style de combat de prédilection ?\n" +
+                        "1. **Berserker** (Force brute)\n" +
+                        "2. **Tank** (Défense)\n" +
+                        "3. **Sniper/Assassin** (Agilité)\n" +
+                        "4. **Tacticien/Mage de Soutien** (Intelligence)\n" +
                         "5. **Équilibré** (Polyvalence)\n\n" +
                         "Réponds par le nom du style choisi.";
 
-            await sock.sendMessage(jid, { text: nextText });
+            try {
+                const profileCard = await generateProfileCard(player);
+                await sock.sendMessage(message.key.remoteJid, { image: profileCard, caption: "📇 *STATUT DE LA MATRICE - PHASE 1*\n\nVoici ton enregistrement initial." });
+            } catch (e) {
+                console.error("Error sending mid-tutorial profile card:", e);
+            }
+
+            await sock.sendMessage(message.key.remoteJid, { text: nextText });
             return;
         } else {
             await sock.sendMessage(jid, { text: "Instructeur : 'Concentrate-toi ! Tu dois choisir une classe parmi les 13 disponibles (Guerrier, Mage, Assassin, Archer, Prêtre, Moine, Paladin, Invocateur, Nécromancien, Samouraï, Chevalier-Dragon, Alchimiste, Barde).'" });
@@ -161,28 +254,44 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
     if (player.tutorialStep === 2) {
         // Combat training logic powered by AI
+        const turnsSoFar = player.tutorialTurns || 0;
+        const MAX_TUTORIAL_TURNS = 2; // force completion after this many combat exchanges
+        const mustFinish = turnsSoFar >= MAX_TUTORIAL_TURNS;
+
         const systemPrompt = `
-            Tu es l'Instructeur, un maître d'armes légendaire dans GHENO CITY 2. Ton but est d'évaluer le nouveau protagoniste.
-            Le joueur est un ${player.class} de la famille ${player.family} (FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}).
+            Tu es l'Instructeur dans la simulation de GHENO CITY. Ton but est de tester les réflexes d'une personne ordinaire.
+            Le joueur est un ${player.class} (${player.derivative}), métier: ${player.occupation}.
+            Stats: FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}.
 
-            STYLE: Narratif riche, immersif, style anime. Pas de texte en anglais. PAS de parenthèses pour les sons.
-            LONGUEUR: 2-3 paragraphes minimum.
+            STYLE: Narratif riche, immersif, style anime/manhwa. Pas de texte en anglais. PAS de parenthèses pour les sensations.
+            LONGUEUR: 3-4 paragraphes.
 
-            RÈGLES DU TUTORIEL:
-            1. PROTAGONISTE: Traite le joueur comme le centre de son histoire, pas forcément comme un héros moral.
-            2. IMPACT DES STATS: Respecte l'échelle de puissance :
-               - FOR: ≥10 humain, ≥50 brise des murs, ≥150 pulvérise des bâtiments.
-               - AGI: Rang E (2m/s), Rang D (10m/s), Rang C (30m/s), B+ (Supersonique).
-            3. LIBERTÉ: Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
-            4. TON MENTOR: Sévère mais juste. "DODODO!"
-            5. FIN: tutorial_complete à true après une démonstration de force suffisante.
-            6. JSON: {"narrative": "...", "tutorial_complete": boolean}
+            RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
+            1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé ou un protagoniste spécial. C'est une personne lambda qui doit lutter pour survivre. Ne sois pas indulgent.
+            2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR) : N'invente JAMAIS d'actions futures, de pensées ou de mouvements pour le joueur. Tes phrases DOIVENT commencer par les conséquences directes de l'action du joueur.
+            3. ADHÉRENCE STRICTE : Respecte la logique physique. Si le joueur est faible, il ne peut pas faire de miracles.
+            4. PNJ EXCELLENTS & IMPACTANTS : L'Instructeur est impitoyable, vivant, et a une personnalité forte (ex: grognon, finit ses phrases par "...tocard !"). Ses réactions ont un impact sur le moral du joueur.
+            5. IMPACT SOCIAL : Mentionne brièvement comment son métier ou son influence pourrait l'aider ou le desservir si la situation était réelle.
+            6. LIBERTÉ : Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
+            7. COMBAT (1/3 vs 2/3) :
+               - Si le joueur est trop faible ou si son action de défense est médiocre/vague :
+                 - Dans 33% des cas (1/3) : L'attaque touche DIRECTEMENT. Le joueur se prend le coup DE PLEIN FOUET sans possibilité de réaction. Décris l'impact violent. Applique "health_change" négatif conséquent (-15 à -30 PV).
+                 - Dans 66% des cas (2/3) : Tu décris l'attaque imminente et dévastatrice, et tu laisses le joueur TENTER une esquive ou un contre désespéré au prochain tour.
+            5. FIN: Le tutoriel est COURT. Dès que le joueur tente une attaque ou une action de combat déterminée, mets tutorial_complete à true et félicite-le de manière grandiose.
+            ${mustFinish ? "6. IMPÉRATIF: Le joueur s'est assez entraîné. Tu DOIS conclure le tutoriel MAINTENANT : tutorial_complete = true, OBLIGATOIRE." : ""}
+            7. JSON STRICT: {"narrative": "...", "tutorial_complete": boolean, "health_change": number}
         `;
 
         const fullPrompt = `ACTION DU JOUEUR: ${actionText}`;
 
+        await player.increment('tutorialTurns', { by: 1 });
+        await player.reload();
+
         try {
-            const contentRaw = await callAI(systemPrompt, fullPrompt);
+            let contentRaw = await callAI(systemPrompt, fullPrompt);
+            if (!contentRaw) {
+                contentRaw = JSON.stringify({ narrative: "Instructeur : 'Debout ! Ne t'endors pas pendant l'entraînement !'", tutorial_complete: false });
+            }
             let content = contentRaw;
             let aiResponse = { narrative: "", tutorial_complete: false };
 
@@ -225,9 +334,15 @@ async function handleTutorialAction(sock, message, player, actionText) {
                 aiResponse.narrative = "Instructeur : 'Impressionnant ! Tu apprends vite.'";
             }
 
-            if (aiResponse.tutorial_complete) {
+            if (aiResponse.tutorial_complete || mustFinish) {
                 await player.update({ tutorialStep: 3, mode: 'normal' });
                 aiResponse.narrative += "\n\n*FÉLICITATIONS ! Tu as terminé le tutoriel. Utilise /menu pour commencer.*";
+
+                // Show final profile card
+                try {
+                    const finalProfile = await generateProfileCard(player);
+                    await sock.sendMessage(jid, { image: finalProfile, caption: "🏆 *AVENTURE COMMENCÉE ! Voici ton profil final.*" });
+                } catch (e) {}
             }
 
             await sendWithImage(sock, jid, aiResponse);

@@ -171,7 +171,23 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
+  occupation: {
+    type: DataTypes.STRING,
+    defaultValue: 'Citoyen',
+  },
+  organization: {
+    type: DataTypes.STRING,
+    defaultValue: 'Aucune',
+  },
+  influence: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
   tutorialStep: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0,
+  },
+  tutorialTurns: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
@@ -232,10 +248,20 @@ const Quest = sequelize.define('Quest', {
     rank_required: { type: DataTypes.STRING, defaultValue: 'E' },
     reward_col: { type: DataTypes.INTEGER, defaultValue: 0 },
     reward_xp: { type: DataTypes.INTEGER, defaultValue: 0 },
+    // Ordered quest chains ("quêtes qui suivent des ordres").
+    chain: { type: DataTypes.STRING, allowNull: true }, // name of the chain
+    step: { type: DataTypes.INTEGER, defaultValue: 1 }, // order within the chain
+    objective: { type: DataTypes.TEXT, allowNull: true },
+    nextQuestTitle: { type: DataTypes.STRING, allowNull: true }, // next quest in the chain
+    isMultiplayer: { type: DataTypes.BOOLEAN, defaultValue: false }, // shared/co-op quest
 });
 
 const PlayerQuest = sequelize.define('PlayerQuest', {
     status: { type: DataTypes.STRING, defaultValue: 'not_started' },
+    progress: { type: DataTypes.INTEGER, defaultValue: 0 }, // 0-100
+    // Lets the AI "modifier le cours de certaines quêtes".
+    branch: { type: DataTypes.STRING, allowNull: true },
+    notes: { type: DataTypes.TEXT, allowNull: true },
 });
 
 const Bank = sequelize.define('Bank', {
@@ -306,7 +332,40 @@ const NPC = sequelize.define('NPC', {
     name: { type: DataTypes.STRING, unique: true },
     role: { type: DataTypes.STRING },
     description: { type: DataTypes.TEXT },
-    location: { type: DataTypes.STRING }
+    location: { type: DataTypes.STRING },
+    powerLevel: { type: DataTypes.INTEGER, defaultValue: 50 },
+    specialty: { type: DataTypes.STRING }
+});
+
+const Entity = sequelize.define('Entity', {
+    name: { type: DataTypes.STRING, unique: true },
+    type: { type: DataTypes.STRING }, // 'celestial', 'bestial', 'ancient'
+    description: { type: DataTypes.TEXT },
+    power: { type: DataTypes.TEXT },
+    pactBonus: {
+        type: DataTypes.TEXT,
+        get() {
+            const raw = this.getDataValue('pactBonus');
+            return raw ? JSON.parse(raw) : {};
+        },
+        set(val) { this.setDataValue('pactBonus', JSON.stringify(val)); }
+    }
+});
+
+const Pact = sequelize.define('Pact', {
+    status: { type: DataTypes.STRING, defaultValue: 'active' }, // 'active', 'broken'
+    resonance: { type: DataTypes.INTEGER, defaultValue: 10 } // resonance level 0-100
+});
+
+const Club = sequelize.define('Club', {
+    name: { type: DataTypes.STRING, unique: true },
+    description: { type: DataTypes.TEXT },
+    specialty: { type: DataTypes.STRING },
+    leaderName: { type: DataTypes.STRING }
+});
+
+const PlayerClub = sequelize.define('PlayerClub', {
+    rank: { type: DataTypes.STRING, defaultValue: 'Membre' }
 });
 
 const Duel = sequelize.define('Duel', {
@@ -336,6 +395,12 @@ Player.belongsToMany(Quest, { through: PlayerQuest });
 Quest.belongsToMany(Player, { through: PlayerQuest });
 Player.belongsToMany(Skill, { through: PlayerSkill });
 Skill.belongsToMany(Player, { through: PlayerSkill });
+
+Player.belongsToMany(Entity, { through: Pact, as: 'Entities' });
+Entity.belongsToMany(Player, { through: Pact, as: 'Players' });
+
+Player.belongsToMany(Club, { through: PlayerClub, as: 'Clubs' });
+Club.belongsToMany(Player, { through: PlayerClub, as: 'Players' });
 
 async function setupDatabase() {
   try {
@@ -433,8 +498,71 @@ async function setupDatabase() {
     const npcCount = await NPC.count();
     if (npcCount === 0) {
         await NPC.bulkCreate([
-            { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Mage légendaire.', location: 'Académie Impériale' },
-            { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang.', location: 'Lux Aeterna' }
+            { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Mage légendaire, gardien du Savoir Interdit.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Magie Dimensionnelle' },
+            { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, héritière d\'une lignée de duellistes.', location: 'Lux Aeterna', powerLevel: 92, specialty: 'Vitesse de pointe' },
+            { name: 'Général Kael', role: 'Commandant d\'Elion', description: 'Vétéran des guerres contre le Dominion Noir.', location: 'Cœur de l\'Empire', powerLevel: 95, specialty: 'Tactique et Force' },
+            { name: 'Lumière d\'Aetherys', role: 'Héraut Céleste', description: 'Une entité pure sous forme humaine.', location: 'Temple Céleste', powerLevel: 99, specialty: 'Purification' }
+        ]);
+    }
+
+    const entityCount = await Entity.count();
+    if (entityCount === 0) {
+        await Entity.bulkCreate([
+            {
+                name: 'Ignis le Phénix', type: 'bestial', description: 'Le souverain des flammes éternelles.',
+                power: 'Contrôle absolu du feu.', pactBonus: { strength: 20, intelligence: 10 }
+            },
+            {
+                name: 'Aeria la Céleste', type: 'celestial', description: 'La protectrice des cieux de cristal.',
+                power: 'Manipulation des courants d\'air et soins.', pactBonus: { agility: 20, luck: 15 }
+            },
+            {
+                name: 'Valthar l\'Ancien', type: 'ancient', description: 'Un titan de pierre oublié.',
+                power: 'Résistance physique inébranlable.', pactBonus: { defense: 30, strength: 5 }
+            }
+        ]);
+    }
+
+    const clubCount = await Club.count();
+    if (clubCount === 0) {
+        await Club.bulkCreate([
+            { name: 'Club de Kendo Magique', description: 'Entraînement intensif à la lame infusée de mana.', specialty: 'Dégâts physiques/magiques', leaderName: 'Kazuma' },
+            { name: 'Club d\'Occultisme', description: 'Étude des pactes et des entités anciennes.', specialty: 'Connaissance des entités', leaderName: 'Rias' },
+            { name: 'Club de Musique de l\'Ether', description: 'Utilisation des ondes sonores pour buff les alliés.', specialty: 'Support/Heal', leaderName: 'Mio' },
+            { name: 'Conseil des Élèves', description: 'Gestion administrative et discipline de l\'école.', specialty: 'Influence sociale', leaderName: 'Satsuki' }
+        ]);
+    }
+
+    const questCount = await Quest.count();
+    if (questCount === 0) {
+        console.log('Seeding Quests...');
+        await Quest.bulkCreate([
+            // Ordered chain "L'Ascension de l'Aventurier" (quêtes qui se suivent dans l'ordre)
+            {
+                title: 'Premiers Pas à Eldoria', description: 'Le départ de ton aventure à Eldoria.',
+                objective: "Parle à un PNJ d'Eldoria et accepte ta première mission de chasse.",
+                type: 'main', chain: "L'Ascension de l'Aventurier", step: 1,
+                nextQuestTitle: 'La Chasse aux Gobelins', rank_required: 'F', reward_col: 100, reward_xp: 80
+            },
+            {
+                title: 'La Chasse aux Gobelins', description: 'Les gobelins menacent les routes commerciales.',
+                objective: 'Élimine 5 gobelins dans la Forêt des Gobelins.',
+                type: 'main', chain: "L'Ascension de l'Aventurier", step: 2,
+                nextQuestTitle: "L'Antre du Chef Gobelin", rank_required: 'F', reward_col: 250, reward_xp: 150
+            },
+            {
+                title: "L'Antre du Chef Gobelin", description: 'Le chef gobelin doit tomber.',
+                objective: 'Affronte et vaincs le Chef Gobelin au fond de la forêt.',
+                type: 'main', chain: "L'Ascension de l'Aventurier", step: 3,
+                nextQuestTitle: null, rank_required: 'F', reward_col: 500, reward_xp: 400
+            },
+            // Multiplayer / co-op quest
+            {
+                title: 'Le Raid du Donjon Maudit', description: 'Un donjon de rang D nécessite une équipe.',
+                objective: "Rassemble d'autres aventuriers dans ta zone et franchissez le donjon ensemble.",
+                type: 'raid', chain: 'Raids Coopératifs', step: 1, isMultiplayer: true,
+                nextQuestTitle: null, rank_required: 'F', reward_col: 800, reward_xp: 600
+            }
         ]);
     }
 
@@ -445,6 +573,6 @@ async function setupDatabase() {
 
 module.exports = {
   sequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, Entity, Pact, Club, PlayerClub,
   setupDatabase,
 };
