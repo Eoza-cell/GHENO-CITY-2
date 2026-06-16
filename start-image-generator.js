@@ -11,32 +11,42 @@ async function generateLinkStartImage() {
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
             <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                <stop offset="0%" style="stop-color:#001a33;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#000810;stop-opacity:1" />
                 <stop offset="100%" style="stop-color:#000000;stop-opacity:1" />
             </radialGradient>
+            <filter id="glow">
+                <feGaussianBlur stdDeviation="5" result="coloredBlur"/>
+                <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+            </filter>
         </defs>
 
         <rect width="100%" height="100%" fill="url(#bgGrad)" />
 
-        <!-- Tech lines -->
-        <g stroke="rgba(0, 200, 255, 0.2)" stroke-width="1">
-            ${Array.from({length: 20}).map(() => {
-                const x1 = Math.random() * width;
-                const x2 = Math.random() * width;
-                return `<line x1="${x1}" y1="0" x2="${x2}" y2="${height}" />`;
+        <!-- Abstract Data Particles -->
+        <g fill="#00ffff">
+            ${Array.from({length: 100}).map(() => {
+                const x = Math.random() * width;
+                const y = Math.random() * height;
+                const size = Math.random() * 3;
+                const opacity = Math.random() * 0.5;
+                return `<circle cx="${x}" cy="${y}" r="${size}" fill-opacity="${opacity}" />`;
             }).join('')}
         </g>
 
         <!-- "LINK START" Text -->
-        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="110" fill="white" style="filter: drop-shadow(0 0 20px #00ffff);">LINK START</text>
+        <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="130" fill="white" filter="url(#glow)" style="letter-spacing: 25px;">LINK START</text>
 
-        <!-- Subtitle -->
-        <text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="35" fill="#00aaff" style="letter-spacing: 10px;">AETHERYS ONLINE</text>
-        <text x="50%" y="70%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="20" fill="rgba(0, 255, 255, 0.5)">GHENO CITY v2.0 - INITIALIZING SESSION</text>
-
-        <!-- Progress Bar (Fake) -->
-        <rect x="300" y="450" width="400" height="10" fill="none" stroke="#004466" stroke-width="1" />
-        <rect x="300" y="450" width="320" height="10" fill="#00ffff" />
+        <!-- Loading Effect -->
+        <g transform="translate(500, 520)">
+            <rect x="-200" y="0" width="400" height="4" fill="rgba(255, 255, 255, 0.1)" />
+            <rect x="-200" y="0" width="300" height="4" fill="#00ffff">
+                <animate attributeName="width" from="0" to="400" dur="2s" repeatCount="indefinite" />
+            </rect>
+            <text x="0" y="30" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-size="18" fill="#00ffff">INITIALIZING_NEURAL_LINK...</text>
+        </g>
     </svg>
     `;
 

@@ -150,8 +150,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
     RÈGLES MJ:
     1. PROTAGONISTE : Le joueur est le centre de SON histoire. Ses choix, aussi stupides ou géniaux soient-ils, DOIVENT être le moteur du récit.
-    2. VALIDATION : Commence TOUJOURS par accuser réception de l'action du joueur avant de décrire la réaction du monde.
-    3. PNJ PROFONDS : Chaque PNJ a une âme, une personnalité et des motivations propres. Ils ont des tics de langage, des secrets, des humeurs changeantes et des opinions sur le joueur. Évite les PNJ génériques. Donne-leur du relief, du sarcasme, de la peur ou de l'admiration. Ils doivent réagir de manière cohérente au comportement du joueur.
+    2. RÉACTIVITÉ ABSOLUE : N'ignore JAMAIS les actions du joueur. Si un joueur dit "Je lui donne un coup de pied", il DOIT y avoir une réaction immédiate liée à ce coup de pied.
+    3. PNJ VIVANTS : Chaque PNJ ( Instructeur, Marchand, Passant) doit être bien écrit. Donne-leur une voix unique, du charisme et de la profondeur. Ils ne sont pas des robots, ils ont des émotions (colère, mépris, respect).
     4. CONSÉQUENCES : Si le joueur échoue, l'échec doit être aussi intéressant que la réussite. Pas de "Tu rates et rien ne se passe".
 
     ÉCHELLE DE PUISSANCE ET IMPACT DES STATS:
@@ -166,14 +166,13 @@ async function handleFreeAction(sock, message, player, actionText) {
     - La distance doit être cohérente avec l'AGI/vitesse du joueur et le temps de l'action. Un humain (AGI ~10) couvre ~2 m/s en marche, ~10 m/s en sprint ; AGI élevée = distances bien plus grandes.
     - Si la destination est trop loin pour l'action décrite, indique la distance réellement franchie et ce qu'il reste à parcourir.
 
-    COMBAT, ESQUIVE & CONTRE-ATTAQUE (RÈGLE CRITIQUE) :
-    1. ANALYSE STATISTIQUE : Compare l'AGILITÉ (Vitesse) et le NIVEAU entre l'attaquant et le défenseur.
-    2. RÈGLE DES 2/3 (DÉSAVANTAGE) : Si le joueur est plus lent (AGI plus basse) ou de niveau inférieur à son adversaire :
-       - Il a 1 CHANCE SUR 3 (33%) de se prendre l'attaque DE PLEIN FOUET. Tu DOIS décrire comment il est incapable de réagir et subit des dégâts massifs (health_change négatif).
-       - Il n'a que 2 CHANCES SUR 3 (66%) d'avoir l'opportunité de TENTER d'esquiver ou de parer.
-    3. PLEIN FOUET : C'est une attaque inévitable. Le joueur subit le choc, vole dans le décor, ou est cloué au sol. Ne lui laisse aucune chance de contre-attaquer dans ce cas précis.
-    4. SUPÉRIORITÉ : Si le joueur est plus rapide, il garde sa liberté totale de mouvement.
-    5. VISUALISATION : Décris la différence de puissance (ex: "Sa vitesse dépasse ta perception, tu encaisses le coup de plein fouet").
+    COMBAT, ESQUIVE & CONTRE-ATTAQUE (RÈGLE ABSOLUE) :
+    1. COMPARAISON DE PUISSANCE : Évalue la différence de Niveau et d'Agilité entre le joueur et l'adversaire.
+    2. RÈGLE DU DÉSAVANTAGE (2/3) : Si le joueur est plus faible ou plus lent :
+       - 1/3 (33%) de probabilité : Il est terrassé. Il encaisse l'attaque DE PLEIN FOUET. Aucune esquive possible. Décris la violence du choc et applique un health_change important.
+       - 2/3 (66%) de probabilité : Il a une mince chance de TENTER une esquive ou un contre. Mais ce n'est jamais garanti.
+    3. RÉACTIVITÉ : Si le joueur annonce une esquive alors qu'il est en désavantage, tu DOIS arbitrer selon ces probabilités. S'il échoue, il subit les dégâts sans discuter.
+    4. IMPACT VISUEL : Un coup encaissé de plein fouet doit être décrit de manière viscérale (sang, os brisés, souffle coupé).
 
     SOCIAL:
     - Tu gères des interactions entre joueurs dans la même zone.

@@ -1,7 +1,30 @@
 const axios = require('axios');
+const { JSDOM } = require('jsdom');
 
-// The @heyputer/puter.js SDK is browser-only and difficult to polyfill completely in Node.
-// We call Puter's HTTP driver endpoint directly.
+// Setup JSDOM for Puter SDK if needed
+const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
+    url: "https://localhost",
+    referrer: "https://localhost",
+    contentType: "text/html",
+});
+global.window = dom.window;
+global.document = dom.window.document;
+global.navigator = dom.window.navigator;
+global.location = dom.window.location;
+global.localStorage = dom.window.localStorage;
+global.sessionStorage = dom.window.sessionStorage;
+global.customElements = dom.window.customElements;
+global.HTMLElement = dom.window.HTMLElement;
+global.Node = dom.window.Node;
+global.Element = dom.window.Element;
+
+let puter = null;
+try {
+    puter = require('@heyputer/puter.js');
+} catch (e) {
+    console.warn("[AI] Puter SDK could not be loaded:", e.message);
+}
+
 const PUTER_API_URL = "https://api.puter.com/drivers/call";
 const PUTER_MODELS = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
 
@@ -12,7 +35,7 @@ function isValidAIResponse(text) {
     if (!text || typeof text !== 'string') return false;
 
     const cleaned = text.trim();
-    if (cleaned.length < 10) return false;
+    if (cleaned.length < 5) return false;
 
     const lower = cleaned.toLowerCase();
     const errorMarkers = [
@@ -27,7 +50,10 @@ function isValidAIResponse(text) {
         'unauthorized',
         'rate limit',
         '401',
-        '429'
+        '429',
+        'internal server error',
+        'queue full',
+        'too many requests'
     ];
     if (errorMarkers.some(m => lower.includes(m))) return false;
 
@@ -48,7 +74,8 @@ function parseSSEResponse(raw) {
     if (!raw.includes('data:')) return raw.trim();
 
     let out = '';
-    for (const line of raw.split('\n')) {
+    const lines = raw.split('\n');
+    for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed.startsWith('data:')) continue;
         const payload = trimmed.slice(5).trim();
@@ -56,15 +83,13 @@ function parseSSEResponse(raw) {
         if (payload.startsWith('{')) {
             try {
                 const obj = JSON.parse(payload);
-                if (obj.type === 'error' || obj.errorText || obj.error) return null;
+                if (obj.type === 'error' || obj.errorText || obj.error) continue;
                 const chunk = obj.text || obj.content || obj.delta?.content
                     || obj.choices?.[0]?.delta?.content || '';
                 out += chunk;
             } catch {
-                out += payload;
+                // If it's not JSON, might be raw text
             }
-        } else {
-            out += payload;
         }
     }
 
@@ -82,7 +107,7 @@ function extractMessageContent(content) {
 }
 
 /**
- * Call Puter's AI over its HTTP driver endpoint.
+ * Call Puter's AI over its HTTP driver endpoint (Keyed).
  */
 async function callPuterAPI(system, prompt) {
     const key = process.env.PUTER_API_KEY;
@@ -105,59 +130,29 @@ async function callPuterAPI(system, prompt) {
                 timeout: 30000
             });
 
-            if (resp.data?.success === false) {
-                console.warn(`[AI] Puter ${model} erreur:`, resp.data?.error);
-                continue;
-            }
+            if (resp.data?.success === false) continue;
             const content = extractMessageContent(resp.data?.result?.message?.content);
             if (content && content.length > 5) return content;
-        } catch (e) {
-            console.warn(`[AI] Puter HTTP API ${model} échec:`, e.response?.data?.error || e.message);
-            continue;
-        }
+        } catch (e) { continue; }
     }
     return null;
 }
 
 /**
- * Main AI entry point.
+ * Try Puter SDK (Keyless).
  */
-async function callAI(systemPrompt, userPrompt, depth = 0) {
-    if (depth > 2) return null;
-
-    // Sanitize prompts
-    const sanitizedSystem = systemPrompt.length > 6000 ? systemPrompt.substring(0, 6000) : systemPrompt;
-    let sanitizedUser = userPrompt;
-    if (userPrompt.length > 4000) {
-        sanitizedUser = userPrompt.substring(0, 1000) + "\n... [TRUNCATED] ...\n" + userPrompt.substring(userPrompt.length - 3000);
-    }
-
-    const providers = [
-        { name: 'Puter API (Keyed)', fn: callPuterAPI },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET }
-    ];
-
-    for (const provider of providers) {
-        try {
-            console.log(`[AI] Tentative: ${provider.name}...`);
-            const result = await provider.fn(sanitizedSystem, sanitizedUser);
-            if (isValidAIResponse(result)) {
-                console.log(`[AI] ✅ Succès avec ${provider.name}`);
-                return result;
-            }
-        } catch (e) {
-            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
+async function callPuterSDK(system, prompt) {
+    if (!puter || !puter.ai) return null;
+    try {
+        console.log(`[AI] Puter SDK (Keyless)...`);
+        const result = await puter.ai.chat(`SYSTEM: ${system}\n\nUSER: ${prompt}`, { model: 'gpt-4o' });
+        if (result && typeof result === 'object') {
+            return result.toString();
         }
+        return result;
+    } catch (e) {
+        return null;
     }
-
-    console.warn("[AI] Tous les providers ont échoué.");
-    return JSON.stringify({
-        narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels... (Tous les serveurs IA sont hors ligne, réessaye dans un instant).",
-        actions: []
-    });
 }
 
 async function callOpenRouter(system, prompt) {
@@ -182,36 +177,96 @@ async function callBlackbox(system, prompt) {
             agentMode: {},
             trendingAgentMode: {},
             userSelectedModel: "deepseek-v3"
-        }, { timeout: 15000 });
+        }, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.blackbox.ai/',
+                'Origin': 'https://www.blackbox.ai/'
+            },
+            timeout: 15000
+        });
         return parseSSEResponse(resp.data);
     } catch (e) { return null; }
 }
 
 async function callPollinationsPOST(system, prompt) {
-    try {
-        const models = ['openai', 'mistral', 'llama'];
-        const model = models[Math.floor(Math.random() * models.length)];
-        const resp = await axios.post("https://text.pollinations.ai/", {
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            model: model,
-            jsonMode: true,
-            seed: Math.floor(Math.random() * 1000000)
-        }, { timeout: 20000 });
-        return typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
-    } catch (e) { return null; }
+    const models = ['openai', 'mistral', 'llama', 'unity'];
+    for (const model of models) {
+        try {
+            const resp = await axios.post("https://text.pollinations.ai/", {
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ],
+                model: model,
+                jsonMode: true,
+                seed: Math.floor(Math.random() * 1000000)
+            }, { timeout: 20000 });
+            const resText = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+            if (isValidAIResponse(resText)) return resText;
+        } catch (e) { continue; }
+    }
+    return null;
 }
 
 async function callPollinationsGET(system, prompt) {
     try {
-        const fullPrompt = encodeURIComponent(`SYSTEM: ${system}\n\nUSER: ${prompt}`.substring(0, 1500));
+        const fullPrompt = encodeURIComponent(`SYSTEM: ${system}\n\nUSER: ${prompt}`.substring(0, 1000));
         const seed = Math.floor(Math.random() * 1000000);
         const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}`;
         const resp = await axios.get(url, { timeout: 15000 });
-        return resp.data;
+        if (isValidAIResponse(resp.data)) return resp.data;
     } catch (e) { return null; }
+    return null;
+}
+
+/**
+ * Main AI entry point.
+ */
+async function callAI(systemPrompt, userPrompt, depth = 0) {
+    if (depth > 2) return null;
+
+    // Sanitize prompts
+    const sanitizedSystem = systemPrompt.length > 6000 ? systemPrompt.substring(0, 6000) : systemPrompt;
+    let sanitizedUser = userPrompt;
+    if (userPrompt.length > 4000) {
+        sanitizedUser = userPrompt.substring(0, 1000) + "\n... [TRUNCATED] ...\n" + userPrompt.substring(userPrompt.length - 3000);
+    }
+
+    const providers = [
+        { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Pollinations POST', fn: callPollinationsPOST },
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Pollinations GET', fn: callPollinationsGET }
+    ];
+
+    for (const provider of providers) {
+        try {
+            console.log(`[AI] Tentative: ${provider.name}...`);
+            const result = await provider.fn(sanitizedSystem, sanitizedUser);
+            if (isValidAIResponse(result)) {
+                console.log(`[AI] ✅ Succès avec ${provider.name}`);
+                return result;
+            } else {
+                console.warn(`[AI] ⚠️ ${provider.name} réponse invalide ou erreur.`);
+            }
+        } catch (e) {
+            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
+        }
+    }
+
+    console.warn("[AI] Tous les providers ont échoué. Tentative finale (retry)...");
+    if (depth < 1) {
+        await new Promise(r => setTimeout(r, 2000));
+        return callAI(systemPrompt, userPrompt, depth + 1);
+    }
+
+    return JSON.stringify({
+        narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels... (Tous les serveurs IA sont hors ligne, réessaye dans un instant).",
+        actions: []
+    });
 }
 
 function parsePuterResponse(resp) {

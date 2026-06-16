@@ -3,6 +3,7 @@ const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, sequelize } = require('./database');
+const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
 const { generateWorldMapImage } = require('./world-map');
