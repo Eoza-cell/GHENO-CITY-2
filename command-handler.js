@@ -947,10 +947,37 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
+                   "/imagine <prompt> - Générer une image IA.\n" +
                    "/action - Mode immersif (RP).\n" +
                    "/menu - Menu principal.\n" +
                    "/help - Cette aide.";
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+// Command: /imagine
+commands.set('imagine', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    const prompt = args.join(' ');
+
+    if (!prompt) {
+        await sock.sendMessage(replyJid, { text: "Utilise /imagine <votre description> pour générer une image." });
+        return;
+    }
+
+    await sock.sendMessage(replyJid, { text: `🎨 *Génération de l'image en cours...*\nPrompt: "${prompt}"` });
+
+    try {
+        const { generateAnimeImage } = require('./message-handler');
+        const imageBuffer = await generateAnimeImage(prompt);
+        if (imageBuffer) {
+            await sock.sendMessage(replyJid, { image: imageBuffer, caption: `🎨 *Image générée pour :* ${prompt}` });
+        } else {
+            await sock.sendMessage(replyJid, { text: "Impossible de générer l'image. Les flux magiques sont épuisés." });
+        }
+    } catch (error) {
+        console.error("[CMD] Erreur /imagine:", error);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la génération." });
+    }
 });
 
 // Command: /action

@@ -300,8 +300,11 @@ async function callPollinationsGen(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'unity', 'p1'];
-    for (const model of models) {
+    const models = ['openai', 'mistral', 'llama', 'unity', 'p1', 'searchgp'];
+    // Shuffle models to avoid hitting the same one first
+    const shuffled = models.sort(() => Math.random() - 0.5);
+
+    for (const model of shuffled) {
         try {
             console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
             const resp = await axios.post("https://text.pollinations.ai/", {
@@ -316,16 +319,17 @@ async function callPollinationsPOST(system, prompt) {
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Arise-Bot/3.0)'
+                    'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
                 },
-                timeout: 35000
+                timeout: 40000
             });
 
             let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
             if (isValidAIResponse(resText)) return resText;
         } catch (e) {
             console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
-            await new Promise(r => setTimeout(r, 1500));
+            // Longer jitter delay
+            await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
             continue;
         }
     }
@@ -517,8 +521,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     console.warn("[AI] Tous les providers ont échoué.");
     if (depth < 1) {
-        console.log("[AI] Nouvelle tentative dans 2s...");
-        await new Promise(r => setTimeout(r, 2000));
+        console.log("[AI] Nouvelle tentative dans 3s avec jitter...");
+        await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
         return callAI(systemPrompt, userPrompt, depth + 1);
     }
 

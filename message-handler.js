@@ -84,8 +84,13 @@ async function generateViaPuter(prompt) {
  * Generate an anime image via Pollinations.ai (free, no auth). Returns a Buffer or null.
  */
 async function generateViaPollinations(prompt) {
+    // Rotating models for Pollinations image generation
+    const models = ['flux', 'flux-realism', 'flux-anime', 'flux-pro'];
+    const model = models[Math.floor(Math.random() * models.length)];
+    const seed = Math.floor(Math.random() * 1000000);
+
     const encodedPrompt = encodeURIComponent(prompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=${model}&seed=${seed}`;
     const maxAttempts = 3;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
@@ -133,6 +138,11 @@ async function sendWithImage(sock, jid, aiResponse) {
     const imagePrompt = aiResponse.imagePrompt;
 
     if (imagePrompt) {
+        // Send a small status if image generation is likely to take time
+        if (!imagePrompt.startsWith('http') && !require('fs').existsSync(imagePrompt)) {
+            await sock.sendMessage(jid, { text: "🎨 _Illustration en cours de création..._" });
+        }
+
         try {
             const fs = require('fs');
             // Local file path

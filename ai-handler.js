@@ -7,7 +7,57 @@ const { checkLevelUp } = require('./level-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const senderJid = message.key.remoteJid.endsWith('@g.us') ? message.key.participant : message.key.remoteJid;
+  const isGroup = jid.endsWith('@g.us');
+
+  // Logic: Always save the message first
+  await RPMessage.create({
+      senderJid: player.whatsappId,
+      senderName: player.name,
+      content: actionText,
+      location: player.location
+  });
+
+  // Check if we should trigger the AI
+  const triggerAI = actionText.toLowerCase().trim() === 'next';
+
+  if (!triggerAI) {
+      // In private chat, we can give a small feedback or just stay silent
+      if (!isGroup) {
+          await sock.sendMessage(jid, { text: "📝 _Message enregistré. Envoie *Next* pour déclencher la réponse du MJ._" });
+      }
+      return;
+  }
+
+  // If "Next" is sent, aggregate all messages since the last MJ response
+  const lastMJMessage = await RPMessage.findOne({
+      where: { senderName: 'Arise MJ', location: player.location },
+      order: [['id', 'DESC']]
+  });
+
+  const messageQuery = {
+      location: player.location,
+      senderName: { [Op.ne]: 'Arise MJ' }
+  };
+  if (lastMJMessage) {
+      messageQuery.id = { [Op.gt]: lastMJMessage.id };
+  }
+
+  const recentActions = await RPMessage.findAll({
+      where: {
+          ...messageQuery,
+          content: { [Op.notILike]: 'next' } // Filter out the trigger word itself
+      },
+      order: [['id', 'ASC']]
+  });
+
+  if (recentActions.length === 0) {
+      await sock.sendMessage(jid, { text: "🧐 _Aucune action nouvelle à traiter. Décris ce que tu fais avant de demander la suite._" });
+      return;
+  }
+
+  const aggregatedActions = recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n');
+
+  await sock.sendMessage(jid, { text: "⏳ *Le MJ réfléchit...*" });
 
   const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Col:${player.col} | Lieu:${player.location} | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
@@ -34,22 +84,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   const items = await Item.findAll({ limit: 3 });
   const shopState = "Shop: " + items.map(i => `${i.name}(${i.price})`).join(', ');
 
-  // Save current player message to memory
-  await RPMessage.create({
-      senderJid: player.whatsappId,
-      senderName: player.name,
-      content: actionText,
-      location: player.location
-  });
-
-  // Fetch small history for context
+  // Fetch small history (previous MJ responses) for context
   const history = await RPMessage.findAll({
-      where: { location: player.location },
+      where: { location: player.location, senderName: 'Arise MJ' },
       order: [['id', 'DESC']],
-      limit: 5
+      limit: 3
   });
   const historyState = history.length > 0
-    ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')
+    ? "RAPPEL_MJ:\n" + history.reverse().map(h => h.content).join('\n---\n')
     : "";
 
   const playerSkills = await player.getSkills();
@@ -80,18 +122,18 @@ async function handleFreeAction(sock, message, player, actionText) {
         : "";
 
   const systemPrompt = `MJ "Arise/Aetherys". Style Manhwa.
-LORE: Convergence (le mana a fusionné les mondes). Éveil (humains avec stats). Conflit Elion vs Vharos. Les Entités (Ignis, Umbra...) cherchent des hôtes.
+LORE: Convergence (mana fusionné). Éveil (humains avec stats). Conflit Elion vs Vharos. Entités cherchent hôtes.
 RÈGLES:
-1. RÉACTIVITÉ: Commence par les conséquences. Ne décris JAMAIS les actions/pensées du joueur.
-2. RÉALISME: Joueur = citoyen ordinaire. Pas de héros prophétisé. Conséquences brutales.
-3. PNJ: Vif, complexe, émotionnel (tics de langage, motivations).
-4. COMBAT(1/3): Si défense vague -> 33% touche direct (-15/-30 PV), 66% laisse 1 tour pour réagir.
-5. MOUVEMENT: Précise distance (m) et point visé.
-6. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+1. RÉACTIVITÉ ABSOLUE: Ne décris JAMAIS les actions/pensées du joueur. Réponds aux conséquences.
+2. RÉALISME: Joueur = citoyen ordinaire, pas de héros. Conséquences brutales.
+3. PNJ: Vifs, complexes, émotionnels (tics de langage, secrets).
+4. COMBAT(1/3): 33% touche direct si défense vague.
+5. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+   - imagePrompt: Description VISUELLE épique (Anime/Manhwa). OBLIGATOIRE.
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
-NARRATION: 4 paragraphes detailés, français uniquement. Pas de parenthèses.`;
+NARRATION: Synthèse des actions, 3 paragraphes, français.`;
 
-    const fullPrompt = `CONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTION: ${actionText}`;
+    const fullPrompt = `CONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -105,10 +147,10 @@ NARRATION: 4 paragraphes detailés, français uniquement. Pas de parenthèses.`;
 
     const cleanupNarrative = (t) => {
         if (!t) return "";
+        // Clean markdown and common technical prefixes
         return t.replace(/```json/gi, '')
                 .replace(/```/g, '')
                 .replace(/^(json|JSON)/g, '')
-                .replace(/\{[\s\S]*\}/g, '') // Remove any internal JSON strings
                 .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
                 .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '')
                 .trim();
@@ -137,20 +179,23 @@ NARRATION: 4 paragraphes detailés, français uniquement. Pas de parenthèses.`;
                             aiResponse.narrative = potential.narrative;
                         }
                         if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
+                        if (potential.notifications) aiResponse.notifications = [...(aiResponse.notifications || []), ...potential.notifications];
                     } catch (innerE) {}
                 }
             }
         }
 
-        // If no narrative found in JSON, or parse failed, use the whole text excluding all JSON-like blocks
+        // If narrative is STILL empty, it might be outside the JSON block
         if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
-            let plainText = content.replace(/\{[\s\S]*?\}/g, '').trim();
-            aiResponse.narrative = cleanupNarrative(plainText);
-        }
+            // Remove the block we extracted as JSON to find the narrative
+            let plainText = content;
+            if (start !== -1 && end !== -1) {
+                plainText = content.substring(0, start) + content.substring(end + 1);
+            }
+            // If still no luck, just use the whole thing but clean markers
+            if (plainText.trim().length < 10) plainText = content.replace(/\{[\s\S]*?\}/g, '');
 
-        // Final fallback: if still empty, use content but clean it hard
-        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
-            aiResponse.narrative = cleanupNarrative(content);
+            aiResponse.narrative = cleanupNarrative(plainText);
         }
     }
 
