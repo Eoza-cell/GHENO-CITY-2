@@ -84,12 +84,14 @@ async function generateViaPuter(prompt) {
  * Generate an anime image via Pollinations.ai (free, no auth). Returns a Buffer or null.
  */
 async function generateViaPollinations(prompt) {
-    // Rotating models for Pollinations image generation
-    const models = ['flux', 'flux-realism', 'flux-anime', 'flux-pro'];
+    // Priority to anime models for this bot's style
+    const models = ['flux-anime', 'flux-pro', 'flux-realism', 'any-dark', 'flux-3d'];
     const model = models[Math.floor(Math.random() * models.length)];
     const seed = Math.floor(Math.random() * 1000000);
 
-    const encodedPrompt = encodeURIComponent(prompt);
+    // Add extra quality tokens for Pollinations
+    const highQualityPrompt = `${prompt}, masterpiece, highly detailed, ultra-detailed, highres, 8k, absurdres`;
+    const encodedPrompt = encodeURIComponent(highQualityPrompt);
     const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=${model}&seed=${seed}`;
     const maxAttempts = 3;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {

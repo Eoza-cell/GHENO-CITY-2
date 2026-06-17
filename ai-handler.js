@@ -123,18 +123,20 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const systemPrompt = `MJ "Arise/Aetherys". Style Manga/Anime Shonen.
 LORE: Convergence (mana fusionné). Éveil (humains avec stats). Conflit Elion vs Vharos. Entités cherchent hôtes.
-GUIDE DE COMBAT RP (OBLIGATOIRE):
-1. PRÉCISION ANATOMIQUE: Chaque action doit préciser le membre utilisé et sa LATÉRALITÉ (ex: poing droit, genou gauche) et la ZONE EXACTE VISÉE (ex: temple, côtes droites).
-2. RÉALISME & CONSÉQUENCES: Les blessures influencent réellement les performances. Les distances, le terrain et l'endurance sont cohérents.
-3. NEUTRALITÉ: Analyse chaque action selon la logique et les stats (FOR/DEF/AGI). Pas de favoritisme.
-4. EXEMPLE DE STYLE: "Prenant appui sur sa jambe droite, il projette son genou gauche en direction des côtes droites de son adversaire tout en gardant son bras droit relevé pour protéger sa mâchoire."
-5. STATUS: Impacts [HP -12 | 88/100] et coûts [MP -5 | 45/50]. Nomme les [TECHNIQUES].
-RÈGLES DE NARRATION:
-1. TON: Épique, sérieux, avec une touche d'humour animé.
-2. RÉACTIVITÉ: Ne décris JAMAIS les pensées/actions futures du joueur.
-3. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+GUIDE DE COMBAT RP & NARRATION (OBLIGATOIRE):
+1. FRANÇAIS TERRE-À-TERRE: Narration directe, efficace, sans fioritures inutiles.
+2. IMMOBILITÉ: Si un joueur n'a pas posé d'action explicite dans le flux, il reste immobile (proie facile).
+3. PRÉCISION ANATOMIQUE: Membre (latéralité) et zone exacte visée obligatoires.
+4. MONSTRES: Affiche toujours leurs PV restants dans la narration (ex: [Gbelin: 12/40 PV]).
+5. NEUTRALITÉ & RÉALISME: Les blessures impactent les stats. Logique > Préférence joueur.
+6. STYLE: Équilibre Humour (absurde/anime) et Sérieux (mortel).
+7. EXEMPLE: "Prenant appui sur sa jambe droite, il projette son genou gauche en direction des côtes droites de son adversaire tout en gardant son bras droit relevé pour protéger sa mâchoire."
+8. STATUS & TECHNIQUES: [HP -12 | 88/100], [MP -5 | 45/50], [TECHNIQUE: Nom].
+RÈGLES:
+1. RÉACTIVITÉ: Ne décris JAMAIS les pensées/actions futures du joueur.
+2. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
-NARRATION: Synthèse fluide comme une scène de manga, français.`;
+NARRATION: Français terre-à-terre, synthèse manga.`;
 
     const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
@@ -501,20 +503,28 @@ NARRATION: Synthèse fluide comme une scène de manga, français.`;
 
         case 'forge_pact':
             if (parameters.entityName) {
-                const entity = await Entity.findOne({ where: { name: { [Op.like]: `%${parameters.entityName}%` } } });
+                const entity = await Entity.findOne({
+                    where: { name: { [Op.like]: `%${parameters.entityName}%` } },
+                    include: [{ model: Player, as: 'Players' }]
+                });
                 if (entity) {
-                    const hasPact = await target.hasEntity(entity);
-                    if (!hasPact) {
-                        await target.addEntity(entity);
-                        const bonuses = entity.pactBonus || {};
-                        for (const [stat, value] of Object.entries(bonuses)) {
-                            if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
-                                await target.increment(stat, { by: value });
+                    const pactCount = entity.Players?.length || 0;
+                    if (pactCount > 0) {
+                        questFeedback.push(`⚠️ *ÉCHEC DU PACTE* : ${entity.name} est déjà lié à un autre mortel. Un seul élu par entité.`);
+                    } else {
+                        const hasPact = await target.hasEntity(entity);
+                        if (!hasPact) {
+                            await target.addEntity(entity);
+                            const bonuses = entity.pactBonus || {};
+                            for (const [stat, value] of Object.entries(bonuses)) {
+                                if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                                    await target.increment(stat, { by: value });
+                                }
                             }
+                            await target.save();
+                            await target.reload();
+                            questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
                         }
-                        await target.save();
-                        await target.reload();
-                        questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
                     }
                 }
             }

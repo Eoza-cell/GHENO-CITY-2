@@ -2,10 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
+const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
 const { handleFreeAction } = require('./ai-handler');
@@ -905,6 +906,69 @@ commands.set('dbrestore', async (sock, message, args, downloadMediaMessage) => {
     }
 });
 
+// Command: /lore
+commands.set('lore', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const topic = args.join(' ').trim();
+
+    if (!topic) {
+        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour en savoir plus :\n\n- *Entités* (Ignis, Valthar, etc.)\n- *Royaumes* (Elion, Vharos, etc.)\n- *PNJ* (Magnus, Asuna, etc.)\n- *Clubs* (Kendo, Occultisme, etc.)\n- *Histoire* (Convergence, Éveil)`;
+        return await sock.sendMessage(replyJid, { text: categories });
+    }
+
+    await sock.sendMessage(replyJid, { text: "🔍 _Recherche dans les archives d'Aetherys..._" });
+
+    let loreData = null;
+    let type = 'LORE';
+
+    // Search in Entities
+    const entity = await Entity.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
+    if (entity) { loreData = { title: entity.name, content: entity.description, type: 'ENTITY' }; }
+
+    if (!loreData) {
+        const kingdom = await Kingdom.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
+        if (kingdom) { loreData = { title: kingdom.name, content: kingdom.description, type: 'KINGDOM' }; }
+    }
+
+    if (!loreData) {
+        const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
+        if (npc) { loreData = { title: npc.name, content: npc.description, type: 'NPC' }; }
+    }
+
+    if (!loreData) {
+        const club = await Club.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
+        if (club) { loreData = { title: club.name, content: club.description, type: 'CLUB' }; }
+    }
+
+    if (!loreData) {
+        const worldLore = {
+            'convergence': "La Grande Convergence est l'événement cataclysmique où le mana brut a fusionné avec la réalité matérielle, changeant les lois de la physique pour toujours.",
+            'éveil': "L'Éveil désigne le moment où les premiers humains ont manifesté des capacités surnaturelles et des interfaces de statistiques, devenant les premiers 'Éveillés'.",
+            'histoire': "Aetherys était autrefois un monde sans magie. Tout a changé il y a 50 ans lors de l'ouverture de la première Faille."
+        };
+        const key = Object.keys(worldLore).find(k => topic.toLowerCase().includes(k));
+        if (key) {
+            loreData = { title: key.charAt(0).toUpperCase() + key.slice(1), content: worldLore[key], type: 'HISTORY' };
+        }
+    }
+
+    if (!loreData) {
+        return await sock.sendMessage(replyJid, { text: `❌ Aucune archive trouvée pour "${topic}".` });
+    }
+
+    try {
+        const posterPath = await generateLorePoster(loreData.title, loreData.content, loreData.type);
+        await sock.sendMessage(replyJid, {
+            image: { url: posterPath },
+            caption: `📚 *Archives d'Aetherys : ${loreData.title}*\n\n${loreData.content}`
+        });
+    } catch (err) {
+        console.error("[Lore] Error generating poster:", err);
+        await sock.sendMessage(replyJid, { text: `📚 *Archives d'Aetherys : ${loreData.title}*\n\n${loreData.content}` });
+    }
+});
+
 // Command: /help
 // Command: /save
 commands.set('save', async (sock, message) => {
@@ -948,6 +1012,7 @@ commands.set('help', async (sock, message) => {
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
+                   "/lore <topic> - Consulter la bibliothèque.\n" +
                    "/action - Mode immersif (RP).\n" +
                    "/menu - Menu principal.\n" +
                    "/help - Cette aide.";
@@ -1077,6 +1142,7 @@ commands.set('menu', async (sock, message) => {
                    "📝 `/examens` - Ton dossier scolaire.\n" +
                    "✨ `/clubs` - Clubs extrascolaires.\n" +
                    "🔥 `/pacts` - Pactes avec les entités.\n" +
+                   "📚 `/lore` - Bibliothèque du monde.\n" +
                    "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
                    "❓ `/help` - Guide de survie.";
 
