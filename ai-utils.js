@@ -302,7 +302,14 @@ async function callOllama(system, prompt) {
     const isCloud = ollamaUrl.includes('ollama.com');
 
     try {
-        console.log(`[AI] Ollama - Tentative sur ${ollamaUrl}`);
+        console.log(`[AI] Ollama - Tentative sur ${ollamaUrl} via SDK`);
+
+        const clientOptions = { host: ollamaUrl };
+        if (isCloud && process.env.OLLAMA_API_KEY) {
+            clientOptions.headers = { Authorization: 'Bearer ' + process.env.OLLAMA_API_KEY };
+        }
+
+        const client = new Ollama(clientOptions);
 
         const payload = {
             model: process.env.OLLAMA_MODEL || 'llama3.1:8b',
@@ -316,19 +323,20 @@ async function callOllama(system, prompt) {
             }
         };
 
-        // Enable structured output for local instances as per documentation
-        // Ollama Cloud currently does not support structured outputs.
+        // Enable structured output for local instances
         if (!isCloud) {
             payload.format = 'json';
-            payload.options.temperature = 0; // Better reliability for structured outputs
+            payload.options.temperature = 0;
         }
 
-        // Use axios for a manual check/call with a strict timeout to avoid hanging the whole chain
-        const resp = await axios.post(`${ollamaUrl}/api/chat`, payload, {
-            timeout: 15000
-        });
+        // Use official SDK with a race for timeout logic
+        const responsePromise = client.chat(payload);
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout reached (15s)')), 15000)
+        );
 
-        const content = resp.data?.message?.content;
+        const resp = await Promise.race([responsePromise, timeoutPromise]);
+        const content = resp.message?.content;
         if (isValidAIResponse(content)) return content;
     } catch (e) {
         console.warn(`[AI] Ollama inaccessible ou erreur sur ${ollamaUrl}: ${e.message}`);
