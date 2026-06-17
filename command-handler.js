@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -307,6 +307,177 @@ commands.set('map', async (sock, message) => {
     }
 });
 
+// Command: /maison
+commands.set('maison', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Houses' });
+
+    if (!player) return;
+
+    if (player.Houses.length === 0) {
+        const availableHouses = await House.findAll({ where: { ownerId: null } });
+        let text = "🏠 *SYSTÈME IMMOBILIER*\n\nTu ne possèdes aucune propriété. Maisons disponibles à proximité :\n\n";
+        availableHouses.forEach(h => {
+            text += `├ *${h.name}*\n│ 📍 Lieu: ${h.location}\n│ 💰 Prix: ${h.price} Col\n└ _Utilise /achetermaison ${h.id}_\n\n`;
+        });
+        return await sock.sendMessage(replyJid, { text });
+    }
+
+    const house = player.Houses[0]; // For now, handle one house
+    if (args[0] === 'config') {
+        const newTheme = args[1] || 'moderne';
+        const newColor = args[2] || 'blanc';
+        await house.update({ config: { theme: newTheme, color: newColor } });
+        return await sock.sendMessage(replyJid, { text: `✅ *Maison configurée !*\nThème: ${newTheme}\nCouleur: ${newColor}` });
+    }
+
+    let houseText = `🏠 *TA MAISON : ${house.name}*\n\n`;
+    houseText += `🎨 Config: Thème ${house.config.theme}, Couleur ${house.config.color}\n`;
+    houseText += `📦 Stockage (${house.storage.length}/20 objets) :\n`;
+
+    if (house.storage.length === 0) {
+        houseText += "└ _Vide_";
+    } else {
+        house.storage.forEach(item => {
+            houseText += `├ ${item.name} (x${item.quantity})\n`;
+        });
+    }
+
+    houseText += "\n\n_Utilise /stocker <objet> ou /recuperer <objet>_";
+    await sock.sendMessage(replyJid, { text: houseText });
+});
+
+commands.set('achetermaison', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const houseId = parseInt(args[0]);
+
+    if (!player || !houseId) return;
+
+    const house = await House.findByPk(houseId);
+    if (!house || house.ownerId) {
+        return await sock.sendMessage(replyJid, { text: "❌ Cette maison n'est pas disponible." });
+    }
+
+    if (player.col < house.price) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de Col (${house.price} requis).` });
+    }
+
+    await player.decrement('col', { by: house.price });
+    await house.update({ ownerId: player.whatsappId });
+    await sock.sendMessage(replyJid, { text: `🎉 *Félicitations !* Tu es maintenant propriétaire de : ${house.name}.` });
+});
+
+commands.set('stocker', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Houses' });
+    const itemName = args.join(' ');
+
+    if (!player || player.Houses.length === 0 || !itemName) return;
+
+    const house = player.Houses[0];
+    let inventory = [...player.inventory];
+    const itemIdx = inventory.findIndex(i => i.name.toLowerCase().includes(itemName.toLowerCase()));
+
+    if (itemIdx === -1) return await sock.sendMessage(replyJid, { text: "❌ Objet introuvable dans ton inventaire." });
+
+    const item = inventory[itemIdx];
+    let storage = [...house.storage];
+
+    // Add to storage
+    const storageIdx = storage.findIndex(i => i.name === item.name);
+    if (storageIdx !== -1) storage[storageIdx].quantity += 1;
+    else storage.push({ name: item.name, quantity: 1 });
+
+    // Remove from inventory
+    if (item.quantity > 1) item.quantity -= 1;
+    else inventory.splice(itemIdx, 1);
+
+    await player.update({ inventory });
+    await house.update({ storage });
+    await sock.sendMessage(replyJid, { text: `📦 *${item.name}* a été déposé dans ton coffre.` });
+});
+
+commands.set('recuperer', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Houses' });
+    const itemName = args.join(' ');
+
+    if (!player || player.Houses.length === 0 || !itemName) return;
+
+    const house = player.Houses[0];
+    let storage = [...house.storage];
+    const itemIdx = storage.findIndex(i => i.name.toLowerCase().includes(itemName.toLowerCase()));
+
+    if (itemIdx === -1) return await sock.sendMessage(replyJid, { text: "❌ Objet introuvable dans ta maison." });
+
+    const item = storage[itemIdx];
+    let inventory = [...player.inventory];
+
+    // Add to inventory
+    const invIdx = inventory.findIndex(i => i.name === item.name);
+    if (invIdx !== -1) inventory[invIdx].quantity += 1;
+    else inventory.push({ name: item.name, quantity: 1 });
+
+    // Remove from storage
+    if (item.quantity > 1) item.quantity -= 1;
+    else storage.splice(itemIdx, 1);
+
+    await player.update({ inventory });
+    await house.update({ storage });
+    await sock.sendMessage(replyJid, { text: `🎒 *${item.name}* a été récupéré dans ton inventaire.` });
+});
+
+// Command: /vetements
+commands.set('vetements', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const items = await Item.findAll({ where: { type: 'clothing' } });
+
+    if (items.length === 0) {
+        return await sock.sendMessage(replyJid, { text: "La boutique de vêtements est vide." });
+    }
+
+    let text = "👗 *BOUTIQUE DE MODE D'AETHERYS*\n\n";
+
+    for (const item of items) {
+        const itemText = `*${item.name.toUpperCase()}*\n├ 💰 Prix: ${item.price} Col\n└ 📜 ${item.description}\n\n_Acheter via /action : "Je veux acheter ${item.name}"_`;
+
+        if (item.imageUrl) {
+            await sock.sendMessage(replyJid, {
+                image: { url: item.imageUrl },
+                caption: itemText
+            });
+        } else {
+            text += itemText;
+        }
+    }
+
+    if (text.length > 30) {
+        await sock.sendMessage(replyJid, { text });
+    }
+});
+
+// Command: /top
+commands.set('top', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const topPlayers = await Player.findAll({
+        order: [['level', 'DESC'], ['xp', 'DESC']],
+        limit: 10
+    });
+
+    let topText = "🏆 *CLASSEMENT DES MEILLEURS HÉRITIERS*\n\n";
+    topPlayers.forEach((p, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '👤';
+        topText += `${medal} *${p.name}* (Niv ${p.level})\n└ Rang ${p.rank} • ${p.class}\n\n`;
+    });
+
+    await sock.sendMessage(replyJid, { text: topText });
+});
+
 // Command: /up
 commands.set('up', async (sock, message, args) => {
     const jid = getJid(message);
@@ -569,11 +740,13 @@ commands.set('examens', async (sock, message) => {
 
     if (!player) return;
 
+    const academicSuffix = player.academicYear === 1 ? 'ère' : 'ème';
     let text = "--- 📝 DOSSIER ACADÉMIQUE --- \n\n";
     text += `👤 *Élève:* ${player.name}\n`;
+    text += `🎓 *Année:* ${player.academicYear}${academicSuffix} Année\n`;
     text += `🏫 *École:* ${player.schoolName}\n`;
     text += `📊 *Moyenne Générale:* ${player.academicGrade}/100\n\n`;
-    text += `_Participe aux cours via /action pour améliorer tes notes et passer les examens._`;
+    text += `_Les examens de ${player.academicYear}${academicSuffix} année se passent via /action (écriture sur copie)._`;
 
     await sock.sendMessage(replyJid, { text: text });
 });
@@ -1218,7 +1391,9 @@ commands.set('menu', async (sock, message) => {
                    "💰 `/bank` - Gestion de tes Col (🪙).\n" +
                    "🛡️ `/statut` - État de ton équipement.\n" +
                    "✨ `/competences` - Sorts & Techniques.\n" +
-                   "🛒 `/boutique` - Boutique d'objets.\n" +
+                   "🏆 `/top` - Top 10 Héritiers.\n" +
+                   "🛒 `/boutique` - Objets & Armes.\n" +
+                   "👗 `/vetements` - Boutique de Mode.\n" +
                    "👥 `/joueurs` - Joueurs aux alentours.\n" +
                    "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
                    "🤝 `/donner @joueur ...` - Échange d'objets.\n" +
@@ -1227,6 +1402,7 @@ commands.set('menu', async (sock, message) => {
                    "🏫 `/ecoles` - Liste des académies.\n" +
                    "📝 `/examens` - Ton dossier scolaire.\n" +
                    "✨ `/clubs` - Clubs extrascolaires.\n" +
+                   "🏠 `/maison` - Gérer ton domicile.\n" +
                    "🔥 `/pacts` - Pactes avec les entités.\n" +
                    "📚 `/lore` - Bibliothèque du monde.\n" +
                    "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +

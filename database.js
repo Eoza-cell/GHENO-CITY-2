@@ -88,6 +88,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 0,
   },
+  academicYear: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1, // 1ere année, etc.
+  },
   col: {
     type: DataTypes.INTEGER,
     defaultValue: 100,
@@ -377,6 +381,32 @@ const Duel = sequelize.define('Duel', {
     location: { type: DataTypes.STRING }
 });
 
+const House = sequelize.define('House', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    name: { type: DataTypes.STRING },
+    price: { type: DataTypes.INTEGER },
+    location: { type: DataTypes.STRING },
+    ownerId: { type: DataTypes.STRING, allowNull: true },
+    storage: {
+        type: DataTypes.TEXT,
+        defaultValue: '[]',
+        get() {
+            const raw = this.getDataValue('storage');
+            try { return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+        },
+        set(val) { this.setDataValue('storage', JSON.stringify(val)); }
+    },
+    config: {
+        type: DataTypes.TEXT,
+        defaultValue: '{"theme": "moderne", "color": "blanc"}',
+        get() {
+            const raw = this.getDataValue('config');
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        },
+        set(val) { this.setDataValue('config', JSON.stringify(val)); }
+    }
+});
+
 const Monster = sequelize.define('Monster', {
     name: { type: DataTypes.STRING, unique: true },
     rank: { type: DataTypes.STRING },
@@ -402,6 +432,9 @@ Entity.belongsToMany(Player, { through: Pact, as: 'Players' });
 Player.belongsToMany(Club, { through: PlayerClub, as: 'Clubs' });
 Club.belongsToMany(Player, { through: PlayerClub, as: 'Players' });
 
+Player.hasMany(House, { foreignKey: 'ownerId', as: 'Houses' });
+House.belongsTo(Player, { foreignKey: 'ownerId', as: 'Owner' });
+
 async function setupDatabase() {
   try {
     await sequelize.authenticate();
@@ -424,6 +457,26 @@ async function setupDatabase() {
     }
 
     const itemsToSeed = [
+            {
+                name: 'Costume de Héritier Élégant',
+                description: 'Un costume moderne infusé de fibres de mana.',
+                price: 1200,
+                type: 'clothing',
+                rarity: 'rare',
+                slot: 'chest',
+                statBonuses: { luck: 5, intelligence: 2 },
+                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_010.jpg'
+            },
+            {
+                name: 'Uniforme de l\'Académie (1ère Année)',
+                description: 'L\'uniforme standard pour les nouveaux étudiants.',
+                price: 500,
+                type: 'clothing',
+                rarity: 'common',
+                slot: 'chest',
+                statBonuses: { intelligence: 5 },
+                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_034.jpg'
+            },
             {
                 name: 'Elucidator',
                 description: 'Une épée noire obsidienne d\'une puissance incroyable.',
@@ -484,6 +537,15 @@ async function setupDatabase() {
             // Passifs
             { name: 'Régénération Accélérée', description: 'Soigne les blessures au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
             { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } }
+        ]);
+    }
+
+    const houseCount = await House.count();
+    if (houseCount === 0) {
+        await House.bulkCreate([
+            { name: 'Appartement Moderne à Eldoria', price: 10000, location: 'Eldoria' },
+            { name: 'Villa de Luxe à Valkyr', price: 50000, location: 'Valkyr' },
+            { name: 'Studio Étudiant (Académie)', price: 5000, location: 'Académie Impériale' }
         ]);
     }
 
