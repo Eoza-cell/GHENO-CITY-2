@@ -249,9 +249,10 @@ async function callPollinationsPOST(system, prompt) {
     const models = ['openai', 'mistral', 'llama', 'unity'];
     for (const model of models) {
         try {
+            console.log(`[AI] Pollinations POST - Tentative avec ${model}...`);
             const resp = await axios.post("https://text.pollinations.ai/", {
                 messages: [
-                    { role: "system", content: system },
+                    { role: "system", content: system + "\nIMPORTANT: Tu DOIS répondre au format JSON avec les clés 'narrative' et 'actions'." },
                     { role: "user", content: prompt }
                 ],
                 model: model,
@@ -259,18 +260,22 @@ async function callPollinationsPOST(system, prompt) {
                 seed: Math.floor(Math.random() * 1000000)
             }, {
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 20000
+                timeout: 25000
             });
 
             let resText = "";
             if (typeof resp.data === 'object') {
-                resText = resp.data.narrative || resp.data.content || JSON.stringify(resp.data);
+                // Pollinations might return the JSON directly in data or as a string
+                resText = resp.data.narrative ? JSON.stringify(resp.data) : (resp.data.content || JSON.stringify(resp.data));
             } else {
                 resText = resp.data;
             }
 
             if (isValidAIResponse(resText)) return resText;
-        } catch (e) { continue; }
+        } catch (e) {
+            console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
+            continue;
+        }
     }
     return null;
 }
@@ -417,10 +422,10 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     const providers = [
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
+        { name: 'Pollinations POST', fn: callPollinationsPOST },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Pollinations POST', fn: callPollinationsPOST },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations GET', fn: callPollinationsGET }
     ];
