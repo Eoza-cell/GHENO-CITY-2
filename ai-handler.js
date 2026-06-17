@@ -129,7 +129,7 @@ RÈGLES:
 3. PNJ: Vifs, complexes, émotionnels (tics de langage, secrets).
 4. COMBAT(1/3): 33% touche direct si défense vague.
 5. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
-   - imagePrompt: Description VISUELLE épique (Anime/Manhwa). OBLIGATOIRE.
+   - imagePrompt: Description VISUELLE épique de la scène (Anime/Manhwa). OBLIGATOIRE à chaque tour.
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
 NARRATION: Synthèse des actions, 3 paragraphes, français.`;
 
