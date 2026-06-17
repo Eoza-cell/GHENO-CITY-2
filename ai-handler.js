@@ -121,21 +121,20 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `MJ "Arise/Aetherys". Style Anime Shonen/Manhwa.
+  const systemPrompt = `MJ "Arise/Aetherys". Style Manga/Anime Shonen.
 LORE: Convergence (mana fusionné). Éveil (humains avec stats). Conflit Elion vs Vharos. Entités cherchent hôtes.
-COMBAT CINÉMATIQUE (OBLIGATOIRE):
-1. ANATOMIE: Précise les membres utilisés (ex: poing droit) et les zones visées (ex: tempe gauche).
-2. MÉTRIQUES & CHAÎNES: Décris les distances (mètres), la vitesse et les enchaînements complexes (ex: projection à 2m suivie d'une téléportation pour un coup de dague dans le dos).
-3. TECHNIQUES: Nomme explicitement les techniques lancées (ex: [TECHNIQUE: Éclair de Givre]).
-4. CALCUL & ESQUIVE: Utilise FOR/DEF/AGI. Si une esquive est mal décrite ou statistiquement ratée, les dégâts sont appliqués sans pitié.
-5. STATUS: Inclus les impacts [HP -12 | 88/100] et coûts [MP -5 | 45/50].
+GUIDE DE COMBAT RP (OBLIGATOIRE):
+1. PRÉCISION ANATOMIQUE: Chaque action doit préciser le membre utilisé et sa LATÉRALITÉ (ex: poing droit, genou gauche) et la ZONE EXACTE VISÉE (ex: temple, côtes droites).
+2. RÉALISME & CONSÉQUENCES: Les blessures influencent réellement les performances. Les distances, le terrain et l'endurance sont cohérents.
+3. NEUTRALITÉ: Analyse chaque action selon la logique et les stats (FOR/DEF/AGI). Pas de favoritisme.
+4. EXEMPLE DE STYLE: "Prenant appui sur sa jambe droite, il projette son genou gauche en direction des côtes droites de son adversaire tout en gardant son bras droit relevé pour protéger sa mâchoire."
+5. STATUS: Impacts [HP -12 | 88/100] et coûts [MP -5 | 45/50]. Nomme les [TECHNIQUES].
 RÈGLES DE NARRATION:
-1. TON: Équilibre entre moments ÉPIQUES/SÉRIEUX et HUMOUR absurde typique des animés.
-2. RÉACTIVITÉ: Ne décris JAMAIS les actions futures du joueur. Réponds aux impacts immédiats.
-3. PERSPECTIVE: Citoyen ordinaire, pas de "Chosen One". La mort est réelle.
-4. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+1. TON: Épique, sérieux, avec une touche d'humour animé.
+2. RÉACTIVITÉ: Ne décris JAMAIS les pensées/actions futures du joueur.
+3. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
-NARRATION: Synthèse dynamique et visuelle, 3 paragraphes, français.`;
+NARRATION: Synthèse fluide comme une scène de manga, français.`;
 
     const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
