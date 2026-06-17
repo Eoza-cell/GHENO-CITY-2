@@ -1,5 +1,6 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster, Entity, Club, Pact } = require('./database');
 const { sendWithImage } = require('./message-handler');
+const { generatePaperImage } = require('./paper-generator');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
@@ -16,6 +17,22 @@ async function handleFreeAction(sock, message, player, actionText) {
       content: actionText,
       location: player.location
   });
+
+  // Automatic Visual: Detect writing on paper
+  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter)(?:\s+sur\s+(?:du\s+)?papier|\s+une\s+note|\s+une\s+lettre|\s+l'examen)\s*:\s*([\s\S]+)/i);
+  if (writingMatch) {
+      const writtenText = writingMatch[1].trim();
+      const isExam = actionText.toLowerCase().includes('examen');
+      try {
+          const paperPath = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
+          await sock.sendMessage(jid, {
+              image: { url: paperPath },
+              caption: `📜 *Tu as fini d'écrire...*\n\n"${writtenText.substring(0, 100)}${writtenText.length > 100 ? '...' : ''}"`
+          });
+      } catch (err) {
+          console.error("[Paper] Error generating paper visual:", err);
+      }
+  }
 
   // Check if we should trigger the AI
   const triggerAI = actionText.toLowerCase().trim() === 'next';
@@ -136,7 +153,8 @@ RÈGLES:
 1. RÉACTIVITÉ: Ne décris JAMAIS les pensées/actions futures du joueur.
 2. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
-NARRATION: Français terre-à-terre, synthèse manga.`;
+NARRATION: Français terre-à-terre, synthèse manga.
+NOTE: Si un joueur passe un examen, demande-lui d'écrire explicitement ses réponses (ex: "J'écris sur l'examen : [réponses]").`;
 
     const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
