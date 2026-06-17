@@ -116,15 +116,57 @@ async function handleTutorialAction(sock, message, player, actionText) {
             intelligence: player.intelligence + bonus.intelligence,
             luck: player.luck + bonus.luck,
             col: player.col + bonus.col,
+            tutorialStep: 1.8 // Move to Gift selection
+        });
+
+        const nextText = `Superviseur : 'Un ${occupation}... C'est noté.'\n\n` +
+                         "Il s'arrête un instant, observant un écran de diagnostic.\n\n" +
+                         "'Le système détecte une anomalie mineure dans ton code génétique. Nous pouvons la stabiliser de trois manières différentes. Choisis ton **Don Initial** :'\n\n" +
+                         "1. **Instinct de Survie** (+20 PV Max)\n" +
+                         "2. **Flux d'Éther** (+20 PM Max)\n" +
+                         "3. **Surcharge de Potentiel** (+5 SP immédiats)\n\n" +
+                         "Réponds par le nom du don choisi.";
+
+        try {
+            const profileCard = await generateProfileCard(player);
+            await sock.sendMessage(jid, { image: profileCard, caption: `📇 *STATUT DE LA MATRICE - PHASE 3*\n\nOccupation: ${occupation}` });
+        } catch (e) {}
+
+        await sock.sendMessage(jid, { text: nextText });
+        return;
+    }
+
+    if (player.tutorialStep === 1.8) {
+        const lowerAction = actionText.toLowerCase();
+        let gift = "Aucun";
+        let bonus = { maxHealth: 0, maxMana: 0, skillPoints: 0 };
+
+        if (lowerAction.includes("instinct")) {
+            gift = "Instinct de Survie";
+            bonus.maxHealth = 20;
+        } else if (lowerAction.includes("éther")) {
+            gift = "Flux d'Éther";
+            bonus.maxMana = 20;
+        } else if (lowerAction.includes("surcharge")) {
+            gift = "Surcharge de Potentiel";
+            bonus.skillPoints = 5;
+        }
+
+        await player.update({
+            maxHealth: player.maxHealth + bonus.maxHealth,
+            health: player.health + bonus.maxHealth,
+            maxMana: player.maxMana + bonus.maxMana,
+            mana: player.mana + bonus.maxMana,
+            skillPoints: player.skillPoints + bonus.skillPoints,
             tutorialStep: 2
         });
 
-        const nextText = `Superviseur : 'Un ${occupation}... C'est noté. Voici ton profil complet dans la matrice.'\n\n` +
-                         `*GÉNÉRATION DU PROFIL...*\n\n` +
+        const nextText = `Superviseur : 'Don ${gift} activé. Ton profil est maintenant complet.'\n\n` +
+                         `*GÉNÉRATION FINALE DU PROFIL...*\n\n` +
                          "Il appuie sur un bouton et le sol se dérobe. Tu tombes dans une simulation de combat.\n\n" +
                          "Instructeur : 'Debout, vermisseau ! Tu n'es personne ici, mais si tu ne veux pas mourir, apprends à te battre !'\n\n" +
                          "--- 💡 *CONSEIL DE SURVIE* --- \n" +
-                         "Décris tes actions avec précision. L'IA réagira à ta logique, pas à ton statut de 'héros'.";
+                         "Décris tes actions avec précision (membre utilisé, cible). L'IA est impitoyable.";
 
         try {
             const profileCard = await generateProfileCard(player);
@@ -263,8 +305,8 @@ async function handleTutorialAction(sock, message, player, actionText) {
             Le joueur est un ${player.class} (${player.derivative}), métier: ${player.occupation}.
             Stats: FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}.
 
-            STYLE: Narratif riche, immersif, style anime/manhwa. Pas de texte en anglais. PAS de parenthèses pour les sensations.
-            LONGUEUR: 3-4 paragraphes.
+            STYLE: Narratif technique, immersif, style anime/manhwa. Pas de texte en anglais. PAS de parenthèses.
+            LONGUEUR: 1-2 paragraphes MAX. Sois EXTRÊMEMENT concis.
 
             RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
             1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé ou un protagoniste spécial. C'est une personne lambda qui doit lutter pour survivre. Ne sois pas indulgent.
