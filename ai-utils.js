@@ -290,24 +290,48 @@ async function callPollinationsGET(system, prompt) {
  * Call a local Ollama instance if available.
  */
 async function callOllama(system, prompt) {
-    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    let ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+
+    // Robust sanitization of OLLAMA_URL
+    if (!ollamaUrl.startsWith('http')) {
+        ollamaUrl = 'http://' + ollamaUrl;
+    }
+    // Remove trailing /api or /api/ and ensure no trailing slash
+    ollamaUrl = ollamaUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
+
+    const isCloud = ollamaUrl.includes('ollama.com');
+
     try {
         console.log(`[AI] Ollama - Tentative sur ${ollamaUrl}`);
-        // Use axios for a manual check/call with a strict timeout to avoid hanging the whole chain
-        const resp = await axios.post(`${ollamaUrl}/api/chat`, {
+
+        const payload = {
             model: process.env.OLLAMA_MODEL || 'llama3.1:8b',
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
             ],
             stream: false,
-            options: { temperature: 0.7 }
-        }, { timeout: 10000 }); // 10s timeout for local Ollama
+            options: {
+                temperature: 0.7
+            }
+        };
+
+        // Enable structured output for local instances as per documentation
+        // Ollama Cloud currently does not support structured outputs.
+        if (!isCloud) {
+            payload.format = 'json';
+            payload.options.temperature = 0; // Better reliability for structured outputs
+        }
+
+        // Use axios for a manual check/call with a strict timeout to avoid hanging the whole chain
+        const resp = await axios.post(`${ollamaUrl}/api/chat`, payload, {
+            timeout: 15000
+        });
 
         const content = resp.data?.message?.content;
         if (isValidAIResponse(content)) return content;
     } catch (e) {
-        console.warn(`[AI] Ollama inaccessible ou erreur: ${e.message}`);
+        console.warn(`[AI] Ollama inaccessible ou erreur sur ${ollamaUrl}: ${e.message}`);
     }
     return null;
 }
