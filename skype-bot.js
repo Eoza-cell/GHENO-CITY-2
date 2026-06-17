@@ -14,7 +14,6 @@ const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
-const { startInactivePlayerCheck } = require('./inactive-handler');
 const { startDayNightCycle } = require('./game-state');
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
@@ -86,7 +85,6 @@ async function connectToWhatsApp() {
       }
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
-      startInactivePlayerCheck(sock);
       startDayNightCycle();
 
       // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait

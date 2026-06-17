@@ -38,11 +38,11 @@ commands.set('start', async (sock, message) => {
         whatsappId: jid,
         registrationStep: 'awaiting_name'
     });
-    await sock.sendMessage(replyJid, { text: "*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\nHélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.\n\nLe temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énemies... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est votre nom, aventurier ?" });
+    await sock.sendMessage(replyJid, { text: "*Bienvenue dans Aetheris, Héritier...*\n\nLe monde que tu connaissais n'est plus. Les sceaux se brisent, et l'Essence Primordiale s'éveille en toi. Entre la protection des Célestes et la menace des Bestiaux, ta lignée déterminera le futur de l'existence.\n\nTraverse l'Interstice, défie le Roi Vide et forge ton destin dans la matrice d'Aetheris.\n\n*...3_2_1...*\n\n*LINK START!!*\n\nPour commencer, quel est ton nom, Héritier ?" });
   } else if (player.registrationStep) {
     // Resume registration
     if (player.registrationStep === 'awaiting_name') {
-        await sock.sendMessage(replyJid, { text: "Rappel: Quel est votre nom, aventurier ?" });
+        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton nom, Héritier ?" });
     } else if (player.registrationStep === 'awaiting_description') {
         await sock.sendMessage(replyJid, { text: `Rappel: Enchanté ${player.name}. Décris ton personnage en une phrase.` });
     }
@@ -161,7 +161,7 @@ const profileCommand = async (sock, message) => {
       const xpBar = createStatusBar(player.xp, xpNeeded);
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
-                          `👤 *JOUEUR:* ${player.name}\n` +
+                          `👤 *HÉRITIER:* ${player.name}\n` +
                           `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
                           `🎖️ *RANG:* ${player.rank}\n` +
@@ -444,7 +444,7 @@ commands.set('joueurs', async (sock, message) => {
         return;
     }
 
-    let playersText = `--- 👥 AVENTURIERS À PROXIMITÉ --- \n\n`;
+    let playersText = `--- 👥 HÉRITIERS À PROXIMITÉ --- \n\n`;
     otherPlayers.forEach(p => {
         playersText += `*${p.name}*\n`;
         playersText += `├ 👪 Famille: ${p.family}\n`;
@@ -992,7 +992,7 @@ commands.set('lore', async (sock, message, args) => {
     const topic = args.join(' ').trim();
 
     if (!topic) {
-        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour en savoir plus :\n\n- *Entités* (Ignis, Valthar, etc.)\n- *Royaumes* (Elion, Vharos, etc.)\n- *PNJ* (Magnus, Asuna, etc.)\n- *Clubs* (Kendo, Occultisme, etc.)\n- *Histoire* (Convergence, Éveil)`;
+        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour en savoir plus :\n\n- *Royaumes* (Néanthea, Elion, etc.)\n- *Lieux* (Interstice, Nécropolis, etc.)\n- *Entités* (Roi Vide, Ignis, etc.)\n- *Clubs* (Kendo, Occultisme, etc.)\n- *Histoire* (Héritiers, Convergence, Éveil)`;
         return await sock.sendMessage(replyJid, { text: categories });
     }
 
@@ -1022,9 +1022,15 @@ commands.set('lore', async (sock, message, args) => {
 
     if (!loreData) {
         const worldLore = {
-            'convergence': "La Grande Convergence est l'événement cataclysmique où le mana brut a fusionné avec la réalité matérielle, changeant les lois de la physique pour toujours.",
-            'éveil': "L'Éveil désigne le moment où les premiers humains ont manifesté des capacités surnaturelles et des interfaces de statistiques, devenant les premiers 'Éveillés'.",
-            'histoire': "Aetherys était autrefois un monde sans magie. Tout a changé il y a 50 ans lors de l'ouverture de la première Faille."
+            'néanthea': "Une civilisation si avancée qu'elle semblait toucher le domaine des dieux. Son roi, Aldren, mit au jour le secret de l'Interstice, provoquant la chute de son royaume.",
+            'interstice': "Un monde brisé entre la vie et la mort. Des ruines flottent dans un ciel sans fin et le temps y est instable. C'est là que dort le Roi Vide.",
+            'héritiers': "Individus éveillant des pouvoirs surnaturels liés à l'Essence Primordiale. Ils sont le dernier espoir ou le glas du monde.",
+            'roi vide': "Responsable de la chute de Néanthea, il dort au cœur de l'Interstice. Destructeur pour certains, gardien pour d'autres.",
+            'nécropolis': "La cité silencieuse des morts gouvernée par Orpheon. Les âmes y traversent l'Interstice pour attendre leur jugement final.",
+            'convergence': "L'événement cataclysmique où le mana brut a fusionné avec la réalité matérielle.",
+            'éveil': "Le moment où les Héritiers manifestent pour la première fois l'Essence Primordiale sous forme de statistiques.",
+            'missions historiques': "Des quêtes spéciales où un Héritier est projeté dans le passé via une Faille Temporelle pour revivre les grands moments d'Aetheris.",
+            'histoire': "Aetherys était un monde stable jusqu'à ce que les sceaux séparant les dimensions ne commencent à se briser."
         };
         const key = Object.keys(worldLore).find(k => topic.toLowerCase().includes(k));
         if (key) {

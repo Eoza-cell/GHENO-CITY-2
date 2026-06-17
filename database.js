@@ -488,6 +488,8 @@ async function setupDatabase() {
     }
 
     const kingdomsToSeed = [
+        { name: 'Néanthea', description: 'Ancienne civilisation disparue, maudite par les dieux pour avoir exploré l\'Interstice.', status: 'destroyed', influence: 0, militaryPower: 100, leader: 'Roi Aldren' },
+        { name: 'Nécropolis', description: 'Le Monde des Morts, une cité silencieuse où les âmes attendent leur jugement.', status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon' },
         { name: 'Empire Impérial d\'Elion', description: 'Puissant royaume central.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
         { name: 'Dominion Noir de Vharos', description: 'Royaume de nécromancie.', status: 'war', influence: 60, militaryPower: 95, leader: 'Lich Lord Vharos' },
         { name: 'Principauté de Valkyr', description: 'Centre technologique et magique d\'avant-garde.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen' },
@@ -506,6 +508,8 @@ async function setupDatabase() {
     }
 
     const npcsToSeed = [
+        { name: 'Aldren', role: 'Roi de Néanthea', description: 'Souverain déchu ayant ouvert les portes de l\'Interstice.', location: 'Interstice', powerLevel: 100, specialty: 'Essence Primordiale' },
+        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gouverneur mystérieux de Nécropolis.', location: 'Nécropolis', powerLevel: 99, specialty: 'Jugement Mortuaire' },
         { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Mage légendaire, gardien du Savoir Interdit.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Magie Dimensionnelle' },
         { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, héritière d\'une lignée de duellistes.', location: 'Lux Aeterna', powerLevel: 92, specialty: 'Vitesse de pointe' },
         { name: 'Général Kael', role: 'Commandant d\'Elion', description: 'Vétéran des guerres contre le Dominion Noir.', location: 'Cœur de l\'Empire', powerLevel: 95, specialty: 'Tactique et Force' },
@@ -525,6 +529,10 @@ async function setupDatabase() {
     }
 
     const entitiesToSeed = [
+        {
+            name: 'Le Roi Vide', type: 'ancient', description: 'Entité endormie au cœur de l\'Interstice, gardien ou destructeur selon les récits.',
+            power: 'Contrôle du Néant et instabilité temporelle.', pactBonus: { intelligence: 50, luck: 50 }
+        },
         {
             name: 'Ignis le Phénix', type: 'bestial', description: 'Le souverain des flammes éternelles.',
             power: 'Contrôle absolu du feu.', pactBonus: { strength: 20, intelligence: 10 }
@@ -637,6 +645,25 @@ async function setupDatabase() {
                 objective: "Rassemble d'autres aventuriers dans ta zone et franchissez le donjon ensemble.",
                 type: 'raid', chain: 'Raids Coopératifs', step: 1, isMultiplayer: true,
                 nextQuestTitle: null, rank_required: 'F', reward_col: 800, reward_xp: 600
+            },
+            // Historic Missions (Temporal)
+            {
+                title: 'La Chute de Néanthea', description: "Voyage à travers une faille temporelle vers l'époque où Néanthea a sombré.",
+                objective: "Assiste à l'ouverture de l'Interstice et survit à l'assaut initial des créatures du Néant.",
+                type: 'historic', chain: 'Chroniques du Passé', step: 1,
+                nextQuestTitle: 'Duel avec le Roi Aldren', rank_required: 'D', reward_col: 2000, reward_xp: 1500
+            },
+            {
+                title: 'Duel avec le Roi Aldren', description: "Aldren a perdu la raison. Tu dois le stopper avant qu'il n'ouvre la porte.",
+                objective: "Affronte Aldren au sommet de la Tour d'Ivoire dans le passé.",
+                type: 'historic', chain: 'Chroniques du Passé', step: 2,
+                nextQuestTitle: null, rank_required: 'C', reward_col: 5000, reward_xp: 3000
+            },
+            {
+                title: 'Le Premier Sceau', description: "Assiste à la création des sceaux par les Célestes il y a des millénaires.",
+                objective: "Protège les prêtres célestes pendant le rituel de scellage contre les Entités Bestiales.",
+                type: 'historic', chain: 'Chroniques du Passé', step: 3,
+                nextQuestTitle: null, rank_required: 'B', reward_col: 10000, reward_xp: 8000
             }
         ]);
     }

@@ -139,7 +139,9 @@ async function handleFreeAction(sock, message, player, actionText) {
         : "";
 
   const systemPrompt = `MJ "Arise/Aetherys". Style Manga/Anime Shonen.
-LORE: Convergence (mana fusionné). Éveil (humains avec stats). Conflit Elion vs Vharos. Entités cherchent hôtes.
+LORE: Humains protégés par Célestes / craintifs des Bestiaux. Néanthea (civilisation déchue, Roi Aldren) a découvert l'Interstice (monde brisé entre vie/mort, temps instable, Roi Vide endormi). Nécropolis (Monde des Morts, Orpheon juge les âmes).
+HÉRITIERS: Les joueurs sont des Héritiers éveillant l'Essence Primordiale alors que les sceaux se brisent.
+MISSIONS HISTORIQUES: Si un joueur lance une quête 'historic', il est téléporté dans le PASSÉ (Faille Temporelle). Le MJ doit décrire ce saut temporel et l'environnement historique précis.
 GUIDE DE COMBAT RP & NARRATION (OBLIGATOIRE):
 1. FRANÇAIS TERRE-À-TERRE: Narration directe, efficace, sans fioritures inutiles.
 2. IMMOBILITÉ: Si un joueur n'a pas posé d'action explicite dans le flux, il reste immobile (proie facile).
