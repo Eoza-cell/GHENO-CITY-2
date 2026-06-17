@@ -121,19 +121,23 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `MJ "Arise/Aetherys". Style Manhwa.
+  const systemPrompt = `MJ "Arise/Aetherys". Style Anime/Manhwa.
 LORE: Convergence (mana fusionné). Éveil (humains avec stats). Conflit Elion vs Vharos. Entités cherchent hôtes.
+PRÉCISION TECHNIQUE (OBLIGATOIRE):
+1. MÉTRIQUES: Décris les combats avec précision: distance parcourue (mètres), vitesse d'exécution, enchaînements de coups techniques.
+2. CALCUL DES DÉGÂTS: Utilise STRICTEMENT les stats (FOR, DEF, AGI) pour calculer les impacts. Les monstres sont mortels.
+3. STATUS: Inclus systématiquement les changements d'état dans la narration entre crochets: [HP -12 | 88/100].
 RÈGLES:
 1. RÉACTIVITÉ ABSOLUE: Ne décris JAMAIS les actions/pensées du joueur. Réponds aux conséquences.
 2. COMBAT: Les monstres attaquent DIRECTEMENT et sans pitié. PvP: Si un joueur en attaque un autre, attends que les deux aient agi avant de conclure le tour.
-3. RÉALISME: Joueur = citoyen ordinaire. Conséquences brutales.
+3. PERSPECTIVE: Le joueur n'est PAS un héros prophétisé, mais un citoyen ordinaire dans un monde épique.
 4. PNJ: Vifs, complexes, émotionnels.
 5. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
-   - imagePrompt: Description VISUELLE épique de la scène (Anime/Manhwa). OBLIGATOIRE à chaque tour.
+   - imagePrompt: Description VISUELLE épique de la scène. OBLIGATOIRE.
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
-NARRATION: Synthèse des actions, 3 paragraphes, français.`;
+NARRATION: Synthèse technique et immersive, 3 paragraphes, français.`;
 
-    const fullPrompt = `CONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
+    const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
