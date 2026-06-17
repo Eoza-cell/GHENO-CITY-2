@@ -76,19 +76,23 @@ commands.set('competences', async (sock, message) => {
     const passiveSkills = skills.filter(s => s.type === 'passive');
 
     if (activeSkills.length > 0) {
-        skillText += "*Capacités Actives & Sorts:*\n";
+        skillText += "⚔️ *TECHNIQUES ET SORTS ACTIFS:*\n";
         activeSkills.forEach(s => {
-            skillText += `- *${s.name}* (${s.manaCost} PM): ${s.description}\n`;
+            skillText += `├ *${s.name.toUpperCase()}*\n`;
+            skillText += `│ 💠 Coût: ${s.manaCost} PM\n`;
+            skillText += `└ 📜 ${s.description}\n\n`;
         });
-        skillText += "\n";
     }
 
     if (passiveSkills.length > 0) {
-        skillText += "*Capacités Passives:*\n";
+        skillText += "✨ *COMPÉTENCES PASSIVES:*\n";
         passiveSkills.forEach(s => {
-            skillText += `- *${s.name}*: ${s.description}\n`;
+            skillText += `├ *${s.name}*\n`;
+            skillText += `└ 📜 ${s.description}\n\n`;
         });
     }
+
+    skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pacts._";
 
     await sock.sendMessage(replyJid, { text: skillText });
 });
@@ -301,6 +305,61 @@ commands.set('map', async (sock, message) => {
         console.error('[MAP] Échec génération carte:', err.message);
         await sock.sendMessage(replyJid, { text: mapText });
     }
+});
+
+// Command: /up
+commands.set('up', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    if (args.length === 0) {
+        let text = `--- 📈 AMÉLIORATION DES STATS --- \n\n`;
+        text += `✨ Points de Compétence (SP) dispos : *${player.skillPoints}*\n\n`;
+        text += `Utilise \`/up <stat> <points>\` pour augmenter tes stats :\n`;
+        text += `- *FOR* (Force)\n`;
+        text += `- *AGI* (Agilité)\n`;
+        text += `- *INT* (Intelligence)\n`;
+        text += `- *DEF* (Défense)\n`;
+        text += `- *LUK* (Chance)\n\n`;
+        text += `Exemple : \`/up for 5\``;
+        return await sock.sendMessage(replyJid, { text });
+    }
+
+    const statMap = {
+        'for': 'strength', 'force': 'strength', 'strength': 'strength',
+        'agi': 'agility', 'agilité': 'agility', 'agility': 'agility',
+        'int': 'intelligence', 'intelligence': 'intelligence',
+        'def': 'defense', 'défense': 'defense', 'defense': 'defense',
+        'luk': 'luck', 'chance': 'luck', 'luck': 'luck'
+    };
+
+    const requestedStat = args[0].toLowerCase();
+    const targetStat = statMap[requestedStat];
+    const points = parseInt(args[1]) || 1;
+
+    if (!targetStat) {
+        return await sock.sendMessage(replyJid, { text: "❌ Statistique invalide. Choisis entre FOR, AGI, INT, DEF, LUK." });
+    }
+
+    if (player.skillPoints < points) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de SP. Il te manque ${points - player.skillPoints} SP.` });
+    }
+
+    if (points <= 0) {
+        return await sock.sendMessage(replyJid, { text: "❌ Le nombre de points doit être supérieur à 0." });
+    }
+
+    await player.decrement('skillPoints', { by: points });
+    await player.increment(targetStat, { by: points });
+    await player.reload();
+
+    const newVal = player[targetStat];
+    const statName = requestedStat.toUpperCase();
+
+    await sock.sendMessage(replyJid, { text: `✅ *Amélioration réussie !*\n\n${statName} : +${points} ➔ *${newVal}*\nSP restants : ${player.skillPoints}` });
 });
 
 // Command: /boutique
@@ -561,7 +620,7 @@ commands.set('god', async (sock, message, args) => {
     }
 
     if (!subCommand) {
-        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur] <stat> <valeur>\n/god give [@joueur] <item> <quantité>\n/god rank [@joueur] <rang>\n/god col [@joueur] <montant>\n/god max [@joueur] (met toutes les stats à 999)\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
+        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur] <stat> <valeur>\n/god give [@joueur] <item> <quantité>\n/god rank [@joueur] <rang>\n/god col [@joueur] <montant>\n/god pacte [@joueur] <entité>\n/god max [@joueur] (met toutes les stats à 999)\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
         return;
     }
 
@@ -600,6 +659,26 @@ commands.set('god', async (sock, message, args) => {
             if (!isNaN(amount)) {
                 await targetPlayer.increment('col', { by: amount });
                 await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${amount} Col de la part du créateur.` });
+            }
+            break;
+        case 'pacte':
+            const entityName = args.join(' ');
+            if (entityName) {
+                const entity = await Entity.findOne({ where: { name: { [Op.like]: `%${entityName}%` } } });
+                if (entity) {
+                    await targetPlayer.addEntity(entity);
+                    const bonuses = entity.pactBonus || {};
+                    for (const [stat, value] of Object.entries(bonuses)) {
+                        if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                            await targetPlayer.increment(stat, { by: value });
+                        }
+                    }
+                    await targetPlayer.save();
+                    await targetPlayer.reload();
+                    await sock.sendMessage(replyJid, { text: `🔥 *Pacte divin établi !* ${targetPlayer.name} est désormais lié à ${entity.name}.` });
+                } else {
+                    await sock.sendMessage(replyJid, { text: `❌ Entité "${entityName}" introuvable.` });
+                }
             }
             break;
         case 'max':
@@ -1011,6 +1090,7 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
+                   "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
                    "/action - Mode immersif (RP).\n" +
