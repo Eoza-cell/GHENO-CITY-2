@@ -947,10 +947,67 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
+                   "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/action - Mode immersif (RP).\n" +
                    "/menu - Menu principal.\n" +
                    "/help - Cette aide.";
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+// Command: /evenement
+commands.set('evenement', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent manipuler le destin." });
+        return;
+    }
+
+    const eventDesc = args.join(' ');
+    if (!eventDesc) {
+        await sock.sendMessage(replyJid, { text: "Utilise /evenement <description> pour introduire un monstre ou un événement." });
+        return;
+    }
+
+    await sock.sendMessage(replyJid, { text: "🌍 *Manipulation de la réalité en cours...*" });
+
+    const systemPrompt = `Tu es le MJ d'Arise. Un administrateur déclenche un événement spécial.
+LORE: Convergence, Éveil, Monstres, Entités.
+RÈGLES: Décris l'apparition brutale d'un monstre, d'une entité ou d'un événement environnemental.
+FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
+
+    const userPrompt = `LIEU: ${player.location}\nÉVÉNEMENT: ${eventDesc}`;
+
+    try {
+        const { callAI } = require('./ai-utils');
+        const content = await callAI(systemPrompt, userPrompt);
+        if (!content) throw new Error("IA muette");
+
+        let aiResponse = { narrative: "L'air crépite... quelque chose arrive." };
+        try {
+            const start = content.indexOf('{');
+            const end = content.lastIndexOf('}');
+            if (start !== -1 && end !== -1) {
+                aiResponse = JSON.parse(content.substring(start, end + 1));
+            }
+        } catch (e) {}
+
+        // Save event to history
+        await RPMessage.create({
+            senderJid: 'system',
+            senderName: 'Arise MJ',
+            content: aiResponse.narrative,
+            location: player.location
+        });
+
+        const { sendWithImage } = require('./message-handler');
+        await sendWithImage(sock, replyJid, aiResponse);
+    } catch (error) {
+        console.error("[CMD] Erreur /evenement:", error);
+        await sock.sendMessage(replyJid, { text: "La réalité a résisté à la modification." });
+    }
 });
 
 // Command: /action

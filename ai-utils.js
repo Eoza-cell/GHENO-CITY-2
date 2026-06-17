@@ -479,10 +479,10 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
@@ -492,10 +492,15 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     for (const provider of providers) {
         try {
-            console.log(`[AI] Tentative: ${provider.name}...`);
+            console.log(`[AI] Tentative: ${provider.name}... (depth: ${depth})`);
 
-            // Smart Fallback: if it's the 2nd attempt, use a simplified prompt
-            const activeSystem = depth > 0 ? "Tu es le MJ du RPG Aetherys. Réponds en JSON: {\"narrative\": \"...\", \"actions\": []}" : sanitizedSystem;
+            // Smart Fallback: if it's a retry, use a simplified prompt
+            let activeSystem = sanitizedSystem;
+            if (depth === 1) {
+                activeSystem = "Tu es le MJ du RPG Aetherys. Style Manhwa. Réponds au format JSON: {\"narrative\": \"...\", \"actions\": [], \"imagePrompt\": \"...\"}";
+            } else if (depth >= 2) {
+                activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
+            }
 
             const result = await provider.fn(activeSystem, sanitizedUser);
             if (isValidAIResponse(result)) {

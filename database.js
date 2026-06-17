@@ -582,6 +582,22 @@ async function setupDatabase() {
         await Entity.findOrCreate({ where: { name: entity.name }, defaults: entity });
     }
 
+    const monsterCount = await Monster.count();
+    if (monsterCount === 0) {
+        console.log('Seeding Monsters & Bosses...');
+        await Monster.bulkCreate([
+            { name: 'Loup d\'Ombre', rank: 'E', health: 50, strength: 12, defense: 5, agility: 15, xp_reward: 20, col_reward: 10 },
+            { name: 'Gobelin Éclaireur', rank: 'E', health: 40, strength: 10, defense: 4, agility: 12, xp_reward: 15, col_reward: 8 },
+            { name: 'Orque Guerrier', rank: 'D', health: 150, strength: 25, defense: 15, agility: 8, xp_reward: 80, col_reward: 50 },
+            { name: 'Spectre des Mines', rank: 'C', health: 200, strength: 35, defense: 25, agility: 30, xp_reward: 200, col_reward: 150 },
+            { name: 'Chimère de Sang', rank: 'B', health: 500, strength: 60, defense: 45, agility: 50, xp_reward: 600, col_reward: 400 },
+            { name: 'Dragon d\'Azur', rank: 'A', health: 2000, strength: 150, defense: 120, agility: 80, xp_reward: 5000, col_reward: 3000 },
+            { name: 'Le Roi Gobelin (BOSS)', rank: 'D', health: 400, strength: 40, defense: 30, agility: 20, xp_reward: 500, col_reward: 1000 },
+            { name: 'Vharos le Seigneur Liche (BOSS)', rank: 'A', health: 3000, strength: 200, defense: 150, agility: 100, xp_reward: 10000, col_reward: 5000 },
+            { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, xp_reward: 100000, col_reward: 50000 }
+        ]);
+    }
+
     const clubCount = await Club.count();
     if (clubCount === 0) {
         await Club.bulkCreate([

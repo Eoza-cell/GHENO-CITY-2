@@ -125,9 +125,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 LORE: Convergence (mana fusionné). Éveil (humains avec stats). Conflit Elion vs Vharos. Entités cherchent hôtes.
 RÈGLES:
 1. RÉACTIVITÉ ABSOLUE: Ne décris JAMAIS les actions/pensées du joueur. Réponds aux conséquences.
-2. RÉALISME: Joueur = citoyen ordinaire, pas de héros. Conséquences brutales.
-3. PNJ: Vifs, complexes, émotionnels (tics de langage, secrets).
-4. COMBAT(1/3): 33% touche direct si défense vague.
+2. COMBAT: Les monstres attaquent DIRECTEMENT et sans pitié. PvP: Si un joueur en attaque un autre, attends que les deux aient agi avant de conclure le tour.
+3. RÉALISME: Joueur = citoyen ordinaire. Conséquences brutales.
+4. PNJ: Vifs, complexes, émotionnels.
 5. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
    - imagePrompt: Description VISUELLE épique de la scène (Anime/Manhwa). OBLIGATOIRE à chaque tour.
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
