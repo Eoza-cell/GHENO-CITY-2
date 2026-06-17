@@ -110,7 +110,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? "Compétences:\n" + playerSkills.map(s => `- ${s.name}: ${s.description.substring(0, 40)}...`).join('\n')
     : "Aucune compétence.";
 
-  const kingdomState = "Monde: Empire d'Elion (Paix), Valkyrr (Trêve), Dominion Noir (Guerre).";
+  const kingdoms = await Kingdom.findAll({ limit: 12 });
+  const kingdomState = "Monde:\n" + kingdoms.map(k => `- ${k.name}: ${k.description} (Status: ${k.status}, Influence: ${k.influence})`).join('\n');
 
   // Context-aware NPCs
   const npcs = await NPC.findAll({
@@ -153,6 +154,11 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const systemPrompt = `
     Tu es le MJ de "Arise / Aetherys". RPG de type Manhwa/Anime (style Solo Leveling, SAO, Overlord).
+
+    HISTOIRE DU MONDE (LORE):
+    - L'Aube d'Aetherys : Le monde est né de la "Grande Convergence", un cataclysme dimensionnel qui a inondé la réalité de Mana pur.
+    - L'Ère de la Discorde : Des siècles de guerres entre l'Empire d'Elion (Ordre) et le Dominion Noir de Vharos (Chaos).
+    - L'Éveil (Aujourd'hui) : Des donjons apparaissent partout. Les Entités Primordiales (Célestes, Bestiales, Anciennes) se réveillent et cherchent des porteurs pour leurs Pacts. Le monde est à un tournant : renaissance ou destruction.
 
     STYLE NARRATIF & LOGIQUE:
     - Épique, réaliste et visuel. Style Manhwa/Seinen (type Solo Leveling).

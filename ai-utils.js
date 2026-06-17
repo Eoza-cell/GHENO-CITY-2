@@ -41,7 +41,7 @@ function isValidAIResponse(text) {
     if (!text || typeof text !== 'string') return false;
 
     const cleaned = text.trim();
-    if (cleaned.length < 10) return false;
+    if (cleaned.length < 5) return false;
 
     const lower = cleaned.toLowerCase();
     const errorMarkers = [
@@ -54,19 +54,25 @@ function isValidAIResponse(text) {
         'unauthorized',
         'rate limit',
         '401',
+        '404 not found',
         '429',
         'internal server error',
         'queue full',
         'too many requests',
         'invalid_request_error',
-        'insufficient_quota'
+        'insufficient_quota',
+        'bad gateway',
+        'service unavailable'
     ];
 
     // If it's a tiny response with an error marker, it's definitely an error
-    if (cleaned.length < 100 && errorMarkers.some(m => lower.includes(m))) return false;
+    if (cleaned.length < 150 && errorMarkers.some(m => lower.includes(m))) return false;
 
     // If it's just technical jargon without narrative content
     if (cleaned.startsWith('data: [DONE]') || cleaned === '[DONE]') return false;
+
+    // Check if it's an HTML error page
+    if (lower.includes('<!doctype html>') || lower.includes('<html>')) return false;
 
     return true;
 }
@@ -315,12 +321,18 @@ async function callPollinationsPOST(system, prompt) {
 
 async function callPollinationsGET(system, prompt) {
     try {
-        const fullPrompt = encodeURIComponent(`SYSTEM: ${system}\n\nUSER: ${prompt}`.substring(0, 1500));
+        console.log(`[AI] Pollinations GET - Tentative...`);
+        // Use a more concise prompt for GET to stay within URL limits
+        const miniPrompt = `MJ Aetherys. System: ${system.substring(0, 500)}. User: ${prompt}`.substring(0, 1000);
+        const fullPrompt = encodeURIComponent(miniPrompt);
         const seed = Math.floor(Math.random() * 1000000);
-        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}`;
+        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${encodeURIComponent("Tu es le MJ du RPG Aetherys. Réponds en JSON: {narrative: '...', actions: []}")}`;
         const resp = await axios.get(url, { timeout: 15000 });
         if (isValidAIResponse(resp.data)) return resp.data;
-    } catch (e) { return null; }
+    } catch (e) {
+        console.warn(`[AI] Pollinations GET Error:`, e.message);
+        return null;
+    }
     return null;
 }
 

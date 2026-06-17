@@ -487,40 +487,99 @@ async function setupDatabase() {
         ]);
     }
 
-    const kingdomCount = await Kingdom.count();
-    if (kingdomCount === 0) {
-        await Kingdom.bulkCreate([
-            { name: 'Empire Impérial d\'Elion', description: 'Puissant royaume central.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
-            { name: 'Dominion Noir de Vharos', description: 'Royaume de nécromancie.', status: 'war', influence: 60, militaryPower: 95, leader: 'Lich Lord Vharos' }
-        ]);
+    const kingdomsToSeed = [
+        { name: 'Empire Impérial d\'Elion', description: 'Puissant royaume central.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
+        { name: 'Dominion Noir de Vharos', description: 'Royaume de nécromancie.', status: 'war', influence: 60, militaryPower: 95, leader: 'Lich Lord Vharos' },
+        { name: 'Principauté de Valkyr', description: 'Centre technologique et magique d\'avant-garde.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen' },
+        { name: 'Ordre de la Rose d\'Argent', description: 'Chevalerie d\'élite protégeant les frontières.', status: 'peace', influence: 70, militaryPower: 85, leader: 'Grand Maître Alistair' },
+        { name: 'Syndicat de Gheno', description: 'Puissant cartel contrôlant l\'économie souterraine.', status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre' },
+        { name: 'Ligue des Explorateurs', description: 'Guilde dédiée à la découverte de reliques anciennes.', status: 'peace', influence: 50, militaryPower: 40, leader: 'Elena Drake' },
+        { name: 'Sanctuaire d\'Yggdrasil', description: 'Coalition de protecteurs de la nature et des esprits.', status: 'peace', influence: 60, militaryPower: 50, leader: 'Dryade Elara' },
+        { name: 'Coalition de Forgefer', description: 'Union de forgerons et de marchands d\'armes.', status: 'peace', influence: 75, militaryPower: 65, leader: 'Thrain Cœur-de-Enclume' },
+        { name: 'Cité Flottante de Laputa', description: 'Refuge secret pour les mages les plus érudits.', status: 'neutral', influence: 85, militaryPower: 80, leader: 'Conseil des Sept' },
+        { name: 'Inquisition de la Lumière', description: 'Groupe religieux traquant les déviances magiques.', status: 'peace', influence: 65, militaryPower: 75, leader: 'Inquisiteur Malakai' },
+        { name: 'Clan des Crocs de Fer', description: 'Alliance de tribus guerrières nomades.', status: 'war', influence: 40, militaryPower: 90, leader: 'Gromm le Sanguinaire' },
+        { name: 'Archive Éternelle', description: 'Institution neutre gardienne de l\'histoire du monde.', status: 'neutral', influence: 95, militaryPower: 30, leader: 'Le Conservateur' }
+    ];
+    for (const k of kingdomsToSeed) {
+        await Kingdom.findOrCreate({ where: { name: k.name }, defaults: k });
     }
 
-    const npcCount = await NPC.count();
-    if (npcCount === 0) {
-        await NPC.bulkCreate([
-            { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Mage légendaire, gardien du Savoir Interdit.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Magie Dimensionnelle' },
-            { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, héritière d\'une lignée de duellistes.', location: 'Lux Aeterna', powerLevel: 92, specialty: 'Vitesse de pointe' },
-            { name: 'Général Kael', role: 'Commandant d\'Elion', description: 'Vétéran des guerres contre le Dominion Noir.', location: 'Cœur de l\'Empire', powerLevel: 95, specialty: 'Tactique et Force' },
-            { name: 'Lumière d\'Aetherys', role: 'Héraut Céleste', description: 'Une entité pure sous forme humaine.', location: 'Temple Céleste', powerLevel: 99, specialty: 'Purification' }
-        ]);
+    const npcsToSeed = [
+        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Mage légendaire, gardien du Savoir Interdit.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Magie Dimensionnelle' },
+        { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, héritière d\'une lignée de duellistes.', location: 'Lux Aeterna', powerLevel: 92, specialty: 'Vitesse de pointe' },
+        { name: 'Général Kael', role: 'Commandant d\'Elion', description: 'Vétéran des guerres contre le Dominion Noir.', location: 'Cœur de l\'Empire', powerLevel: 95, specialty: 'Tactique et Force' },
+        { name: 'Lumière d\'Aetherys', role: 'Héraut Céleste', description: 'Une entité pure sous forme humaine.', location: 'Temple Céleste', powerLevel: 99, specialty: 'Purification' },
+        { name: 'Archimage Kaelen', role: 'Souverain de Valkyr', description: 'Visionnaire alliant magie et technologie.', location: 'Valkyr', powerLevel: 94, specialty: 'Technomancie' },
+        { name: 'Grand Maître Alistair', role: 'Chef de la Rose d\'Argent', description: 'Chevalier d\'une droiture inflexible.', location: 'Citadelle d\'Argent', powerLevel: 90, specialty: 'Escrime Sacrée' },
+        { name: 'L\'Ombre', role: 'Maître du Syndicat', description: 'Nul ne connaît son visage, mais tous craignent son influence.', location: 'Bas-fonds de Gheno', powerLevel: 88, specialty: 'Assassinat et Espionnage' },
+        { name: 'Elena Drake', role: 'Maîtresse de la Ligue', description: 'Exploratrice intrépide assoiffée de découvertes.', location: 'Hall des Explorateurs', powerLevel: 85, specialty: 'Archéologie Magique' },
+        { name: 'Dryade Elara', role: 'Gardienne d\'Yggdrasil', description: 'Communie directement avec l\'arbre monde.', location: 'Forêt Éternelle', powerLevel: 93, specialty: 'Magie Naturelle' },
+        { name: 'Thrain Cœur-de-Enclume', role: 'Doyen de Forgefer', description: 'Le plus grand forgeron vivant.', location: 'Forge Centrale', powerLevel: 82, specialty: 'Métallurgie Divine' },
+        { name: 'Malakai l\'Inquisiteur', role: 'Héraut de la Lumière', description: 'Traque sans relâche les "corrompus".', location: 'Grand Temple', powerLevel: 91, specialty: 'Magie de Purge' },
+        { name: 'Gromm le Sanguinaire', role: 'Seigneur de Guerre', description: 'Un colosse ne vivant que pour la bataille.', location: 'Terres Sauvages', powerLevel: 92, specialty: 'Berserker' },
+        { name: 'Le Conservateur', role: 'Gardien de l\'Archive', description: 'Une entité qui semble exister hors du temps.', location: 'L\'Archive Éternelle', powerLevel: 97, specialty: 'Omniscience' }
+    ];
+    for (const npc of npcsToSeed) {
+        await NPC.findOrCreate({ where: { name: npc.name }, defaults: npc });
     }
 
-    const entityCount = await Entity.count();
-    if (entityCount === 0) {
-        await Entity.bulkCreate([
-            {
-                name: 'Ignis le Phénix', type: 'bestial', description: 'Le souverain des flammes éternelles.',
-                power: 'Contrôle absolu du feu.', pactBonus: { strength: 20, intelligence: 10 }
-            },
-            {
-                name: 'Aeria la Céleste', type: 'celestial', description: 'La protectrice des cieux de cristal.',
-                power: 'Manipulation des courants d\'air et soins.', pactBonus: { agility: 20, luck: 15 }
-            },
-            {
-                name: 'Valthar l\'Ancien', type: 'ancient', description: 'Un titan de pierre oublié.',
-                power: 'Résistance physique inébranlable.', pactBonus: { defense: 30, strength: 5 }
-            }
-        ]);
+    const entitiesToSeed = [
+        {
+            name: 'Ignis le Phénix', type: 'bestial', description: 'Le souverain des flammes éternelles.',
+            power: 'Contrôle absolu du feu.', pactBonus: { strength: 20, intelligence: 10 }
+        },
+        {
+            name: 'Aeria la Céleste', type: 'celestial', description: 'La protectrice des cieux de cristal.',
+            power: 'Manipulation des courants d\'air et soins.', pactBonus: { agility: 20, luck: 15 }
+        },
+        {
+            name: 'Valthar l\'Ancien', type: 'ancient', description: 'Un titan de pierre oublié.',
+            power: 'Résistance physique inébranlable.', pactBonus: { defense: 30, strength: 5 }
+        },
+        {
+            name: 'Umbra, le Voile Nocturne', type: 'ancient', description: 'Entité née de l\'absence de lumière.',
+            power: 'Dissimulation parfaite et ombres tranchantes.', pactBonus: { agility: 25, intelligence: 5 }
+        },
+        {
+            name: 'Solariel, le Flambeau Céleste', type: 'celestial', description: 'Archange de pur éclat, symbole de justice.',
+            power: 'Lumière purificatrice et jugement divin.', pactBonus: { intelligence: 20, defense: 10 }
+        },
+        {
+            name: 'Krakos l\'Indomptable', type: 'bestial', description: 'Léviathan des abysses, force brute des océans.',
+            power: 'Contrôle des marées et force colossale.', pactBonus: { strength: 30, defense: 5 }
+        },
+        {
+            name: 'Chronos, l\'Horloger du Destin', type: 'ancient', description: 'Gardien des flux temporels.',
+            power: 'Manipulation mineure du temps et prémonition.', pactBonus: { luck: 30, agility: 10 }
+        },
+        {
+            name: 'Gaia, le Cœur du Monde', type: 'ancient', description: 'L\'esprit de la terre et des racines profondes.',
+            power: 'Géokinésie et régénération vitale.', pactBonus: { defense: 35, strength: 5 }
+        },
+        {
+            name: 'Sylphi, la Muse des Brises', type: 'bestial', description: 'Esprit féérique de l\'air et de la liberté.',
+            power: 'Vol et contrôle des vents.', pactBonus: { agility: 30, luck: 10 }
+        },
+        {
+            name: 'Obsidius, le Forgeur de Mondes', type: 'ancient', description: 'Géant de magma vivant dans les volcans.',
+            power: 'Forge magique et contrôle de la lave.', pactBonus: { strength: 25, defense: 15 }
+        },
+        {
+            name: "Lunaris, l'Astre d'Argent", type: 'celestial', description: 'Déesse de la lune et des secrets nocturnes.',
+            power: 'Illusions lunaires et clairvoyance.', pactBonus: { intelligence: 30, luck: 15 }
+        },
+        {
+            name: 'Venomys, le Roi des Vipères', type: 'bestial', description: 'Serpent colossal au poison corrosif.',
+            power: 'Toxicité absolue et morsure mortelle.', pactBonus: { agility: 25, strength: 10 }
+        },
+        {
+            name: 'Aetherius, le Gardien du Vide', type: 'celestial', description: 'Entité abstraite régnant sur le mana pur.',
+            power: 'Absorption et projection de mana brut.', pactBonus: { intelligence: 40 }
+        }
+    ];
+    for (const entity of entitiesToSeed) {
+        await Entity.findOrCreate({ where: { name: entity.name }, defaults: entity });
     }
 
     const clubCount = await Club.count();
