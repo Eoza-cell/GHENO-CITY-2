@@ -38,10 +38,6 @@ async function handleFreeAction(sock, message, player, actionText) {
   const triggerAI = actionText.toLowerCase().trim() === 'next';
 
   if (!triggerAI) {
-      // In private chat, we can give a small feedback or just stay silent
-      if (!isGroup) {
-          await sock.sendMessage(jid, { text: "📝 _Message enregistré. Envoie *Next* pour déclencher la réponse du MJ._" });
-      }
       return;
   }
 
@@ -68,13 +64,10 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
 
   if (recentActions.length === 0) {
-      await sock.sendMessage(jid, { text: "🧐 _Aucune action nouvelle à traiter. Décris ce que tu fais avant de demander la suite._" });
       return;
   }
 
   const aggregatedActions = recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n');
-
-  await sock.sendMessage(jid, { text: "⏳ *Le MJ réfléchit...*" });
 
   const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Col:${player.col} | Lieu:${player.location} | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
@@ -144,8 +137,7 @@ HÉRITIERS: Les joueurs sont des Héritiers éveillant l'Essence Primordiale alo
 MISSIONS HISTORIQUES: Si un joueur lance une quête 'historic', il est téléporté dans le PASSÉ (Faille Temporelle). Le MJ doit décrire ce saut temporel et l'environnement historique précis.
 GUIDE DE COMBAT RP & NARRATION (OBLIGATOIRE):
 1. FRANÇAIS TERRE-À-TERRE: Narration directe, efficace, sans fioritures inutiles.
-2. IMMOBILITÉ: Si un joueur n'a pas posé d'action explicite dans le flux, il reste immobile (proie facile).
-3. PRÉCISION ANATOMIQUE: Membre (latéralité) et zone exacte visée obligatoires.
+2. PRÉCISION ANATOMIQUE: Membre (latéralité) et zone exacte visée obligatoires.
 4. MONSTRES: Affiche toujours leurs PV restants dans la narration (ex: [Gbelin: 12/40 PV]).
 5. NEUTRALITÉ & RÉALISME: Les blessures impactent les stats. Logique > Préférence joueur.
 6. STYLE: Équilibre Humour (absurde/anime) et Sérieux (mortel).
