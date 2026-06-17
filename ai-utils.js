@@ -245,11 +245,44 @@ async function callBlackbox(system, prompt) {
     return null;
 }
 
+async function callPollinationsGen(system, prompt) {
+    const key = process.env.POLLINATIONS_API_KEY;
+    if (!key) return null;
+
+    const models = ['openai', 'mistral', 'llama', 'unity'];
+    for (const model of models) {
+        try {
+            console.log(`[AI] Pollinations Gen (Keyed) - Tentative avec ${model}...`);
+            const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
+                model: model,
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ],
+                response_format: { type: "json_object" }
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 25000
+            });
+
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] Pollinations Gen Error (${model}):`, e.response?.data || e.message);
+            continue;
+        }
+    }
+    return null;
+}
+
 async function callPollinationsPOST(system, prompt) {
     const models = ['openai', 'mistral', 'llama', 'unity'];
     for (const model of models) {
         try {
-            console.log(`[AI] Pollinations POST - Tentative avec ${model}...`);
+            console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
             const resp = await axios.post("https://text.pollinations.ai/", {
                 messages: [
                     { role: "system", content: system + "\nIMPORTANT: Tu DOIS répondre au format JSON avec les clés 'narrative' et 'actions'." },
@@ -422,7 +455,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     const providers = [
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'Pollinations POST', fn: callPollinationsPOST },
+        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
+        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
