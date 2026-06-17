@@ -223,30 +223,45 @@ async function callOpenRouter(system, prompt) {
 }
 
 async function callBlackbox(system, prompt) {
-    try {
-        console.log(`[AI] Blackbox - Tentative...`);
-        const resp = await axios.post("https://www.blackbox.ai/api/chat", {
-            messages: [{ role: "user", content: `SYSTEM: ${system}\n\nUSER: ${prompt}` }],
-            model: "deepseek-v3",
-            agentMode: {},
-            trendingAgentMode: {},
-            userSelectedModel: "deepseek-v3",
-            clickedContinue: false,
-            previewToken: null,
-            codeModelMode: true
-        }, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.blackbox.ai/',
-                'Origin': 'https://www.blackbox.ai/',
-                'Content-Type': 'application/json'
-            },
-            timeout: 25000
-        });
-        const result = parseSSEResponse(resp.data);
-        if (isValidAIResponse(result)) return result;
-    } catch (e) {
-        console.warn(`[AI] Blackbox error: ${e.message}`);
+    const models = ["deepseek-v3", "llama-3.1-70b", "gpt-4o"];
+    for (const model of models) {
+        try {
+            console.log(`[AI] Blackbox - Tentative avec ${model}...`);
+            const resp = await axios.post("https://www.blackbox.ai/api/chat", {
+                messages: [
+                    { role: "user", content: `SYSTEM: ${system}\n\nUSER_ACTION: ${prompt}\n\nIMPORTANT: Réponds uniquement en JSON valide.` }
+                ],
+                model: model,
+                agentMode: {},
+                trendingAgentMode: {},
+                userSelectedModel: model,
+                clickedContinue: false,
+                previewToken: null,
+                codeModelMode: true
+            }, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.blackbox.ai/',
+                    'Origin': 'https://www.blackbox.ai/',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'x-blackbox-device-id': Math.random().toString(36).substring(2, 15)
+                },
+                timeout: 40000
+            });
+
+            let result = "";
+            if (typeof resp.data === 'string') {
+                result = parseSSEResponse(resp.data);
+            } else {
+                result = resp.data.text || resp.data.content || JSON.stringify(resp.data);
+            }
+
+            if (isValidAIResponse(result)) return result;
+        } catch (e) {
+            console.warn(`[AI] Blackbox error (${model}): ${e.message}`);
+            continue;
+        }
     }
     return null;
 }
@@ -285,34 +300,32 @@ async function callPollinationsGen(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'unity'];
+    const models = ['openai', 'mistral', 'llama', 'unity', 'p1'];
     for (const model of models) {
         try {
             console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
             const resp = await axios.post("https://text.pollinations.ai/", {
                 messages: [
-                    { role: "system", content: system + "\nIMPORTANT: Tu DOIS répondre au format JSON avec les clés 'narrative' et 'actions'." },
+                    { role: "system", content: system + "\nTu DOIS répondre au format JSON." },
                     { role: "user", content: prompt }
                 ],
                 model: model,
                 jsonMode: true,
-                seed: Math.floor(Math.random() * 1000000)
+                seed: Math.floor(Math.random() * 1000000),
+                cache: false
             }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 25000
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Arise-Bot/3.0)'
+                },
+                timeout: 35000
             });
 
-            let resText = "";
-            if (typeof resp.data === 'object') {
-                // Pollinations might return the JSON directly in data or as a string
-                resText = resp.data.narrative ? JSON.stringify(resp.data) : (resp.data.content || JSON.stringify(resp.data));
-            } else {
-                resText = resp.data;
-            }
-
+            let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
             if (isValidAIResponse(resText)) return resText;
         } catch (e) {
             console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
+            await new Promise(r => setTimeout(r, 1500));
             continue;
         }
     }
@@ -323,10 +336,13 @@ async function callPollinationsGET(system, prompt) {
     try {
         console.log(`[AI] Pollinations GET - Tentative...`);
         // Use a more concise prompt for GET to stay within URL limits
-        const miniPrompt = `MJ Aetherys. System: ${system.substring(0, 500)}. User: ${prompt}`.substring(0, 1000);
+        // Pollinations GET supports /prompt?model=...&seed=...&system=...
+        const miniPrompt = `Action Joueur: ${prompt.substring(prompt.length - 800)}`;
         const fullPrompt = encodeURIComponent(miniPrompt);
+        const systemEncoded = encodeURIComponent(system.substring(0, 800));
         const seed = Math.floor(Math.random() * 1000000);
-        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${encodeURIComponent("Tu es le MJ du RPG Aetherys. Réponds en JSON: {narrative: '...', actions: []}")}`;
+        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}`;
+
         const resp = await axios.get(url, { timeout: 15000 });
         if (isValidAIResponse(resp.data)) return resp.data;
     } catch (e) {
@@ -426,26 +442,21 @@ async function callLMStudio(system, prompt) {
 function callMJFallback(prompt) {
     console.log("[AI] Utilisation du MJ Fallback Local.");
 
-    // Extract player name and action if possible
-    let name = "Aventurier";
-    const nameMatch = prompt.match(/- Nom: ([^\n]+)/);
-    if (nameMatch) name = nameMatch[1].trim();
-
     let action = "ton action";
-    const actionMatch = prompt.match(/### ACTION DU JOUEUR[^#]*###\n([\s\S]*)$/);
+    const actionMatch = prompt.match(/ACTION: (.*)$/);
     if (actionMatch) action = actionMatch[1].trim();
 
     const responses = [
-        `Tu t'efforces de réaliser "${action}", mais une étrange brume semble ralentir tes mouvements. Tu réussis malgré tout l'essentiel, bien que les conséquences précises restent floues.`,
+        `Tu t'efforces de réaliser "${action}", mais une étrange brume semble ralentir tes mouvements. Tu réussis l'essentiel, bien que les conséquences précises restent floues.`,
         `Le destin semble incertain alors que tu tentes "${action}". L'énergie ambiante crépite mais ne se stabilise pas. Tu agis avec prudence.`,
-        `"${action}" est accompli. Tu sens le poids de tes décisions peser sur l'air ambiant, même si le monde autour de toi reste étrangement silencieux pour l'instant.`,
-        `Alors que tu effectues "${action}", tu as l'impression d'être observé par une entité lointaine. Ton geste est précis, mais le flux magique est trop instable pour une conclusion spectaculaire.`
+        `"${action}" est accompli. Tu sens le poids de tes décisions peser sur l'air ambiant, même si le monde reste étrangement silencieux.`,
+        `Alors que tu effectues "${action}", tu as l'impression d'être observé. Ton geste est précis, mais le flux magique est trop instable.`
     ];
 
     const narrative = responses[Math.floor(Math.random() * responses.length)];
 
     return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}`,
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._`,
         actions: []
     });
 }
@@ -456,30 +467,33 @@ function callMJFallback(prompt) {
 async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 2) return null;
 
-    // Sanitize prompts
-    const sanitizedSystem = systemPrompt.length > 7000 ? systemPrompt.substring(0, 7000) : systemPrompt;
+    // Sanitize prompts - aggressively for free providers
+    const sanitizedSystem = systemPrompt.length > 3000 ? systemPrompt.substring(0, 3000) : systemPrompt;
     let sanitizedUser = userPrompt;
-    if (userPrompt.length > 5000) {
-        // Keep the very beginning and the very end (most recent action)
-        sanitizedUser = userPrompt.substring(0, 1500) + "\n... [TRUNCATED MIDDLE] ...\n" + userPrompt.substring(userPrompt.length - 3000);
+    if (userPrompt.length > 2000) {
+        sanitizedUser = userPrompt.substring(0, 500) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 1200);
     }
 
     const providers = [
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'Pollinations GET', fn: callPollinationsGET }
+        { name: 'OpenRouter', fn: callOpenRouter }
     ];
 
     for (const provider of providers) {
         try {
             console.log(`[AI] Tentative: ${provider.name}...`);
-            const result = await provider.fn(sanitizedSystem, sanitizedUser);
+
+            // Smart Fallback: if it's the 2nd attempt, use a simplified prompt
+            const activeSystem = depth > 0 ? "Tu es le MJ du RPG Aetherys. Réponds en JSON: {\"narrative\": \"...\", \"actions\": []}" : sanitizedSystem;
+
+            const result = await provider.fn(activeSystem, sanitizedUser);
             if (isValidAIResponse(result)) {
                 console.log(`[AI] ✅ Succès avec ${provider.name}`);
                 // Verify the result is not just a technical JSON dump without narrative
