@@ -29,7 +29,7 @@ const Player = sequelize.define('Player', {
     allowNull: true,
   },
   registrationStep: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 0,
   },
   skill: {
