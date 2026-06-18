@@ -101,14 +101,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   const items = await Item.findAll({ limit: 3 });
   const shopState = "Shop: " + items.map(i => `${i.name}(${i.price})`).join(', ');
 
-  // Fetch small history (previous MJ responses) for context
+  // Fetch robust history (last 10 messages in the location) for memory
   const history = await RPMessage.findAll({
-      where: { location: player.location, senderName: 'Arise MJ' },
+      where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 3
+      limit: 10
   });
   const historyState = history.length > 0
-    ? "RAPPEL_MJ:\n" + history.reverse().map(h => h.content).join('\n---\n')
+    ? "MÉMOIRE_RÉCENTE:\n" + history.reverse().map(h => `[${h.senderName}]: ${h.content}`).join('\n')
     : "";
 
   const playerSkills = await player.getSkills();
@@ -156,12 +156,12 @@ GUIDE DE COMBAT RP & NARRATION (OBLIGATOIRE):
 9. STATUS & TECHNIQUES: [HP -12 | 88/100], [MP -5 | 45/50], [TECHNIQUE: Nom].
 RÈGLES:
 1. DIALOGUE: Les PNJ doivent parler FRÉQUEMMENT. Utilise des dialogues vivants, avec des tics de langage et des émotions fortes.
-2. RÉACTIVITÉ: Ne décris JAMAIS les pensées/actions futures du joueur.
-3. MULTI-JOUEURS: Ne mentionne ou ne lie les Héritiers que s'ils INTERAGISSENT directement. S'ils font des actions séparées, traite-les séparément sans forcer de lien.
+2. RÉACTIVITÉ & IMMOBILITÉ: Ne décris JAMAIS les pensées, paroles ou actions d'un joueur qui n'a pas posté d'action dans le bloc actuel. Un joueur absent des 'ACTIONS_JOUEURS' est considéré comme strictement IMMOBILE.
+3. LOGIQUE & MÉMOIRE: Analyse scrupuleusement l'historique et les statistiques. Maintiens une cohérence absolue entre les faits passés et la narration actuelle. Ne confonds jamais un Joueur (Héritier) avec un PNJ.
 4. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
 NARRATION: Français moderne et dynamique, synthèse manga. CONCISION ABSOLUE (Max 2 paragraphes). Évite le bla-bla inutile. Focus sur les impacts techniques.
-PROFONDEUR NARRATIVE: Les PNJ doivent avoir des motivations secrètes, des émotions palpables et un passé qui influence leurs paroles. Ne sois pas juste un distributeur de quêtes. Crée du drama, de la tension et de l'intérêt. Chaque interaction doit donner envie d'en savoir plus.
+PROFONDEUR NARRATIVE & LOGIQUE: Les PNJ doivent avoir des motivations secrètes, des émotions palpables et un passé qui influence leurs paroles. Ne sois pas juste un distributeur de quêtes. Crée du drama, de la tension et de l'intérêt. Chaque interaction doit être logiquement liée aux événements précédents.
 NOTE: Si un joueur passe un examen, demande-lui d'écrire explicitement ses réponses (ex: "J'écris sur l'examen : [réponses]").`;
 
     const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
