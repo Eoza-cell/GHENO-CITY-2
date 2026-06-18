@@ -1363,8 +1363,40 @@ commands.set('help', async (sock, message) => {
                    "/lore <topic> - Consulter la bibliothèque.\n" +
                    "/action - Mode immersif (RP).\n" +
                    "/menu - Menu principal.\n" +
+                   "/reset - Réinitialiser ton personnage.\n" +
                    "/help - Cette aide.";
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+// Command: /reset
+commands.set('reset', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de personnage à réinitialiser." });
+        return;
+    }
+
+    if (args[0] !== 'confirm') {
+        await sock.sendMessage(replyJid, { text: "⚠️ *ATTENTION* ⚠️\n\nCette action supprimera définitivement ton personnage, tes statistiques, ton inventaire et ta progression.\n\nPour confirmer, tape : `/reset confirm`" });
+        return;
+    }
+
+    try {
+        // We delete the player. Associations like Bank might need manual cleanup if not cascading.
+        await Bank.destroy({ where: { PlayerWhatsappId: jid } });
+        // PlayerQuest and PlayerSkill should be handled by sequelize if constraints are right,
+        // but often in SQLite/Manual sync we might need to be careful.
+        // However, destroying the player is the core.
+        await player.destroy();
+
+        await sock.sendMessage(replyJid, { text: "💥 *Personnage réinitialisé.* Ta présence a été effacée de la matrice d'Aetherys. Utilise `/start` pour renaître." });
+    } catch (error) {
+        console.error("Erreur reset personnage:", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la réinitialisation de ton personnage." });
+    }
 });
 
 // Command: /evenement
