@@ -97,6 +97,14 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
   });
   const socialState = nearbyPlayers.length > 0 ? "Proches: " + nearbyPlayers.map(p => `${p.name}(Niv ${p.level})`).join(', ') : "Seul";
+
+  const recentPlayers = await Player.findAll({
+      where: { whatsappId: { [Op.ne]: player.whatsappId } },
+      order: [['lastActivity', 'DESC']],
+      limit: 5
+  });
+  const worldSocialState = "Rumeurs mondiales (Joueurs actifs): " + recentPlayers.map(p => `${p.name} (Vu à ${p.location})`).join(', ');
+
   const items = await Item.findAll({ limit: 3 });
   const shopState = "Shop: " + items.map(i => `${i.name}(${i.price})`).join(', ');
 
@@ -137,8 +145,8 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `MJ "Arise/Aetheris". Univers Modern-Fantasy (Villes modernes, technologie, mana). Style Anime Japonais (Ecchi léger, Humour absurde, Sérieux dramatique, Combat technique).
-AMBIANCE: L'aventure doit être CHILL et relaxante. Favorise les moments de vie quotidienne, les interactions sociales apaisantes et la découverte contemplative du monde.
+  const systemPrompt = `MJ "Arise/Aetheris". Univers Modern-Fantasy (Villes modernes, technologie, mana). Style Anime Japonais (Humour absurde, Fan Service, Ecchi, Cool, Action).
+AMBIANCE: L'aventure doit être DRÔLE, AMUSANTE et COOL. Mise sur le FAN SERVICE et le ECCHI (situations suggestives, poses manga, charme).
 LORE: Humains protégés par Célestes / craintifs des Bestiaux. Néanthea (civilisation déchue, Roi Aldren) a découvert l'Interstice (monde brisé entre vie/mort, temps instable, Roi Vide endormi). Nécropolis (Monde des Morts, Orpheon juge les âmes).
 L'ACADÉMIE: L'Académie Impériale ressemble strictement à un Lycée Japonais (uniformes, clubs, respect des aînés/Senpai, toits accessibles, festivals scolaires, ambiance lycéenne).
 MAGIE: Les joueurs peuvent UNIQUEMENT utiliser les techniques magiques/skills qu'ils ont explicitement appris (voir liste Skills). Sans skill appris, ils sont limités à de minuscules sorts élémentaires très faibles (ex: petite boule de feu, filet d'eau).
@@ -154,17 +162,18 @@ GUIDE DE COMBAT RP & NARRATION (OBLIGATOIRE):
 8. EXEMPLE RÉACTION: "Grâce à sa vitesse supérieure (AGI:30), le Loup pivote brutalement, évitant le coup de poing qui n'arrache que quelques poils. Il bondit immédiatement pour planter ses crocs dans l'avant-bras droit du joueur."
 9. STATUS & TECHNIQUES: [HP -12 | 88/100], [MP -5 | 45/50], [TECHNIQUE: Nom].
 RÈGLES:
-1. DIALOGUE: Les PNJ doivent parler FRÉQUEMMENT. Utilise des dialogues vivants, avec des tics de langage et des émotions fortes.
+1. DIALOGUE: Les PNJ doivent parler FRÉQUEMMENT. Utilise des dialogues vivants, avec des tics de langage et des émotions fortes. PERSONNAGES FORTS: Donne-leur du caractère, des opinions tranchées et des réactions mémorables.
 2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR): Ne décris JAMAIS les pensées, paroles ou actions d'un joueur. Un joueur sans action est IMMOBILE. Tu ne contrôles PAS les mouvements des joueurs. Tes phrases doivent commencer par les conséquences directes de leurs actions passées.
-3. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Décris l'ambiance, les odeurs, les sons, et la tension. Maintiens une cohérence absolue avec l'univers et les statistiques. Le joueur est une PERSONNE ORDINAIRE, pas un héros.
-4. LOGIQUE & MÉMOIRE: Analyse scrupuleusement l'historique. Ne confonds jamais un Joueur avec un PNJ.
+3. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Décris l'ambiance, les odeurs, les sons, et la tension. Le joueur est une PERSONNE ORDINAIRE, pas un héros.
+4. MÉMOIRE SOCIALE: Les PNJ se souviennent des autres joueurs qu'ils ont croisés. Ils peuvent parler d'eux, lancer des rumeurs ou comparer le joueur actuel aux autres ("Tiens, un autre comme ${socialState.includes('Proches') ? 'tes amis' : 'ceux qui sont passés ici'}...").
+5. LOGIQUE & MÉMOIRE: Analyse scrupuleusement l'historique. Ne confonds jamais un Joueur avec un PNJ.
 5. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
 NARRATION: Français moderne et dynamique, synthèse manga. CONCISION ABSOLUE (Max 2 paragraphes). Évite le bla-bla inutile. Focus sur les impacts techniques.
 PROFONDEUR NARRATIVE & LOGIQUE: Les PNJ doivent avoir des motivations secrètes, des émotions palpables et un passé qui influence leurs paroles. Ne sois pas juste un distributeur de quêtes. Crée du drama, de la tension et de l'intérêt. Chaque interaction doit être logiquement liée aux événements précédents.
 NOTE: Si un joueur passe un examen, demande-lui d'écrire explicitement ses réponses (ex: "J'écris sur l'examen : [réponses]").`;
 
-    const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
+    const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
