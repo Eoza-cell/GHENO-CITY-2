@@ -382,6 +382,15 @@ const Duel = sequelize.define('Duel', {
     location: { type: DataTypes.STRING }
 });
 
+const TournamentParticipant = sequelize.define('TournamentParticipant', {
+    playerJid: { type: DataTypes.STRING, primaryKey: true },
+    playerName: { type: DataTypes.STRING },
+    rank: { type: DataTypes.STRING },
+    status: { type: DataTypes.STRING, defaultValue: 'registered' }, // 'registered', 'qualified', 'eliminated', 'winner'
+    opponentJid: { type: DataTypes.STRING, allowNull: true },
+    round: { type: DataTypes.INTEGER, defaultValue: 1 }
+});
+
 const House = sequelize.define('House', {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     name: { type: DataTypes.STRING },
@@ -415,6 +424,7 @@ const Monster = sequelize.define('Monster', {
     strength: { type: DataTypes.INTEGER },
     defense: { type: DataTypes.INTEGER },
     agility: { type: DataTypes.INTEGER },
+    intelligence: { type: DataTypes.INTEGER, defaultValue: 10 },
     xp_reward: { type: DataTypes.INTEGER },
     col_reward: { type: DataTypes.INTEGER },
     imageUrl: { type: DataTypes.STRING, allowNull: true }
@@ -692,16 +702,32 @@ async function setupDatabase() {
     if (monsterCount === 0) {
         console.log('Seeding Monsters & Bosses...');
         await Monster.bulkCreate([
-            { name: 'Loup d\'Ombre', rank: 'E', health: 50, strength: 12, defense: 5, agility: 15, xp_reward: 20, col_reward: 10 },
-            { name: 'Gobelin Éclaireur', rank: 'E', health: 40, strength: 10, defense: 4, agility: 12, xp_reward: 15, col_reward: 8 },
-            { name: 'Orque Guerrier', rank: 'D', health: 150, strength: 25, defense: 15, agility: 8, xp_reward: 80, col_reward: 50 },
-            { name: 'Spectre des Mines', rank: 'C', health: 200, strength: 35, defense: 25, agility: 30, xp_reward: 200, col_reward: 150 },
-            { name: 'Chimère de Sang', rank: 'B', health: 500, strength: 60, defense: 45, agility: 50, xp_reward: 600, col_reward: 400 },
-            { name: 'Dragon d\'Azur', rank: 'A', health: 2000, strength: 150, defense: 120, agility: 80, xp_reward: 5000, col_reward: 3000 },
-            { name: 'Le Roi Gobelin (BOSS)', rank: 'D', health: 400, strength: 40, defense: 30, agility: 20, xp_reward: 500, col_reward: 1000 },
-            { name: 'Vharos le Seigneur Liche (BOSS)', rank: 'A', health: 3000, strength: 200, defense: 150, agility: 100, xp_reward: 10000, col_reward: 5000 },
-            { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, xp_reward: 100000, col_reward: 50000 }
+            { name: 'Loup d\'Ombre', rank: 'E', health: 50, strength: 12, defense: 5, agility: 15, intelligence: 10, xp_reward: 20, col_reward: 10 },
+            { name: 'Gobelin Éclaireur', rank: 'E', health: 40, strength: 10, defense: 4, agility: 12, intelligence: 8, xp_reward: 15, col_reward: 8 },
+            { name: 'Orque Guerrier', rank: 'D', health: 150, strength: 25, defense: 15, agility: 8, intelligence: 12, xp_reward: 80, col_reward: 50 },
+            { name: 'Spectre des Mines', rank: 'C', health: 200, strength: 35, defense: 25, agility: 30, intelligence: 20, xp_reward: 200, col_reward: 150 },
+            { name: 'Chimère de Sang', rank: 'B', health: 500, strength: 60, defense: 45, agility: 50, intelligence: 25, xp_reward: 600, col_reward: 400 },
+            { name: 'Dragon d\'Azur', rank: 'A', health: 2000, strength: 150, defense: 120, agility: 80, intelligence: 60, xp_reward: 5000, col_reward: 3000 },
+            { name: 'Le Roi Gobelin (BOSS)', rank: 'D', health: 400, strength: 40, defense: 30, agility: 20, intelligence: 35, xp_reward: 500, col_reward: 1000 },
+            { name: 'Vharos le Seigneur Liche (BOSS)', rank: 'A', health: 3000, strength: 200, defense: 150, agility: 100, intelligence: 95, xp_reward: 10000, col_reward: 5000 },
+            { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, intelligence: 150, xp_reward: 100000, col_reward: 50000 }
         ]);
+    } else {
+        // Update existing monsters to ensure intelligence is set
+        const monsters = [
+            { name: 'Loup d\'Ombre', intelligence: 10 },
+            { name: 'Gobelin Éclaireur', intelligence: 8 },
+            { name: 'Orque Guerrier', intelligence: 12 },
+            { name: 'Spectre des Mines', intelligence: 20 },
+            { name: 'Chimère de Sang', intelligence: 25 },
+            { name: 'Dragon d\'Azur', intelligence: 60 },
+            { name: 'Le Roi Gobelin (BOSS)', intelligence: 35 },
+            { name: 'Vharos le Seigneur Liche (BOSS)', intelligence: 95 },
+            { name: 'L\'Ombre du Néant (BOSS FINAL)', intelligence: 150 }
+        ];
+        for (const m of monsters) {
+            await Monster.update({ intelligence: m.intelligence }, { where: { name: m.name } });
+        }
     }
 
     const clubCount = await Club.count();
@@ -773,6 +799,6 @@ async function setupDatabase() {
 
 module.exports = {
   sequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, Entity, Pact, Club, PlayerClub, House,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
   setupDatabase,
 };

@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -886,14 +886,93 @@ commands.set('god', async (sock, message, args) => {
 // Command: /tournoi
 commands.set('tournoi', async (sock, message) => {
     const replyJid = message.key.remoteJid;
+    const participants = await TournamentParticipant.findAll();
 
     let text = "--- 🏆 GRAND TOURNOI D'AETHERYS --- \n\n";
-    text += "Le Tournoi Inter-Écoles a lieu une fois par an (chaque mois réel).\n\n";
-    text += "⚔️ *Format:* Duels 1v1 par rangs.\n";
-    text += "🎁 *Récompenses:* Équipement légendaire, Col, et titres de noblesse.\n\n";
-    text += "_Les inscriptions s'ouvriront bientôt auprès du Directeur de ton école._";
+    text += "Le Tournoi Inter-Écoles a lieu une fois par an.\n\n";
+    text += `👥 *Inscrits:* ${participants.length}\n`;
+    text += "⚔️ *Format:* Duels 1v1 par rangs.\n\n";
+
+    if (participants.length > 0) {
+        text += "*Participants Actuels:*\n";
+        participants.forEach(p => {
+            text += `├ ${p.playerName} (Rang ${p.rank}) - ${p.status}\n`;
+        });
+        text += "\n";
+    }
+
+    text += "🎁 *Récompenses:* Équipement légendaire, Col.\n\n";
+    text += "👉 Utilise `/inscription_tournoi` pour participer !\n";
+    text += "_Le tirage au sort sera effectué par les Administrateurs._";
 
     await sock.sendMessage(replyJid, { text: text });
+});
+
+commands.set('inscription_tournoi', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    const existing = await TournamentParticipant.findByPk(jid);
+    if (existing) {
+        return await sock.sendMessage(replyJid, { text: "❌ Tu es déjà inscrit au tournoi." });
+    }
+
+    await TournamentParticipant.create({
+        playerJid: jid,
+        playerName: player.name,
+        rank: player.rank
+    });
+
+    await sock.sendMessage(replyJid, { text: `✅ *Inscription réussie !* Bonne chance pour le tournoi, ${player.name}.` });
+});
+
+commands.set('tirage_tournoi', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        return await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent lancer le tirage." });
+    }
+
+    let participants = await TournamentParticipant.findAll({ where: { status: 'registered' } });
+
+    if (participants.length === 0) {
+        return await sock.sendMessage(replyJid, { text: "Aucun participant inscrit pour le moment." });
+    }
+
+    // Ensure even number by adding NPC
+    if (participants.length % 2 !== 0) {
+        const npcNames = ["Kaelith l'Invocatrice", "Guerrier d'Élite d'Elion", "Apprenti de Nécropolis", "Gardien du Vide"];
+        const npcName = npcNames[Math.floor(Math.random() * npcNames.length)];
+        const newNpc = await TournamentParticipant.create({
+            playerJid: `npc_${Date.now()}`,
+            playerName: `[PNJ] ${npcName}`,
+            rank: 'B',
+            status: 'registered'
+        });
+        participants.push(newNpc);
+    }
+
+    // Shuffle
+    participants = participants.sort(() => Math.random() - 0.5);
+
+    let drawText = "--- ⚔️ TIRAGE AU SORT DU TOURNOI --- \n\n";
+    for (let i = 0; i < participants.length; i += 2) {
+        const p1 = participants[i];
+        const p2 = participants[i+1];
+
+        await p1.update({ opponentJid: p2.playerJid, status: 'qualified' });
+        await p2.update({ opponentJid: p1.playerJid, status: 'qualified' });
+
+        drawText += `🔥 Match ${Math.floor(i/2) + 1} :\n*${p1.playerName}*  VS  *${p2.playerName}*\n\n`;
+    }
+
+    drawText += "_Les duels peuvent commencer via /action !_";
+    await sock.sendMessage(replyJid, { text: drawText });
 });
 
 // Command: /conflits
@@ -1415,7 +1494,7 @@ commands.set('menu', async (sock, message) => {
                    "🏠 `/maison` - Gérer ton domicile.\n" +
                    "🔥 `/pacts` - Pactes avec les entités.\n" +
                    "📚 `/lore` - Bibliothèque du monde.\n" +
-                   "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
+                   "🏆 `/tournoi` - Inscription & État du Tournoi.\n" +
                    "❓ `/help` - Guide de survie.";
 
   try {
