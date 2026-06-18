@@ -2,8 +2,9 @@
   "name": "app",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "gheno-city.js",
   "scripts": {
+    "start": "node gheno-city.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -20,7 +21,12 @@
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "body-parser": "^2.3.0",
+    "express": "^5.2.1",
+    "pg": "^8.21.0",
+    "pg-hstore": "^2.3.4",
     "pino": "^10.1.0",
+    "qrcode": "^1.5.4",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
   }

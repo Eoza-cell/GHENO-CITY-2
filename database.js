@@ -1,19 +1,40 @@
 const { Sequelize, DataTypes } = require('sequelize');
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: 'gheno-city.sqlite',
-  logging: false,
-});
+const databaseUrl = process.env.DATABASE_URL;
+
+const sequelize = databaseUrl
+  ? new Sequelize(databaseUrl, {
+      dialect: 'postgres',
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      },
+      logging: false,
+    })
+  : new Sequelize({
+      dialect: 'sqlite',
+      storage: 'gheno-city.sqlite',
+      logging: false,
+    });
 
 const Player = sequelize.define('Player', {
   whatsappId: {
     type: DataTypes.STRING,
     primaryKey: true,
   },
-  name: {
+  characterName: {
     type: DataTypes.STRING,
-    defaultValue: 'New Gangster',
+    allowNull: true,
+  },
+  registrationStep: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  skill: {
+    type: DataTypes.TEXT,
+    allowNull: true,
   },
   level: {
     type: DataTypes.INTEGER,
@@ -26,14 +47,6 @@ const Player = sequelize.define('Player', {
   money: {
     type: DataTypes.INTEGER,
     defaultValue: 100,
-  },
-  chapter: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1,
-  },
-  quest: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1,
   },
   inventory: {
     type: DataTypes.TEXT,
@@ -50,68 +63,7 @@ const Player = sequelize.define('Player', {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
   },
-  lastInactiveMessageSentAt: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  },
-  hasMoneyBag: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false,
-  },
-  location: {
-    type: DataTypes.STRING,
-    defaultValue: 'Little Sicily',
-  },
-  drivingVehicleId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-  mode: {
-    type: DataTypes.STRING,
-    defaultValue: 'normal', // Can be 'normal' or 'action'
-  },
 });
-
-const Vehicle = sequelize.define('Vehicle', {
-  name: {
-    type: DataTypes.STRING,
-    unique: true,
-  },
-  acceleration: { // Speed gained per second
-    type: DataTypes.FLOAT,
-    defaultValue: 5,
-  },
-  topSpeed: {
-    type: DataTypes.INTEGER,
-    defaultValue: 100,
-  },
-  handling: { // Represents inertia, lower is better
-    type: DataTypes.FLOAT,
-    defaultValue: 1.0,
-  },
-  price: {
-    type: DataTypes.INTEGER,
-    defaultValue: 10000,
-  },
-});
-
-const PlayerVehicle = sequelize.define('PlayerVehicle', {
-  damage: {
-    type: DataTypes.FLOAT,
-    defaultValue: 0,
-  },
-  currentSpeed: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
-  },
-});
-
-// Relationships
-Player.hasMany(PlayerVehicle);
-PlayerVehicle.belongsTo(Player);
-
-Vehicle.hasMany(PlayerVehicle);
-PlayerVehicle.belongsTo(Vehicle);
 
 async function setupDatabase() {
   try {
@@ -119,17 +71,6 @@ async function setupDatabase() {
     console.log('Connection to the database has been established successfully.');
     await sequelize.sync({ alter: true });
     console.log('Database synchronized.');
-
-    // Seed vehicles if the table is empty
-    const vehicleCount = await Vehicle.count();
-    if (vehicleCount === 0) {
-      await Vehicle.bulkCreate([
-        { name: 'Old Sedan', acceleration: 8, topSpeed: 120, handling: 1.2, price: 5000 },
-        { name: 'Sports Coupe', acceleration: 15, topSpeed: 200, handling: 0.8, price: 25000 },
-        { name: 'Heavy Truck', acceleration: 4, topSpeed: 90, handling: 1.8, price: 15000 },
-      ]);
-      console.log('Vehicle database seeded.');
-    }
   } catch (error) {
     console.error('Unable to connect to the database:', error);
   }
@@ -138,7 +79,5 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   Player,
-  Vehicle,
-  PlayerVehicle,
   setupDatabase,
 };
