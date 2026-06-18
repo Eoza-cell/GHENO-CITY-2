@@ -305,7 +305,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             Le joueur est un ${player.class} (${player.derivative}), métier: ${player.occupation}.
             Stats: FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}.
 
-            STYLE: Narratif technique, immersif, style anime/manhwa. Pas de texte en anglais. PAS de parenthèses.
+            STYLE: Français moderne, dynamique et naturel. Narratif technique, immersif, style anime/manhwa. Pas de texte en anglais. PAS de parenthèses.
             LONGUEUR: 1-2 paragraphes MAX. Sois EXTRÊMEMENT concis.
 
             RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
