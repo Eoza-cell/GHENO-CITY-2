@@ -9,7 +9,6 @@ const { checkLevelUp } = require('./level-utils');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const isGroup = jid.endsWith('@g.us');
 
   // Logic: Always save the message first (Non-blocking to avoid stalling)
   RPMessage.create({
@@ -156,9 +155,10 @@ GUIDE DE COMBAT RP & NARRATION (OBLIGATOIRE):
 9. STATUS & TECHNIQUES: [HP -12 | 88/100], [MP -5 | 45/50], [TECHNIQUE: Nom].
 RÈGLES:
 1. DIALOGUE: Les PNJ doivent parler FRÉQUEMMENT. Utilise des dialogues vivants, avec des tics de langage et des émotions fortes.
-2. RÉACTIVITÉ & IMMOBILITÉ: Ne décris JAMAIS les pensées, paroles ou actions d'un joueur qui n'a pas posté d'action dans le bloc actuel. Un joueur absent des 'ACTIONS_JOUEURS' est considéré comme strictement IMMOBILE.
-3. LOGIQUE & MÉMOIRE: Analyse scrupuleusement l'historique et les statistiques. Maintiens une cohérence absolue entre les faits passés et la narration actuelle. Ne confonds jamais un Joueur (Héritier) avec un PNJ.
-4. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR): Ne décris JAMAIS les pensées, paroles ou actions d'un joueur. Un joueur sans action est IMMOBILE. Tu ne contrôles PAS les mouvements des joueurs. Tes phrases doivent commencer par les conséquences directes de leurs actions passées.
+3. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Décris l'ambiance, les odeurs, les sons, et la tension. Maintiens une cohérence absolue avec l'univers et les statistiques. Le joueur est une PERSONNE ORDINAIRE, pas un héros.
+4. LOGIQUE & MÉMOIRE: Analyse scrupuleusement l'historique. Ne confonds jamais un Joueur avec un PNJ.
+5. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
 NARRATION: Français moderne et dynamique, synthèse manga. CONCISION ABSOLUE (Max 2 paragraphes). Évite le bla-bla inutile. Focus sur les impacts techniques.
 PROFONDEUR NARRATIVE & LOGIQUE: Les PNJ doivent avoir des motivations secrètes, des émotions palpables et un passé qui influence leurs paroles. Ne sois pas juste un distributeur de quêtes. Crée du drama, de la tension et de l'intérêt. Chaque interaction doit être logiquement liée aux événements précédents.

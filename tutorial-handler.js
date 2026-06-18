@@ -310,9 +310,10 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
             RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
             1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé ou un protagoniste spécial. C'est une personne lambda qui doit lutter pour survivre. Ne sois pas indulgent.
-            2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR) : N'invente JAMAIS d'actions futures, de pensées ou de mouvements pour le joueur. Un joueur sans action est IMMOBILE. Tes phrases DOIVENT commencer par les conséquences directes de l'action du joueur.
-            3. ADHÉRENCE STRICTE : Respecte la logique physique. Si le joueur est faible, il ne peut pas faire de miracles.
-            4. PNJ EXCELLENTS & IMPACTANTS : L'Instructeur est impitoyable, vivant, et a une personnalité forte (ex: grognon, finit ses phrases par "...tocard !"). Ses réactions ont un impact sur le moral du joueur.
+            2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR) : Ne décris JAMAIS les pensées, paroles ou actions d'un joueur. Un joueur sans action est IMMOBILE. Tu ne contrôles PAS les mouvements des joueurs. Tes phrases DOIVENT commencer par les conséquences directes de l'action passée du joueur.
+            3. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Décris l'ambiance, la tension du combat, et la fatigue physique.
+            4. ADHÉRENCE STRICTE : Respecte la logique physique. Si le joueur est faible, il ne peut pas faire de miracles.
+            5. PNJ EXCELLENTS & IMPACTANTS : L'Instructeur est impitoyable, vivant, et a une personnalité forte (ex: grognon, finit ses phrases par "...tocard !"). Ses réactions ont un impact sur le moral du joueur.
             5. IMPACT SOCIAL : Mentionne brièvement comment son métier ou son influence pourrait l'aider ou le desservir si la situation était réelle.
             6. LIBERTÉ : Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
             7. COMBAT (1/3 vs 2/3) :
