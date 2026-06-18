@@ -441,7 +441,7 @@ commands.set('recuperer', async (sock, message, args) => {
 });
 
 // Command: /vetements
-commands.set('vetements', async (sock, message) => {
+const vetementsCommand = async (sock, message) => {
     const replyJid = message.key.remoteJid;
     const items = await Item.findAll({ where: { type: 'clothing' } });
 
@@ -467,7 +467,9 @@ commands.set('vetements', async (sock, message) => {
     if (text.length > 30) {
         await sock.sendMessage(replyJid, { text });
     }
-});
+};
+commands.set('vetements', vetementsCommand);
+commands.set('vêtements', vetementsCommand);
 
 // Command: /top
 commands.set('top', async (sock, message) => {

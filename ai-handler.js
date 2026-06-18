@@ -156,6 +156,7 @@ RÈGLES:
 4. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
 NARRATION: Français terre-à-terre, synthèse manga. CONCISION ABSOLUE (Max 2 paragraphes). Évite le bla-bla inutile. Focus sur les impacts techniques.
+PROFONDEUR NARRATIVE: Les PNJ doivent avoir des motivations secrètes, des émotions palpables et un passé qui influence leurs paroles. Ne sois pas juste un distributeur de quêtes. Crée du drama, de la tension et de l'intérêt. Chaque interaction doit donner envie d'en savoir plus.
 NOTE: Si un joueur passe un examen, demande-lui d'écrire explicitement ses réponses (ex: "J'écris sur l'examen : [réponses]").`;
 
     const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;

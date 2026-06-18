@@ -737,6 +737,6 @@ async function setupDatabase() {
 
 module.exports = {
   sequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, Entity, Pact, Club, PlayerClub,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, Entity, Pact, Club, PlayerClub, House,
   setupDatabase,
 };
