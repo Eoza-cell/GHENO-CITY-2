@@ -338,7 +338,8 @@ const NPC = sequelize.define('NPC', {
     description: { type: DataTypes.TEXT },
     location: { type: DataTypes.STRING },
     powerLevel: { type: DataTypes.INTEGER, defaultValue: 50 },
-    specialty: { type: DataTypes.STRING }
+    specialty: { type: DataTypes.STRING },
+    imageUrl: { type: DataTypes.STRING, allowNull: true }
 });
 
 const Entity = sequelize.define('Entity', {
@@ -505,6 +506,36 @@ async function setupDatabase() {
                 slot: 'weapon',
                 statBonuses: { strength: 50, intelligence: 30, agility: 20 },
                 imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4e/Excalibur.png'
+            },
+            {
+                name: 'Manteau de l\'Exilé',
+                description: 'Un long manteau en cuir sombre, idéal pour la discrétion.',
+                price: 800,
+                type: 'clothing',
+                rarity: 'rare',
+                slot: 'chest',
+                statBonuses: { agility: 8, luck: 3 },
+                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_060.jpg'
+            },
+            {
+                name: 'Robe d\'Enchanteur Lunaire',
+                description: 'Tissée avec des fils d\'argent qui brillent sous la lune.',
+                price: 2500,
+                type: 'clothing',
+                rarity: 'epic',
+                slot: 'chest',
+                statBonuses: { intelligence: 15, mana: 100 },
+                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_122.jpg'
+            },
+            {
+                name: 'Armure de Plate d\'Orgueil',
+                description: 'Une armure étincelante imposante.',
+                price: 3000,
+                type: 'clothing',
+                rarity: 'rare',
+                slot: 'chest',
+                statBonuses: { defense: 20, strength: 5 },
+                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_210.jpg'
             }
         ];
 
@@ -570,24 +601,29 @@ async function setupDatabase() {
     }
 
     const npcsToSeed = [
-        { name: 'Aldren', role: 'Roi de Néanthea', description: 'Souverain déchu ayant ouvert les portes de l\'Interstice.', location: 'Interstice', powerLevel: 100, specialty: 'Essence Primordiale' },
-        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gouverneur mystérieux de Nécropolis.', location: 'Nécropolis', powerLevel: 99, specialty: 'Jugement Mortuaire' },
-        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Mage légendaire, gardien du Savoir Interdit.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Magie Dimensionnelle' },
-        { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, héritière d\'une lignée de duellistes.', location: 'Lux Aeterna', powerLevel: 92, specialty: 'Vitesse de pointe' },
-        { name: 'Général Kael', role: 'Commandant d\'Elion', description: 'Vétéran des guerres contre le Dominion Noir.', location: 'Cœur de l\'Empire', powerLevel: 95, specialty: 'Tactique et Force' },
-        { name: 'Lumière d\'Aetherys', role: 'Héraut Céleste', description: 'Une entité pure sous forme humaine.', location: 'Temple Céleste', powerLevel: 99, specialty: 'Purification' },
-        { name: 'Archimage Kaelen', role: 'Souverain de Valkyr', description: 'Visionnaire alliant magie et technologie.', location: 'Valkyr', powerLevel: 94, specialty: 'Technomancie' },
-        { name: 'Grand Maître Alistair', role: 'Chef de la Rose d\'Argent', description: 'Chevalier d\'une droiture inflexible.', location: 'Citadelle d\'Argent', powerLevel: 90, specialty: 'Escrime Sacrée' },
-        { name: 'L\'Ombre', role: 'Maître du Syndicat', description: 'Nul ne connaît son visage, mais tous craignent son influence.', location: 'Bas-fonds de Gheno', powerLevel: 88, specialty: 'Assassinat et Espionnage' },
-        { name: 'Elena Drake', role: 'Maîtresse de la Ligue', description: 'Exploratrice intrépide assoiffée de découvertes.', location: 'Hall des Explorateurs', powerLevel: 85, specialty: 'Archéologie Magique' },
-        { name: 'Dryade Elara', role: 'Gardienne d\'Yggdrasil', description: 'Communie directement avec l\'arbre monde.', location: 'Forêt Éternelle', powerLevel: 93, specialty: 'Magie Naturelle' },
-        { name: 'Thrain Cœur-de-Enclume', role: 'Doyen de Forgefer', description: 'Le plus grand forgeron vivant.', location: 'Forge Centrale', powerLevel: 82, specialty: 'Métallurgie Divine' },
-        { name: 'Malakai l\'Inquisiteur', role: 'Héraut de la Lumière', description: 'Traque sans relâche les "corrompus".', location: 'Grand Temple', powerLevel: 91, specialty: 'Magie de Purge' },
-        { name: 'Gromm le Sanguinaire', role: 'Seigneur de Guerre', description: 'Un colosse ne vivant que pour la bataille.', location: 'Terres Sauvages', powerLevel: 92, specialty: 'Berserker' },
-        { name: 'Le Conservateur', role: 'Gardien de l\'Archive', description: 'Une entité qui semble exister hors du temps.', location: 'L\'Archive Éternelle', powerLevel: 97, specialty: 'Omniscience' }
+        { name: 'Aldren', role: 'Roi de Néanthea', description: 'Souverain déchu ayant ouvert les portes de l\'Interstice.', location: 'Interstice', powerLevel: 100, specialty: 'Essence Primordiale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20fallen%20king%20Aldren%20of%20Neanthea,%20void%20armor,%20majestic%20but%20broken?model=flux-anime' },
+        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gouverneur mystérieux de Nécropolis.', location: 'Nécropolis', powerLevel: 99, specialty: 'Jugement Mortuaire', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20judge%20of%20souls%20Orpheon,%20Necropolis,%20cloak%20of%20shadows?model=flux-anime' },
+        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Mage légendaire, gardien du Savoir Interdit.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Magie Dimensionnelle', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Director%20Magnus,%20Imperial%20Academy,%20blue%20robes?model=flux-anime' },
+        { name: 'Asuna', role: 'L\'Éclair', description: 'Sous-chef des Chevaliers du Sang, héritière d\'une lignée de duellistes.', location: 'Lux Aeterna', powerLevel: 92, specialty: 'Vitesse de pointe', imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/8d/Asuna_Ordinal_Scale.png' },
+        { name: 'Général Kael', role: 'Commandant d\'Elion', description: 'Vétéran des guerres contre le Dominion Noir.', location: 'Cœur de l\'Empire', powerLevel: 95, specialty: 'Tactique et Force', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20battle-hardened%20general%20Kael,%20golden%20armor,%20stern%20look?model=flux-anime' },
+        { name: 'Lumière d\'Aetherys', role: 'Héraut Céleste', description: 'Une entité pure sous forme humaine.', location: 'Temple Céleste', powerLevel: 99, specialty: 'Purification', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20divine%20herald%20Light%20of%20Aetherys,%20glowing%20white%20wings,%20ethereal?model=flux-anime' },
+        { name: 'Archimage Kaelen', role: 'Souverain de Valkyr', description: 'Visionnaire alliant magie et technologie.', location: 'Valkyr', powerLevel: 94, specialty: 'Technomancie', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20magical%20engineer%20Archmage%20Kaelen,%20steampunk%20elements,%20Valkyr?model=flux-anime' },
+        { name: 'Grand Maître Alistair', role: 'Chef de la Rose d\'Argent', description: 'Chevalier d\'une droiture inflexible.', location: 'Citadelle d\'Argent', powerLevel: 90, specialty: 'Escrime Sacrée', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20noble%20knight%20Alistair,%20Silver%20Rose%20armor,%20claymore?model=flux-anime' },
+        { name: 'L\'Ombre', role: 'Maître du Syndicat', description: 'Nul ne connaît son visage, mais tous craignent son influence.', location: 'Bas-fonds de Gheno', powerLevel: 88, specialty: 'Assassinat et Espionnage', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20masked%20assassin%20The%20Shadow,%20rogue%20attire,%20daggers?model=flux-anime' },
+        { name: 'Elena Drake', role: 'Maîtresse de la Ligue', description: 'Exploratrice intrépide assoiffée de découvertes.', location: 'Hall des Explorateurs', powerLevel: 85, specialty: 'Archéologie Magique', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20adventurer%20Elena%20Drake,%20explorer%20hat,%20magical%20artifact?model=flux-anime' },
+        { name: 'Dryade Elara', role: 'Gardienne d\'Yggdrasil', description: 'Communie directement avec l\'arbre monde.', location: 'Forêt Éternelle', powerLevel: 93, specialty: 'Magie Naturelle', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20forest%20spirit%20Dryad%20Elara,%20green%20hair,%20vine%20dress?model=flux-anime' },
+        { name: 'Thrain Cœur-de-Enclume', role: 'Doyen de Forgefer', description: 'Le plus grand forgeron vivant.', location: 'Forge Centrale', powerLevel: 82, specialty: 'Métallurgie Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stout%20dwarf%20blacksmith%20Thrain,%20glowing%20forge,%20giant%20hammer?model=flux-anime' },
+        { name: 'Malakai l\'Inquisiteur', role: 'Héraut de la Lumière', description: 'Traque sans relâche les "corrompus".', location: 'Grand Temple', powerLevel: 91, specialty: 'Magie de Purge', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20scary%20inquisitor%20Malakai,%20white%20and%20red%20robes,%20burning%20cross?model=flux-anime' },
+        { name: 'Gromm le Sanguinaire', role: 'Seigneur de Guerre', description: 'Un colosse ne vivant que pour la bataille.', location: 'Terres Sauvages', powerLevel: 92, specialty: 'Berserker', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20giant%20orc%20warrior%20Gromm,%20savage%20axes,%20bloodstained?model=flux-anime' },
+        { name: 'Le Conservateur', role: 'Gardien de l\'Archive', description: 'Une entité qui semble exister hors du temps.', location: 'L\'Archive Éternelle', powerLevel: 97, specialty: 'Omniscience', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20cosmic%20librarian%20The%20Curator,%20floating%20books,%20nebula%20skin?model=flux-anime' }
     ];
     for (const npc of npcsToSeed) {
-        await NPC.findOrCreate({ where: { name: npc.name }, defaults: npc });
+        await NPC.findOrCreate({
+            where: { name: npc.name },
+            defaults: npc
+        });
+        // Also update existing ones to add imageUrl if they were already seeded
+        await NPC.update({ imageUrl: npc.imageUrl }, { where: { name: npc.name } });
     }
 
     const entitiesToSeed = [

@@ -1,6 +1,7 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster, Entity, Club, Pact } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
+const { generate3DVisual } = require('./three-renderer');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
@@ -227,6 +228,18 @@ NOTE: Si un joueur passe un examen, demande-lui d'écrire explicitement ses rép
 
     // Ensure narrative is clean
     aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
+
+    // 3D Trigger Logic: If AI mentions "3D", "scan", or "hologramme"
+    if (aiResponse.narrative.match(/3D|scan|hologramme/i) && !aiResponse.imagePrompt) {
+        const types = ['cube', 'sphere', 'pyramid'];
+        const type = types.find(t => aiResponse.narrative.toLowerCase().includes(t)) || 'cube';
+        try {
+            const threePath = await generate3DVisual(type, 0x00ffff);
+            aiResponse.imagePrompt = threePath;
+        } catch (e) {
+            console.error("[3D] Error:", e);
+        }
+    }
 
     if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
         aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";

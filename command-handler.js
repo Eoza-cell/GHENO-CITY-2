@@ -1195,7 +1195,7 @@ commands.set('lore', async (sock, message, args) => {
 
     if (!loreData) {
         const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
-        if (npc) { loreData = { title: npc.name, content: npc.description, type: 'NPC' }; }
+        if (npc) { loreData = { title: npc.name, content: npc.description, type: 'NPC', imageUrl: npc.imageUrl }; }
     }
 
     if (!loreData) {
@@ -1226,7 +1226,7 @@ commands.set('lore', async (sock, message, args) => {
     }
 
     try {
-        const posterPath = await generateLorePoster(loreData.title, loreData.content, loreData.type);
+        const posterPath = await generateLorePoster(loreData.title, loreData.content, loreData.type, loreData.imageUrl);
         await sock.sendMessage(replyJid, {
             image: { url: posterPath },
             caption: `📚 *Archives d'Aetherys : ${loreData.title}*\n\n${loreData.content}`

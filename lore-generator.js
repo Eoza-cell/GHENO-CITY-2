@@ -1,11 +1,12 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 
 /**
  * Generate a beautiful lore poster using Sharp and SVG.
  */
-async function generateLorePoster(title, content, type = 'LORE') {
+async function generateLorePoster(title, content, type = 'LORE', imageUrl = null) {
     const width = 800;
     const height = 1200;
 
@@ -14,9 +15,20 @@ async function generateLorePoster(title, content, type = 'LORE') {
         'LORE': '#1a1a1a',
         'ENTITY': '#1a0d00',
         'NPC': '#001a1a',
-        'KINGDOM': '#1a001a'
+        'KINGDOM': '#1a001a',
+        'HISTORY': '#1a1a00'
     };
     const bgColor = colors[type] || '#1a1a1a';
+
+    let imageBuffer = null;
+    if (imageUrl) {
+        try {
+            const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 });
+            imageBuffer = await sharp(Buffer.from(response.data)).resize(width - 100, 450, { fit: 'cover' }).toBuffer();
+        } catch (e) {
+            console.error("[LORE] Failed to fetch image:", e.message);
+        }
+    }
 
     // SVG Overlay
     const svg = `
@@ -42,8 +54,8 @@ async function generateLorePoster(title, content, type = 'LORE') {
         <text x="50%" y="230" font-family="Arial" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">${type}</text>
 
         <!-- Content -->
-        <foreignObject x="80" y="300" width="${width - 160}" height="${height - 400}">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #ffffff; font-family: 'Georgia', serif; font-size: 24px; line-height: 1.6; text-align: justify;">
+        <foreignObject x="80" y="${imageBuffer ? 750 : 300}" width="${width - 160}" height="${imageBuffer ? height - 850 : height - 400}">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #ffffff; font-family: 'Georgia', serif; font-size: 22px; line-height: 1.5; text-align: justify;">
                 ${content.split('\n').map(line => `<p>${line}</p>`).join('')}
             </div>
         </foreignObject>
@@ -60,6 +72,12 @@ async function generateLorePoster(title, content, type = 'LORE') {
         fs.mkdirSync(path.join(__dirname, 'assets'));
     }
 
+    const composites = [];
+    if (imageBuffer) {
+        composites.push({ input: imageBuffer, top: 250, left: 50 });
+    }
+    composites.push({ input: Buffer.from(svg), top: 0, left: 0 });
+
     await sharp({
         create: {
             width: width,
@@ -68,11 +86,7 @@ async function generateLorePoster(title, content, type = 'LORE') {
             background: { r: 0, g: 0, b: 0, alpha: 1 }
         }
     })
-    .composite([{
-        input: Buffer.from(svg),
-        top: 0,
-        left: 0
-    }])
+    .composite(composites)
     .png()
     .toFile(outputPath);
 
