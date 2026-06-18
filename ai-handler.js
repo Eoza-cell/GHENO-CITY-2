@@ -10,13 +10,13 @@ async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
   const isGroup = jid.endsWith('@g.us');
 
-  // Logic: Always save the message first
-  await RPMessage.create({
+  // Logic: Always save the message first (Non-blocking to avoid stalling)
+  RPMessage.create({
       senderJid: player.whatsappId,
       senderName: player.name,
       content: actionText,
       location: player.location
-  });
+  }).catch(e => console.error("[DB] RPMessage log error:", e.message));
 
   // Automatic Visual: Detect writing on paper
   const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter)(?:\s+sur\s+(?:du\s+)?papier|\s+une\s+note|\s+une\s+lettre|\s+l'examen)\s*:\s*([\s\S]+)/i);
@@ -38,6 +38,12 @@ async function handleFreeAction(sock, message, player, actionText) {
   const triggerAI = actionText.toLowerCase().trim() === 'next';
 
   if (!triggerAI) {
+      // Suggesting 'next' if they seem to be roleplaying but not triggering
+      const roleplayKeywords = ['frappe', 'donne', 'regarde', 'va', 'entre', 'prend', 'utilise', 'lance'];
+      if (roleplayKeywords.some(k => actionText.toLowerCase().includes(k)) && actionText.length > 5) {
+          // We don't send a message every time to avoid spam, but we log the hint.
+          console.log(`[RP] Action reçue de ${player.name}, en attente de "next".`);
+      }
       return;
   }
 
@@ -232,13 +238,13 @@ NOTE: Si un joueur passe un examen, demande-lui d'écrire explicitement ses rép
         aiResponse.narrative = "Il ne se passe rien de spécial.";
     }
 
-    // Save bot response to memory
-    await RPMessage.create({
+    // Save bot response to memory (Non-blocking)
+    RPMessage.create({
         senderJid: 'bot',
         senderName: 'Arise MJ',
         content: aiResponse.narrative,
         location: player.location
-    });
+    }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
 
     // Collected quest feedback lines appended to the narrative after the loop.
     const questFeedback = [];

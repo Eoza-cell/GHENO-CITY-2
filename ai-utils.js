@@ -389,14 +389,18 @@ async function callOllama(system, prompt) {
             ],
             stream: false,
             options: {
-                temperature: 0.7
+                temperature: 0.7,
+                num_predict: 1024,
+                num_ctx: 4096,
+                top_p: 0.9,
+                repeat_penalty: 1.1
             }
         };
 
         // Enable structured output for local instances
         if (!isCloud) {
             payload.format = 'json';
-            payload.options.temperature = 0;
+            payload.options.temperature = 0.2; // Slightly above 0 for narrative creativity while maintaining JSON structure
         }
 
         // Use official SDK with a race for timeout logic
@@ -492,6 +496,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     for (const provider of providers) {
         try {
+            const providerStart = Date.now();
             console.log(`[AI] Tentative: ${provider.name}... (depth: ${depth})`);
 
             // Smart Fallback: if it's a retry, use a simplified prompt
@@ -503,8 +508,10 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
             }
 
             const result = await provider.fn(activeSystem, sanitizedUser);
+            const providerDuration = (Date.now() - providerStart) / 1000;
+
             if (isValidAIResponse(result)) {
-                console.log(`[AI] ✅ Succès avec ${provider.name}`);
+                console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration}s`);
                 // Verify the result is not just a technical JSON dump without narrative
                 if (result.trim().startsWith('{')) {
                     try {

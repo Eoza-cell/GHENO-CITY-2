@@ -24,9 +24,10 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
 
-async function connectToWhatsApp() {
-  await setupDatabase();
+// Initialisation de la queue pour gérer la charge
+const messageQueue = new PQueue({ concurrency: 5 });
 
+async function connectToWhatsApp() {
   // Assure que le dossier des profils existe
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
       fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
@@ -102,9 +103,6 @@ async function connectToWhatsApp() {
     console.log('[AUTH] Session synchronisée avec la base de données.');
   });
 
-  // Initialisation de la queue pour gérer la charge
-  const messageQueue = new PQueue({ concurrency: 5 });
-
   sock.ev.on('messages.upsert', async (m) => {
     for (const message of m.messages) {
         messageQueue.add(async () => {
@@ -166,4 +164,6 @@ async function connectToWhatsApp() {
   });
 }
 
-connectToWhatsApp();
+setupDatabase().then(() => {
+    connectToWhatsApp();
+});

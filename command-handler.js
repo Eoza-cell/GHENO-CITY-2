@@ -27,6 +27,14 @@ function getJid(message) {
 
 const commands = new Map();
 
+// Command: /ping
+commands.set('ping', async (sock, message) => {
+    const start = Date.now();
+    await sock.sendMessage(message.key.remoteJid, { text: "🏓 *Pong !*" });
+    const latency = Date.now() - start;
+    console.log(`[DIAG] Ping latency: ${latency}ms`);
+});
+
 // Command: /start
 commands.set('start', async (sock, message) => {
   const jid = getJid(message);

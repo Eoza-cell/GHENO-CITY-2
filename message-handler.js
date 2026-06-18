@@ -158,7 +158,8 @@ async function sendWithImage(sock, jid, aiResponse) {
             if (imagePrompt.startsWith('http')) {
                 const response = await axios.get(imagePrompt, {
                     responseType: 'arraybuffer',
-                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                    timeout: 15000
                 });
                 const imageBuffer = Buffer.from(response.data, 'binary');
                 await sock.sendMessage(jid, { image: imageBuffer, caption: narrative, mimetype: 'image/jpeg' });
