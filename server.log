@@ -1,0 +1,10 @@
+
+> app@1.0.0 start
+> node gheno-city.js
+
+[11:38:16 AM] Serveur web démarré sur http://localhost:3000
+Connection to the database has been established successfully.
+Database synchronized.
+[11:40:57 AM] Connexion fermée (Code: 408). Reconnexion: true
+Connection to the database has been established successfully.
+Database synchronized.

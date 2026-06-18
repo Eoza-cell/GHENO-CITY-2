@@ -1,7 +1,9 @@
-const { default: makeWASocket, useMultiFileAuthState, delay } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, delay, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const bodyParser = require('body-parser');
+const fs = require('fs');
+const path = require('path');
 const { setupDatabase } = require('./database');
 const { handleCommand } = require('./command-handler');
 
@@ -14,32 +16,56 @@ app.use(express.static('public'));
 let sock;
 global.pairingCode = null;
 global.isConnected = false;
+global.connectionError = null;
+global.logs = [];
+
+function addLog(msg) {
+    const timestamp = new Date().toLocaleTimeString();
+    global.logs.push(`[${timestamp}] ${msg}`);
+    if (global.logs.length > 50) global.logs.shift();
+    console.log(`[${timestamp}] ${msg}`);
+}
 
 async function connectToWhatsApp() {
   await setupDatabase();
 
-  const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+  const authFolder = 'auth_info_baileys';
+  const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
   sock = makeWASocket({
     auth: state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: false, // User wants pairing code
+    printQRInTerminal: false,
+    browser: ["Throne of Epsylion", "Chrome", "1.0.0"]
   });
 
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
 
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection closed. Reconnecting:', shouldReconnect);
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      addLog(`Connexion fermée (Code: ${statusCode}). Reconnexion: ${shouldReconnect}`);
       global.isConnected = false;
+      global.pairingCode = null;
+
       if (shouldReconnect) {
         connectToWhatsApp();
+      } else {
+          addLog("Déconnecté par l'utilisateur ou session expirée. Suppression des identifiants...");
+          try {
+              fs.rmSync(authFolder, { recursive: true, force: true });
+              addLog("Session réinitialisée.");
+              connectToWhatsApp();
+          } catch (e) {
+              addLog("Erreur lors de la réinitialisation: " + e.message);
+          }
       }
     } else if (connection === 'open') {
-      console.log('Connected to WhatsApp');
+      addLog('Connecté à WhatsApp !');
       global.isConnected = true;
       global.pairingCode = null;
+      global.connectionError = null;
     }
   });
 
@@ -112,21 +138,37 @@ app.get('/', (req, res) => {
                 padding: 2rem;
                 background: radial-gradient(circle, #1a1a1a 0%, #0d0d0d 100%);
                 position: relative;
+                overflow-y: auto;
             }
 
             .container {
                 background-color: rgba(42, 42, 42, 0.9);
-                padding: 3rem;
+                padding: 2rem;
                 border-radius: 4px;
                 border: 1px solid #f39c12;
                 box-shadow: 0 0 25px rgba(243, 156, 18, 0.2);
                 text-align: center;
                 max-width: 500px;
                 width: 100%;
+                margin-bottom: 2rem;
+            }
+
+            .logs-container {
+                max-width: 800px;
+                width: 100%;
+                background: #111;
+                border: 1px solid #444;
+                padding: 1rem;
+                font-family: monospace;
+                font-size: 0.8rem;
+                height: 150px;
+                overflow-y: scroll;
+                color: #888;
+                text-align: left;
             }
 
             h2 { color: #f39c12; font-family: 'Cinzel', serif; font-size: 1.8rem; margin-top: 0; }
-            p { margin-bottom: 2rem; line-height: 1.6; }
+            p { margin-bottom: 1.5rem; line-height: 1.6; }
 
             input {
                 width: 100%;
@@ -153,16 +195,19 @@ app.get('/', (req, res) => {
                 width: 100%;
                 font-family: 'Cinzel', serif;
                 text-transform: uppercase;
-                transition: transform 0.2s;
+                margin-bottom: 1rem;
             }
 
-            button:hover { transform: scale(1.02); }
+            button.secondary {
+                background: #444;
+                color: #ccc;
+            }
 
             .pairing-code-box {
                 font-size: 2.5rem;
                 letter-spacing: 5px;
                 color: #f39c12;
-                background: #111;
+                background: #000;
                 padding: 20px;
                 border: 2px dashed #f39c12;
                 margin: 20px 0;
@@ -178,6 +223,8 @@ app.get('/', (req, res) => {
             }
             .status-offline { background: #c0392b; color: #fff; }
             .status-online { background: #27ae60; color: #fff; }
+
+            .error-msg { color: #e74c3c; margin-bottom: 1rem; font-size: 0.9rem; }
         </style>
     </head>
     <body>
@@ -193,6 +240,8 @@ app.get('/', (req, res) => {
 
                 <h2>Bienvenue Voyageur</h2>
 
+                ${global.connectionError ? `<div class="error-msg">${global.connectionError}</div>` : ''}
+
                 ${global.isConnected ? `
                     <p>Le bot est connecté. Entrez le numéro d'un nouveau joueur pour lui envoyer une invitation.</p>
                     <form action="/invite" method="POST">
@@ -204,7 +253,9 @@ app.get('/', (req, res) => {
                         <p>Voici votre code de jumelage. Entrez-le sur votre WhatsApp (Appareils connectés > Jumeler avec le numéro de téléphone).</p>
                         <div class="pairing-code-box">${global.pairingCode}</div>
                         <p><small>Le code est valable quelques minutes.</small></p>
-                        <a href="/" style="color:#f39c12">Recommencer</a>
+                        <form action="/reset" method="POST">
+                            <button type="submit" class="secondary">Annuler et Recommencer</button>
+                        </form>
                     ` : `
                         <p>Entrez le numéro du bot (avec code pays) pour obtenir un code de jumelage.</p>
                         <form action="/pair" method="POST">
@@ -213,7 +264,21 @@ app.get('/', (req, res) => {
                         </form>
                     `}
                 `}
+
+                <form action="/reset" method="POST" style="margin-top: 1rem;">
+                    <button type="submit" style="background: none; color: #666; font-size: 0.7rem; border: none; text-decoration: underline; cursor: pointer; width: auto;">Réinitialiser la session (Dépannage)</button>
+                </form>
             </div>
+
+            <div class="logs-container" id="logs">
+                ${global.logs.map(log => `<div>${log}</div>`).join('')}
+            </div>
+            <script>
+                const logs = document.getElementById('logs');
+                logs.scrollTop = logs.scrollHeight;
+                // Auto refresh every 5 seconds to show logs and status updates
+                setTimeout(() => location.reload(), 5000);
+            </script>
         </div>
     </body>
     </html>
@@ -224,18 +289,42 @@ app.post('/pair', async (req, res) => {
     let number = req.body.number.replace(/\D/g, '');
     if (!number) return res.status(400).send("Numéro invalide.");
 
+    addLog(`Demande de code pour le numéro: ${number}`);
+
     if (sock && !global.isConnected) {
         try {
             await delay(2000);
             const code = await sock.requestPairingCode(number);
             global.pairingCode = code;
+            addLog(`Code de jumelage généré: ${code}`);
             res.redirect('/');
         } catch (e) {
-            console.error("Pairing Error:", e);
-            res.status(500).send("Erreur lors de la génération du code.");
+            addLog(`Erreur de jumelage: ${e.message}`);
+            global.connectionError = "Erreur lors de la génération du code. Vérifiez le numéro.";
+            res.redirect('/');
         }
     } else {
         res.status(400).send("Bot déjà connecté ou non initialisé.");
+    }
+});
+
+app.post('/reset', async (req, res) => {
+    addLog("Demande de réinitialisation de session...");
+    try {
+        if (sock) {
+            try { await sock.logout(); } catch (e) {}
+            try { sock.end(); } catch (e) {}
+        }
+        fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+        global.isConnected = false;
+        global.pairingCode = null;
+        global.connectionError = null;
+        addLog("Session effacée. Redémarrage du bot...");
+        connectToWhatsApp();
+        res.redirect('/');
+    } catch (e) {
+        addLog(`Erreur Reset: ${e.message}`);
+        res.status(500).send("Erreur lors de la réinitialisation.");
     }
 });
 
@@ -248,6 +337,7 @@ app.post('/invite', async (req, res) => {
   if (sock && global.isConnected) {
     try {
         await sock.sendMessage(jid, { text: "⚔️ *Bienvenue dans Throne of Epsylion !* ⚔️\n\nTa destinée commence ici. Tape */start* pour forger ton identité." });
+        addLog(`Invitation envoyée à ${number}`);
         res.send(`
             <html>
             <body style="background:#0d0d0d; color:#e0d0b0; font-family:sans-serif; text-align:center; padding:100px;">
@@ -258,6 +348,7 @@ app.post('/invite', async (req, res) => {
             </html>
         `);
     } catch (e) {
+        addLog(`Erreur d'envoi à ${number}: ${e.message}`);
         res.status(500).send("Erreur lors de l'envoi du message.");
     }
   } else {
@@ -266,7 +357,7 @@ app.post('/invite', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Web server running at http://localhost:${port}`);
+  addLog(`Serveur web démarré sur http://localhost:${port}`);
 });
 
 connectToWhatsApp();
