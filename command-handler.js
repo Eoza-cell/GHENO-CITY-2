@@ -1,8 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const { Player, Club, Trophy, ContractOffer, NPC, sequelize } = require('./database');
+const { Player, Club, Trophy, ContractOffer, NPC, Card, OwnedCard, sequelize } = require('./database');
 const { handleFreeAction } = require('./ai-handler');
+const { startMatch, handleMatchAction } = require('./match-handler');
 const { generateFormationImage } = require('./formation-generator');
+const { generateStatCard } = require('./stat-visualizer');
 const { Op } = require('sequelize');
 
 function getJid(message) {
@@ -38,12 +40,14 @@ commands.set('start', async (sock, message) => {
 // Command: /menu
 commands.set('menu', async (sock, message) => {
     const menuText = `⚽ *FOOTBALL CAREER MENU* ⚽\n\n` +
-                     `👤 /profil - Dossier & Stats.\n` +
+                     `👤 /profil - Dossier & Joueurs.\n` +
+                     `📊 /stats - Fiche de renseignements.\n` +
+                     `🛒 /boutique - Acheter des joueurs.\n` +
+                     `💱 /convertir - Sparks -> Locks.\n` +
                      `🌍 /monde - Exploration & Monde Ouvert.\n` +
                      `📋 /formation - Voir le 11 de départ.\n` +
                      `💼 /contrats - Gérer tes offres.\n` +
                      `💾 /save - Sauvegarder ta progression.\n\n` +
-                     `_Le MJ gère tes matchs et déplacements._\n` +
                      `_Mode Action :_ /action | /quit`;
     await sock.sendMessage(message.key.remoteJid, { text: menuText });
 });
@@ -55,26 +59,28 @@ commands.set('profil', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: jid }, include: ['currentClub'] });
   if (!player) return;
 
-  const staminaBar = createStatusBar(player.stamina, 100);
+  const ownedCards = await OwnedCard.findAll({ where: { playerWhatsappId: jid }, include: [Card] });
+  const cardNames = ownedCards.map(oc => oc.Card.name).join(', ') || 'Aucun';
 
   const profileText = `┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n` +
                       `┃  ⚽ DOSSIER PRO : ${player.name.toUpperCase()} \n` +
                       `┗━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n` +
                       `🌍 *NATION:* ${player.nation}\n` +
                       `📍 *POSTE:* ${player.position} | 🔟 *N°:* ${player.jerseyNumber}\n` +
-                      `🏢 *CLUB:* ${player.currentClub?.name || 'Libre'}\n` +
-                      `📅 *JOUR RP:* Jour ${player.currentDay}\n\n` +
-                      `📊 *STATS :*\n` +
-                      `👟 Tir: ${player.shoot} | 🎯 Passe: ${player.pass}\n` +
-                      `✨ Dribble: ${player.dribble} | 🛡️ Défense: ${player.defense}\n` +
-                      `⚡ Vitesse: ${player.speed} | 🔋 Stamina: [${staminaBar}]\n\n` +
-                      `_Le MJ gère tes aventures._`;
+                      `💰 *LOCK:* ${player.locks} | 💎 *SPARK:* ${player.sparks}\n\n` +
+                      `🎴 *JOUEURS POSSÉDÉS:* ${cardNames}\n\n` +
+                      `_Tape /stats pour voir ta fiche visuelle._`;
 
-  if (player.appearanceImageUrl && fs.existsSync(player.appearanceImageUrl)) {
-      await sock.sendMessage(replyJid, { image: fs.readFileSync(player.appearanceImageUrl), caption: profileText });
-  } else {
-      await sock.sendMessage(replyJid, { text: profileText });
-  }
+  await sock.sendMessage(replyJid, { text: profileText });
+});
+
+commands.set('stats', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) return;
+
+    const buffer = await generateStatCard(player);
+    await sock.sendMessage(message.key.remoteJid, { image: buffer, caption: `📊 Fiche de renseignements : ${player.name}` });
 });
 
 // Command: /monde
@@ -141,6 +147,83 @@ commands.set('save', async (sock, message) => {
     }
 });
 
+commands.set('boutique', async (sock, message) => {
+    const cards = await Card.findAll();
+    let msg = `🛒 *BOUTIQUE BLUE LOCK* 🛒\n\n`;
+    cards.forEach(c => {
+        msg += `🎴 *${c.name}*\n`;
+        msg += `   📊 Tir:${c.shoot} Vit:${c.speed} Dri:${c.dribble}\n`;
+        msg += `   💰 ${c.priceLock} Locks | ${c.priceSpark} Sparks\n`;
+        msg += `   🛒 /acheter ${c.id}\n\n`;
+    });
+    await sock.sendMessage(message.key.remoteJid, { text: msg });
+});
+
+commands.set('acheter', async (sock, message, args) => {
+    const jid = getJid(message);
+    const cardId = args[0];
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const card = await Card.findByPk(cardId);
+
+    if (!card) return sock.sendMessage(message.key.remoteJid, { text: "❌ Joueur introuvable." });
+
+    const alreadyOwned = await OwnedCard.findOne({ where: { playerWhatsappId: jid, cardId } });
+    if (alreadyOwned) return sock.sendMessage(message.key.remoteJid, { text: "❌ Tu possèdes déjà ce joueur." });
+
+    if (player.locks >= card.priceLock) {
+        await player.decrement('locks', { by: card.priceLock });
+    } else if (player.sparks >= card.priceSpark) {
+        await player.decrement('sparks', { by: card.priceSpark });
+    } else {
+        return sock.sendMessage(message.key.remoteJid, { text: "❌ Fonds insuffisants (Locks ou Sparks)." });
+    }
+
+    await OwnedCard.create({ playerWhatsappId: jid, cardId });
+    await sock.sendMessage(message.key.remoteJid, { text: `✅ Tu as acheté *${card.name}* !` });
+});
+
+commands.set('match', async (sock, message, args) => {
+    const type = args[0] || '1v1'; // 1v1, 2v2, 3v3
+    const replyJid = message.key.remoteJid;
+    const jid = getJid(message);
+
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) return;
+
+    let participants = [player];
+
+    const mentions = message.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+    for (const mJid of mentions) {
+        const p = await Player.findOne({ where: { whatsappId: mJid } });
+        if (p) participants.push(p);
+    }
+
+    if (type === '1v1' && participants.length < 2) {
+        const opponent = await Player.findOne({ where: { whatsappId: { [Op.ne]: jid } } });
+        if (opponent) participants.push(opponent);
+        else return sock.sendMessage(replyJid, { text: "❌ Il faut au moins un autre joueur enregistré pour un 1v1." });
+    }
+
+    await startMatch(sock, replyJid, type, participants);
+});
+
+commands.set('convertir', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const amountSpark = parseInt(args[0]) || 250;
+
+    if (amountSpark < 250) return sock.sendMessage(message.key.remoteJid, { text: "❌ Minimum 250 Sparks pour convertir." });
+    if (player.sparks < amountSpark) return sock.sendMessage(message.key.remoteJid, { text: "❌ Pas assez de Sparks." });
+
+    const locksGained = Math.floor(amountSpark / 250) * 5;
+    const spentSparks = Math.floor(amountSpark / 250) * 250;
+
+    await player.decrement('sparks', { by: spentSparks });
+    await player.increment('locks', { by: locksGained });
+
+    await sock.sendMessage(message.key.remoteJid, { text: `✅ Conversion réussie : ${spentSparks} Sparks ➔ ${locksGained} Locks.` });
+});
+
 commands.set('reset', async (sock, message) => {
     const jid = getJid(message);
     const player = await Player.findOne({ where: { whatsappId: jid } });
@@ -194,6 +277,12 @@ async function handleCommand(sock, message) {
   console.log(`[CMD] Message reçu de ${jid}: ${messageText.substring(0, 50)}...`);
   const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  // Match Action Interception
+  if (player && !messageText.startsWith('/')) {
+      const inMatch = await handleMatchAction(sock, message, player, messageText);
+      if (inMatch) return;
+  }
 
   // Registration
   if (player && player.registrationStep) {
