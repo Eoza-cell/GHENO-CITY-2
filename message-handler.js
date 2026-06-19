@@ -156,16 +156,16 @@ async function generateViaGemma(prompt) {
 }
 
 /**
- * Generate an anime image from a text prompt: Gemma 4 first, then Puter HTTP, then Pollinations.
+ * Generate an anime image from a text prompt: Puter HTTP first, then Gemma 4, then Pollinations.
  * @param {string} rawPrompt
  * @returns {Promise<Buffer|null>}
  */
 async function generateAnimeImage(rawPrompt) {
     const prompt = buildAnimePrompt(rawPrompt);
-    const viaGemma = await generateViaGemma(prompt);
-    if (viaGemma) return viaGemma;
     const viaPuter = await generateViaPuter(prompt);
     if (viaPuter) return viaPuter;
+    const viaGemma = await generateViaGemma(prompt);
+    if (viaGemma) return viaGemma;
     return generateViaPollinations(prompt);
 }
 

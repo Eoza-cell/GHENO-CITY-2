@@ -485,16 +485,15 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
+        { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
         { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'Puter API (Keyed)', fn: callPuterAPI },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Pollinations GET', fn: callPollinationsGET }
+        { name: 'Blackbox', fn: callBlackbox }
     ];
 
     for (const provider of providers) {
