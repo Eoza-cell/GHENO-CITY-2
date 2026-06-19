@@ -36,11 +36,13 @@ async function connectToWhatsApp() {
     auth: state,
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: ["Throne of Epsylion", "Chrome", "1.0.0"]
+    browser: ["Ubuntu", "Chrome", "20.0.04"]
   });
 
   sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) addLog("QR Code disponible (ignoré pour pairing code)");
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
@@ -245,21 +247,21 @@ app.get('/', (req, res) => {
                 ${global.isConnected ? `
                     <p>Le bot est connecté. Entrez le numéro d'un nouveau joueur pour lui envoyer une invitation.</p>
                     <form action="/invite" method="POST">
-                        <input type="text" name="number" placeholder="Ex: 2250102030405" required>
+                        <input type="text" name="number" id="invite-number" placeholder="Ex: 2250102030405" required>
                         <button type="submit">Envoyer l'Invitation</button>
                     </form>
                 ` : `
                     ${global.pairingCode ? `
-                        <p>Voici votre code de jumelage. Entrez-le sur votre WhatsApp (Appareils connectés > Jumeler avec le numéro de téléphone).</p>
-                        <div class="pairing-code-box">${global.pairingCode}</div>
-                        <p><small>Le code est valable quelques minutes.</small></p>
+                        <p>Voici votre code de jumelage. Cliquez dessus pour le copier, puis entrez-le sur votre WhatsApp (Appareils connectés > Jumeler avec le numéro de téléphone).</p>
+                        <div class="pairing-code-box" id="pcode" onclick="copyCode()" style="cursor:pointer">${global.pairingCode}</div>
+                        <p><small>Le code est valable 2-3 minutes.</small></p>
                         <form action="/reset" method="POST">
                             <button type="submit" class="secondary">Annuler et Recommencer</button>
                         </form>
                     ` : `
                         <p>Entrez le numéro du bot (avec code pays) pour obtenir un code de jumelage.</p>
                         <form action="/pair" method="POST">
-                            <input type="text" name="number" placeholder="Ex: 2250102030405" required>
+                            <input type="text" name="number" id="bot-number" placeholder="Ex: 2250102030405" required>
                             <button type="submit">Générer le Code</button>
                         </form>
                     `}
@@ -273,11 +275,36 @@ app.get('/', (req, res) => {
             <div class="logs-container" id="logs">
                 ${global.logs.map(log => `<div>${log}</div>`).join('')}
             </div>
+
+            <div style="margin-top: 10px;">
+                <button onclick="location.reload()" class="secondary" style="width: auto; padding: 5px 15px; font-size: 0.8rem;">Actualiser Statut & Logs</button>
+            </div>
+
             <script>
                 const logs = document.getElementById('logs');
                 logs.scrollTop = logs.scrollHeight;
-                // Auto refresh every 5 seconds to show logs and status updates
-                setTimeout(() => location.reload(), 5000);
+
+                const hasPairingCode = ${global.pairingCode ? 'true' : 'false'};
+                const isConnected = ${global.isConnected ? 'true' : 'false'};
+
+                // Refresh every 20s if not typing and not already displaying a code/connected
+                setInterval(() => {
+                    const botInput = document.getElementById('bot-number');
+                    const inviteInput = document.getElementById('invite-number');
+                    const isTyping = (botInput && (botInput === document.activeElement || botInput.value.length > 0)) ||
+                                     (inviteInput && (inviteInput === document.activeElement || inviteInput.value.length > 0));
+
+                    if (!isTyping && !hasPairingCode && !isConnected) {
+                        location.reload();
+                    }
+                }, 20000);
+
+                function copyCode() {
+                    const code = document.getElementById('pcode').innerText;
+                    navigator.clipboard.writeText(code).then(() => {
+                        alert("Code " + code + " copié !");
+                    });
+                }
             </script>
         </div>
     </body>
@@ -293,14 +320,14 @@ app.post('/pair', async (req, res) => {
 
     if (sock && !global.isConnected) {
         try {
-            await delay(2000);
+            await delay(3500);
             const code = await sock.requestPairingCode(number);
             global.pairingCode = code;
             addLog(`Code de jumelage généré: ${code}`);
             res.redirect('/');
         } catch (e) {
             addLog(`Erreur de jumelage: ${e.message}`);
-            global.connectionError = "Erreur lors de la génération du code. Vérifiez le numéro.";
+            global.connectionError = "Erreur lors de la génération du code. Assurez-vous que le bot n'est pas déjà connecté ailleurs.";
             res.redirect('/');
         }
     } else {
