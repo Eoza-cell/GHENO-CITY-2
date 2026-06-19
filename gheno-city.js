@@ -73,6 +73,21 @@ async function connectToWhatsApp() {
 
   sock.ev.on('creds.update', saveCreds);
 
+  // Auto-pairing if BOT_NUMBER is set and no session exists
+  if (process.env.BOT_NUMBER && !state.creds.registered) {
+    const number = process.env.BOT_NUMBER.replace(/\D/g, '');
+    addLog(`Auto-pairing détecté pour: ${number}. Génération du code...`);
+    setTimeout(async () => {
+        try {
+            const code = await sock.requestPairingCode(number);
+            global.pairingCode = code;
+            addLog(`Code auto-généré: ${code}`);
+        } catch (e) {
+            addLog(`Erreur auto-pairing: ${e.message}`);
+        }
+    }, 5000);
+  }
+
   sock.ev.on('messages.upsert', async (m) => {
     m.messages.forEach(async (message) => {
       if (!message.message) return;
@@ -259,11 +274,16 @@ app.get('/', (req, res) => {
                             <button type="submit" class="secondary">Annuler et Recommencer</button>
                         </form>
                     ` : `
-                        <p>Entrez le numéro du bot (avec code pays) pour obtenir un code de jumelage.</p>
-                        <form action="/pair" method="POST">
-                            <input type="text" name="number" id="bot-number" placeholder="Ex: 2250102030405" required>
-                            <button type="submit">Générer le Code</button>
-                        </form>
+                        ${process.env.BOT_NUMBER ? `
+                            <p>Génération automatique du code pour le numéro <strong>${process.env.BOT_NUMBER}</strong>...</p>
+                            <p><small>Veuillez patienter quelques secondes. Si rien ne s'affiche, actualisez la page.</small></p>
+                        ` : `
+                            <p>Entrez le numéro du bot (avec code pays) pour obtenir un code de jumelage.</p>
+                            <form action="/pair" method="POST">
+                                <input type="text" name="number" id="bot-number" placeholder="Ex: 2250102030405" required>
+                                <button type="submit">Générer le Code</button>
+                            </form>
+                        `}
                     `}
                 `}
 
