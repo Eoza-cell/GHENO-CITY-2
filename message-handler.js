@@ -85,8 +85,7 @@ async function generateViaPuter(prompt) {
  */
 async function generateViaPollinations(prompt) {
     // Priority to high quality models
-    const models = ['flux-pro', 'flux-realism', 'flux-anime', 'flux-3d'];
-    const model = models[0]; // Prioritize flux-pro for quality
+    const model = 'see-dream';
     const seed = Math.floor(Math.random() * 1000000);
 
     // Enhanced quality tokens for a "beautiful" result
