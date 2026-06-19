@@ -118,12 +118,53 @@ async function generateViaPollinations(prompt) {
 }
 
 /**
- * Generate an anime image from a text prompt: Puter HTTP first, then Pollinations.
+ * Try generating an image via OpenRouter using Gemma 4 (multimodal).
+ * @param {string} prompt
+ * @returns {Promise<Buffer|null>}
+ */
+async function generateViaGemma(prompt) {
+    if (!process.env.OPENROUTER_API_KEY) return null;
+    try {
+        console.log(`[IMG] OpenRouter - Gemma 4 - Prompt: ${prompt}`);
+        const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+            model: "google/gemma-4-26b-a4b-it:free",
+            messages: [{
+                role: "user",
+                content: [
+                    { type: "text", text: `Génère une image anime de haute qualité basée sur ce prompt : ${prompt}` }
+                ]
+            }]
+        }, {
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                'HTTP-Referer': 'https://github.com/skype-bot/arise',
+                'X-Title': 'Arise RPG'
+            },
+            timeout: 30000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        // Search for a URL in the response if the model returns it
+        const urlMatch = content?.match(/https?:\/\/[^\s)]+\.(?:png|jpg|jpeg|webp)/i);
+        if (urlMatch) {
+            const imgResp = await axios.get(urlMatch[0], { responseType: 'arraybuffer' });
+            return Buffer.from(imgResp.data, 'binary');
+        }
+    } catch (e) {
+        console.warn(`[IMG] Gemma 4 image échec:`, e.message);
+    }
+    return null;
+}
+
+/**
+ * Generate an anime image from a text prompt: Gemma 4 first, then Puter HTTP, then Pollinations.
  * @param {string} rawPrompt
  * @returns {Promise<Buffer|null>}
  */
 async function generateAnimeImage(rawPrompt) {
     const prompt = buildAnimePrompt(rawPrompt);
+    const viaGemma = await generateViaGemma(prompt);
+    if (viaGemma) return viaGemma;
     const viaPuter = await generateViaPuter(prompt);
     if (viaPuter) return viaPuter;
     return generateViaPollinations(prompt);

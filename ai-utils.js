@@ -195,7 +195,9 @@ async function callOpenRouter(system, prompt) {
         "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-r1:free",
         "qwen/qwen-2.5-72b-instruct:free",
-        "nvidia/llama-3.1-nemotron-70b-instruct:free"
+        "nvidia/llama-3.1-nemotron-70b-instruct:free",
+        "google/gemma-2-9b-it:free",
+        "google/gemma-4-26b-a4b-it:free"
     ];
 
     for (const model of models) {
@@ -485,9 +487,10 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     const providers = [
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox },

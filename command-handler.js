@@ -1308,10 +1308,16 @@ commands.set('lore', async (sock, message, args) => {
             'missions historiques': "Quêtes projetant un Héritier dans le passé pour revivre la chute de grands royaumes, l'avènement des premiers Apôtres ou les guerres entre Célestes et Bestiaux.",
             'histoire': "Le monde approche d'un nouvel âge chaotique. La Convergence approche : les Béhérits réapparaissent massivement et les frontières entre l'Interstice et le monde matériel s'effacent.",
             'convergence': "Phénomène apocalyptique où les dimensions fusionnent. Les monstres de l'Interstice se déversent dans Aetherys, et les Apôtres préparent l'arrivée de la Main de Dieu.",
-            'aetherys': "Un monde complexe né de la fusion entre technologie moderne et mana ancestral. Autrefois stable, il vacille maintenant sous la pression de la Causalité."
+            'aetherys': "Un monde complexe né de la fusion entre technologie moderne et mana ancestral. Autrefois stable, il vacille maintenant sous la pression de la Causalité.",
+            'mystères': "Les Mystères d'Aetherys englobent les secrets de la Causalité, la nature des Béhérits et l'existence de l'Interstice. Peu d'Héritiers survivent assez longtemps pour en comprendre la portée.",
+            'société': "La société d'Aetherys est structurée autour de l'Académie Impériale, des Guildes et des Clubs. C'est un équilibre fragile entre l'avancée technologique et les anciennes traditions magiques."
         };
-        const topicLower = topic.toLowerCase();
-        const key = Object.keys(worldLore).find(k => topicLower.includes(k) || k.includes(topicLower));
+        const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const topicNormalized = normalize(topic);
+        const key = Object.keys(worldLore).find(k => {
+            const kn = normalize(k);
+            return topicNormalized.includes(kn) || kn.includes(topicNormalized);
+        });
         if (key) {
             loreData = { title: key.charAt(0).toUpperCase() + key.slice(1), content: worldLore[key], type: 'HISTORY' };
         }
