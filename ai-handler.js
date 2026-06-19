@@ -75,7 +75,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const aggregatedActions = recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n');
 
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Col:${player.col} | Lieu:${player.location} | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => `${i.name}x${i.quantity}`).join(', ') : "Inv: vide";
@@ -162,12 +162,13 @@ GUIDE DE COMBAT RP & NARRATION (OBLIGATOIRE):
 8. EXEMPLE RÉACTION: "Grâce à sa vitesse supérieure (AGI:30), le Loup pivote brutalement, évitant le coup de poing qui n'arrache que quelques poils. Il bondit immédiatement pour planter ses crocs dans l'avant-bras droit du joueur."
 9. STATUS & TECHNIQUES: [HP -12 | 88/100], [MP -5 | 45/50], [TECHNIQUE: Nom].
 RÈGLES:
-1. DIALOGUE: Les PNJ doivent parler FRÉQUEMMENT. Utilise des dialogues vivants, avec des tics de langage et des émotions fortes. PERSONNAGES FORTS: Donne-leur du caractère, des opinions tranchées et des réactions mémorables.
-2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR): Ne décris JAMAIS les pensées, paroles ou actions d'un joueur. Un joueur sans action est IMMOBILE. Tu ne contrôles PAS les mouvements des joueurs. Tes phrases doivent commencer par les conséquences directes de leurs actions passées.
-3. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Décris l'ambiance, les odeurs, les sons, et la tension. Le joueur est une PERSONNE ORDINAIRE, pas un héros.
-4. MÉMOIRE SOCIALE: Les PNJ se souviennent des autres joueurs qu'ils ont croisés. Ils peuvent parler d'eux, lancer des rumeurs ou comparer le joueur actuel aux autres ("Tiens, un autre comme ${socialState.includes('Proches') ? 'tes amis' : 'ceux qui sont passés ici'}...").
-5. LOGIQUE & MÉMOIRE: Analyse scrupuleusement l'historique. Ne confonds jamais un Joueur avec un PNJ.
-5. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+1. DIALOGUE: Les PNJ parlent FRÉQUEMMENT. Utilise des dialogues vivants, avec des tics de langage et des émotions fortes. PERSONNAGES FORTS: Donne-leur du caractère, des opinions tranchées et des réactions mémorables.
+2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR): Ne décris JAMAIS les pensées, paroles ou actions d'un joueur. Un joueur sans action est IMMOBILE. Tu ne contrôles PAS les mouvements des joueurs. Tes phrases commencent par les conséquences directes de leurs actions passées.
+3. PROXIMITÉ & INTERACTIONS: Un joueur ne peut interagir DIRECTEMENT avec un autre que s'ils sont au même endroit (côte à côte). Si un joueur tente d'interagir avec quelqu'un d'éloigné sans Magie de Communication ou de Téléportation, décris l'impossibilité ou la distance.
+4. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Sois TRÈS PRÉCIS sur l'emplacement actuel (décris les détails de la pièce, du mobilier, de la météo locale). Le joueur est une PERSONNE ORDINAIRE, pas un héros.
+5. MÉMOIRE SOCIALE: Les PNJ se souviennent des autres joueurs. Ils lancent des rumeurs ou comparent le joueur actuel aux autres.
+6. LOGIQUE & MÉMOIRE: Analyse l'historique. Ne confonds jamais un Joueur avec un PNJ.
+7. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
 NARRATION: Français moderne et dynamique, synthèse manga. CONCISION ABSOLUE (Max 2 paragraphes). Évite le bla-bla inutile. Focus sur les impacts techniques.
 PROFONDEUR NARRATIVE & LOGIQUE: Les PNJ doivent avoir des motivations secrètes, des émotions palpables et un passé qui influence leurs paroles. Ne sois pas juste un distributeur de quêtes. Crée du drama, de la tension et de l'intérêt. Chaque interaction doit être logiquement liée aux événements précédents.
@@ -353,7 +354,10 @@ NOTE: Si un joueur passe un examen, demande-lui d'écrire explicitement ses rép
           }
 
           if (parameters.new_location) {
-              await target.update({ location: parameters.new_location });
+              await target.update({
+                  location: parameters.new_location,
+                  subLocation: parameters.new_sub_location || 'Entrée'
+              });
               // Check if there is a local image for this location
               const locationImages = {
                   'Académie Impériale': 'assets/locations/academy.jpg',

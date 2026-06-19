@@ -197,6 +197,7 @@ const profileCommand = async (sock, message) => {
                           `🍀 Chance: ${player.luck}\n` +
                           `✨ *SP:* ${player.skillPoints}\n\n` +
                           `💰 *COL:* ${player.col} 🪙\n` +
+                          `📍 *LIEU:* ${player.location} (${player.subLocation})\n` +
                           `---------------------------`;
 
       await sock.sendMessage(replyJid, {
@@ -273,7 +274,7 @@ commands.set('inspecter', async (sock, message) => {
                         `🧠 Intelligence: ${targetPlayer.intelligence}\n` +
                         `🛡️ Défense: ${targetPlayer.defense}\n` +
                         `🍀 Chance: ${targetPlayer.luck}\n\n` +
-                        `📍 *LIEU:* ${targetPlayer.location}\n` +
+                        `📍 *LIEU:* ${targetPlayer.location} (${targetPlayer.subLocation})\n` +
                         `---------------------------`;
 
     await sock.sendMessage(replyJid, { text: profileText });
@@ -640,6 +641,7 @@ commands.set('joueurs', async (sock, message) => {
     let playersText = `--- 👥 HÉRITIERS À PROXIMITÉ --- \n\n`;
     otherPlayers.forEach(p => {
         playersText += `*${p.name}*\n`;
+        playersText += `├ 📍 ${p.subLocation}\n`;
         playersText += `├ 👪 Famille: ${p.family}\n`;
         playersText += `├ 🎭 Classe: ${p.class} | 📊 Niveau: ${p.level}\n`;
         playersText += `├ 🎖️ Rang: ${p.rank}\n`;
@@ -1054,8 +1056,8 @@ commands.set('donner', async (sock, message, args) => {
         return;
     }
 
-    if (player.location !== targetPlayer.location) {
-        await sock.sendMessage(replyJid, { text: "Tu dois être au même endroit que le joueur pour lui donner quelque chose." });
+    if (player.location !== targetPlayer.location || player.subLocation !== targetPlayer.subLocation) {
+        await sock.sendMessage(replyJid, { text: "Tu dois être juste à côté du joueur pour lui donner quelque chose." });
         return;
     }
 
