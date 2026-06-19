@@ -78,17 +78,17 @@ async function handleFreeAction(sock, message, player, actionText) {
   const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
   const inventory = player.inventory || [];
-  const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => `${i.name}x${i.quantity}`).join(', ') : "Inv: vide";
+  const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
 
   const playerQuests = await player.getQuests();
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
-  const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`).join(', ') : "Pas de quête";
+  const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`).join(',') : "Pas de quête";
 
-  const availableQuests = await Quest.findAll({ where: { rank_required: player.rank }, limit: 3 });
-  const availableQuestState = "Quêtes dispo: " + availableQuests.map(q => q.title).join(', ');
+  const availableQuests = await Quest.findAll({ where: { rank_required: player.rank }, limit: 2 });
+  const availableQuestState = "Dispo: " + availableQuests.map(q => q.title).join(',');
 
-  const dungeons = await Dungeon.findAll({ limit: 2 });
-  const dungeonState = "Donjons: " + dungeons.map(d => `${d.name}(${d.rank})`).join(', ');
+  const dungeons = await Dungeon.findAll({ limit: 1 });
+  const dungeonState = "Donjon: " + dungeons.map(d => `${d.name}(${d.rank})`).join(',');
 
   const nearbyPlayers = await Player.findAll({
     where: {
@@ -96,23 +96,23 @@ async function handleFreeAction(sock, message, player, actionText) {
         whatsappId: { [Op.ne]: player.whatsappId }
     }
   });
-  const socialState = nearbyPlayers.length > 0 ? "Proches: " + nearbyPlayers.map(p => `${p.name}(Niv ${p.level})`).join(', ') : "Seul";
+  const socialState = nearbyPlayers.length > 0 ? "Ici: " + nearbyPlayers.map(p => `${p.name}`).join(',') : "Seul";
 
   const recentPlayers = await Player.findAll({
       where: { whatsappId: { [Op.ne]: player.whatsappId } },
       order: [['lastActivity', 'DESC']],
-      limit: 5
+      limit: 3
   });
-  const worldSocialState = "Rumeurs mondiales (Joueurs actifs): " + recentPlayers.map(p => `${p.name} (Vu à ${p.location})`).join(', ');
+  const worldSocialState = "Rumeurs: " + recentPlayers.map(p => `${p.name}(${p.location})`).join(',');
 
-  const items = await Item.findAll({ limit: 2 });
-  const shopState = "Shop: " + items.map(i => `${i.name}(${i.price})`).join(', ');
+  const items = await Item.findAll({ limit: 1 });
+  const shopState = "Shop: " + items.map(i => i.name).join(',');
 
-  // Fetch history (last 6 messages) for memory
+  // Fetch history (last 5 messages) for memory
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 6
+      limit: 5
   });
   const historyState = history.length > 0
     ? "MÉMOIRE_RÉCENTE:\n" + history.reverse().map(h => `[${h.senderName}]: ${h.content}`).join('\n')
@@ -170,8 +170,8 @@ RÈGLES:
 6. LOGIQUE & MÉMOIRE: Analyse l'historique. Ne confonds jamais un Joueur avec un PNJ.
 7. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
 ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
-NARRATION: Français moderne et dynamique, synthèse manga. CONCISION ABSOLUE (Max 2 paragraphes). Évite le bla-bla inutile. Focus sur les impacts techniques.
-PROFONDEUR NARRATIVE & LOGIQUE: Les PNJ doivent avoir des motivations secrètes, des émotions palpables et un passé qui influence leurs paroles. Ne sois pas juste un distributeur de quêtes. Crée du drama, de la tension et de l'intérêt. Chaque interaction doit être logiquement liée aux événements précédents.
+NARRATION: Français moderne et dynamique, synthèse manga. CONCISION ABSOLUE (Max 2 paragraphes). AUCUN DÉTAIL INUTILE. Chaque mot doit compter. PRÉCISION CHIRURGICALE sur les actions et l'environnement. Évite le bla-bla décoratif. Focus sur les impacts techniques et l'ambiance immédiate.
+PROFONDEUR NARRATIVE & LOGIQUE: Les PNJ doivent avoir des motivations secrètes et des émotions palpables. Ne sois pas juste un distributeur de quêtes. Crée du drama et de la tension avec efficacité.
 NOTE: Si un joueur passe un examen, demande-lui d'écrire explicitement ses réponses (ex: "J'écris sur l'examen : [réponses]").`;
 
     const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
