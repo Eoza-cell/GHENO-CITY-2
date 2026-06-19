@@ -595,8 +595,8 @@ async function setupDatabase() {
     }
 
     const kingdomsToSeed = [
-        { name: 'Origine de l\'Existence', description: 'Le domaine de ONE ABOVE ALL, créateur du temps, de l\'espace, de la vie et de la mort.', status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL' },
-        { name: 'L\'Interstice', description: 'Dimension située entre tous les mondes où se forgent les pactes interdits via les Béhérits.', status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal' },
+        { name: 'Origine de l\'Existence', description: 'Le domaine de ONE ABOVE ALL, créateur du temps, de l\'espace, de la vie et de la mort. C\'est un lieu de pureté absolue où la Causalité prend sa source.', status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL' },
+        { name: 'L\'Interstice', description: 'Dimension située entre tous les mondes où se forgent les pactes interdits via les Béhérits. Les créatures de cauchemar y errent librement.', status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal' },
         { name: 'Royaume Céleste', description: 'Domaine des Entités Célestes, gardiennes de l\'ordre.', status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius' },
         { name: 'Terres Bestiales', description: 'Incarnation de l\'instinct et de l\'évolution.', status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos' },
         { name: 'Empire d\'Elion', description: 'Royaume humain prospérant sous le regard des dieux, mais menacé par l\'ombre des Apôtres.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },

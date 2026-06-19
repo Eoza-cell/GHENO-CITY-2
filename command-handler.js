@@ -1268,7 +1268,7 @@ commands.set('lore', async (sock, message, args) => {
     const topic = args.join(' ').trim();
 
     if (!topic) {
-        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour en savoir plus :\n\n- *Royaumes* (Néanthea, Elion, etc.)\n- *Lieux* (Interstice, Nécropolis, etc.)\n- *Entités* (Roi Vide, Ignis, etc.)\n- *Clubs* (Kendo, Occultisme, etc.)\n- *Histoire* (Héritiers, Convergence, Éveil)`;
+        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour en savoir plus :\n\n- *Origines* (One Above All, Idée du Mal)\n- *Royaumes* (Elion, Valkyr, Nécropolis)\n- *Mystères* (Béhérit, Apôtres, Interstice)\n- *Événements* (Convergence, Histoire)\n- *Société* (Clubs, Académie, Aetherys)`;
         return await sock.sendMessage(replyJid, { text: categories });
     }
 
@@ -1299,16 +1299,19 @@ commands.set('lore', async (sock, message, args) => {
     if (!loreData) {
         const worldLore = {
             'one above all': "L'origine même de l'existence, le créateur du temps, de l'espace, de la vie et de la mort. Il demeure silencieux mais reviendra juger sa création.",
-            'idée du mal': "Conscience collective alimentée par les peurs et la haine de l'humanité. Elle manipule discrètement le destin du monde depuis les profondeurs.",
-            'béhérit': "Reliques vivantes ressemblant à des visages de pierre déformés. Ils choisissent leur propriétaire lors d'un désespoir absolu. Impossibles à trouver sans aide divine.",
-            'apôtres': "Humains ayant sacrifié ce qu'ils chérissent le plus via un Béhérit pour obtenir un pouvoir dépassant celui des mortels.",
-            'interstice': "Dimension située entre tous les mondes. C'est là que l'Idée du Mal réside et que les pactes interdits sont conclus.",
-            'origines': "Au commencement, One Above All façonna les Entités Célestes et Bestiales. L'humanité prospéra jusqu'à la naissance de l'Idée du Mal.",
-            'nécropolis': "La cité silencieuse des morts gouvernée par Orpheon. Les âmes y attendent le jugement final du Dieu Suprême.",
-            'missions historiques': "Quêtes projetant un Héritier dans le passé pour revivre la chute de grands royaumes ou la naissance des premiers Apôtres.",
-            'histoire': "Le monde approche d'un nouvel âge chaotique où les Béhérits réapparaissent et les frontières entre les mondes s'effacent."
+            'idée du mal': "Conscience collective alimentée par les peurs et la haine de l'humanité. Elle manipule discrètement le destin du monde depuis les profondeurs, se nourrissant de la souffrance des mortels.",
+            'béhérit': "Reliques vivantes ressemblant à des visages de pierre déformés avec des yeux et des bouches mal alignés. Ils choisissent leur propriétaire lors d'un moment de désespoir absolu pour déclencher l'Éclipse. Impossibles à trouver sans aide divine ou destin tragique.",
+            'apôtres': "Humains ayant sacrifié ce qu'ils chérissent le plus via un Béhérit pour obtenir un pouvoir dépassant celui des mortels. Ils servent la Main de Dieu et l'Idée du Mal.",
+            'interstice': "Dimension située entre tous les mondes, là où les esprits, les démons et les entités résident. C'est là que l'Idée du Mal réside et que les pactes interdits sont conclus.",
+            'origines': "Au commencement, One Above All façonna les Entités Célestes et Bestiales. L'humanité prospéra jusqu'à ce que ses propres ténèbres donnent naissance à l'Idée du Mal dans l'Interstice.",
+            'nécropolis': "La cité silencieuse des morts gouvernée par Orpheon. Les âmes y attendent le jugement final du Dieu Suprême avant d'être réincorporées dans le flux de l'existence ou condamnées au Néant.",
+            'missions historiques': "Quêtes projetant un Héritier dans le passé pour revivre la chute de grands royaumes, l'avènement des premiers Apôtres ou les guerres entre Célestes et Bestiaux.",
+            'histoire': "Le monde approche d'un nouvel âge chaotique. La Convergence approche : les Béhérits réapparaissent massivement et les frontières entre l'Interstice et le monde matériel s'effacent.",
+            'convergence': "Phénomène apocalyptique où les dimensions fusionnent. Les monstres de l'Interstice se déversent dans Aetherys, et les Apôtres préparent l'arrivée de la Main de Dieu.",
+            'aetherys': "Un monde complexe né de la fusion entre technologie moderne et mana ancestral. Autrefois stable, il vacille maintenant sous la pression de la Causalité."
         };
-        const key = Object.keys(worldLore).find(k => topic.toLowerCase().includes(k));
+        const topicLower = topic.toLowerCase();
+        const key = Object.keys(worldLore).find(k => topicLower.includes(k) || k.includes(topicLower));
         if (key) {
             loreData = { title: key.charAt(0).toUpperCase() + key.slice(1), content: worldLore[key], type: 'HISTORY' };
         }

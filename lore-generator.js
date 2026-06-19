@@ -30,6 +30,46 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
         }
     }
 
+    // Wrap content manually for SVG since foreignObject is unreliable with Sharp
+    function wrapText(text, maxWidth, fontSize) {
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = '';
+
+        // Approximate character width (very rough)
+        const avgCharWidth = fontSize * 0.55;
+        const maxChars = Math.floor(maxWidth / avgCharWidth);
+
+        words.forEach(word => {
+            if ((currentLine + word).length > maxChars) {
+                lines.push(currentLine.trim());
+                currentLine = word + ' ';
+            } else {
+                currentLine += word + ' ';
+            }
+        });
+        lines.push(currentLine.trim());
+        return lines;
+    }
+
+    const contentLines = [];
+    content.split('\n').forEach(p => {
+        if (p.trim()) {
+            const wrapped = wrapText(p.trim(), width - 160, 22);
+            contentLines.push(...wrapped, ''); // Empty string for paragraph spacing
+        }
+    });
+
+    const startY = imageBuffer ? 780 : 350;
+    const lineHeight = 30;
+
+    let contentSvg = '';
+    contentLines.forEach((line, i) => {
+        if (startY + i * lineHeight < height - 150) {
+            contentSvg += `<text x="80" y="${startY + i * lineHeight}" font-family="serif" font-size="22" fill="#ffffff">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`;
+        }
+    });
+
     // SVG Overlay
     const svg = `
     <svg width="${width}" height="${height}">
@@ -46,22 +86,18 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
         <rect x="30" y="30" width="${width - 60}" height="${height - 60}" fill="none" stroke="#d4af37" stroke-width="1" />
 
         <!-- Title -->
-        <text x="50%" y="150" font-family="IPAGothic" font-size="60" font-weight="bold" fill="#d4af37" text-anchor="middle" style="text-transform: uppercase; letter-spacing: 5px;">${title}</text>
+        <text x="50%" y="150" font-family="sans-serif" font-size="60" font-weight="bold" fill="#d4af37" text-anchor="middle" style="text-transform: uppercase; letter-spacing: 5px;">${title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
         <line x1="200" y1="180" x2="600" y2="180" stroke="#d4af37" stroke-width="2" />
 
         <!-- Type Tag -->
         <rect x="50%" y="210" width="120" height="30" fill="#d4af37" transform="translate(-60, 0)" rx="5" />
-        <text x="50%" y="230" font-family="DejaVu Sans Mono" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">${type}</text>
+        <text x="50%" y="230" font-family="monospace" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">${type}</text>
 
         <!-- Content -->
-        <foreignObject x="80" y="${imageBuffer ? 750 : 300}" width="${width - 160}" height="${imageBuffer ? height - 850 : height - 400}">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #ffffff; font-family: 'FreeSerif', serif; font-size: 18px; line-height: 1.4; text-align: justify; overflow: hidden;">
-                ${content.split('\n').map(line => line.trim() ? `<p style="margin-bottom: 10px;">${line}</p>` : '').join('')}
-            </div>
-        </foreignObject>
+        ${contentSvg}
 
         <!-- Footer -->
-        <text x="50%" y="${height - 100}" font-family="DejaVu Sans Mono" font-size="20" fill="#666" text-anchor="middle" font-style="italic">ARISE: GHENO CITY - CHRONIQUES D'AETHERYS</text>
+        <text x="50%" y="${height - 100}" font-family="monospace" font-size="20" fill="#666" text-anchor="middle" font-style="italic">ARISE: GHENO CITY - CHRONIQUES D'AETHERYS</text>
     </svg>
     `;
 

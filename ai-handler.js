@@ -10,13 +10,17 @@ const { checkLevelUp } = require('./level-utils');
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
-  // Logic: Always save the message first (Non-blocking to avoid stalling)
-  RPMessage.create({
-      senderJid: player.whatsappId,
-      senderName: player.name,
-      content: actionText,
-      location: player.location
-  }).catch(e => console.error("[DB] RPMessage log error:", e.message));
+  // Logic: Always save the message first
+  try {
+      await RPMessage.create({
+          senderJid: player.whatsappId,
+          senderName: player.name,
+          content: actionText,
+          location: player.location
+      });
+  } catch (e) {
+      console.error("[DB] RPMessage log error:", e.message);
+  }
 
   // Automatic Visual: Detect writing on paper
   const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter)(?:\s+sur\s+(?:du\s+)?papier|\s+une\s+note|\s+une\s+lettre|\s+l'examen)\s*:\s*([\s\S]+)/i);
@@ -34,20 +38,10 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
-  // Check if we should trigger the AI
-  const triggerAI = actionText.toLowerCase().trim() === 'next';
+  // Trigger the AI on every action, but we still allow 'next' as a manual trigger
+  const isTriggerWord = actionText.toLowerCase().trim() === 'next';
 
-  if (!triggerAI) {
-      // Suggesting 'next' if they seem to be roleplaying but not triggering
-      const roleplayKeywords = ['frappe', 'donne', 'regarde', 'va', 'entre', 'prend', 'utilise', 'lance'];
-      if (roleplayKeywords.some(k => actionText.toLowerCase().includes(k)) && actionText.length > 5) {
-          // We don't send a message every time to avoid spam, but we log the hint.
-          console.log(`[RP] Action reçue de ${player.name}, en attente de "next".`);
-      }
-      return;
-  }
-
-  // If "Next" is sent, aggregate all messages since the last MJ response
+  // If "Next" is sent, or any other action, aggregate all messages since the last MJ response
   const lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', location: player.location },
       order: [['id', 'DESC']]
@@ -69,7 +63,9 @@ async function handleFreeAction(sock, message, player, actionText) {
       order: [['id', 'ASC']]
   });
 
-  if (recentActions.length === 0) {
+  // If it's not a trigger word and there are no other new actions, don't trigger AI yet
+  // However, if 'next' is sent, we always trigger the AI to continue the story
+  if (!isTriggerWord && recentActions.length === 0) {
       return;
   }
 
@@ -168,8 +164,8 @@ GUIDE DE COMBAT RP & NARRATION (OBLIGATOIRE):
 7. STATUS: [HP -12 | 88/100], [MP -5 | 45/50], [TECHNIQUE: Nom].
 RÈGLES:
 1. DIALOGUE: Les PNJ parlent FRÉQUEMMENT. Utilise des dialogues vivants, avec des tics de langage et des émotions fortes. PERSONNAGES FORTS: Donne-leur du caractère, des opinions tranchées et des réactions mémorables.
-2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR): Ne décris JAMAIS les pensées, paroles ou actions d'un joueur. Un joueur sans action est IMMOBILE. Tu ne contrôles PAS les mouvements des joueurs. Tes phrases commencent par les conséquences directes de leurs actions passées.
-3. PROXIMITÉ & INTERACTIONS: Un joueur ne peut interagir DIRECTEMENT avec un autre que s'ils sont au même endroit (côte à côte). Si un joueur tente d'interagir avec quelqu'un d'éloigné sans Magie de Communication ou de Téléportation, décris l'impossibilité ou la distance.
+2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR): Ne décris JAMAIS les pensées, paroles ou actions d'un joueur (que ce soit le joueur actuel ou un joueur à proximité). Un joueur sans action explicite dans le log est TOTALEMENT IMMOBILE et SILENCIEUX. Tu ne contrôles PAS les mouvements ou les paroles des joueurs.
+3. PROXIMITÉ & INTERACTIONS: Un joueur ne peut interagir DIRECTEMENT avec un autre que s'ils sont au même endroit (côte à côte). Si un joueur tente d'interagir avec quelqu'un d'éloigné sans Magie de Communication ou de Téléportation, décris l'impossibilité ou la distance. Si un joueur interagit avec un autre, ne fais PAS répondre l'autre joueur à sa place.
 4. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Sois TRÈS PRÉCIS sur l'emplacement actuel (décris les détails de la pièce, du mobilier, de la météo locale). Le joueur est une PERSONNE ORDINAIRE, pas un héros.
 5. MÉMOIRE SOCIALE: Les PNJ se souviennent des autres joueurs. Ils lancent des rumeurs ou comparent le joueur actuel aux autres.
 6. LOGIQUE & MÉMOIRE: Analyse l'historique. Ne confonds jamais un Joueur avec un PNJ.
