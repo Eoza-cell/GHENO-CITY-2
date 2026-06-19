@@ -35,11 +35,11 @@ async function generatePaperImage(text, title = "NOTE") {
         <line x1="80" y1="0" x2="80" y2="${height}" stroke="#ff9999" stroke-width="2" />
 
         <!-- Title -->
-        <text x="50%" y="80" font-family="cursive, serif" font-size="40" fill="#2c3e50" text-anchor="middle" font-style="italic" font-weight="bold">${title}</text>
+        <text x="50%" y="80" font-family="FreeSerif, serif" font-size="40" fill="#2c3e50" text-anchor="middle" font-style="italic" font-weight="bold">${title}</text>
 
         <!-- Content -->
         <foreignObject x="100" y="150" width="${width - 150}" height="${height - 250}">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #1a1a1a; font-family: 'Courier New', Courier, monospace; font-size: 22px; line-height: 40px; white-space: pre-wrap; font-style: italic;">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #1a1a1a; font-family: 'FreeSerif', serif; font-size: 22px; line-height: 40px; white-space: pre-wrap; font-style: italic;">
                 ${text}
             </div>
         </foreignObject>

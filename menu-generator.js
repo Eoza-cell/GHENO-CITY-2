@@ -45,29 +45,29 @@ async function generateMainMenuImage() {
 
         <!-- Main Title -->
         <g filter="url(#glow)">
-            <text x="50%" y="32%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="180" fill="white" style="letter-spacing: 30px; filter: drop-shadow(0 0 30px rgba(0,255,255,1));">ARISE</text>
-            <text x="50%" y="48%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, sans-serif" font-weight="bold" font-size="65" fill="url(#goldGrad)" style="letter-spacing: 15px;">GHENO CITY: AWAKENING</text>
+            <text x="50%" y="32%" dominant-baseline="middle" text-anchor="middle" font-family="IPAGothic" font-weight="900" font-size="180" fill="white" style="letter-spacing: 30px; filter: drop-shadow(0 0 30px rgba(0,255,255,1));">ARISE</text>
+            <text x="50%" y="48%" dominant-baseline="middle" text-anchor="middle" font-family="IPAGothic" font-weight="bold" font-size="65" fill="url(#goldGrad)" style="letter-spacing: 15px;">GHENO CITY: AWAKENING</text>
         </g>
 
         <!-- Central Decorative Elements -->
         <g transform="translate(600, 500)">
             <rect x="-450" y="0" width="900" height="2" fill="url(#blueGrad)" />
             <rect x="-200" y="-10" width="400" height="20" fill="none" stroke="rgba(0, 255, 255, 0.3)" stroke-width="1" />
-            <text x="0" y="5" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-size="16" fill="#00ffff" opacity="0.9" style="letter-spacing: 8px;">SYSTEM_ONLINE</text>
+            <text x="0" y="5" dominant-baseline="middle" text-anchor="middle" font-family="DejaVu Sans Mono" font-size="16" fill="#00ffff" opacity="0.9" style="letter-spacing: 8px;">SYSTEM_ONLINE</text>
         </g>
 
         <!-- Menu Text Mockup -->
         <g filter="url(#glow)">
-            <text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-size="28" fill="#ffffff" style="letter-spacing: 5px; font-weight: bold;">[ NAVIGATION INTERFACE ]</text>
+            <text x="50%" y="62%" dominant-baseline="middle" text-anchor="middle" font-family="DejaVu Sans Mono" font-size="28" fill="#ffffff" style="letter-spacing: 5px; font-weight: bold;">[ NAVIGATION INTERFACE ]</text>
         </g>
-        <text x="50%" y="72%" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-size="20" fill="#00ffff" opacity="0.8" style="letter-spacing: 2px;">VOTRE DESTIN VOUS ATTEND DANS L'INTERSTICE</text>
+        <text x="50%" y="72%" dominant-baseline="middle" text-anchor="middle" font-family="IPAGothic" font-size="20" fill="#00ffff" opacity="0.8" style="letter-spacing: 2px;">VOTRE DESTIN VOUS ATTEND DANS L'INTERSTICE</text>
 
         <!-- Signature / Version -->
         <g transform="translate(30, 670)">
-            <text font-family="monospace" font-size="14" fill="rgba(255, 255, 255, 0.4)">VERSION: 3.0.0_ULTRA</text>
+            <text font-family="DejaVu Sans Mono" font-size="14" fill="rgba(255, 255, 255, 0.4)">VERSION: 3.0.0_ULTRA</text>
         </g>
         <g transform="translate(1170, 670)">
-            <text text-anchor="end" font-family="monospace" font-size="14" fill="rgba(255, 255, 255, 0.4)">ENGINE: SHARP_SVG_RENDERER</text>
+            <text text-anchor="end" font-family="DejaVu Sans Mono" font-size="14" fill="rgba(255, 255, 255, 0.4)">ENGINE: SHARP_SVG_RENDERER</text>
         </g>
 
         <!-- Corners -->

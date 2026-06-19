@@ -46,22 +46,22 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
         <rect x="30" y="30" width="${width - 60}" height="${height - 60}" fill="none" stroke="#d4af37" stroke-width="1" />
 
         <!-- Title -->
-        <text x="50%" y="150" font-family="Arial" font-size="60" font-weight="bold" fill="#d4af37" text-anchor="middle" style="text-transform: uppercase; letter-spacing: 5px;">${title}</text>
+        <text x="50%" y="150" font-family="IPAGothic" font-size="60" font-weight="bold" fill="#d4af37" text-anchor="middle" style="text-transform: uppercase; letter-spacing: 5px;">${title}</text>
         <line x1="200" y1="180" x2="600" y2="180" stroke="#d4af37" stroke-width="2" />
 
         <!-- Type Tag -->
         <rect x="50%" y="210" width="120" height="30" fill="#d4af37" transform="translate(-60, 0)" rx="5" />
-        <text x="50%" y="230" font-family="Arial" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">${type}</text>
+        <text x="50%" y="230" font-family="DejaVu Sans Mono" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">${type}</text>
 
         <!-- Content -->
         <foreignObject x="80" y="${imageBuffer ? 750 : 300}" width="${width - 160}" height="${imageBuffer ? height - 850 : height - 400}">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #ffffff; font-family: 'Georgia', serif; font-size: 22px; line-height: 1.5; text-align: justify;">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #ffffff; font-family: 'FreeSerif', serif; font-size: 22px; line-height: 1.5; text-align: justify;">
                 ${content.split('\n').map(line => `<p>${line}</p>`).join('')}
             </div>
         </foreignObject>
 
         <!-- Footer -->
-        <text x="50%" y="${height - 100}" font-family="Arial" font-size="20" fill="#666" text-anchor="middle" font-style="italic">ARISE: GHENO CITY - CHRONIQUES D'AETHERYS</text>
+        <text x="50%" y="${height - 100}" font-family="DejaVu Sans Mono" font-size="20" fill="#666" text-anchor="middle" font-style="italic">ARISE: GHENO CITY - CHRONIQUES D'AETHERYS</text>
     </svg>
     `;
 

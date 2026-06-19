@@ -57,7 +57,7 @@ async function generateLinkStartImage() {
 
         <!-- "LINK START" Main Text -->
         <g filter="url(#glow)">
-            <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="180" fill="url(#textGrad)" style="letter-spacing: 40px; filter: drop-shadow(0 0 30px #00ffff);">LINK START</text>
+            <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="IPAGothic" font-weight="900" font-size="180" fill="url(#textGrad)" style="letter-spacing: 40px; filter: drop-shadow(0 0 30px #00ffff);">LINK START</text>
         </g>
 
         <!-- Decorative Circles -->
@@ -73,8 +73,8 @@ async function generateLinkStartImage() {
                 <animate attributeName="width" from="0" to="600" dur="3s" repeatCount="1" />
             </rect>
 
-            <text x="0" y="40" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-size="20" fill="#00ffff" filter="url(#textGlow)" style="letter-spacing: 2px;">NEURAL_CONNECTION_ESTABLISHED</text>
-            <text x="0" y="65" dominant-baseline="middle" text-anchor="middle" font-family="monospace" font-size="14" fill="rgba(255, 255, 255, 0.5)">GHENO_OS v4.2.1 // WELCOME_USER</text>
+            <text x="0" y="40" dominant-baseline="middle" text-anchor="middle" font-family="DejaVu Sans Mono" font-size="20" fill="#00ffff" filter="url(#textGlow)" style="letter-spacing: 2px;">NEURAL_CONNECTION_ESTABLISHED</text>
+            <text x="0" y="65" dominant-baseline="middle" text-anchor="middle" font-family="DejaVu Sans Mono" font-size="14" fill="rgba(255, 255, 255, 0.5)">GHENO_OS v4.2.1 // WELCOME_USER</text>
         </g>
     </svg>
     `;
