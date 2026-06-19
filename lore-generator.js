@@ -55,8 +55,8 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
 
         <!-- Content -->
         <foreignObject x="80" y="${imageBuffer ? 750 : 300}" width="${width - 160}" height="${imageBuffer ? height - 850 : height - 400}">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #ffffff; font-family: 'FreeSerif', serif; font-size: 22px; line-height: 1.5; text-align: justify;">
-                ${content.split('\n').map(line => `<p>${line}</p>`).join('')}
+            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #ffffff; font-family: 'FreeSerif', serif; font-size: 18px; line-height: 1.4; text-align: justify; overflow: hidden;">
+                ${content.split('\n').map(line => line.trim() ? `<p style="margin-bottom: 10px;">${line}</p>` : '').join('')}
             </div>
         </foreignObject>
 

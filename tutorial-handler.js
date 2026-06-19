@@ -307,11 +307,12 @@ async function handleTutorialAction(sock, message, player, actionText) {
 
             STYLE: Français moderne, dynamique et naturel. Style Anime (Humour, Fan Service, Ecchi, Cool). Pas de texte en anglais. PAS de parenthèses.
             LONGUEUR: 1-2 paragraphes MAX. PRÉCISION CHIRURGICALE. AUCUN DÉTAIL INUTILE. ÉVITE LES MOTS SUPERFLUS. EXPLIQUE CLAIREMENT SANS DÉTOUR.
+            AMBIANCE: Chill avec des moments sérieux.
 
             RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
-            1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé. C'est une personne lambda. Ne sois pas indulgent.
+            1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé. C'est une personne lambda prise dans un monde de Béhérits et d'Apôtres. Ne sois pas indulgent.
             2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR) : Ne décris JAMAIS les pensées, paroles ou actions d'un joueur. Un joueur sans action est IMMOBILE. Tu ne contrôles PAS les mouvements des joueurs. Tes phrases DOIVENT commencer par les conséquences directes de l'action passée du joueur.
-            3. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Mise sur le COOL et le FAN SERVICE. Sois précis sur les impacts physiques.
+            3. COHÉRENCE ET IMMERSION: Installe les joueurs dans une immersion totale. Mise sur le COOL, le FAN SERVICE et le mystère de l'Idée du Mal. Sois précis sur les impacts physiques.
             4. ADHÉRENCE STRICTE : Respecte la logique physique. Si le joueur est faible, il ne peut pas faire de miracles.
             5. PNJ EXCELLENTS & IMPACTANTS : L'Instructeur est impitoyable, vivant, et a une personnalité forte (ex: grognon, finit ses phrases par "...tocard !"). Ses réactions ont un impact sur le moral du joueur.
             5. IMPACT SOCIAL : Mentionne brièvement comment son métier ou son influence pourrait l'aider ou le desservir si la situation était réelle.

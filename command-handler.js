@@ -1298,15 +1298,15 @@ commands.set('lore', async (sock, message, args) => {
 
     if (!loreData) {
         const worldLore = {
-            'néanthea': "Une civilisation si avancée qu'elle semblait toucher le domaine des dieux. Son roi, Aldren, mit au jour le secret de l'Interstice, provoquant la chute de son royaume.",
-            'interstice': "Un monde brisé entre la vie et la mort. Des ruines flottent dans un ciel sans fin et le temps y est instable. C'est là que dort le Roi Vide.",
-            'héritiers': "Individus éveillant des pouvoirs surnaturels liés à l'Essence Primordiale. Ils sont le dernier espoir ou le glas du monde.",
-            'roi vide': "Responsable de la chute de Néanthea, il dort au cœur de l'Interstice. Destructeur pour certains, gardien pour d'autres.",
-            'nécropolis': "La cité silencieuse des morts gouvernée par Orpheon. Les âmes y traversent l'Interstice pour attendre leur jugement final.",
-            'convergence': "L'événement cataclysmique où le mana brut a fusionné avec la réalité matérielle.",
-            'éveil': "Le moment où les Héritiers manifestent pour la première fois l'Essence Primordiale sous forme de statistiques.",
-            'missions historiques': "Des quêtes spéciales où un Héritier est projeté dans le passé via une Faille Temporelle pour revivre les grands moments d'Aetheris.",
-            'histoire': "Aetherys était un monde stable jusqu'à ce que les sceaux séparant les dimensions ne commencent à se briser."
+            'one above all': "L'origine même de l'existence, le créateur du temps, de l'espace, de la vie et de la mort. Il demeure silencieux mais reviendra juger sa création.",
+            'idée du mal': "Conscience collective alimentée par les peurs et la haine de l'humanité. Elle manipule discrètement le destin du monde depuis les profondeurs.",
+            'béhérit': "Reliques vivantes ressemblant à des visages de pierre déformés. Ils choisissent leur propriétaire lors d'un désespoir absolu. Impossibles à trouver sans aide divine.",
+            'apôtres': "Humains ayant sacrifié ce qu'ils chérissent le plus via un Béhérit pour obtenir un pouvoir dépassant celui des mortels.",
+            'interstice': "Dimension située entre tous les mondes. C'est là que l'Idée du Mal réside et que les pactes interdits sont conclus.",
+            'origines': "Au commencement, One Above All façonna les Entités Célestes et Bestiales. L'humanité prospéra jusqu'à la naissance de l'Idée du Mal.",
+            'nécropolis': "La cité silencieuse des morts gouvernée par Orpheon. Les âmes y attendent le jugement final du Dieu Suprême.",
+            'missions historiques': "Quêtes projetant un Héritier dans le passé pour revivre la chute de grands royaumes ou la naissance des premiers Apôtres.",
+            'histoire': "Le monde approche d'un nouvel âge chaotique où les Béhérits réapparaissent et les frontières entre les mondes s'effacent."
         };
         const key = Object.keys(worldLore).find(k => topic.toLowerCase().includes(k));
         if (key) {
