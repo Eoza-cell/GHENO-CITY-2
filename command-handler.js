@@ -124,17 +124,29 @@ commands.set('quests', async (sock, message) => {
         return;
     }
 
-    let questText = '--- 📜 JOURNAL DE QUÊTES --- \n\n';
+    let questText = '╔══════════════════════════╗\n' +
+                    '   📜 *JOURNAL DES QUÊTES*   \n' +
+                    '╚══════════════════════════╝\n\n';
+
     if (activeQuests.length > 0) {
-        questText += '*⚔️ En Cours:*\n' + activeQuests.map(q => `├ ${q.title}\n└ ${q.description}`).join('\n\n') + '\n\n';
+        questText += '⚔️ *MISSIONS ACTIVES*\n' +
+                     activeQuests.map(q => {
+                         const progress = q.PlayerQuest.progress || 0;
+                         const bar = createStatusBar(progress, 100, '▰', '▱', 8);
+                         return `├ *${q.title}*\n│ 📊 [${bar}] ${progress}%\n└ 📝 ${q.description}`;
+                     }).join('\n\n') + '\n\n';
     }
+
     if (notStartedQuests.length > 0) {
-        questText += '*📍 Disponibles:*\n' + notStartedQuests.map(q => `└ ${q.title}`).join('\n');
+        questText += '📍 *OBJECTIFS DÉCOUVERTS*\n' +
+                     notStartedQuests.map(q => `└ 💠 ${q.title}`).join('\n') + '\n\n';
     }
 
     if (activeQuests.length === 0 && notStartedQuests.length === 0) {
-        questText += "Aucune quête à l'horizon. Explore le monde !";
+        questText += "🌀 *Rien à signaler...*\nExplorez les environs pour trouver du travail, Héritier.";
     }
+
+    questText += '\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬';
 
     await sock.sendMessage(replyJid, { text: questText });
 });
@@ -1503,31 +1515,35 @@ commands.set('menu', async (sock, message) => {
     await player.update({ mode: 'normal' });
   }
 
-  const menuText = "🌐 *GHENO CITY 2: LINK START* 🌐\n\n" +
-                   "Que souhaites-tu faire, voyageur ?\n\n" +
-                   "🎮 `/action` - Entrer dans la matrice (RP).\n" +
-                   "👤 `/profil` - Ton profil de joueur.\n" +
-                   "📋 `/quests` - Liste de tes objectifs.\n" +
-                   "🗺️ `/map` - Carte du monde & Donjons.\n" +
-                   "💰 `/bank` - Gestion de tes Col (🪙).\n" +
-                   "🛡️ `/statut` - État de ton équipement.\n" +
-                   "✨ `/competences` - Sorts & Techniques.\n" +
-                   "🏆 `/top` - Top 10 Héritiers.\n" +
-                   "🛒 `/boutique` - Objets & Armes.\n" +
-                   "👗 `/vetements` - Boutique de Mode.\n" +
-                   "👥 `/joueurs` - Joueurs aux alentours.\n" +
-                   "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
-                   "🤝 `/donner @joueur ...` - Échange d'objets.\n" +
-                   "🏰 `/royaumes` - Géopolitique mondiale.\n" +
-                   "🛡️ `/conflits` - Guerres en cours.\n" +
-                   "🏫 `/ecoles` - Liste des académies.\n" +
-                   "📝 `/examens` - Ton dossier scolaire.\n" +
-                   "✨ `/clubs` - Clubs extrascolaires.\n" +
-                   "🏠 `/maison` - Gérer ton domicile.\n" +
-                   "🔥 `/pacts` - Pactes avec les entités.\n" +
-                   "📚 `/lore` - Bibliothèque du monde.\n" +
-                   "🏆 `/tournoi` - Inscription & État du Tournoi.\n" +
-                   "❓ `/help` - Guide de survie.";
+  const menuText = "╔══════════════════════════╗\n" +
+                   "   🌐  *ARISE : GHENO CITY*  🌐\n" +
+                   "╚══════════════════════════╝\n\n" +
+                   "🕹️ *IMMERSION*\n" +
+                   "└ `/action` - Entrer dans le RP\n\n" +
+                   "👤 *HÉRITIER*\n" +
+                   "├ `/profil` - Statut & Stats\n" +
+                   "├ `/inventory` - Sac à dos\n" +
+                   "└ `/competences` - Sorts & Skills\n\n" +
+                   "📍 *NAVIGATION*\n" +
+                   "├ `/map` - Monde & Donjons\n" +
+                   "├ `/quests` - Journal d'objectifs\n" +
+                   "└ `/joueurs` - Qui est ici ?\n\n" +
+                   "💰 *ÉCONOMIE*\n" +
+                   "├ `/bank` - Ton compte (Col)\n" +
+                   "├ `/boutique` - Armes & Items\n" +
+                   "└ `/vetements` - Mode Aetherys\n\n" +
+                   "🏛️ *SOCIÉTÉ*\n" +
+                   "├ `/lore` - Bibliothèque\n" +
+                   "├ `/pacts` - Entités & Pactes\n" +
+                   "├ `/maison` - Ton domicile\n" +
+                   "└ `/clubs` - Clubs Académiques\n\n" +
+                   "🏆 *COMPÉTITION*\n" +
+                   "├ `/top` - Classement Global\n" +
+                   "└ `/tournoi` - Événements PVP\n\n" +
+                   "⚙️ *SYSTÈME*\n" +
+                   "├ `/help` - Aide complète\n" +
+                   "└ `/save` - Sauvegarder\n\n" +
+                   "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
   try {
     const menuImage = await generateMainMenuImage();
