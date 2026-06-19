@@ -147,7 +147,7 @@ async function callPuterAPI(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 30000
+                timeout: 10000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -210,7 +210,7 @@ async function callOpenRouter(system, prompt) {
                     'HTTP-Referer': 'https://github.com/skype-bot/arise',
                     'X-Title': 'Arise RPG'
                 },
-                timeout: 20000
+                timeout: 10000
             });
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
@@ -247,7 +247,7 @@ async function callBlackbox(system, prompt) {
                     'Accept': 'application/json',
                     'x-blackbox-device-id': Math.random().toString(36).substring(2, 15)
                 },
-                timeout: 40000
+                timeout: 15000
             });
 
             let result = "";
@@ -286,7 +286,7 @@ async function callPollinationsGen(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 25000
+                timeout: 12000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -321,15 +321,15 @@ async function callPollinationsPOST(system, prompt) {
                     'Content-Type': 'application/json',
                     'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
                 },
-                timeout: 40000
+                timeout: 15000
             });
 
             let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
             if (isValidAIResponse(resText)) return resText;
         } catch (e) {
             console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
-            // Longer jitter delay
-            await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+            // Jitter delay
+            await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
             continue;
         }
     }
@@ -483,15 +483,15 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
-        { name: 'Blackbox', fn: callBlackbox },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
+        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
-        { name: 'OpenRouter', fn: callOpenRouter }
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Pollinations GET', fn: callPollinationsGET }
     ];
 
     for (const provider of providers) {
@@ -533,8 +533,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
 
     console.warn("[AI] Tous les providers ont échoué.");
     if (depth < 1) {
-        console.log("[AI] Nouvelle tentative dans 3s avec jitter...");
-        await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
+        console.log("[AI] Nouvelle tentative dans 1s avec jitter...");
+        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
         return callAI(systemPrompt, userPrompt, depth + 1);
     }
 

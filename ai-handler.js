@@ -87,7 +87,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const availableQuests = await Quest.findAll({ where: { rank_required: player.rank }, limit: 3 });
   const availableQuestState = "Quêtes dispo: " + availableQuests.map(q => q.title).join(', ');
 
-  const dungeons = await Dungeon.findAll({ limit: 3 });
+  const dungeons = await Dungeon.findAll({ limit: 2 });
   const dungeonState = "Donjons: " + dungeons.map(d => `${d.name}(${d.rank})`).join(', ');
 
   const nearbyPlayers = await Player.findAll({
@@ -105,14 +105,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const worldSocialState = "Rumeurs mondiales (Joueurs actifs): " + recentPlayers.map(p => `${p.name} (Vu à ${p.location})`).join(', ');
 
-  const items = await Item.findAll({ limit: 3 });
+  const items = await Item.findAll({ limit: 2 });
   const shopState = "Shop: " + items.map(i => `${i.name}(${i.price})`).join(', ');
 
-  // Fetch robust history (last 10 messages in the location) for memory
+  // Fetch history (last 6 messages) for memory
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 10
+      limit: 6
   });
   const historyState = history.length > 0
     ? "MÉMOIRE_RÉCENTE:\n" + history.reverse().map(h => `[${h.senderName}]: ${h.content}`).join('\n')
