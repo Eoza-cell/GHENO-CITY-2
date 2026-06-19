@@ -306,7 +306,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             Stats: FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}.
 
             STYLE: Français moderne, dynamique et naturel. Style Anime (Humour, Fan Service, Ecchi, Cool). Pas de texte en anglais. PAS de parenthèses.
-            LONGUEUR: 1-2 paragraphes MAX. PRÉCISION CHIRURGICALE. AUCUN DÉTAIL INUTILE.
+            LONGUEUR: 1-2 paragraphes MAX. PRÉCISION CHIRURGICALE. AUCUN DÉTAIL INUTILE. ÉVITE LES MOTS SUPERFLUS. EXPLIQUE CLAIREMENT SANS DÉTOUR.
 
             RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
             1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé. C'est une personne lambda. Ne sois pas indulgent.
