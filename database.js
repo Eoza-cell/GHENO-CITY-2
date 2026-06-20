@@ -648,15 +648,15 @@ async function setupDatabase() {
     }
 
     const kingdomsToSeed = [
-        { name: 'Origine de l\'Existence', description: 'Le domaine de ONE ABOVE ALL, créateur du temps, de l\'espace, de la vie et de la mort. C\'est un lieu de pureté absolue où la Causalité prend sa source.', status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL' },
-        { name: 'L\'Interstice', description: 'Dimension située entre tous les mondes où se forgent les pactes interdits via les Béhérits. Les créatures de cauchemar y errent librement.', status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal' },
-        { name: 'Royaume Céleste', description: 'Domaine des Entités Célestes, gardiennes de l\'ordre.', status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius' },
-        { name: 'Terres Bestiales', description: 'Incarnation de l\'instinct et de l\'évolution.', status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos' },
-        { name: 'Empire d\'Elion', description: 'Royaume humain prospérant sous le regard des dieux, mais menacé par l\'ombre des Apôtres.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
-        { name: 'Nécropolis', description: 'La cité silencieuse des morts, porte d\'entrée vers le jugement de One Above All.', status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon' },
-        { name: 'Vharos le Maudit', description: 'Territoire contrôlé par un Apôtre légendaire.', status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos' },
-        { name: 'Valkyr', description: 'Centre technologique et magique, ignorant les manipulations de l\'Idée du Mal.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen' },
-        { name: 'Gheno souterrain', description: 'Lieu de trafic de reliques anciennes, incluant parfois des Béhérits dormants.', status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre' }
+        { name: 'Origine de l\'Existence', description: 'Le domaine de ONE ABOVE ALL. Sub-locations: Autel de la Causalité, Mer de Conscience, Les Portes du Temps.', status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL' },
+        { name: 'L\'Interstice', description: 'Dimension entre les mondes. Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.', status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal' },
+        { name: 'Royaume Céleste', description: 'Domaine des Entités Célestes. Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.', status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius' },
+        { name: 'Terres Bestiales', description: 'Instinct et évolution. Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.', status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos' },
+        { name: 'Empire d\'Elion', description: 'Royaume humain. Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
+        { name: 'Nécropolis', description: 'Cité des morts. Sub-locations: Le Seuil des Morts, Allée des Tombeaux Oubliés, Trône du Jugement.', status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon' },
+        { name: 'Vharos le Maudit', description: 'Territoire de l\'Apôtre. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.', status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos' },
+        { name: 'Valkyr', description: 'Centre technologique. Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen' },
+        { name: 'Gheno souterrain', description: 'Trafic de reliques. Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé.', status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre' }
     ];
     for (const k of kingdomsToSeed) {
         await Kingdom.findOrCreate({ where: { name: k.name }, defaults: k });

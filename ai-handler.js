@@ -162,8 +162,21 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0 ? "Skills: " + playerSkills.map(s => s.name).join(', ') : "Aucun skill";
-  const npcs = await NPC.findAll({ where: { location: { [Op.like]: `%${player.location}%` } }, limit: 2 });
-  const npcState = "PNJ: " + npcs.map(n => `${n.name}(${n.role})`).join(', ');
+
+  const kingdom = await Kingdom.findOne({ where: { name: player.location } });
+  const subLocContext = kingdom ? `\nLORE_LIEU: ${kingdom.description}` : "";
+
+  const npcs = await NPC.findAll({
+    where: {
+        [Op.or]: [
+            { location: { [Op.like]: `%${player.location}%` } },
+            { powerLevel: { [Op.gte]: 90 } } // Include major entities/bosses
+        ]
+    },
+    order: [['powerLevel', 'DESC']],
+    limit: 5
+  });
+  const npcState = "PNJ_PRÉSENTS: " + npcs.map(n => `${n.name}(Rôle:${n.role}, Force:${n.powerLevel}, Spé:${n.specialty})`).join(' | ');
   const playerPacts = await player.getEntities();
   const pactState = playerPacts.length > 0 ? "Pactes: " + playerPacts.map(e => e.name).join(', ') : "Pas de pacte";
   const playerClubs = await player.getClubs();
@@ -197,7 +210,7 @@ L'environnement est interactif et persistant. Les bâtiments, arbres, falaises, 
 
 Le monde doit sembler vivant. Les habitants possèdent leur propre routine, les marchands voyagent, les armées se déplacent, les monstres chassent, les factions complotent et les événements continuent d'avancer indépendamment des joueurs.
 
-Les dialogues doivent être naturels et cohérents avec la personnalité de chaque personnage. Les émotions, tensions, rivalités, amitiés et conflits évoluent progressivement selon les interactions vécues durant l'aventure.
+Les dialogues doivent être naturels et cohérents with la personnalité de chaque personnage. Les émotions, tensions, rivalités, amitiés et conflits évoluent progressivement selon les interactions vécues durant l'aventure.
 
 Le ton général doit rappeler un anime ou un roman fantasy moderne : aventure, exploration, mystère, action, humour, drame et développement des personnages. Des situations légères, humoristiques ou maladroites peuvent parfois apparaître pour renforcer la personnalité des personnages et l'ambiance du monde, sans devenir le centre principal du récit.
 
@@ -212,13 +225,17 @@ LORE SUPRÊME:
 6. L'INTERSTICE: Dimension entre les mondes.
 
 RÈGLES TECHNIQUES:
-1. RÉACTIVITÉ ABSOLUE: Ne décris JAMAIS les pensées, paroles ou actions d'un joueur.
-   - RÈGLE D'IMMOBILITÉ: Si un joueur est listé comme SPECTATEUR dans le CONTEXTE, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard ou une expression faciale. Il est comme une statue.
-   - Si un joueur est listé comme ACTEUR, réagis uniquement à ce qu'il a écrit dans ACTIONS_JOUEURS. N'invente AUCUN dialogue ou mouvement supplémentaire pour lui.
-2. STATS (PvP/PvE): Si un attaquant a une FORCE ou AGILITÉ >15 pts d'écart à la cible, l'impact est dévastateur (os brisés, traumatismes).
-   - ADVERSAIRES ACTIFS (STRICT): Les PNJ et monstres ne sont JAMAIS passifs. Ils n'attendent pas d'être frappés. Ils utilisent l'environnement (se cacher, renverser une table), emploient des tactiques (feintes, attaques combinées) et utilisent leurs propres techniques.
-   - RIPOSTE DES MONSTRES: Les monstres ne sont pas des sacs à PV. Ils esquivent (basé sur leur AGI) et contre-attaquent violemment (basé sur leur FOR) durant le même tour que l'action du joueur. Si un joueur attaque, le monstre doit tenter de parer ou d'esquiver, puis riposter immédiatement. Inflige des dégâts via update_player si le joueur est touché.
-   - CONSISTANCE GÉOGRAPHIQUE DES MONSTRES: Les monstres et BOSS ne peuvent apparaître que dans leur lieu (Location) assigné. Ne fais JAMAIS apparaître un monstre qui n'appartient pas à la zone actuelle du joueur.
+1. RÉACTIVITÉ ABSOLUE (ZÉRO HALLUCINATION): Ne décris JAMAIS les pensées, les paroles ou les actions d'un joueur.
+   - RÈGLE D'IMMOBILITÉ: Si un joueur est listé comme SPECTATEUR, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard.
+   - Si un joueur est listé comme ACTEUR, réagis UNIQUEMENT à ce qu'il a écrit dans ACTIONS_JOUEURS. N'invente AUCUN dialogue ou mouvement pour lui.
+2. STATS & ÉQUIPEMENT (STRICT):
+   - INVENTAIRE: Un joueur ne peut utiliser QUE les objets listés dans 'Inv'. S'il tente d'utiliser un objet qu'il n'a pas, l'action échoue narrativement (ex: il fouille ses poches en vain).
+   - LIEU: Le joueur est strictement limité à sa 'Location' et sa 'Sub-Location'. Il ne peut pas interagir avec des éléments d'un autre lieu sans se déplacer physiquement via 'update_player'.
+   - STATS: Les résultats dépendent UNIQUEMENT des statistiques fournies. Pas de succès miraculeux sans stats adéquates.
+   - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (anatomie broyée).
+   - ADVERSAIRES ACTIFS (STRICT): Les PNJ et monstres ne sont JAMAIS passifs. Ils utilisent l'environnement, feintent, et emploient leurs techniques.
+   - RIPOSTE DES MONSTRES: Ils esquivent/parent et contre-attaquent dans le même tour. Inflige des dégâts via update_player.
+   - CONSISTANCE GÉOGRAPHIQUE: Les monstres et BOSS ne peuvent apparaître que dans leur lieu (Location) assigné.
 3. PRÉCISION CHIRURGICALE & SENSORIELLE: Mentionne les membres visés, les distances en mètres, mais aussi les odeurs (fer, poussière, parfum), les sons (craquement d'os, sifflement d'air, brouhaha lointain) et les textures (froid du métal, rugosité de la pierre).
 4. PHYSIQUE & POIDS: Décris l'inertie, le poids des armes, la résistance de l'air, et l'impact brutal des chocs. Chaque mouvement doit avoir une consistance physique réelle.
 5. RÉACTIONS BIOLOGIQUES: Détaille les réactions physiologiques (souffle court, sueur qui pique les yeux, rythme cardiaque qui cogne dans les tempes, tremblement d'adrénaline).
@@ -235,13 +252,15 @@ RÈGLES TECHNIQUES:
 12. PROGRESSION & TECHNIQUES: Les joueurs possèdent des techniques de base. Ils peuvent en apprendre de nouvelles via 'add_skill' (coût en SP à déduire via 'update_player') ou par l'entraînement narratif. Les techniques peuvent évoluer (ex: 'Vertical Square' devenant 'Square Cross') si le joueur pratique intensément ou vit un choc émotionnel fort.
 13. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"..."}
 14. ACTIONS: update_player, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
-15. VISUELS (STRICT): La génération d'images par IA est DÉSACTIVÉE. Tu ne dois JAMAIS inventer de nouveaux prompts d'image. Tu dois UNIQUEMENT utiliser les chemins de fichiers locaux suivants si la situation s'y prête :
+15. INTERACTIONS MULTI-JOUEURS: Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions. Tu sais exactement qui est qui grâce aux noms dans ACTIONS_JOUEURS. Si un joueur attaque un autre, compare leurs STATS (AGI vs AGI pour esquive, FOR vs DEF pour dégâts). Ne décide jamais de l'issue sans base statistique.
+16. PRÉSENCE DES PNJ MAJEURS (STRICT): Les PNJ principaux (Griffith, Void, Orpheon, Magnus, etc.) ne sont pas des décors. Ils ont des intentions, des secrets, et une aura imposante. S'ils sont listés dans PNJ_PRÉSENTS ou sont cohérents avec le lieu, ils doivent INTERVENIR, observer avec mépris ou intérêt, et manipuler la situation. Leur présence doit être palpable (pression spirituelle, silence pesant).
+17. VISUELS (STRICT): La génération d'images par IA est DÉSACTIVÉE. Tu ne dois JAMAIS inventer de nouveaux prompts d'image. Tu dois UNIQUEMENT utiliser les chemins de fichiers locaux suivants si la situation s'y prête :
     - 'assets/apostle.jpg' : Pour l'apparition d'un Apôtre ou d'une menace divine.
     - 'assets/tutorial_boss.jpg' : Pour un combat de boss ou un ennemi massif.
     - 'assets/locations/academy.jpg' : Pour l'Académie Impériale.
     - 'assets/locations/eldoria.jpg' : Pour la ville d'Eldoria.
     Si aucune de ces images ne correspond, laisse "imagePrompt" vide ("").
-16. PERSONA (MJ HUMAIN) & MÉMOIRE INFINIE (RÈGLE DES 1000 MESSAGES):
+18. PERSONA (MJ HUMAIN) & MÉMOIRE INFINIE (RÈGLE DES 1000 MESSAGES):
     - MÉMOIRE ABSOLUE: Tu agis comme si tu avais une mémoire de 1000+ messages. Pour cela, tu dois consulter SYSTEMATIQUEMENT la MÉMOIRE_LONG_TERME (Journal).
     - CONSOLIDATION: Chaque fois qu'un joueur accomplit un exploit, subit une blessure grave, se fait un ennemi, ou qu'un secret est révélé, utilise 'write_journal' pour fixer ce souvenir.
     - COHÉRENCE TOTALE: Le monde ne reset JAMAIS. Si un bâtiment est brûlé dans le Journal, il reste brûlé 50 messages plus tard.
@@ -249,15 +268,15 @@ RÈGLES TECHNIQUES:
     - IMPROVISATION: Ne sois pas un simple automate de quêtes. Si un joueur fait quelque chose de totalement inattendu, improvise une suite logique et surprenante.
     - PERSONNALITÉ: N'hésite pas à avoir un style narratif qui a de la "gueule". Sois parfois sarcastique, solennel, ou terrifiant selon la situation.
     - PROACTIVITÉ: Interpelle les SPECTATEURS via des tags @NomDuJoueur. Fais-les réagir à des événements mondiaux ou des interactions de PNJ.
-17. STYLE NARRATIF (OBLIGATOIRE):
+19. STYLE NARRATIF (OBLIGATOIRE):
     - Commence TOUJOURS ta réponse par *AVENTURA* sur une ligne seule.
     - Ajoute ensuite le lieu avec un emoji : *📍 Nom du Lieu*.
     - Utilise des sauts de ligne fréquents pour créer du suspense et de l'impact.
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
     - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
-18. NARRATION: Français riche et cinématographique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).`;
+20. NARRATION: Français riche et cinématographique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).`;
 
-    const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState}${proactiveHint} | ${worldSocialState} | ${journalState}\n${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
+    const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState}${proactiveHint}${subLocContext} | ${worldSocialState} | ${journalState}\n${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -385,7 +404,7 @@ RÈGLES TECHNIQUES:
       let targetModified = false;
 
       switch (type) {
-        case 'update_player':
+        case 'update_player': {
           if (parameters.col_change) {
               await target.increment('col', { by: parameters.col_change });
               targetModified = true;
@@ -505,8 +524,9 @@ RÈGLES TECHNIQUES:
               if (target.sleep < 0) await target.update({ sleep: 0 });
           }
           break;
+        }
 
-        case 'add_skill':
+        case 'add_skill': {
           if (parameters.skillName) {
             const skill = await Skill.findOne({
                 where: {
@@ -533,8 +553,9 @@ RÈGLES TECHNIQUES:
             }
           }
           break;
+        }
 
-        case 'add_item':
+        case 'add_item': {
           if (parameters.itemName && parameters.quantity) {
             const inventory = [...target.inventory];
             const existingItem = inventory.find(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
@@ -568,8 +589,9 @@ RÈGLES TECHNIQUES:
             }
           }
           break;
+        }
 
-        case 'remove_item':
+        case 'remove_item': {
             if (parameters.itemName && parameters.quantity) {
                 let inventory = [...target.inventory];
                 const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
@@ -598,19 +620,19 @@ RÈGLES TECHNIQUES:
                 }
             }
             break;
+        }
 
-        case 'interact_npc':
+        case 'interact_npc': {
             if (parameters.npcName) {
                 const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${parameters.npcName}%` } } });
                 if (npc) {
                     console.log(`[AI] Interaction avec PNJ: ${npc.name}`);
-                    // Trigger specific effects based on NPC and parameters if needed
-                    // For now, it's mostly narrative, but we could add logic here
                 }
             }
             break;
+        }
 
-        case 'notify_player':
+        case 'notify_player': {
             if (parameters.target_name && parameters.message) {
                 const notifyTarget = await Player.findOne({
                     where: {
@@ -627,8 +649,9 @@ RÈGLES TECHNIQUES:
                 }
             }
             break;
+        }
 
-        case 'broadcast_global':
+        case 'broadcast_global': {
             if (parameters.message) {
                 const { resolveMentions } = require('./message-handler');
                 const { text: msgText, mentions } = await resolveMentions(parameters.message);
@@ -641,8 +664,9 @@ RÈGLES TECHNIQUES:
                 }
             }
             break;
+        }
 
-        case 'broadcast':
+        case 'broadcast': {
             if (parameters.message) {
                 const { resolveMentions } = require('./message-handler');
                 const { text: msgText, mentions } = await resolveMentions(parameters.message);
@@ -654,36 +678,41 @@ RÈGLES TECHNIQUES:
                 }
             }
             break;
+        }
 
-        case 'start_quest':
+        case 'start_quest': {
             if (parameters.questTitle) {
                 const line = await questUtils.startQuest(target, parameters.questTitle);
                 if (line) questFeedback.push(line);
             }
             break;
+        }
 
-        case 'advance_quest':
+        case 'advance_quest': {
             if (parameters.questTitle) {
                 const line = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
                 if (line) questFeedback.push(line);
             }
             break;
+        }
 
-        case 'complete_quest':
+        case 'complete_quest': {
             if (parameters.questTitle) {
                 const line = await questUtils.completeQuest(target, parameters.questTitle, sock);
                 if (line) questFeedback.push(line);
             }
             break;
+        }
 
-        case 'update_quest': // AI modifies the course of a quest
+        case 'update_quest': { // AI modifies the course of a quest
             if (parameters.questTitle) {
                 const line = await questUtils.modifyQuest(target, parameters.questTitle, parameters.branch, parameters.notes);
                 if (line) questFeedback.push(line);
             }
             break;
+        }
 
-        case 'start_multiplayer_quest':
+        case 'start_multiplayer_quest': {
             if (parameters.questTitle) {
                 const res = await questUtils.startMultiplayerQuest(player, parameters.questTitle);
                 if (res) {
@@ -696,8 +725,9 @@ RÈGLES TECHNIQUES:
                 }
             }
             break;
+        }
 
-        case 'forge_pact':
+        case 'forge_pact': {
             if (parameters.entityName) {
                 const entity = await Entity.findOne({
                     where: { name: { [Op.like]: `%${parameters.entityName}%` } },
@@ -725,8 +755,9 @@ RÈGLES TECHNIQUES:
                 }
             }
             break;
+        }
 
-        case 'join_club':
+        case 'join_club': {
             if (parameters.clubName) {
                 const club = await Club.findOne({ where: { name: { [Op.like]: `%${parameters.clubName}%` } } });
                 if (club) {
@@ -738,8 +769,9 @@ RÈGLES TECHNIQUES:
                 }
             }
             break;
+        }
 
-        case 'resurrect_player':
+        case 'resurrect_player': {
             if (parameters.target_name) {
                 const deadPlayer = await Player.findOne({ where: { name: parameters.target_name, location: 'Nécropolis' } });
                 if (deadPlayer) {
@@ -770,8 +802,9 @@ RÈGLES TECHNIQUES:
                 }
             }
             break;
+        }
 
-        case 'write_journal':
+        case 'write_journal': {
             if (parameters.entry) {
                 await WorldJournal.create({
                     entry: parameters.entry,
@@ -781,6 +814,7 @@ RÈGLES TECHNIQUES:
                 console.log(`[JOURNAL] Nouvelle entrée : ${parameters.entry}`);
             }
             break;
+        }
       }
 
       // Notify target if it's not the current player
