@@ -6,6 +6,7 @@ const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
 const { checkLevelUp } = require('./level-utils');
+const { isDay, getWeather } = require('./game-state');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -141,6 +142,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const rpYears = Math.floor(elapsedMonths);
   const rpMonth = Math.floor((elapsedMonths % 1) * 12) + 1;
   const rpYearString = `An ${rpYears + 1}, Mois ${rpMonth}`;
+  const cycleInfo = isDay() ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
+  const weather = getWeather();
 
     // Mini-Event Trigger (20% chance)
     const triggerMiniEvent = Math.random() < 0.20;
@@ -179,18 +182,23 @@ LORE SUPRÊME:
 RÈGLES TECHNIQUES:
 1. RÉACTIVITÉ ABSOLUE: Ne décris JAMAIS les pensées, paroles ou actions d'un joueur.
 2. STATS (PvP/PvE): Si un attaquant a une FORCE ou AGILITÉ >15 pts d'écart à la cible, l'impact est dévastateur (os brisés, traumatismes).
-3. PRÉCISION: Mentionne les membres visés et les distances en mètres.
-4. MORT & RÉSURRECTION (CRITIQUE):
+3. PRÉCISION CHIRURGICALE & SENSORIELLE: Mentionne les membres visés, les distances en mètres, mais aussi les odeurs (fer, poussière, parfum), les sons (craquement d'os, sifflement d'air, brouhaha lointain) et les textures (froid du métal, rugosité de la pierre).
+4. PHYSIQUE & POIDS: Décris l'inertie, le poids des armes, la résistance de l'air, et l'impact brutal des chocs. Chaque mouvement doit avoir une consistance physique réelle.
+5. RÉACTIONS BIOLOGIQUES: Détaille les réactions physiologiques (souffle court, sueur qui pique les yeux, rythme cardiaque qui cogne dans les tempes, tremblement d'adrénaline).
+6. CONSÉQUENCES ENVIRONNEMENTALES: Les attaques ratées ou les impacts puissants doivent marquer le décor (pierre qui éclate, bois qui se fend, poussière qui se soulève, traces de brûlures).
+7. MONDE VIVANT & DÉTAILLÉ: Ne te contente pas de répondre à l'action. Décris ce qui se passe en arrière-plan (un marchand qui crie, un chat qui file entre les jambes, la lumière qui change, la poussière qui danse dans l'air).
+8. IMPACT PSYCHOLOGIQUE: Décris la tension, la peur, l'adrénaline ou le mépris dans les yeux des PNJ. Les combats ne sont pas que des stats, ce sont des duels de volontés.
+9. MORT & RÉSURRECTION (CRITIQUE):
    - Si un joueur tombe à 0 PV :
-     - S'il est secouru (amené à l'hôpital par un autre joueur ou via un événement MJ), il perd 500 COL pour les soins.
-     - S'il n'est pas secouru, il MEURT et est envoyé à Nécropolis (Monde des Morts).
-   - RÉSURRECTION : Un joueur mort ne peut revenir que via un sort de résurrection lancé par un vivant. Le lanceur du sort PERD 50% de ses PV MAX actuels pour ramener l'âme du défunt.
-5. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX] et les PV des ennemis [Cible: PV/MAX].
-6. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
-7. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player.
-8. CONCISION: Max 200 mots. Français fluide et immersif.`;
+     - S'il est secouru, il perd 500 COL pour les soins.
+     - S'il n'est pas secouru, il MEURT et est envoyé à Nécropolis.
+   - RÉSURRECTION : Requiert un vivant sacrifiant 50% de ses PV MAX.
+10. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX] et les PV des ennemis [Cible: PV/MAX].
+11. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+12. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player.
+13. NARRATION: Français riche, ultra-viscéral et cinématographique. Interdiction d'utiliser des phrases génériques ("Tu te lances dans l'aventure", "Le combat commence"). Entre directement dans le vif du sujet. Vocabulaire précis, cru et évocateur. Décris la douleur, l'effort, la sueur et la fureur. CONCISION MAITRISÉE (Max 400 mots pour une immersion totale et sans compromis).`;
 
-    const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
+    const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
