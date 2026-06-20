@@ -5,6 +5,7 @@ const { generateLinkStartImage } = require('./start-image-generator');
 const { generateProfileCard } = require('./profile-generator');
 const { sendWithImage } = require('./message-handler');
 const { callAI } = require('./ai-utils');
+const { Skill, Op } = require('./database');
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
@@ -254,6 +255,21 @@ async function handleTutorialAction(sock, message, player, actionText) {
                     luck: 5 + familyBonus.luck,
                     defense: 10 + familyBonus.defense
                 });
+
+                // Assign basic skills for the class
+                const basicSkills = await Skill.findAll({ where: { type: chosenClass } });
+                for (const s of basicSkills) {
+                    await player.addSkill(s);
+                    // Apply stat bonuses immediately
+                    const bonuses = s.statBonuses || {};
+                    for (const [stat, val] of Object.entries(bonuses)) {
+                        if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                            await player.increment(stat, { by: val });
+                        }
+                    }
+                }
+                await player.reload();
+
                 console.log(`[TUTORIAL] Player updated successfully.`);
             } catch (err) {
                 console.error(`[TUTORIAL] Failed to update player:`, err);
