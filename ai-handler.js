@@ -180,10 +180,15 @@ RÈGLES TECHNIQUES:
 1. RÉACTIVITÉ ABSOLUE: Ne décris JAMAIS les pensées, paroles ou actions d'un joueur.
 2. STATS (PvP/PvE): Si un attaquant a une FORCE ou AGILITÉ >15 pts d'écart à la cible, l'impact est dévastateur (os brisés, traumatismes).
 3. PRÉCISION: Mentionne les membres visés et les distances en mètres.
-4. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX] et les PV des ennemis [Cible: PV/MAX].
-5. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
-6. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club.
-7. CONCISION: Max 200 mots. Français fluide et immersif.`;
+4. MORT & RÉSURRECTION (CRITIQUE):
+   - Si un joueur tombe à 0 PV :
+     - S'il est secouru (amené à l'hôpital par un autre joueur ou via un événement MJ), il perd 500 COL pour les soins.
+     - S'il n'est pas secouru, il MEURT et est envoyé à Nécropolis (Monde des Morts).
+   - RÉSURRECTION : Un joueur mort ne peut revenir que via un sort de résurrection lancé par un vivant. Le lanceur du sort PERD 50% de ses PV MAX actuels pour ramener l'âme du défunt.
+5. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX] et les PV des ennemis [Cible: PV/MAX].
+6. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+7. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player.
+8. CONCISION: Max 200 mots. Français fluide et immersif.`;
 
     const fullPrompt = `DATE_RP: ${rpYearString}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
@@ -325,7 +330,31 @@ RÈGLES TECHNIQUES:
               await target.increment('health', { by: parameters.health_change });
               await target.reload();
               if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
-              if (target.health < 0) await target.update({ health: 0 });
+
+              // Handle Death Logic
+              if (target.health <= 0) {
+                  await target.update({ health: 0 });
+
+                  if (parameters.is_hospitalized) {
+                      // Hospitalized: loses 500 COL, stays in current location (hospitalized)
+                      await target.decrement('col', { by: 500 });
+                      await target.reload();
+                      if (target.col < 0) await target.update({ col: 0 });
+                      await target.update({ health: 20 }); // Returns with some HP after care
+                      questFeedback.push(`🏥 *HOSPITALISATION* : ${target.name} a été sauvé de justesse. Coût des soins : 500 COL.`);
+                  } else {
+                      // True Death: moved to Nécropolis
+                      await target.update({
+                          location: 'Nécropolis',
+                          subLocation: 'Le Seuil des Morts'
+                      });
+                      questFeedback.push(`💀 *MORT* : L'âme de ${target.name} a quitté son corps. Il erre désormais à Nécropolis.`);
+
+                      await sock.sendMessage(target.whatsappId, {
+                          text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener."
+                      });
+                  }
+              }
               targetModified = true;
           }
           if (parameters.max_health_change) {
@@ -601,6 +630,38 @@ RÈGLES TECHNIQUES:
                         await target.addClub(club);
                         questFeedback.push(`🏫 *CLUB REJOINT* : Tu es désormais membre du ${club.name}.`);
                     }
+                }
+            }
+            break;
+
+        case 'resurrect_player':
+            if (parameters.target_name) {
+                const deadPlayer = await Player.findOne({ where: { name: parameters.target_name, location: 'Nécropolis' } });
+                if (deadPlayer) {
+                    let caster = player;
+                    if (parameters.caster_name) {
+                        const foundCaster = await Player.findOne({ where: { name: parameters.caster_name, location: player.location } });
+                        if (foundCaster) caster = foundCaster;
+                    }
+
+                    // Caster sacrifice
+                    const sacrifice = Math.floor(caster.maxHealth * 0.5);
+                    await caster.decrement('health', { by: sacrifice });
+                    await caster.reload();
+                    if (caster.health < 1) await caster.update({ health: 1 }); // Prevent double death if possible
+
+                    // Resurrection
+                    await deadPlayer.update({
+                        location: parameters.new_location || 'Eldoria',
+                        subLocation: 'Cimetière',
+                        health: Math.floor(deadPlayer.maxHealth * 0.1) // Returns with low HP
+                    });
+
+                    questFeedback.push(`✨ *RÉSURRECTION* : ${deadPlayer.name} a été rappelé du monde des morts par ${caster.name}. Sacrifice de ${sacrifice} PV.`);
+
+                    await sock.sendMessage(deadPlayer.whatsappId, {
+                        text: `✨ *TU ES REVENU !*\n\n${caster.name} a sacrifié sa propre force vitale pour te ramener à la vie. Tu te réveilles à ${deadPlayer.location}, affaibli mais vivant.`
+                    });
                 }
             }
             break;
