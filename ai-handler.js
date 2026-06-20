@@ -72,13 +72,10 @@ async function handleFreeAction(sock, message, player, actionText) {
       order: [['id', 'ASC']]
   });
 
-  // If 'next' is sent but there are NO actions at all to process
-  if (recentActions.length === 0) {
-      await sock.sendMessage(jid, { text: "Rien ne se passe. (Aucune action à traiter)" });
-      return;
-  }
-
-  const aggregatedActions = recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n');
+  // If 'next' is sent but there are NO actions, we still let the MJ intervene if they want
+  const aggregatedActions = recentActions.length > 0
+    ? recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n')
+    : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde ou interpeller quelqu'un.)";
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -129,7 +126,10 @@ async function handleFreeAction(sock, message, player, actionText) {
   const activePlayers = nearbyPlayers.filter(p => actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId);
   const spectatorPlayers = nearbyPlayers.filter(p => !actingPlayerNames.has(p.name) && p.whatsappId !== player.whatsappId);
 
-  const socialState = `ACTEURS: ${activePlayers.map(p => p.name).join(', ')} | SPECTATEURS (IMMOBILES/SILENCIEUX): ${spectatorPlayers.length > 0 ? spectatorPlayers.map(p => p.name).join(', ') : 'Aucun'}`;
+  const socialState = `ACTEURS: ${activePlayers.map(p => p.name).join(', ')} | SPECTATEURS (SILENCIEUX): ${spectatorPlayers.length > 0 ? spectatorPlayers.map(p => p.name).join(', ') : 'Aucun'}`;
+  const proactiveHint = spectatorPlayers.length > 0
+    ? `\nMJ HINT: N'hésite pas à faire bouger les choses pour les spectateurs (${spectatorPlayers.map(p => p.name).join(', ')}) s'ils sont inactifs depuis trop longtemps. Interpelle-les avec @Nom.`
+    : "";
 
   const recentPlayers = await Player.findAll({
       where: { whatsappId: { [Op.ne]: player.whatsappId } },
@@ -221,11 +221,18 @@ RÈGLES TECHNIQUES:
    - RÉSURRECTION : Requiert un vivant sacrifiant 50% de ses PV MAX.
 10. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX], [Hunger -X], [Sleep -X] et les PV des ennemis [Cible: PV/MAX].
 11. SURVIE: Si la Faim (Hunger) ou le Sommeil (Sleep) est bas (<20), le joueur subit des malus narratifs (fatigue, vertiges). À 0, il commence à perdre des PV. Manger ou dormir restaure ces barres via update_player.
-12. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+12. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"..."}
 13. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player.
-13. NARRATION: Français riche, ultra-viscéral et cinématographique. Interdiction d'utiliser des phrases génériques ("Tu te lances dans l'aventure", "Le combat commence"). Entre directement dans le vif du sujet. Vocabulaire précis, cru et évocateur. Décris la douleur, l'effort, la sueur et la fureur. CONCISION MAITRISÉE (Max 400 mots pour une immersion totale et sans compromis).`;
+14. PERSONA (MJ HUMAIN): Tu es un MJ proactif. Si des joueurs sont SPECTATEURS, n'hésite pas à les interpeller via les PNJ ou l'environnement pour les forcer à réagir. Utilise obligatoirement des tags @NomDuJoueur dans la narration pour attirer leur attention. Tes PNJ sont vivants, ils ont des motivations cachées et ne sont pas là juste pour donner des quêtes.
+15. STYLE NARRATIF (OBLIGATOIRE):
+    - Commence TOUJOURS ta réponse par *AVENTURA* sur une ligne seule.
+    - Ajoute ensuite le lieu avec un emoji : *📍 Nom du Lieu*.
+    - Utilise des sauts de ligne fréquents pour créer du suspense et de l'impact.
+    - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
+    - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
+16. NARRATION: Français riche et cinématographique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).`;
 
-    const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
+    const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState}${proactiveHint} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -250,6 +257,7 @@ RÈGLES TECHNIQUES:
 
     if (typeof content === 'object') {
         aiResponse = { ...aiResponse, ...content };
+        if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
     } else {
         // Robust JSON extraction: Find the largest JSON block possible
         let start = content.indexOf('{');
@@ -260,6 +268,7 @@ RÈGLES TECHNIQUES:
             try {
                 const parsed = JSON.parse(potentialJson);
                 aiResponse = { ...aiResponse, ...parsed };
+                if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
             } catch (e) {
                 // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
                 const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
@@ -578,10 +587,31 @@ RÈGLES TECHNIQUES:
 
         case 'notify_player':
             if (parameters.target_name && parameters.message) {
-                const notifyTarget = await Player.findOne({ where: { name: { [Op.like]: `%${parameters.target_name}%` }, location: player.location } });
+                const notifyTarget = await Player.findOne({
+                    where: {
+                        name: { [Op.like]: `%${parameters.target_name}%` }
+                    }
+                });
                 if (notifyTarget) {
+                    const { resolveMentions } = require('./message-handler');
+                    const { text: msgText, mentions } = await resolveMentions(parameters.message);
                     await sock.sendMessage(notifyTarget.whatsappId, {
-                        text: `🔔 *Message de RP*\n\n${parameters.message}`
+                        text: `🔔 *Message de RP*\n\n${msgText}`,
+                        mentions
+                    });
+                }
+            }
+            break;
+
+        case 'broadcast_global':
+            if (parameters.message) {
+                const { resolveMentions } = require('./message-handler');
+                const { text: msgText, mentions } = await resolveMentions(parameters.message);
+                const allPlayers = await Player.findAll();
+                for (const p of allPlayers) {
+                    await sock.sendMessage(p.whatsappId, {
+                        text: `🌎 *ANNONCE MONDIALE*\n\n${msgText}`,
+                        mentions
                     });
                 }
             }
@@ -589,9 +619,12 @@ RÈGLES TECHNIQUES:
 
         case 'broadcast':
             if (parameters.message) {
+                const { resolveMentions } = require('./message-handler');
+                const { text: msgText, mentions } = await resolveMentions(parameters.message);
                 for (const other of nearbyPlayers) {
                     await sock.sendMessage(other.whatsappId, {
-                        text: `📣 *Annonce RP*\n\n${parameters.message}`
+                        text: `📣 *Annonce RP*\n\n${msgText}`,
+                        mentions
                     });
                 }
             }
