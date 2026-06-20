@@ -141,24 +141,24 @@ async function handleFreeAction(sock, message, player, actionText) {
   const items = await Item.findAll({ limit: 1 });
   const shopState = "Shop: " + items.map(i => i.name).join(',');
 
-  // Fetch history (last 50 messages) for Short Term Memory
+  // Fetch history (last 75 messages) for Short Term Memory
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 50
+      limit: 75
   });
   const historyState = history.length > 0
-    ? "MÉMOIRE_COURT_TERME:\n" + history.reverse().map(h => `[${h.senderName}]: ${h.content}`).join('\n')
-    : "";
+    ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
+    : [];
 
   // Fetch World Journal entries for Long Term Memory
   const journal = await WorldJournal.findAll({
       order: [['id', 'DESC']],
-      limit: 20
+      limit: 40
   });
   const journalState = journal.length > 0
-    ? "MÉMOIRE_LONG_TERME (Journal du Monde):\n" + journal.reverse().map(j => `[${j.category.toUpperCase()}] ${j.entry}`).join('\n')
-    : "Aucune entrée dans le journal.";
+    ? journal.reverse().map(j => ({ cat: j.category, entry: j.entry }))
+    : [];
 
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0 ? "Skills: " + playerSkills.map(s => s.name).join(', ') : "Aucun skill";
@@ -225,9 +225,10 @@ LORE SUPRÊME:
 6. L'INTERSTICE: Dimension entre les mondes.
 
 RÈGLES TECHNIQUES:
-1. RÉACTIVITÉ ABSOLUE (ZÉRO HALLUCINATION): Ne décris JAMAIS les pensées, les paroles ou les actions d'un joueur.
+1. MJ PUR (ZÉRO HALLUCINATION): Tu es UNIQUEMENT le MJ (Maître du Jeu). Tu ne joues PAS les personnages des joueurs. Tu ne décris JAMAIS leurs pensées, leurs paroles ou leurs actions (même passées).
+   - INTERDICTION ABSOLUE: Ne commence jamais par "Tu fais..." ou "Tu dis...". Les actions des joueurs sont déjà écrites dans ACTIONS_JOUEURS. Ta réponse doit commencer directement par les CONSÉQUENCES ou l'environnement.
    - RÈGLE D'IMMOBILITÉ: Si un joueur est listé comme SPECTATEUR, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard.
-   - Si un joueur est listé comme ACTEUR, réagis UNIQUEMENT à ce qu'il a écrit dans ACTIONS_JOUEURS. N'invente AUCUN dialogue ou mouvement pour lui.
+   - Si un joueur est listé comme ACTEUR, réagis UNIQUEMENT à ce qu'il a écrit. N'invente AUCUN dialogue ou mouvement pour lui.
 2. STATS & ÉQUIPEMENT (STRICT):
    - INVENTAIRE: Un joueur ne peut utiliser QUE les objets listés dans 'Inv'. S'il tente d'utiliser un objet qu'il n'a pas, l'action échoue narrativement (ex: il fouille ses poches en vain).
    - LIEU: Le joueur est strictement limité à sa 'Location' et sa 'Sub-Location'. Il ne peut pas interagir avec des éléments d'un autre lieu sans se déplacer physiquement via 'update_player'.
@@ -276,7 +277,31 @@ RÈGLES TECHNIQUES:
     - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
 20. NARRATION: Français riche et cinématographique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).`;
 
-    const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState}${proactiveHint}${subLocContext} | ${worldSocialState} | ${journalState}\n${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
+    const memoryJson = JSON.stringify({
+        monde: { date: rpYearString, cycle: cycleInfo, meteo: weather, lore_lieu: kingdom?.description || "" },
+        joueur_principal: {
+            etat: playerState,
+            inv: inventory.map(i => i.name),
+            skills: playerSkills.map(s => s.name),
+            pactes: playerPacts.map(e => e.name),
+            clubs: playerClubs?.map(c => c.name) || []
+        },
+        env_social: {
+            acteurs: activePlayers.map(p => p.name),
+            spectateurs: spectatorPlayers.map(p => p.name),
+            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel })),
+            rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`)
+        },
+        objectifs: {
+            quetes_actives: activeQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`),
+            quetes_dispo: availableQuests.map(q => q.title),
+            donjon_local: dungeons.map(d => `${d.name}(${d.rank})`)
+        },
+        memoire_long_terme: journalState,
+        memoire_court_terme: historyState
+    }, null, 2);
+
+    const fullPrompt = `### MÉMOIRE_SYSTÈME_JSON ###\n${memoryJson}\n\n### ACTIONS_JOUEURS (À TRAITER PRIORITAIREMENT) ###\n${aggregatedActions}\n\nCONSIGNE DE PERSISTANCE: Utilise le JSON ci-dessus pour maintenir une cohérence absolue. Si un objet n'est pas dans 'inv', le joueur ne l'a pas. Si un lieu n'est pas cohérent avec 'monde', refuse le déplacement. Ne réécris jamais les actions des joueurs.`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);

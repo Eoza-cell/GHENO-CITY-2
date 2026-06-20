@@ -411,6 +411,46 @@ async function callOllama(system, prompt) {
 /**
  * Call a local LM Studio instance if available.
  */
+async function call9Router(system, prompt) {
+    const baseUrl = process.env.NINEROUTER_URL || "http://localhost:20128/v1";
+    const key = process.env.NINEROUTER_API_KEY || "9router";
+
+    const models = [
+        "qw/qwen-2.5-72b-instruct",
+        "mi/mistral-large",
+        "gg/gemini-2.0-flash",
+        "ll/llama-3.3-70b",
+        "ds/deepseek-r1"
+    ];
+
+    for (const model of models) {
+        try {
+            console.log(`[AI] 9Router - Tentative avec ${model}...`);
+            const resp = await axios.post(`${baseUrl}/chat/completions`, {
+                model: model,
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ],
+                stream: false
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            });
+
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] 9Router error (${model}): ${e.message}`);
+            continue;
+        }
+    }
+    return null;
+}
+
 async function callLMStudio(system, prompt) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -473,6 +513,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
+        { name: '9Router', fn: call9Router },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter },
