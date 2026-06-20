@@ -121,11 +121,15 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const nearbyPlayers = await Player.findAll({
     where: {
-        location: player.location,
-        whatsappId: { [Op.ne]: player.whatsappId }
+        location: player.location
     }
   });
-  const socialState = nearbyPlayers.length > 0 ? "Ici: " + nearbyPlayers.map(p => `${p.name}`).join(',') : "Seul";
+
+  const actingPlayerNames = new Set(recentActions.map(a => a.senderName));
+  const activePlayers = nearbyPlayers.filter(p => actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId);
+  const spectatorPlayers = nearbyPlayers.filter(p => !actingPlayerNames.has(p.name) && p.whatsappId !== player.whatsappId);
+
+  const socialState = `ACTEURS: ${activePlayers.map(p => p.name).join(', ')} | SPECTATEURS (IMMOBILES/SILENCIEUX): ${spectatorPlayers.length > 0 ? spectatorPlayers.map(p => p.name).join(', ') : 'Aucun'}`;
 
   const recentPlayers = await Player.findAll({
       where: { whatsappId: { [Op.ne]: player.whatsappId } },
@@ -200,6 +204,8 @@ LORE SUPRÊME:
 
 RÈGLES TECHNIQUES:
 1. RÉACTIVITÉ ABSOLUE: Ne décris JAMAIS les pensées, paroles ou actions d'un joueur.
+   - RÈGLE D'IMMOBILITÉ: Si un joueur est listé comme SPECTATEUR dans le CONTEXTE, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard ou une expression faciale. Il est comme une statue.
+   - Si un joueur est listé comme ACTEUR, réagis uniquement à ce qu'il a écrit dans ACTIONS_JOUEURS. N'invente AUCUN dialogue ou mouvement supplémentaire pour lui.
 2. STATS (PvP/PvE): Si un attaquant a une FORCE ou AGILITÉ >15 pts d'écart à la cible, l'impact est dévastateur (os brisés, traumatismes).
 3. PRÉCISION CHIRURGICALE & SENSORIELLE: Mentionne les membres visés, les distances en mètres, mais aussi les odeurs (fer, poussière, parfum), les sons (craquement d'os, sifflement d'air, brouhaha lointain) et les textures (froid du métal, rugosité de la pierre).
 4. PHYSIQUE & POIDS: Décris l'inertie, le poids des armes, la résistance de l'air, et l'impact brutal des chocs. Chaque mouvement doit avoir une consistance physique réelle.
