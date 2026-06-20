@@ -5,9 +5,51 @@ const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
 const { checkLevelUp } = require('./level-utils');
 
+function trimForPrompt(text, maxLength = 220) {
+  if (!text) return '';
+  const compact = String(text).replace(/\s+/g, ' ').trim();
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength - 1)}…`;
+}
+
+function formatRelativeTime(timestamp) {
+  if (!timestamp) return "a l'instant";
+  const diffMs = Math.max(0, Date.now() - new Date(timestamp).getTime());
+  const minutes = Math.floor(diffMs / 60000);
+
+  if (minutes < 1) return "a l'instant";
+  if (minutes < 60) return `il y a ${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `il y a ${hours} h`;
+
+  const days = Math.floor(hours / 24);
+  return `il y a ${days} j`;
+}
+
+function formatMemoryBlock(title, entries, options = {}) {
+  const { includeLocation = false, fallback = 'Aucun souvenir récent.' } = options;
+  if (!entries || entries.length === 0) {
+    return `${title}:\n- ${fallback}`;
+  }
+
+  const lines = entries
+    .slice()
+    .reverse()
+    .map((entry) => {
+      const meta = [];
+      if (includeLocation && entry.location) meta.push(entry.location);
+      meta.push(formatRelativeTime(entry.timestamp));
+
+      const metaSuffix = meta.length > 0 ? ` [${meta.join(' • ')}]` : '';
+      return `- ${entry.senderName}${metaSuffix}: ${trimForPrompt(entry.content)}`;
+    });
+
+  return `${title}:\n${lines.join('\n')}`;
+}
+
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const senderJid = message.key.remoteJid.endsWith('@g.us') ? message.key.participant : message.key.remoteJid;
 
   const playerState = `
     - Nom: ${player.name} ${player.isGod ? '(DIEU SUPRÊME)' : ''}
@@ -95,15 +137,47 @@ async function handleFreeAction(sock, message, player, actionText) {
       location: player.location
   });
 
-  // Fetch small history for context
-  const history = await RPMessage.findAll({
+  // Build a richer memory stack for the AI without requiring new database tables.
+  const sceneHistory = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 5
+      limit: 12
   });
-  const historyState = history.length > 0
-    ? "HISTORIQUE:\n" + history.reverse().map(h => `${h.senderName}: ${h.content}`).join('\n')
-    : "";
+
+  const playerHistory = await RPMessage.findAll({
+      where: { senderJid: player.whatsappId },
+      order: [['id', 'DESC']],
+      limit: 8
+  });
+
+  const narratorHistory = await RPMessage.findAll({
+      where: {
+          senderJid: 'bot',
+          location: player.location
+      },
+      order: [['id', 'DESC']],
+      limit: 6
+  });
+
+  const otherActors = [...new Set(
+      sceneHistory
+          .map((entry) => entry.senderName)
+          .filter((name) => name && name !== player.name && name !== 'Arise MJ')
+  )].slice(0, 6);
+
+  const memoryState = [
+      formatMemoryBlock(`MÉMOIRE DE SCÈNE (${player.location})`, sceneHistory, {
+          fallback: 'Le lieu est calme et sans précédent immédiat.'
+      }),
+      formatMemoryBlock('MÉMOIRE PERSONNELLE DU JOUEUR', playerHistory, {
+          includeLocation: true,
+          fallback: 'Aucune action personnelle marquante récente.'
+      }),
+      formatMemoryBlock('DERNIÈRES CONSÉQUENCES NARRATIVES', narratorHistory, {
+          fallback: 'Aucune conséquence récente enregistrée par le MJ.'
+      }),
+      `ACTEURS RÉCURRENTS:\n- ${otherActors.length > 0 ? otherActors.join(', ') : 'Aucun acteur récurrent identifié.'}`
+  ].join('\n\n');
 
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0
@@ -166,6 +240,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     - VIE SCOLAIRE (ANIME STYLE) : L'Académie n'est pas seulement un lieu d'étude, c'est une microsociété style "Lycée Japonais" avec des clubs extrascolaires (Kendo, Occultisme, Musique, etc.) qui ont leurs propres hiérarchies, rivalités et avantages.
     - Pas de texte en anglais. PAS de parenthèses pour les sensations.
     - LONGUEUR: 4-5 paragraphes immersifs et détaillés.
+    - MÉMOIRE: Utilise en priorité la mémoire de scène, la mémoire personnelle et les dernières conséquences narratives pour garder la continuité des lieux, des tensions et des relations.
 
     RÈGLES MJ (IMPÉRATIVES):
     1. PROTAGONISTE : Le joueur est l'unique héros. Le monde tourne autour de ses décisions.
@@ -228,7 +303,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
   `;
 
-    const fullPrompt = `### CONTEXTE DU JOUEUR ###\n${playerState}\n${inventoryState}\n${skillState}\n${pactState}\n${clubState}\n${questState}\n${availableQuestState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n${historyState}\n\n### ACTION DU JOUEUR (À TRAITER PRIORITAIREMENT) ###\n${actionText}`;
+    const fullPrompt = `### CONTEXTE DU JOUEUR ###\n${playerState}\nDate RP: ${rpYearString}\n${kingdomState}\n${inventoryState}\n${skillState}\n${pactState}\n${clubState}\n${questState}\n${availableQuestState}\n${shopState}\n${dungeonState}\n${npcState}\n${monsterState}\n${socialState}\nJoueurs proches:\n${nearbyPlayersDetails}\n\n### MÉMOIRE RP ###\n${memoryState}\n\n### ACTION DU JOUEUR (À TRAITER PRIORITAIREMENT) ###\n${actionText}${miniEventContext}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
