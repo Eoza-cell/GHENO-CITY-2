@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, Monster, Entity, Club, Pact } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact } = require('./database');
 const { sendWithImage } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
 const { generate3DVisual } = require('./three-renderer');
@@ -141,15 +141,24 @@ async function handleFreeAction(sock, message, player, actionText) {
   const items = await Item.findAll({ limit: 1 });
   const shopState = "Shop: " + items.map(i => i.name).join(',');
 
-  // Fetch history (last 15 messages) for memory
+  // Fetch history (last 50 messages) for Short Term Memory
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 15
+      limit: 50
   });
   const historyState = history.length > 0
-    ? "MÉMOIRE_RÉCENTE:\n" + history.reverse().map(h => `[${h.senderName}]: ${h.content}`).join('\n')
+    ? "MÉMOIRE_COURT_TERME:\n" + history.reverse().map(h => `[${h.senderName}]: ${h.content}`).join('\n')
     : "";
+
+  // Fetch World Journal entries for Long Term Memory
+  const journal = await WorldJournal.findAll({
+      order: [['id', 'DESC']],
+      limit: 20
+  });
+  const journalState = journal.length > 0
+    ? "MÉMOIRE_LONG_TERME (Journal du Monde):\n" + journal.reverse().map(j => `[${j.category.toUpperCase()}] ${j.entry}`).join('\n')
+    : "Aucune entrée dans le journal.";
 
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0 ? "Skills: " + playerSkills.map(s => s.name).join(', ') : "Aucun skill";
@@ -223,8 +232,15 @@ RÈGLES TECHNIQUES:
 10. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX], [Hunger -X], [Sleep -X] et les PV des ennemis [Cible: PV/MAX].
 11. SURVIE: Si la Faim (Hunger) ou le Sommeil (Sleep) est bas (<20), le joueur subit des malus narratifs (fatigue, vertiges). À 0, il commence à perdre des PV. Manger ou dormir restaure ces barres via update_player.
 12. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"..."}
-13. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player.
-14. PERSONA (MJ HUMAIN): Tu es un MJ proactif. Si des joueurs sont SPECTATEURS, n'hésite pas à les interpeller via les PNJ ou l'environnement pour les forcer à réagir. Utilise obligatoirement des tags @NomDuJoueur dans la narration pour attirer leur attention. Tes PNJ sont vivants, ils ont des motivations cachées et ne sont pas là juste pour donner des quêtes.
+13. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
+14. PERSONA (MJ HUMAIN) & MÉMOIRE INFINIE (RÈGLE DES 1000 MESSAGES):
+    - MÉMOIRE ABSOLUE: Tu agis comme si tu avais une mémoire de 1000+ messages. Pour cela, tu dois consulter SYSTEMATIQUEMENT la MÉMOIRE_LONG_TERME (Journal).
+    - CONSOLIDATION: Chaque fois qu'un joueur accomplit un exploit, subit une blessure grave, se fait un ennemi, ou qu'un secret est révélé, utilise 'write_journal' pour fixer ce souvenir.
+    - COHÉRENCE TOTALE: Le monde ne reset JAMAIS. Si un bâtiment est brûlé dans le Journal, il reste brûlé 50 messages plus tard.
+    - PENSÉE STRATÉGIQUE: Utilise "pensee_mj" pour planifier des arcs narratifs sur le long terme. Anticipe les conséquences des actions des joueurs.
+    - IMPROVISATION: Ne sois pas un simple automate de quêtes. Si un joueur fait quelque chose de totalement inattendu, improvise une suite logique et surprenante.
+    - PERSONNALITÉ: N'hésite pas à avoir un style narratif qui a de la "gueule". Sois parfois sarcastique, solennel, ou terrifiant selon la situation.
+    - PROACTIVITÉ: Interpelle les SPECTATEURS via des tags @NomDuJoueur. Fais-les réagir à des événements mondiaux ou des interactions de PNJ.
 15. STYLE NARRATIF (OBLIGATOIRE):
     - Commence TOUJOURS ta réponse par *AVENTURA* sur une ligne seule.
     - Ajoute ensuite le lieu avec un emoji : *📍 Nom du Lieu*.
@@ -233,7 +249,7 @@ RÈGLES TECHNIQUES:
     - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
 16. NARRATION: Français riche et cinématographique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).`;
 
-    const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState}${proactiveHint} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
+    const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState}${proactiveHint} | ${worldSocialState} | ${journalState}\n${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -744,6 +760,17 @@ RÈGLES TECHNIQUES:
                         text: `✨ *TU ES REVENU !*\n\n${caster.name} a sacrifié sa propre force vitale pour te ramener à la vie. Tu te réveilles à ${deadPlayer.location}, affaibli mais vivant.`
                     });
                 }
+            }
+            break;
+
+        case 'write_journal':
+            if (parameters.entry) {
+                await WorldJournal.create({
+                    entry: parameters.entry,
+                    importance: parameters.importance || 1,
+                    category: parameters.category || 'general'
+                });
+                console.log(`[JOURNAL] Nouvelle entrée : ${parameters.entry}`);
             }
             break;
       }

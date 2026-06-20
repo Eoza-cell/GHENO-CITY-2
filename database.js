@@ -344,6 +344,13 @@ const RPMessage = sequelize.define('RPMessage', {
     timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
 
+const WorldJournal = sequelize.define('WorldJournal', {
+    entry: { type: DataTypes.TEXT },
+    importance: { type: DataTypes.INTEGER, defaultValue: 1 }, // 1: normal, 5: critical
+    category: { type: DataTypes.STRING, defaultValue: 'general' }, // 'plot', 'character', 'world_event'
+    timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+});
+
 const NPC = sequelize.define('NPC', {
     name: { type: DataTypes.STRING, unique: true },
     role: { type: DataTypes.STRING },
@@ -752,6 +759,6 @@ async function setupDatabase() {
 
 module.exports = {
   sequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
   setupDatabase,
 };
