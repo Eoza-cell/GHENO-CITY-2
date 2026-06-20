@@ -141,11 +141,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   const items = await Item.findAll({ limit: 1 });
   const shopState = "Shop: " + items.map(i => i.name).join(',');
 
-  // Fetch history (last 5 messages) for memory
+  // Fetch history (last 15 messages) for memory
   const history = await RPMessage.findAll({
       where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 5
+      limit: 15
   });
   const historyState = history.length > 0
     ? "MÉMOIRE_RÉCENTE:\n" + history.reverse().map(h => `[${h.senderName}]: ${h.content}`).join('\n')
@@ -208,6 +208,7 @@ RÈGLES TECHNIQUES:
    - Si un joueur est listé comme ACTEUR, réagis uniquement à ce qu'il a écrit dans ACTIONS_JOUEURS. N'invente AUCUN dialogue ou mouvement supplémentaire pour lui.
 2. STATS (PvP/PvE): Si un attaquant a une FORCE ou AGILITÉ >15 pts d'écart à la cible, l'impact est dévastateur (os brisés, traumatismes).
    - RIPOSTE DES MONSTRES: Les monstres ne sont pas des sacs à PV. Ils esquivent (basé sur leur AGI) et contre-attaquent violemment (basé sur leur FOR) durant le même tour que l'action du joueur. Si un joueur attaque, le monstre doit tenter de parer ou d'esquiver, puis riposter immédiatement. Inflige des dégâts via update_player si le joueur est touché.
+   - CONSISTANCE GÉOGRAPHIQUE DES MONSTRES: Les monstres et BOSS ne peuvent apparaître que dans leur lieu (Location) assigné. Ne fais JAMAIS apparaître un monstre qui n'appartient pas à la zone actuelle du joueur.
 3. PRÉCISION CHIRURGICALE & SENSORIELLE: Mentionne les membres visés, les distances en mètres, mais aussi les odeurs (fer, poussière, parfum), les sons (craquement d'os, sifflement d'air, brouhaha lointain) et les textures (froid du métal, rugosité de la pierre).
 4. PHYSIQUE & POIDS: Décris l'inertie, le poids des armes, la résistance de l'air, et l'impact brutal des chocs. Chaque mouvement doit avoir une consistance physique réelle.
 5. RÉACTIONS BIOLOGIQUES: Détaille les réactions physiologiques (souffle court, sueur qui pique les yeux, rythme cardiaque qui cogne dans les tempes, tremblement d'adrénaline).
