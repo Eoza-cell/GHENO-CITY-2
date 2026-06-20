@@ -1,6 +1,5 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
-const { Ollama } = require('ollama');
 
 // Setup JSDOM for Puter SDK if needed
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -368,54 +367,43 @@ async function callOllama(system, prompt) {
     if (!ollamaUrl.startsWith('http')) {
         ollamaUrl = 'http://' + ollamaUrl;
     }
-    // Remove trailing /api or /api/ and ensure no trailing slash
-    ollamaUrl = ollamaUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
+    // According to docs, the API is served at /api
+    const apiBaseUrl = ollamaUrl.replace(/\/$/, '') + (ollamaUrl.includes('/api') ? '' : '/api');
     const isCloud = ollamaUrl.includes('ollama.com');
 
     try {
-        console.log(`[AI] Ollama - Tentative sur ${ollamaUrl} via SDK`);
-
-        const clientOptions = { host: ollamaUrl };
-        if (isCloud && process.env.OLLAMA_API_KEY) {
-            clientOptions.headers = { Authorization: 'Bearer ' + process.env.OLLAMA_API_KEY };
-        }
-
-        const client = new Ollama(clientOptions);
+        console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
 
         const payload = {
-            model: process.env.OLLAMA_MODEL || 'llama3.1:8b',
+            model: process.env.OLLAMA_MODEL || 'gemma4',
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
             ],
             stream: false,
+            format: 'json',
             options: {
-                temperature: 0.7,
+                temperature: 0.2,
                 num_predict: 1024,
-                num_ctx: 4096,
-                top_p: 0.9,
-                repeat_penalty: 1.1
+                num_ctx: 8192
             }
         };
 
-        // Enable structured output for local instances
-        if (!isCloud) {
-            payload.format = 'json';
-            payload.options.temperature = 0.2; // Slightly above 0 for narrative creativity while maintaining JSON structure
+        const headers = { 'Content-Type': 'application/json' };
+        if (isCloud && process.env.OLLAMA_API_KEY) {
+            headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
         }
 
-        // Use official SDK with a race for timeout logic
-        const responsePromise = client.chat(payload);
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout reached (15s)')), 15000)
-        );
+        const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
+            headers,
+            timeout: 30000
+        });
 
-        const resp = await Promise.race([responsePromise, timeoutPromise]);
-        const content = resp.message?.content;
+        const content = resp.data?.message?.content || resp.data?.response;
         if (isValidAIResponse(content)) return content;
     } catch (e) {
-        console.warn(`[AI] Ollama inaccessible ou erreur sur ${ollamaUrl}: ${e.message}`);
+        console.warn(`[AI] Ollama error on ${ollamaUrl}:`, e.response?.data || e.message);
     }
     return null;
 }

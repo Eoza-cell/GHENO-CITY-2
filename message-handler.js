@@ -1,173 +1,5 @@
 const axios = require('axios');
-
-const PUTER_API_URL = "https://api.puter.com/drivers/call";
-// Image models to try on Puter (in order). Falls back to Pollinations if none work.
-// gpt-image-1 is the model confirmed available on the account; dall-e-* are not.
-const PUTER_IMAGE_MODELS = ["gpt-image-1"];
-
-// Anime style keywords appended to every generated prompt for consistent quality.
-const ANIME_STYLE_SUFFIX =
-    "anime style, high quality anime illustration, vibrant colors, detailed shading, " +
-    "cinematic lighting, manga aesthetic, sharp lineart, dynamic composition, 4k";
-
-/**
- * Enriches a raw image prompt with anime-style descriptors.
- * @param {string} prompt
- * @returns {string}
- */
-function buildAnimePrompt(prompt) {
-    const clean = String(prompt || '').trim();
-    if (!clean) return ANIME_STYLE_SUFFIX;
-    if (/anime/i.test(clean)) return clean; // already styled
-    return `${clean}, ${ANIME_STYLE_SUFFIX}`;
-}
-
-/**
- * Decode a data URL (data:image/...;base64,xxxx) into a Buffer.
- */
-function dataUrlToBuffer(dataUrl) {
-    const match = /^data:image\/[a-zA-Z0-9.+-]+;base64,(.*)$/.exec(dataUrl);
-    if (!match) return null;
-    return Buffer.from(match[1], 'base64');
-}
-
-/**
- * Try generating an anime image via Puter's HTTP image-generation driver.
- * Requires PUTER_API_KEY. Returns a Buffer or null on failure.
- */
-async function generateViaPuter(prompt) {
-    const key = process.env.PUTER_API_KEY;
-    if (!key || key.length < 6) return null;
-
-    for (const model of PUTER_IMAGE_MODELS) {
-        try {
-            console.log(`[IMG] Puter HTTP - Modèle image: ${model}`);
-            const resp = await axios.post(PUTER_API_URL, {
-                interface: "puter-image-generation",
-                method: "generate",
-                args: { prompt, model }
-            }, {
-                headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-                timeout: 60000
-            });
-
-            if (resp.data?.success === false) {
-                console.warn(`[IMG] Puter ${model} erreur:`, resp.data?.error);
-                continue;
-            }
-
-            const result = resp.data?.result;
-            // Result can be a data URL string, an object with a url, or a base64 string.
-            if (typeof result === 'string') {
-                if (result.startsWith('data:image')) return dataUrlToBuffer(result);
-                if (result.startsWith('http')) {
-                    const img = await axios.get(result, { responseType: 'arraybuffer' });
-                    return Buffer.from(img.data, 'binary');
-                }
-            }
-            const url = result?.url || result?.image_url || result?.data?.[0]?.url;
-            if (url) {
-                const img = await axios.get(url, { responseType: 'arraybuffer' });
-                return Buffer.from(img.data, 'binary');
-            }
-            const b64 = result?.b64_json || result?.data?.[0]?.b64_json;
-            if (b64) return Buffer.from(b64, 'base64');
-        } catch (e) {
-            console.warn(`[IMG] Puter image ${model} échec:`, e.response?.data?.error || e.message);
-            continue;
-        }
-    }
-    return null;
-}
-
-/**
- * Generate an anime image via Pollinations.ai (free, no auth). Returns a Buffer or null.
- */
-async function generateViaPollinations(prompt) {
-    // Priority to high quality models
-    const model = 'see-dream';
-    const seed = Math.floor(Math.random() * 1000000);
-
-    // Enhanced quality tokens for a "beautiful" result
-    const highQualityPrompt = `${prompt}, masterpiece, cinematic lighting, ultra-detailed, highres, 8k, professional illustration, vibrant colors, sharp focus`;
-    const encodedPrompt = encodeURIComponent(highQualityPrompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&model=${model}&seed=${seed}`;
-    const maxAttempts = 3;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            console.log(`[IMG] Génération Pollinations (essai ${attempt}) pour : "${prompt}"`);
-            const response = await axios.get(imageUrl, {
-                responseType: 'arraybuffer',
-                headers: { 'User-Agent': 'Mozilla/5.0' },
-                timeout: 90000
-            });
-            return Buffer.from(response.data, 'binary');
-        } catch (error) {
-            const status = error.response?.status;
-            // 402/429 = per-IP queue/rate limit; wait and retry.
-            if ((status === 402 || status === 429) && attempt < maxAttempts) {
-                await new Promise(r => setTimeout(r, 3000 * attempt));
-                continue;
-            }
-            console.error(`[IMG] Pollinations échec:`, error.message);
-            return null;
-        }
-    }
-    return null;
-}
-
-/**
- * Try generating an image via OpenRouter using Gemma 4 (multimodal).
- * @param {string} prompt
- * @returns {Promise<Buffer|null>}
- */
-async function generateViaGemma(prompt) {
-    if (!process.env.OPENROUTER_API_KEY) return null;
-    try {
-        console.log(`[IMG] OpenRouter - Gemma 4 - Prompt: ${prompt}`);
-        const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "google/gemma-4-26b-a4b-it:free",
-            messages: [{
-                role: "user",
-                content: [
-                    { type: "text", text: `Génère une image anime de haute qualité basée sur ce prompt : ${prompt}` }
-                ]
-            }]
-        }, {
-            headers: {
-                'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                'HTTP-Referer': 'https://github.com/skype-bot/arise',
-                'X-Title': 'Arise RPG'
-            },
-            timeout: 30000
-        });
-
-        const content = resp.data?.choices?.[0]?.message?.content;
-        // Search for a URL in the response if the model returns it
-        const urlMatch = content?.match(/https?:\/\/[^\s)]+\.(?:png|jpg|jpeg|webp)/i);
-        if (urlMatch) {
-            const imgResp = await axios.get(urlMatch[0], { responseType: 'arraybuffer' });
-            return Buffer.from(imgResp.data, 'binary');
-        }
-    } catch (e) {
-        console.warn(`[IMG] Gemma 4 image échec:`, e.message);
-    }
-    return null;
-}
-
-/**
- * Generate an anime image from a text prompt: Puter HTTP first, then Gemma 4, then Pollinations.
- * @param {string} rawPrompt
- * @returns {Promise<Buffer|null>}
- */
-async function generateAnimeImage(rawPrompt) {
-    const prompt = buildAnimePrompt(rawPrompt);
-    const viaPuter = await generateViaPuter(prompt);
-    if (viaPuter) return viaPuter;
-    const viaGemma = await generateViaGemma(prompt);
-    if (viaGemma) return viaGemma;
-    return generateViaPollinations(prompt);
-}
+const fs = require('fs');
 
 /**
  * Resolves player tags like @Name in the text and converts them to WhatsApp mentions.
@@ -197,7 +29,8 @@ async function resolveMentions(text) {
 }
 
 /**
- * Sends a message with an optional AI-generated image.
+ * Sends a message with an optional image from a local asset or direct URL.
+ * AI Image generation is DISABLED.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
@@ -209,13 +42,7 @@ async function sendWithImage(sock, jid, aiResponse) {
     const { text, mentions } = await resolveMentions(narrative);
 
     if (imagePrompt) {
-        // Send a small status if image generation is likely to take time
-        if (!imagePrompt.startsWith('http') && !require('fs').existsSync(imagePrompt)) {
-            await sock.sendMessage(jid, { text: "🎨 _Illustration en cours de création..._" });
-        }
-
         try {
-            const fs = require('fs');
             // Local file path
             if (!imagePrompt.startsWith('http') && fs.existsSync(imagePrompt)) {
                 const imageBuffer = fs.readFileSync(imagePrompt);
@@ -223,7 +50,7 @@ async function sendWithImage(sock, jid, aiResponse) {
                 return;
             }
 
-            // Direct URL
+            // Direct URL (must be a valid image URL)
             if (imagePrompt.startsWith('http')) {
                 const response = await axios.get(imagePrompt, {
                     responseType: 'arraybuffer',
@@ -235,14 +62,10 @@ async function sendWithImage(sock, jid, aiResponse) {
                 return;
             }
 
-            // Text prompt -> generate anime image (Puter HTTP -> Pollinations)
-            const imageBuffer = await generateAnimeImage(imagePrompt);
-            if (imageBuffer) {
-                await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
-                return;
-            }
+            // If it's a text prompt, we no longer generate. We just log it for debug.
+            console.log(`[IMG] AI requested generation for: "${imagePrompt}" but generation is DISABLED.`);
         } catch (error) {
-            console.error(`[IMG] Erreur totale:`, error.message);
+            console.error(`[IMG] Erreur d'affichage d'image (${imagePrompt}):`, error.message);
         }
     }
 
@@ -251,4 +74,8 @@ async function sendWithImage(sock, jid, aiResponse) {
     }
 }
 
-module.exports = { sendWithImage, generateAnimeImage, buildAnimePrompt };
+// Fallback functions for backward compatibility with other modules if they still try to call them
+async function generateAnimeImage() { return null; }
+function buildAnimePrompt(p) { return p; }
+
+module.exports = { sendWithImage, generateAnimeImage, buildAnimePrompt, resolveMentions };
