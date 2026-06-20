@@ -7,6 +7,7 @@ const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
+const { getRPTime, getWorldHeader } = require('./world-clock');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -79,7 +80,31 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const aggregatedActions = recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n');
 
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
+  // Survival Depletion Logic
+  const lastActivity = new Date(player.lastActivity).getTime();
+  const nowMs = Date.now();
+  const realElapsedMs = nowMs - lastActivity;
+  const rpElapsedHours = (realElapsedMs * 9) / (1000 * 60 * 60);
+
+  if (rpElapsedHours > 0.05) {
+      const hungerLoss = Math.floor(rpElapsedHours * 3); // -3 per RP hour
+      const sleepLoss = Math.floor(rpElapsedHours * 2);  // -2 per RP hour
+
+      if (hungerLoss > 0) await player.decrement('hunger', { by: hungerLoss });
+      if (sleepLoss > 0) await player.decrement('sleep', { by: sleepLoss });
+
+      await player.reload();
+      if (player.hunger < 0) await player.update({ hunger: 0 });
+      if (player.sleep < 0) await player.update({ sleep: 0 });
+
+      // Starvation damage
+      if (player.hunger === 0 && rpElapsedHours > 0.5) {
+          await player.decrement('health', { by: 5 });
+      }
+      await player.update({ lastActivity: new Date() });
+  }
+
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
@@ -133,16 +158,10 @@ async function handleFreeAction(sock, message, player, actionText) {
   const monsters = await Monster.findAll({ where: { rank: player.rank }, limit: 2 });
   const monsterState = "Monstres: " + monsters.map(m => `${m.name}(PV:${m.health}, FOR:${m.strength}, DEF:${m.defense}, AGI:${m.agility}, INT:${m.intelligence})`).join(', ');
 
-  // Time Logic: 1 month real = 1 year RP
-  // Reference date: Jan 1st 2024
-  const startDate = new Date('2024-01-01').getTime();
-  const now = Date.now();
-  const elapsedMs = now - startDate;
-  const elapsedMonths = elapsedMs / (1000 * 60 * 60 * 24 * 30);
-  const rpYears = Math.floor(elapsedMonths);
-  const rpMonth = Math.floor((elapsedMonths % 1) * 12) + 1;
-  const rpYearString = `An ${rpYears + 1}, Mois ${rpMonth}`;
-  const cycleInfo = isDay() ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
+  // Updated Time Logic: 1:9 scale
+  const rpTime = getRPTime();
+  const rpYearString = rpTime.formatted;
+  const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
 
     // Mini-Event Trigger (20% chance)
@@ -193,9 +212,10 @@ RÈGLES TECHNIQUES:
      - S'il est secouru, il perd 500 COL pour les soins.
      - S'il n'est pas secouru, il MEURT et est envoyé à Nécropolis.
    - RÉSURRECTION : Requiert un vivant sacrifiant 50% de ses PV MAX.
-10. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX] et les PV des ennemis [Cible: PV/MAX].
-11. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
-12. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player.
+10. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX], [Hunger -X], [Sleep -X] et les PV des ennemis [Cible: PV/MAX].
+11. SURVIE: Si la Faim (Hunger) ou le Sommeil (Sleep) est bas (<20), le joueur subit des malus narratifs (fatigue, vertiges). À 0, il commence à perdre des PV. Manger ou dormir restaure ces barres via update_player.
+12. FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}
+13. ACTIONS: update_player, add_item, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player.
 13. NARRATION: Français riche, ultra-viscéral et cinématographique. Interdiction d'utiliser des phrases génériques ("Tu te lances dans l'aventure", "Le combat commence"). Entre directement dans le vif du sujet. Vocabulaire précis, cru et évocateur. Décris la douleur, l'effort, la sueur et la fureur. CONCISION MAITRISÉE (Max 400 mots pour une immersion totale et sans compromis).`;
 
     const fullPrompt = `DATE_RP: ${rpYearString} | CYCLE: ${cycleInfo} | MÉTÉO: ${weather}\nCONTEXTE: ${playerState} | ${inventoryState} | ${skillState} | ${pactState} | ${clubState} | ${questState} | ${availableQuestState} | ${dungeonState} | ${npcState} | ${monsterState} | ${socialState} | ${worldSocialState} | ${historyState}\nACTIONS_JOUEURS:\n${aggregatedActions}`;
@@ -400,6 +420,14 @@ RÈGLES TECHNIQUES:
               await target.increment('luck', { by: parameters.luck_change });
               targetModified = true;
           }
+          if (parameters.hunger_change) {
+              await target.increment('hunger', { by: parameters.hunger_change });
+              targetModified = true;
+          }
+          if (parameters.sleep_change) {
+              await target.increment('sleep', { by: parameters.sleep_change });
+              targetModified = true;
+          }
 
           if (parameters.new_location) {
               await target.update({
@@ -430,6 +458,10 @@ RÈGLES TECHNIQUES:
           if (targetModified) {
               await target.save();
               await target.reload();
+              if (target.hunger > 100) await target.update({ hunger: 100 });
+              if (target.sleep > 100) await target.update({ sleep: 100 });
+              if (target.hunger < 0) await target.update({ hunger: 0 });
+              if (target.sleep < 0) await target.update({ sleep: 0 });
           }
           break;
 
@@ -711,6 +743,9 @@ RÈGLES TECHNIQUES:
     if (questFeedback.length > 0) {
       aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
+
+    // Prepend World Clock Header
+    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
 
     await sendWithImage(sock, jid, aiResponse);
 
