@@ -3,12 +3,21 @@ const { callAI } = require('./ai-utils');
 
 const activeMatches = new Map();
 
+const { Card, OwnedCard } = require('./database');
+
 async function startMatch(sock, jid, type, participants) {
     const matchId = `match_${Date.now()}`;
+
+    // Enrich participants with their owned cards
+    for (let p of participants) {
+        const owned = await OwnedCard.findAll({ where: { playerWhatsappId: p.whatsappId }, include: [Card] });
+        p.cards = owned.map(oc => oc.Card);
+    }
+
     const match = {
         id: matchId,
         type, // '1v1', '2v2', '3v3'
-        participants, // Array of player objects
+        participants, // Array of player objects (now with .cards)
         score: { A: 0, B: 0 },
         sequences: 0,
         maxSequences: 4,
@@ -47,7 +56,10 @@ async function handleMatchAction(sock, message, player, actionText) {
         Score: ${match.score.A} - ${match.score.B}
         Séquence: ${match.sequences}/${match.maxSequences}
 
-        PARTICIPANTS: ${match.participants.map(p => `${p.name} (${p.position})`).join(', ')}
+        PARTICIPANTS: ${match.participants.map(p => {
+            const cardInfo = p.cards && p.cards.length > 0 ? ` [Cartes: ${p.cards.map(c => c.name).join(', ')}]` : '';
+            return `${p.name} (${p.position})${cardInfo}`;
+        }).join('\n')}
 
         GARDIEN (BLUE LOCK MAN):
         - C'est une IA de défense ultime.
