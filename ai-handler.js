@@ -240,12 +240,11 @@ RÈGLES ABSOLUES:
 
 COMBAT ET DÉPLACEMENT:
 - Une action est une tentative, pas une réussite garantie.
+- RIPOSTE SYSTÉMATIQUE : Les monstres et PNJ ne sont pas des sacs de frappe. Ils utilisent leurs stats (FOR, AGI, INT, DEF) pour esquiver, parer et contre-attaquer violemment dans le même tour. Ils sont proactifs et mortels.
 - Indique les distances utiles en mètres: déplacement parcouru, écart entre deux personnes, portée vers un objet ou un ennemi.
 - Pour chaque attaque ou défense importante, précise seulement ce qui est utile: membre ou arme utilisée, partie du corps visée, conséquence immédiate.
-- Si une distance exacte n'est pas donnée, estime-la de façon cohérente et simple.
 - Pas de précision gratuite: pas d'anatomie excessive, pas de sensations inutiles, pas de blabla.
-- Les écarts de stats importants produisent des résultats proportionnels.
-- Les monstres et PNJ actifs réagissent dans le même tour si logique.
+- Les résultats dépendent du différentiel de stats : un écart de 20+ points en AGI permet une esquive facile, un écart de 20+ en FOR cause des blessures graves (fractures, projections de 5m+).
 
 MONDE:
 - Le monde est persistant, cohérent, vivant, mais la réponse reste centrée sur cette scène.
@@ -277,7 +276,8 @@ LORE FIXE:
         monde: { date: rpYearString, cycle: cycleInfo, meteo: weather, lore_lieu: kingdom?.description || "" },
         personnages_en_scene: scenePlayersData,
         env_social: {
-            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel })),
+            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel, specialite: n.specialty })),
+            monstres_locaux: monsters.map(m => ({ name: m.name, pv: m.health, for: m.strength, def: m.defense, agi: m.agility, int: m.intelligence })),
             rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`)
         },
         objectifs_generaux: {
