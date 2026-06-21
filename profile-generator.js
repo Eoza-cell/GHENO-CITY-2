@@ -69,8 +69,8 @@ async function addOverlay(baseImg, player, width, height) {
             </style>
 
             <!-- Player Info -->
-            <text x="210" y="235" class="text name">${player.name}</text>
-            <text x="210" y="268" class="text value">LVL ${player.level}</text>
+            <text x="210" y="235" class="text name">${player.name} (${player.gender})</text>
+            <text x="210" y="268" class="text value">LVL ${player.level} | ${player.age} ans</text>
             <text x="210" y="301" class="text value">${player.schoolName || 'Aventurier Libre'}</text>
             <text x="210" y="334" class="text value">RANG ${player.rank}</text>
 

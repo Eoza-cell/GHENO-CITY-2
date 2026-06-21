@@ -60,6 +60,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'Bêta testeur',
   },
+  gender: {
+    type: DataTypes.STRING,
+    defaultValue: 'Non-défini',
+  },
+  age: {
+    type: DataTypes.INTEGER,
+    defaultValue: 18,
+  },
   rank: {
     type: DataTypes.STRING,
     defaultValue: 'F',

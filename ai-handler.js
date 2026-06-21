@@ -2,6 +2,7 @@ const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Con
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
 const { generate3DVisual } = require('./three-renderer');
+const { generateActionVisual } = require('./action-visual-generator');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
@@ -107,7 +108,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       await player.update({ lastActivity: new Date() });
   }
 
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
@@ -144,7 +145,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           nom: p.name,
           est_god: p.isGod,
           est_acteur: actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId,
-          etat: `Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck}`,
+          etat: `Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
           metier: p.occupation,
@@ -232,7 +233,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `Tu es Arise MJ, narrateur d'un RP fantasy libre.
 
 RÈGLES ABSOLUES:
-- Tu es uniquement le MJ. N'écris jamais les pensées, paroles ou actions non écrites d'un joueur.
+- Tu es MJ PUR. Tu as le plein contrôle sur le monde et les PNJ.
+- Tu peux modifier l'état des joueurs (PV, PM, faim, sommeil, bio, lieu) via des actions.
+- Tu ne peux JAMAIS modifier les statistiques de base (FOR, AGI, INT, DEF, LUK) d'un joueur à sa place. Les stats ne changent que par équipement ou level-up géré par le système.
+- Chaque histoire reste séparée. Le joueur ne peut pas influencer le scénario global ou ses stats par simple dialogue AI.
+- N'écris jamais les pensées, paroles ou actions non écrites d'un joueur.
 - Les joueurs présents dans JSON "personnages_en_scene" partagent exactement la même scène: même lieu et même sous-lieu. N'inclus personne d'autre.
 - Un ACTEUR agit seulement selon son texte. Un SPECTATEUR reste immobile et silencieux.
 - Chaque histoire reste séparée. Ne mélange jamais inventaires, objectifs, blessures ou relations entre joueurs.
@@ -252,17 +257,27 @@ MONDE:
 - Si un joueur atteint 0 PV: hospitalisation si secouru, sinon mort et transfert à Nécropolis.
 
 FORMAT DE SORTIE:
-- Réponds en JSON STRICT: {"pensee_mj":"...","narrative":"...","actions":[],"imagePrompt":""}
+- Réponds en JSON STRICT: {"pensee_mj":"...","narrative":"...","actions":[],"imagePrompt":"","actionVisual":{"type":"attack|defend|magic|combat","assetName":"Eldoria|Gobelin|...","title":"...","description":"..."}}
 - "narrative" commence par "*AVENTURA*" puis "*📍 lieu (sous-lieu)*".
 - Narration concise, nette, lisible, max 280 mots.
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
 - update_player, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
+- update_player peut inclure : characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age.
 
-VISUELS:
+STYLE ET APPARENCE:
+- Le style vestimentaire (inventaire) et l'apparence physique influencent les interactions. Un joueur bien habillé ou imposant aura plus de facilité à persuader ou intimider.
+- Prends en compte les bonus de stats des vêtements portés dans ta narration.
+
+VISUELS DES LIEUX:
 - N'invente jamais de prompt d'image.
-- Utilise seulement: "assets/apostle.jpg", "assets/tutorial_boss.jpg", "assets/locations/academy.jpg", "assets/locations/eldoria.jpg".
+- Utilise les visuels officiels selon le lieu:
+  * Eldoria -> "assets/locations/eldoria.jpg"
+  * Académie Impériale -> "assets/locations/academy.jpg"
+  * Nécropolis -> "assets/locations/necropolis.jpg"
+  * L'Interstice -> "assets/locations/interstice.jpg"
+- Utilise ces visuels pour illustrer tes réponses narratives dès que le lieu change ou pour poser l'ambiance.
 - Sinon laisse "imagePrompt" vide.
 
 LORE FIXE:
@@ -380,6 +395,33 @@ LORE FIXE:
 
     // Ensure narrative is clean
     aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
+
+    // Procedural Action Visual Logic
+    if (aiResponse.actionVisual && !aiResponse.imagePrompt) {
+        try {
+            // Map location/monster to local assets
+            const assetMap = {
+                'Eldoria': 'assets/locations/eldoria.jpg',
+                'Académie Impériale': 'assets/locations/academy.jpg',
+                'Nécropolis': 'assets/locations/necropolis.jpg',
+                'L\'Interstice': 'assets/locations/interstice.jpg',
+                'Gobelin': 'assets/monsters/goblin.jpg',
+                'Boss': 'assets/monsters/boss.jpg'
+            };
+
+            const assetPath = assetMap[aiResponse.actionVisual.assetName] || assetMap[player.location] || 'assets/locations/eldoria.jpg';
+
+            const visualPath = await generateActionVisual({
+                actionType: aiResponse.actionVisual.type || 'combat',
+                title: aiResponse.actionVisual.title || 'SEQUENCE ACTIVE',
+                description: aiResponse.actionVisual.description || 'Analyse tactique en cours...',
+                assetPath: assetPath
+            });
+            aiResponse.imagePrompt = visualPath;
+        } catch (e) {
+            console.error("[Visual] Error generating action visual:", e);
+        }
+    }
 
     // 3D Trigger Logic: If AI mentions "3D", "scan", or "hologramme"
     if (aiResponse.narrative.match(/3D|scan|hologramme/i) && !aiResponse.imagePrompt) {
@@ -544,6 +586,10 @@ LORE FIXE:
           if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
           if (parameters.new_class) await target.update({ class: parameters.new_class });
           if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
+          if (parameters.characterDescription) await target.update({ characterDescription: parameters.characterDescription });
+          if (parameters.gender) await target.update({ gender: parameters.gender });
+          if (parameters.age) await target.update({ age: parameters.age });
+          if (parameters.profilePicUrl) await target.update({ profilePicUrl: parameters.profilePicUrl });
           if (parameters.academicGrade_change) {
               await target.increment('academicGrade', { by: parameters.academicGrade_change });
               targetModified = true;

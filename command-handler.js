@@ -51,6 +51,10 @@ commands.set('start', async (sock, message) => {
     // Resume registration
     if (player.registrationStep === 'awaiting_name') {
         await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton nom, Héritier ?" });
+    } else if (player.registrationStep === 'awaiting_gender') {
+        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton sexe, Héritier ?" });
+    } else if (player.registrationStep === 'awaiting_age') {
+        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton âge, Héritier ?" });
     } else if (player.registrationStep === 'awaiting_description') {
         await sock.sendMessage(replyJid, { text: `Rappel: Enchanté ${player.name}. Décris ton personnage en une phrase.` });
     }
@@ -182,6 +186,8 @@ const profileCommand = async (sock, message) => {
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *HÉRITIER:* ${player.name}\n` +
+                          `⚧️ *SEXE:* ${player.gender}\n` +
+                          `🎂 *ÂGE:* ${player.age} ans\n` +
                           `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
                           `🎖️ *RANG:* ${player.rank}\n` +
@@ -260,6 +266,8 @@ commands.set('inspecter', async (sock, message) => {
     const xpBar = createStatusBar(targetPlayer.xp, xpNeeded);
 
     const profileText = `--- 🔍 INSPECTION - ${targetPlayer.name} --- \n\n` +
+                        `⚧️ *SEXE:* ${targetPlayer.gender}\n` +
+                        `🎂 *ÂGE:* ${targetPlayer.age} ans\n` +
                         `👪 *FAMILLE:* ${targetPlayer.family}\n` +
                         `🎭 *CLASSE:* ${targetPlayer.class}\n` +
                         `🎖️ *RANG:* ${targetPlayer.rank}\n` +
@@ -1594,7 +1602,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       if (player.registrationStep === 'awaiting_name') {
           const playerName = messageText.trim();
           if (playerName.length > 2 && playerName.length <= 20 && !playerName.startsWith('/')) {
-              await player.update({ name: playerName, registrationStep: 'awaiting_description' });
+              await player.update({ name: playerName, registrationStep: 'awaiting_gender' });
 
               // Create a bank account if not exists
               await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
@@ -1605,9 +1613,21 @@ async function handleCommand(sock, message, downloadMediaMessage) {
                   await player.addQuest(startingQuest, { through: { status: 'not_started' } });
               }
 
-              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
+              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Quel est ton sexe, Héritier ?` });
           } else {
               await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
+          }
+      } else if (player.registrationStep === 'awaiting_gender') {
+          const gender = messageText.trim();
+          await player.update({ gender, registrationStep: 'awaiting_age' });
+          await sock.sendMessage(replyJid, { text: `C'est noté. Quel est ton âge, Héritier ?` });
+      } else if (player.registrationStep === 'awaiting_age') {
+          const age = parseInt(messageText.trim());
+          if (!isNaN(age) && age > 0 && age < 150) {
+              await player.update({ age, registrationStep: 'awaiting_description' });
+              await sock.sendMessage(replyJid, { text: `Très bien. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
+          } else {
+              await sock.sendMessage(replyJid, { text: "Âge invalide. Réessaie." });
           }
       } else if (player.registrationStep === 'awaiting_description') {
         const description = messageText.trim();
