@@ -285,7 +285,12 @@ LORE FIXE:
 - L'Idée du Mal nait des peurs humaines.
 - Les Béhérits choisissent les désespérés.
 - Les Apôtres ont sacrifié leur humanité.
-- L'Interstice relie les mondes.`;
+- L'Interstice relie les mondes.
+
+LOGIQUE ACADÉMIE:
+- L'Académie Impériale suit un modèle strict (lycée japonais).
+- Matières : Maîtrise de l'Éther, Stratégie Militaire, Histoire d'Aetherys, Alchimie, Duel à l'Épée.
+- Scolarité/Uniforme : 500 COL. Porter l'uniforme est obligatoire pour les examens.`;
 
     const memoryJson = JSON.stringify({
         monde: { date: rpYearString, cycle: cycleInfo, meteo: weather, lore_lieu: kingdom?.description || "" },

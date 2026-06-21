@@ -534,6 +534,16 @@ async function setupDatabase() {
 
     const itemsToSeed = [
             {
+                name: 'Uniforme de l\'Académie',
+                description: 'L\'uniforme standard de l\'Académie Impériale, symbole de discipline.',
+                price: 500,
+                type: 'clothing',
+                rarity: 'common',
+                slot: 'chest',
+                statBonuses: { intelligence: 2, defense: 1 },
+                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_034.jpg'
+            },
+            {
                 name: 'Costume de Héritier Élégant',
                 description: 'Un costume moderne infusé de fibres de mana.',
                 price: 1200,

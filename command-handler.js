@@ -241,6 +241,65 @@ const profileCommand = async (sock, message) => {
 };
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
+commands.set('techniques', commands.get('competences'));
+
+// Command: /creer_tenue
+commands.set('creer_tenue', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    if (player.skillPoints < 1) {
+        return await sock.sendMessage(replyJid, { text: "❌ Tu as besoin d'au moins 1 SP pour créer une tenue personnalisée." });
+    }
+
+    const outfitName = args.join(' ');
+    if (!outfitName) {
+        return await sock.sendMessage(replyJid, { text: "❌ Utilise : `/creer_tenue <nom de la tenue>`" });
+    }
+
+    await player.decrement('skillPoints', { by: 1 });
+
+    let inventory = [...player.inventory];
+    inventory.push({ name: `Tenue : ${outfitName}`, quantity: 1 });
+    player.inventory = inventory;
+    await player.save();
+
+    await sock.sendMessage(replyJid, { text: `✨ *Tenue créée !* Tu as dépensé 1 SP pour concevoir : ${outfitName}. Elle est maintenant dans ton inventaire.` });
+});
+
+// Command: /acheter
+commands.set('acheter', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const itemName = args.join(' ');
+
+    if (!player || !itemName) return;
+
+    const item = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
+    if (!item) {
+        return await sock.sendMessage(replyJid, { text: "❌ Cet objet n'est pas disponible en magasin." });
+    }
+
+    if (player.col < item.price) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de Col (${item.price} requis).` });
+    }
+
+    await player.decrement('col', { by: item.price });
+
+    let inventory = [...player.inventory];
+    const existing = inventory.find(i => i.name === item.name);
+    if (existing) existing.quantity += 1;
+    else inventory.push({ name: item.name, quantity: 1 });
+
+    player.inventory = inventory;
+    await player.save();
+
+    await sock.sendMessage(replyJid, { text: `🛒 *Achat réussi !* Tu as acheté ${item.name} pour ${item.price} Col.` });
+});
 
 // Command: /inspecter
 commands.set('inspecter', async (sock, message) => {

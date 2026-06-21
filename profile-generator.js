@@ -4,33 +4,34 @@ const axios = require('axios');
 const fs = require('fs');
 
 async function generateProfileCard(player) {
+    const width = 800;
+    const height = 1100;
     const templatePath = path.join(__dirname, 'assets/templates/profile_template.jpg');
 
-    // Check if template exists
-    if (!fs.existsSync(templatePath)) {
-        console.warn("Profile template not found, using blank background.");
-        // Create a blank dark blue background if template missing
-        const width = 800;
-        const height = 1100;
+    let baseImg;
+
+    // Use player's profile picture as background if available, otherwise template
+    if (player.profilePicUrl && fs.existsSync(player.profilePicUrl)) {
+        baseImg = await sharp(player.profilePicUrl)
+            .resize(width, height, { fit: 'cover' })
+            .blur(5) // Blur background for better readability
+            .toBuffer();
+    } else if (fs.existsSync(templatePath)) {
+        baseImg = await sharp(templatePath).resize(width, height).toBuffer();
+    } else {
         const svg = `
             <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
                 <rect width="100%" height="100%" fill="#050510" />
-                <rect x="20" y="20" width="${width-40}" height="${height-40}" fill="none" stroke="#ffd700" stroke-width="2" rx="15" />
             </svg>
         `;
-        const baseImg = await sharp(Buffer.from(svg)).png().toBuffer();
-        return await addOverlay(baseImg, player, width, height);
+        baseImg = await sharp(Buffer.from(svg)).png().toBuffer();
     }
 
-    const metadata = await sharp(templatePath).metadata();
-    const width = metadata.width;
-    const height = metadata.height;
-    const baseImg = await sharp(templatePath).toBuffer();
     return await addOverlay(baseImg, player, width, height);
 }
 
 async function addOverlay(baseImg, player, width, height) {
-    // Calculate bar widths (template bars are approx 150px wide in the design)
+    // Calculate bar widths
     const maxBarWidth = 150;
     const getBarWidth = (current, max) => Math.max(5, Math.min(maxBarWidth, (current / Math.max(1, max)) * maxBarWidth));
 
@@ -49,9 +50,7 @@ async function addOverlay(baseImg, player, width, height) {
         statsSvg += `<rect x="230" y="${stat.y}" width="${barWidth}" height="12" fill="#4fb3ff" rx="2" />`;
     });
 
-    // Handle inventory categories
     const inventory = player.inventory || [];
-    // Enhanced filtering for weapons vs equipment
     const weaponKeywords = ['épée', 'lame', 'dague', 'bâton', 'arc', 'lance', 'hache', 'sword', 'blade', 'dagger', 'staff', 'bow', 'spear', 'axe', 'katana', 'rapier'];
     const weapons = inventory.filter(i => weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
     const equipment = inventory.filter(i => !weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
@@ -68,22 +67,25 @@ async function addOverlay(baseImg, player, width, height) {
                 .item-qty { font-size: 14px; fill: #00ffff; }
             </style>
 
+            <!-- Semi-transparent dark background for readability -->
+            <rect x="30" y="180" width="${width-60}" height="${height-250}" fill="rgba(0,0,0,0.75)" rx="15" />
+
             <!-- Player Info -->
             <text x="210" y="235" class="text name">${player.name} (${player.gender})</text>
             <text x="210" y="268" class="text value">LVL ${player.level} | ${player.age} ans</text>
             <text x="210" y="301" class="text value">${player.schoolName || 'Aventurier Libre'}</text>
             <text x="210" y="334" class="text value">RANG ${player.rank}</text>
 
-            <text x="600" y="235" class="text value" text-anchor="end">${player.occupation || 'Citoyen'}</text>
-            <text x="600" y="268" class="text value" text-anchor="end">${player.organization || 'Aucune'}</text>
-            <text x="600" y="301" class="text value" text-anchor="end">INF: ${player.influence || 0}</text>
-            <text x="600" y="334" class="text value" text-anchor="end">GRADE ${player.academicGrade || 0}</text>
+            <text x="750" y="235" class="text value" text-anchor="end">${player.occupation || 'Citoyen'}</text>
+            <text x="750" y="268" class="text value" text-anchor="end">${player.organization || 'Aucune'}</text>
+            <text x="750" y="301" class="text value" text-anchor="end">INF: ${player.influence || 0}</text>
+            <text x="750" y="334" class="text value" text-anchor="end">GRADE ${player.academicGrade || 0}</text>
 
             <!-- Stats Bars Overlay -->
             ${statsSvg}
 
             <!-- Survival Bars (Hunger & Sleep) -->
-            <rect x="420" y="412" width="330" height="75" fill="rgba(0,0,0,0.8)" stroke="#00ff00" stroke-width="1" rx="10" />
+            <rect x="420" y="412" width="330" height="75" fill="rgba(255,255,255,0.05)" stroke="#00ff00" stroke-width="1" rx="10" />
             <text x="435" y="435" class="text item-text" style="fill: #00ff00;">🍔 FAIM</text>
             <rect x="520" y="423" width="200" height="15" fill="#333" rx="5" />
             <rect x="520" y="423" width="${(player.hunger / 100) * 200}" height="15" fill="#00ff00" rx="5" />
@@ -95,15 +97,15 @@ async function addOverlay(baseImg, player, width, height) {
             <text x="730" y="470" class="text item-qty">${player.sleep}%</text>
 
             <!-- Resources Box -->
-            <rect x="50" y="615" width="350" height="75" fill="rgba(0,0,0,0.8)" stroke="#ffd700" stroke-width="3" rx="15" />
+            <rect x="50" y="615" width="350" height="75" fill="rgba(255,255,255,0.05)" stroke="#ffd700" stroke-width="2" rx="15" />
             <text x="75" y="665" class="money">💰 ${(player.col || 0).toLocaleString()} COL</text>
 
             <!-- Family Tag -->
-            <rect x="420" y="615" width="330" height="75" fill="rgba(0,0,0,0.8)" stroke="#ff00ff" stroke-width="2" rx="15" />
+            <rect x="420" y="615" width="330" height="75" fill="rgba(255,255,255,0.05)" stroke="#ff00ff" stroke-width="1" rx="15" />
             <text x="585" y="660" class="text header" text-anchor="middle" style="fill: #ff00ff; font-size: 20px;">${player.family || 'SANS FAMILLE'}</text>
 
             <!-- Grid: Weapons -->
-            <rect x="50" y="710" width="340" height="280" fill="rgba(0,0,0,0.6)" stroke="#ff4444" stroke-width="1" rx="10" />
+            <rect x="50" y="710" width="340" height="280" fill="rgba(255,255,255,0.05)" stroke="#ff4444" stroke-width="1" rx="10" />
             <text x="70" y="745" class="header" style="fill: #ff4444;">⚔️ ARMES</text>
             <g transform="translate(70, 770)">
                 ${weapons.length > 0 ? weapons.map((item, i) => `
@@ -116,7 +118,7 @@ async function addOverlay(baseImg, player, width, height) {
             </g>
 
             <!-- Grid: Equipment -->
-            <rect x="410" y="710" width="340" height="280" fill="rgba(0,0,0,0.6)" stroke="#4fb3ff" stroke-width="1" rx="10" />
+            <rect x="410" y="710" width="340" height="280" fill="rgba(255,255,255,0.05)" stroke="#4fb3ff" stroke-width="1" rx="10" />
             <text x="430" y="745" class="header" style="fill: #4fb3ff;">🛡️ ÉQUIPEMENT</text>
             <g transform="translate(430, 770)">
                 ${equipment.length > 0 ? equipment.map((item, i) => `
@@ -152,7 +154,14 @@ async function addOverlay(baseImg, player, width, height) {
         ];
 
         if (profileImg) {
-            compositeOperations.push({ input: profileImg, top: 180, left: 45 });
+            compositeOperations.push({ input: profileImg, top: 200, left: 45 });
+        }
+
+        // Add human silhouette if needed (visualizing "wear")
+        const silhouettePath = path.join(__dirname, 'assets/silhouette.svg');
+        if (fs.existsSync(silhouettePath)) {
+            const silhouetteImg = await sharp(silhouettePath).resize(150, 300).toBuffer();
+            compositeOperations.push({ input: silhouetteImg, top: 400, left: 50 });
         }
 
         return await sharp(baseImg)
