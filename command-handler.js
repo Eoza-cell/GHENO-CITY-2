@@ -262,8 +262,24 @@ commands.set('creer_tenue', async (sock, message, args) => {
 
     await player.decrement('skillPoints', { by: 1 });
 
+    // Create actual Item record for the custom outfit
+    const itemName = `Tenue : ${outfitName}`;
+    await Item.findOrCreate({
+        where: { name: itemName },
+        defaults: {
+            name: itemName,
+            description: `Une tenue sur mesure conçue par ${player.name}.`,
+            price: 1000,
+            type: 'clothing',
+            rarity: 'rare',
+            slot: 'chest',
+            durability: 100,
+            visualData: { color: "#" + Math.floor(Math.random()*16777215).toString(16), style: "custom" }
+        }
+    });
+
     let inventory = [...player.inventory];
-    inventory.push({ name: `Tenue : ${outfitName}`, quantity: 1 });
+    inventory.push({ name: itemName, quantity: 1 });
     player.inventory = inventory;
     await player.save();
 
@@ -299,6 +315,38 @@ commands.set('acheter', async (sock, message, args) => {
     await player.save();
 
     await sock.sendMessage(replyJid, { text: `🛒 *Achat réussi !* Tu as acheté ${item.name} pour ${item.price} Col.` });
+});
+
+// Command: /equiper
+commands.set('equiper', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const outfitName = args.join(' ');
+
+    if (!player || !outfitName) return;
+
+    const inventory = player.inventory || [];
+    const item = inventory.find(i => i.name.toLowerCase().includes(outfitName.toLowerCase()));
+
+    if (!item) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu ne possèdes pas "${outfitName}" dans ton inventaire.` });
+    }
+
+    await player.update({ equippedOutfit: item.name });
+    await sock.sendMessage(replyJid, { text: `👗 *Style mis à jour !* Tu portes désormais : ${item.name}.` });
+});
+
+// Command: /retirer
+commands.set('retirer', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    await player.update({ equippedOutfit: null });
+    await sock.sendMessage(replyJid, { text: "👗 *Style mis à jour !* Tu as retiré ta tenue." });
 });
 
 // Command: /inspecter

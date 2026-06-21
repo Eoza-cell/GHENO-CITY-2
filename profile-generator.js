@@ -14,7 +14,6 @@ async function generateProfileCard(player) {
     if (player.profilePicUrl && fs.existsSync(player.profilePicUrl)) {
         baseImg = await sharp(player.profilePicUrl)
             .resize(width, height, { fit: 'cover' })
-            .blur(5) // Blur background for better readability
             .toBuffer();
     } else if (fs.existsSync(templatePath)) {
         baseImg = await sharp(templatePath).resize(width, height).toBuffer();
@@ -31,6 +30,19 @@ async function generateProfileCard(player) {
 }
 
 async function addOverlay(baseImg, player, width, height) {
+    const { Item } = require('./database');
+
+    // Fetch equipped outfit details
+    let outfitColor = "rgba(255,255,255,0.2)";
+    let isTorn = false;
+    if (player.equippedOutfit) {
+        const outfit = await Item.findOne({ where: { name: player.equippedOutfit } });
+        if (outfit) {
+            outfitColor = outfit.visualData?.color || "#ffffff";
+            isTorn = outfit.durability < 50;
+        }
+    }
+
     // Calculate bar widths
     const maxBarWidth = 150;
     const getBarWidth = (current, max) => Math.max(5, Math.min(maxBarWidth, (current / Math.max(1, max)) * maxBarWidth));
@@ -157,11 +169,54 @@ async function addOverlay(baseImg, player, width, height) {
             compositeOperations.push({ input: profileImg, top: 200, left: 45 });
         }
 
-        // Add human silhouette if needed (visualizing "wear")
-        const silhouettePath = path.join(__dirname, 'assets/silhouette.svg');
+        // Add human silhouette and outfit overlay
+        const silhouettePath = path.join(__dirname, 'assets/silhouette.jpg');
         if (fs.existsSync(silhouettePath)) {
-            const silhouetteImg = await sharp(silhouettePath).resize(150, 300).toBuffer();
-            compositeOperations.push({ input: silhouetteImg, top: 400, left: 50 });
+            // First, make silhouette black and transparent background if it's the new jpg
+            // Since it's a JPG from the user, we assume it's black on white.
+            // We'll mask it.
+            let silhouette = sharp(silhouettePath).resize(300, 600);
+
+            // Create the "clothing" layer by tinting the silhouette
+            const clothingLayer = await sharp(silhouettePath)
+                .resize(300, 600)
+                .threshold(200) // Keep black parts
+                .negate() // Invert so silhouette is white/alpha
+                .tint(outfitColor)
+                .modulate({ opacity: 0.8 })
+                .toBuffer();
+
+            // If torn, add some "holes" to the clothing layer via SVG mask
+            let mask = null;
+            if (isTorn) {
+                const maskSvg = `
+                    <svg width="300" height="600">
+                        <rect width="100%" height="100%" fill="white" />
+                        <circle cx="150" cy="200" r="30" fill="black" />
+                        <circle cx="120" cy="350" r="20" fill="black" />
+                        <rect x="50" y="450" width="100" height="10" fill="black" transform="rotate(45 100 450)"/>
+                    </svg>
+                `;
+                mask = Buffer.from(maskSvg);
+            }
+
+            const finalClothing = mask ?
+                await sharp(clothingLayer).composite([{ input: mask, blend: 'dest-in' }]).toBuffer() :
+                clothingLayer;
+
+            const silhouetteBase = await sharp(silhouettePath)
+                .resize(300, 600)
+                .negate() // If it's black on white, negate makes it white on black
+                .toBuffer();
+
+            // We'll use the silhouette as a mask for the outfit color
+            const silhouetteBlack = await sharp(silhouettePath)
+                .resize(300, 600)
+                .threshold(240) // Keep the black silhouette
+                .toBuffer();
+
+            compositeOperations.push({ input: silhouetteBlack, top: 400, left: 450 });
+            compositeOperations.push({ input: finalClothing, top: 400, left: 450, blend: 'over' });
         }
 
         return await sharp(baseImg)

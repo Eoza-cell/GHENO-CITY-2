@@ -267,7 +267,8 @@ ACTIONS AUTORISÉES:
 - update_player peut inclure : characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age.
 
 STYLE ET APPARENCE:
-- Le style vestimentaire (inventaire) et l'apparence physique influencent les interactions. Un joueur bien habillé ou imposant aura plus de facilité à persuader ou intimider.
+- Le style vestimentaire (inventaire) et l'apparence physique influencent les interactions.
+- DÉCHIRURE ET USURE : Lors de combats violents, d'explosions ou de chutes, les vêtements du joueur peuvent se déchirer. Utilise l'action "update_item" pour réduire la "durability" d'un vêtement équipé. Une durabilité < 50 rend le vêtement visiblement déchiré.
 - Prends en compte les bonus de stats des vêtements portés dans ta narration.
 
 VISUELS DES LIEUX:
@@ -603,6 +604,9 @@ LOGIQUE ACADÉMIE:
               await target.increment('skillPoints', { by: parameters.sp_gain });
               targetModified = true;
           }
+          if (parameters.equippedOutfit) {
+              await target.update({ equippedOutfit: parameters.equippedOutfit });
+          }
 
           if (targetModified) {
               await target.save();
@@ -705,6 +709,21 @@ LOGIQUE ACADÉMIE:
                         }
                         await target.save();
                         await target.reload();
+                    }
+                }
+            }
+            break;
+        }
+
+        case 'update_item': {
+            if (parameters.itemName) {
+                const item = await Item.findOne({ where: { name: parameters.itemName } });
+                if (item) {
+                    if (parameters.durability_change) {
+                        await item.increment('durability', { by: parameters.durability_change });
+                    }
+                    if (parameters.new_durability) {
+                        await item.update({ durability: parameters.new_durability });
                     }
                 }
             }

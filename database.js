@@ -235,6 +235,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 10,
   },
+  equippedOutfit: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 });
 
 const Item = sequelize.define('Item', {
@@ -244,6 +248,16 @@ const Item = sequelize.define('Item', {
   type: { type: DataTypes.STRING },
   rarity: { type: DataTypes.STRING, defaultValue: 'common' },
   slot: { type: DataTypes.STRING, defaultValue: 'none' },
+  durability: { type: DataTypes.INTEGER, defaultValue: 100 },
+  visualData: {
+    type: DataTypes.TEXT,
+    defaultValue: '{"color": "#ffffff", "style": "standard"}',
+    get() {
+      const raw = this.getDataValue('visualData');
+      try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+    },
+    set(val) { this.setDataValue('visualData', JSON.stringify(val)); }
+  },
   statBonuses: {
     type: DataTypes.TEXT,
     defaultValue: '{}',
@@ -626,6 +640,53 @@ async function setupDatabase() {
 
     for (const item of itemsToSeed) {
         await Item.findOrCreate({ where: { name: item.name }, defaults: item });
+    }
+
+    // Seed 1000 Varied Clothing Items
+    const currentItemCount = await Item.count({ where: { type: 'clothing' } });
+    if (currentItemCount < 1000) {
+        console.log(`[SEED] Generating ${1000 - currentItemCount} additional clothing items...`);
+        const adjectives = ["Élégant", "Sombre", "Guerrier", "Mystique", "Ancien", "Royal", "Oublié", "Céleste", "Bestial", "Vaporeux", "Renforcé", "Léger", "Lourd", "Scintillant", "Maudit", "Sacré", "Interdit", "Nomade", "Urbain", "Techno-magique"];
+        const baseNames = ["Manteau", "Tunique", "Armure", "Robe", "Veste", "Costume", "Plastron", "Cape", "Haut", "Gilet", "Tabard", "Kimonos", "Yukata", "Uniforme", "Tenue"];
+        const materials = ["de Soie", "de Fer", "de Mana", "en Cuir", "de Velours", "de Lin", "d'Éther", "en Écailles", "de Cristal", "de Dragon", "d'Ombre", "de Lumière"];
+        const colors = ["#ffffff", "#000000", "#ff0000", "#0000ff", "#ffff00", "#00ff00", "#8a2be2", "#ffd700", "#c0c0c0", "#ff4500", "#2f4f4f", "#4b0082"];
+
+        const batchSize = 100;
+        for (let i = 0; i < 1000 - currentItemCount; i += batchSize) {
+            const batch = [];
+            for (let j = 0; j < batchSize && (i + j) < (1000 - currentItemCount); j++) {
+                const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+                const base = baseNames[Math.floor(Math.random() * baseNames.length)];
+                const mat = materials[Math.floor(Math.random() * materials.length)];
+                const rarityRoll = Math.random();
+                let rarity = 'common';
+                let priceMult = 1;
+                if (rarityRoll < 0.05) { rarity = 'legendary'; priceMult = 10; }
+                else if (rarityRoll < 0.15) { rarity = 'epic'; priceMult = 5; }
+                else if (rarityRoll < 0.35) { rarity = 'rare'; priceMult = 2; }
+
+                const name = `${adj} ${base} ${mat} #${Math.floor(Math.random() * 10000)}`;
+                batch.push({
+                    name,
+                    description: `Une pièce d'équipement unique issue des forges d'Aetherys. Style: ${adj}.`,
+                    price: Math.floor((Math.random() * 500 + 100) * priceMult),
+                    type: 'clothing',
+                    rarity,
+                    slot: 'chest',
+                    durability: 100,
+                    visualData: {
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        style: adj.toLowerCase()
+                    },
+                    statBonuses: {
+                        defense: rarity === 'common' ? 1 : Math.floor(Math.random() * 10 * priceMult),
+                        luck: Math.floor(Math.random() * 5 * priceMult)
+                    }
+                });
+            }
+            await Item.bulkCreate(batch, { ignoreDuplicates: true });
+        }
+        console.log("[SEED] 1000 clothing items ready.");
     }
 
     const skillCount = await Skill.count();
