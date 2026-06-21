@@ -80,33 +80,40 @@ async function addOverlay(baseImg, player, width, height) {
             </style>
 
             <!-- Semi-transparent dark background for readability -->
-            <rect x="30" y="180" width="${width-60}" height="${height-250}" fill="rgba(0,0,0,0.75)" rx="15" />
+            <rect x="30" y="180" width="${width-60}" height="${height-250}" fill="rgba(0,0,0,0.85)" rx="15" />
+
+            <!-- Info Container Block -->
+            <rect x="50" y="200" width="700" height="180" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" rx="10" />
 
             <!-- Player Info -->
-            <text x="210" y="235" class="text name">${player.name} (${player.gender})</text>
-            <text x="210" y="268" class="text value">LVL ${player.level} | ${player.age} ans</text>
-            <text x="210" y="301" class="text value">${player.schoolName || 'Aventurier Libre'}</text>
-            <text x="210" y="334" class="text value">RANG ${player.rank}</text>
+            <text x="210" y="245" class="text name">${player.name} (${player.gender})</text>
+            <text x="210" y="278" class="text value">LVL ${player.level} | ${player.age} ans</text>
+            <text x="210" y="311" class="text value">${player.schoolName || 'Aventurier Libre'}</text>
+            <text x="210" y="344" class="text value">RANG ${player.rank}</text>
 
-            <text x="750" y="235" class="text value" text-anchor="end">${player.occupation || 'Citoyen'}</text>
-            <text x="750" y="268" class="text value" text-anchor="end">${player.organization || 'Aucune'}</text>
-            <text x="750" y="301" class="text value" text-anchor="end">INF: ${player.influence || 0}</text>
-            <text x="750" y="334" class="text value" text-anchor="end">GRADE ${player.academicGrade || 0}</text>
+            <text x="730" y="245" class="text value" text-anchor="end">${player.occupation || 'Citoyen'}</text>
+            <text x="730" y="278" class="text value" text-anchor="end">${player.organization || 'Aucune'}</text>
+            <text x="730" y="311" class="text value" text-anchor="end">INF: ${player.influence || 0}</text>
+            <text x="730" y="344" class="text value" text-anchor="end">GRADE ${player.academicGrade || 0}</text>
+
+            <!-- Stats & Survival Container Block -->
+            <rect x="50" y="400" width="700" height="200" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" rx="10" />
 
             <!-- Stats Bars Overlay -->
             ${statsSvg}
 
             <!-- Survival Bars (Hunger & Sleep) -->
-            <rect x="420" y="412" width="330" height="75" fill="rgba(255,255,255,0.05)" stroke="#00ff00" stroke-width="1" rx="10" />
-            <text x="435" y="435" class="text item-text" style="fill: #00ff00;">🍔 FAIM</text>
-            <rect x="520" y="423" width="200" height="15" fill="#333" rx="5" />
-            <rect x="520" y="423" width="${(player.hunger / 100) * 200}" height="15" fill="#00ff00" rx="5" />
-            <text x="730" y="435" class="text item-qty">${player.hunger}%</text>
+            <g transform="translate(420, 420)">
+                <text x="15" y="15" class="text item-text" style="fill: #00ff00;">🍔 FAIM</text>
+                <rect x="100" y="3" width="180" height="15" fill="#333" rx="5" />
+                <rect x="100" y="3" width="${(player.hunger / 100) * 180}" height="15" fill="#00ff00" rx="5" />
+                <text x="310" y="15" class="text item-qty" text-anchor="end">${player.hunger}%</text>
 
-            <text x="435" y="470" class="text item-text" style="fill: #8a2be2;">😴 SOMMEIL</text>
-            <rect x="520" y="458" width="200" height="15" fill="#333" rx="5" />
-            <rect x="520" y="458" width="${(player.sleep / 100) * 200}" height="15" fill="#8a2be2" rx="5" />
-            <text x="730" y="470" class="text item-qty">${player.sleep}%</text>
+                <text x="15" y="50" class="text item-text" style="fill: #8a2be2;">😴 SOMMEIL</text>
+                <rect x="100" y="38" width="180" height="15" fill="#333" rx="5" />
+                <rect x="100" y="38" width="${(player.sleep / 100) * 180}" height="15" fill="#8a2be2" rx="5" />
+                <text x="310" y="50" class="text item-qty" text-anchor="end">${player.sleep}%</text>
+            </g>
 
             <!-- Resources Box -->
             <rect x="50" y="615" width="350" height="75" fill="rgba(255,255,255,0.05)" stroke="#ffd700" stroke-width="2" rx="15" />
@@ -117,12 +124,12 @@ async function addOverlay(baseImg, player, width, height) {
             <text x="585" y="660" class="text header" text-anchor="middle" style="fill: #ff00ff; font-size: 20px;">${player.family || 'SANS FAMILLE'}</text>
 
             <!-- Grid: Weapons -->
-            <rect x="50" y="710" width="340" height="280" fill="rgba(255,255,255,0.05)" stroke="#ff4444" stroke-width="1" rx="10" />
+            <rect x="50" y="710" width="340" height="280" fill="rgba(255,255,255,0.02)" stroke="#ff4444" stroke-width="1" rx="10" />
             <text x="70" y="745" class="header" style="fill: #ff4444;">⚔️ ARMES</text>
             <g transform="translate(70, 770)">
                 ${weapons.length > 0 ? weapons.map((item, i) => `
                     <g transform="translate(0, ${i * 50})">
-                        <rect width="300" height="40" fill="rgba(255,255,255,0.05)" rx="5" />
+                        <rect width="300" height="40" fill="rgba(255,255,255,0.03)" rx="5" />
                         <text x="10" y="25" class="text item-text">${item.name.substring(0, 25)}</text>
                         <text x="280" y="25" class="text item-qty" text-anchor="end">x${item.quantity}</text>
                     </g>
@@ -130,12 +137,12 @@ async function addOverlay(baseImg, player, width, height) {
             </g>
 
             <!-- Grid: Equipment -->
-            <rect x="410" y="710" width="340" height="280" fill="rgba(255,255,255,0.05)" stroke="#4fb3ff" stroke-width="1" rx="10" />
+            <rect x="410" y="710" width="340" height="280" fill="rgba(255,255,255,0.02)" stroke="#4fb3ff" stroke-width="1" rx="10" />
             <text x="430" y="745" class="header" style="fill: #4fb3ff;">🛡️ ÉQUIPEMENT</text>
             <g transform="translate(430, 770)">
                 ${equipment.length > 0 ? equipment.map((item, i) => `
                     <g transform="translate(0, ${i * 50})">
-                        <rect width="300" height="40" fill="rgba(255,255,255,0.05)" rx="5" />
+                        <rect width="300" height="40" fill="rgba(255,255,255,0.03)" rx="5" />
                         <text x="10" y="25" class="text item-text">${item.name.substring(0, 25)}</text>
                         <text x="280" y="25" class="text item-qty" text-anchor="end">x${item.quantity}</text>
                     </g>
