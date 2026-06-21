@@ -341,6 +341,7 @@ const RPMessage = sequelize.define('RPMessage', {
     senderName: { type: DataTypes.STRING },
     content: { type: DataTypes.TEXT },
     location: { type: DataTypes.STRING },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Entrée' },
     timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
 

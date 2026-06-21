@@ -505,11 +505,17 @@ function callMJFallback(prompt) {
 async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth > 2) return null;
 
-    // Sanitize prompts - aggressively for free providers
-    const sanitizedSystem = systemPrompt.length > 3000 ? systemPrompt.substring(0, 3000) : systemPrompt;
+    // Preserve more context: the RP engine relies on scene isolation and detailed stats.
+    const maxSystemLength = 12000;
+    const maxUserLength = 16000;
+    const sanitizedSystem = systemPrompt.length > maxSystemLength
+        ? systemPrompt.substring(0, maxSystemLength)
+        : systemPrompt;
     let sanitizedUser = userPrompt;
-    if (userPrompt.length > 2000) {
-        sanitizedUser = userPrompt.substring(0, 500) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 1200);
+    if (userPrompt.length > maxUserLength) {
+        const headLength = 6000;
+        const tailLength = 9000;
+        sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
     const providers = [
