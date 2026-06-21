@@ -123,13 +123,39 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
 
   const actingPlayerNames = new Set(recentActions.map(a => a.senderName));
-  const activePlayers = nearbyPlayers.filter(p => actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId);
-  const spectatorPlayers = nearbyPlayers.filter(p => !actingPlayerNames.has(p.name) && p.whatsappId !== player.whatsappId);
 
-  const socialState = `ACTEURS: ${activePlayers.map(p => p.name).join(', ')} | SPECTATEURS (SILENCIEUX): ${spectatorPlayers.length > 0 ? spectatorPlayers.map(p => p.name).join(', ') : 'Aucun'}`;
-  const proactiveHint = spectatorPlayers.length > 0
-    ? `\nMJ HINT: N'hésite pas à faire bouger les choses pour les spectateurs (${spectatorPlayers.map(p => p.name).join(', ')}) s'ils sont inactifs depuis trop longtemps. Interpelle-les avec @Nom.`
-    : "";
+  // Data for all players in the same scene
+  const scenePlayersData = await Promise.all(nearbyPlayers.map(async p => {
+      const pSkills = await p.getSkills();
+      const pPacts = await p.getEntities();
+      const pClubs = await p.getClubs();
+      const pQuests = await p.getQuests();
+      const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
+      const pActions = recentActions.filter(a => a.senderName === p.name).map(a => a.content);
+
+      return {
+          nom: p.name,
+          est_god: p.isGod,
+          est_acteur: actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId,
+          etat: `Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck}`,
+          description: p.characterDescription,
+          classe: `${p.class}(${p.derivative})`,
+          metier: p.occupation,
+          organisation: p.organization,
+          influence: p.influence,
+          inventaire: (p.inventory || []).map(i => i.name),
+          competences: pSkills.map(s => s.name),
+          pactes: pPacts.map(e => e.name),
+          clubs: pClubs.map(c => c.name),
+          quetes_actives: pActiveQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`),
+          actions_recentes: pActions.length > 0 ? pActions : ["Immobile / Pas d'action"]
+      };
+  }));
+
+  const activePlayers = scenePlayersData.filter(p => p.est_acteur);
+  const spectatorPlayers = scenePlayersData.filter(p => !p.est_acteur);
+
+  const socialState = `ACTEURS: ${activePlayers.map(p => p.nom).join(', ')} | SPECTATEURS (SILENCIEUX): ${spectatorPlayers.length > 0 ? spectatorPlayers.map(p => p.nom).join(', ') : 'Aucun'}`;
 
   const recentPlayers = await Player.findAll({
       where: { whatsappId: { [Op.ne]: player.whatsappId } },
@@ -255,7 +281,8 @@ RÈGLES TECHNIQUES:
 13. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"..."}
 14. ACTIONS: update_player, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
 15. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
-    - ARBITRAGE STATISTIQUE: Compare systématiquement les statistiques. Si Joueur A (FOR: 50) attaque Joueur B (FOR: 25) qui tente de bloquer, l'impact DOIT être dévastateur. Bloquer une force double n'annule pas les dégâts : Joueur B est propulsé violemment en arrière (ex: sur 5m) et subit des blessures graves (ex: bras fracturés sous le choc).
+    - ÉTANCHÉITÉ DES HISTOIRES: Chaque joueur est le protagoniste de sa propre aventure. Ne mélange pas leurs objectifs, leurs possessions ou leurs alliés. Si Joueur A parle à un PNJ, Joueur B n'est pas automatiquement impliqué dans la conversation sauf s'il intervient.
+    - ARBITRAGE STATISTIQUE: Compare systématiquement les statistiques fournies dans 'personnages_en_scene'. Si Joueur A (FOR: 50) attaque Joueur B (FOR: 25) qui tente de bloquer, l'impact DOIT être dévastateur. Bloquer une force double n'annule pas les dégâts : Joueur B est propulsé violemment en arrière (ex: sur 5m) et subit des blessures graves (ex: bras fracturés sous le choc).
     - RESSENTI DES RIPOSTES: On doit sentir la puissance des coups et des ripostes. Les conséquences doivent être proportionnelles à l'écart de puissance. Un écart massif rend toute défense conventionnelle inutile.
     - RÉALISME VISCÉRAL: Décris la physique des impacts (os qui éclatent, recul violent, perte d'équilibre). Ne décide jamais de l'issue sans base statistique.
 16. PRÉSENCE DES PNJ MAJEURS (STRICT): Les PNJ principaux (Griffith, Void, Orpheon, Magnus, etc.) ne sont pas des décors. Ils ont des intentions, des secrets, et une aura imposante. S'ils sont listés dans PNJ_PRÉSENTS ou sont cohérents avec le lieu, ils doivent INTERVENIR, observer avec mépris ou intérêt, et manipuler la situation. Leur présence doit être palpable (pression spirituelle, silence pesant).
@@ -283,21 +310,12 @@ RÈGLES TECHNIQUES:
 
     const memoryJson = JSON.stringify({
         monde: { date: rpYearString, cycle: cycleInfo, meteo: weather, lore_lieu: kingdom?.description || "" },
-        joueur_principal: {
-            etat: playerState,
-            inv: inventory.map(i => i.name),
-            skills: playerSkills.map(s => s.name),
-            pactes: playerPacts.map(e => e.name),
-            clubs: playerClubs?.map(c => c.name) || []
-        },
+        personnages_en_scene: scenePlayersData,
         env_social: {
-            acteurs: activePlayers.map(p => p.name),
-            spectateurs: spectatorPlayers.map(p => p.name),
             pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel })),
             rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`)
         },
-        objectifs: {
-            quetes_actives: activeQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`),
+        objectifs_generaux: {
             quetes_dispo: availableQuests.map(q => q.title),
             donjon_local: dungeons.map(d => `${d.name}(${d.rank})`)
         },
@@ -305,7 +323,16 @@ RÈGLES TECHNIQUES:
         memoire_court_terme: historyState
     }, null, 2);
 
-    const fullPrompt = `### MÉMOIRE_SYSTÈME_JSON ###\n${memoryJson}\n\n### ACTIONS_JOUEURS (À TRAITER PRIORITAIREMENT) ###\n${aggregatedActions}\n\nCONSIGNE DE PERSISTANCE: Utilise le JSON ci-dessus pour maintenir une cohérence absolue. Si un objet n'est pas dans 'inv', le joueur ne l'a pas. Si un lieu n'est pas cohérent avec 'monde', refuse le déplacement. Ne réécris jamais les actions des joueurs.`;
+    const actionSummary = scenePlayersData
+        .filter(p => p.est_acteur)
+        .map(p => `[JOUEUR: ${p.nom}] ACTIONS: ${p.actions_recentes.join(' -> ')}`)
+        .join('\n');
+
+    const fullPrompt = `### MÉMOIRE_SYSTÈME_JSON (CONTEXTE DÉTAILLÉ PAR JOUEUR) ###\n${memoryJson}\n\n### RÉSUMÉ DES ACTIONS À TRAITER ###\n${actionSummary}\n\nCONSIGNE DE COHÉRENCE MULTI-JOUEUR:
+1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
+2. RÉGIS LEURS INTERACTIONS : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies dans le JSON.
+3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
+4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
