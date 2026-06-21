@@ -470,6 +470,42 @@ async function setupDatabase() {
   try {
     await sequelize.authenticate();
     console.log('Connection established.');
+
+    // Explicitly handle missing columns because sync({ alter: true }) can be unreliable
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDefinitions = {
+      Players: Player.rawAttributes,
+      Monsters: Monster.rawAttributes,
+      NPCs: NPC.rawAttributes,
+      Quests: Quest.rawAttributes,
+      Items: Item.rawAttributes,
+      PlayerQuests: PlayerQuest.rawAttributes,
+      PlayerSkills: PlayerSkill.rawAttributes,
+      Houses: House.rawAttributes,
+      Kingdoms: Kingdom.rawAttributes,
+      Schools: School.rawAttributes,
+      RPMessages: RPMessage.rawAttributes,
+      WorldJournals: WorldJournal.rawAttributes
+    };
+
+    for (const [tableName, attributes] of Object.entries(tableDefinitions)) {
+      try {
+        // Check if table exists first to avoid describeTable error noise
+        const tables = await queryInterface.showAllTables();
+        if (!tables.includes(tableName)) continue;
+
+        const tableInfo = await queryInterface.describeTable(tableName);
+        for (const [colName, colDefinition] of Object.entries(attributes)) {
+          if (!tableInfo[colName]) {
+            console.log(`[DB] Column ${colName} missing in ${tableName}. Adding it...`);
+            await queryInterface.addColumn(tableName, colName, colDefinition);
+          }
+        }
+      } catch (err) {
+        console.warn(`[DB] Error checking/adding columns for ${tableName}:`, err.message);
+      }
+    }
+
     await sequelize.sync({ alter: true });
     console.log('Database synchronized.');
 

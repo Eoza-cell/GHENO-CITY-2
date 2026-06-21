@@ -164,6 +164,12 @@ async function connectToWhatsApp() {
   });
 }
 
-setupDatabase().then(() => {
+setupDatabase()
+  .then(() => {
+    console.log('[CORE] Base de données prête. Lancement du bot...');
     connectToWhatsApp();
-});
+  })
+  .catch(err => {
+    console.error('[CRITICAL] Échec du démarrage de la base de données:', err);
+    process.exit(1);
+  });
