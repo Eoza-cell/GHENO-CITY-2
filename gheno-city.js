@@ -26,72 +26,97 @@ function addLog(msg) {
     console.log(`[${timestamp}] ${msg}`);
 }
 
-async function connectToWhatsApp() {
-  await setupDatabase();
-
-  const authFolder = 'auth_info_baileys';
-  const { state, saveCreds } = await useMultiFileAuthState(authFolder);
-
-  sock = makeWASocket({
-    auth: state,
-    logger: pino({ level: 'silent' }),
-    printQRInTerminal: false,
-    browser: ["Ubuntu", "Chrome", "20.0.04"]
-  });
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update;
-
-    if (qr) addLog("QR Code disponible (ignoré pour pairing code)");
-
-    if (connection === 'close') {
-      const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      addLog(`Connexion fermée (Code: ${statusCode}). Reconnexion: ${shouldReconnect}`);
-      global.isConnected = false;
-      global.pairingCode = null;
-
-      if (shouldReconnect) {
-        connectToWhatsApp();
-      } else {
-          addLog("Déconnecté par l'utilisateur ou session expirée. Suppression des identifiants...");
-          try {
-              fs.rmSync(authFolder, { recursive: true, force: true });
-              addLog("Session réinitialisée.");
-              connectToWhatsApp();
-          } catch (e) {
-              addLog("Erreur lors de la réinitialisation: " + e.message);
-          }
-      }
-    } else if (connection === 'open') {
-      addLog('Connecté à WhatsApp !');
-      global.isConnected = true;
-      global.pairingCode = null;
-      global.connectionError = null;
+function connectToWhatsApp() {
+  return new Promise(async (resolve, reject) => {
+    try {
+        await setupDatabase();
+    } catch (dbError) {
+        return reject(dbError);
     }
-  });
 
-  sock.ev.on('creds.update', saveCreds);
+    const authFolder = 'auth_info_baileys';
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
-  // Auto-pairing if BOT_NUMBER is set and no session exists
-  if (process.env.BOT_NUMBER && !state.creds.registered) {
-    const number = process.env.BOT_NUMBER.replace(/\D/g, '');
-    addLog(`Auto-pairing détecté pour: ${number}. Génération du code...`);
-    setTimeout(async () => {
-        try {
-            const code = await sock.requestPairingCode(number);
-            global.pairingCode = code;
-            addLog(`Code auto-généré: ${code}`);
-        } catch (e) {
-            addLog(`Erreur auto-pairing: ${e.message}`);
+    sock = makeWASocket({
+        auth: state,
+        logger: pino({ level: 'silent' }),
+        printQRInTerminal: false,
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
+    });
+
+    // Auto-pairing if BOT_NUMBER is set and no session exists
+    if (process.env.BOT_NUMBER && !state.creds.registered) {
+        const number = process.env.BOT_NUMBER.replace(/\D/g, '');
+        addLog(`****************************************************`);
+        addLog(`AUTO-PAIRING POUR: ${number}`);
+        addLog(`Génération du code de jumelage en cours...`);
+        addLog(`****************************************************`);
+
+        setTimeout(async () => {
+            try {
+                const code = await sock.requestPairingCode(number);
+                global.pairingCode = code;
+                addLog(`\n\n>>> VOTRE CODE DE JUMELAGE EST : ${code} <<<\n\n`);
+                addLog(`Entrez ce code sur votre téléphone WhatsApp pour finaliser le déploiement.`);
+            } catch (e) {
+                addLog(`Erreur auto-pairing: ${e.message}`);
+            }
+        }, 3000);
+    } else if (state.creds.registered) {
+        addLog("Session existante trouvée. Connexion automatique...");
+    }
+
+    // If no BOT_NUMBER is set, we resolve immediately so the web server can start
+    // and the user can enter the number manually.
+    if (!process.env.BOT_NUMBER || state.creds.registered) {
+        resolve(sock);
+    }
+
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) addLog("QR Code disponible (ignoré pour pairing code)");
+
+        if (connection === 'close') {
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            addLog(`Connexion fermée (Code: ${statusCode}). Reconnexion: ${shouldReconnect}`);
+            global.isConnected = false;
+
+            if (shouldReconnect) {
+                // If we were waiting for connection (BOT_NUMBER path), we don't re-resolve
+                if (process.env.BOT_NUMBER && !state.creds.registered) {
+                    connectToWhatsApp();
+                } else {
+                    connectToWhatsApp().then(resolve).catch(reject);
+                }
+            } else {
+                addLog("Déconnecté par l'utilisateur ou session expirée. Suppression des identifiants...");
+                try {
+                    fs.rmSync(authFolder, { recursive: true, force: true });
+                    addLog("Session réinitialisée.");
+                    connectToWhatsApp().then(resolve).catch(reject);
+                } catch (e) {
+                    addLog("Erreur lors de la réinitialisation: " + e.message);
+                }
+            }
+        } else if (connection === 'open') {
+            addLog('Connecté à WhatsApp !');
+            global.isConnected = true;
+            global.pairingCode = null;
+            global.connectionError = null;
+            // This resolves for the case where we were blocking startup (BOT_NUMBER path)
+            resolve(sock);
         }
-    }, 5000);
-  }
+    });
 
-  sock.ev.on('messages.upsert', async (m) => {
-    m.messages.forEach(async (message) => {
-      if (!message.message) return;
-      handleCommand(sock, message);
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('messages.upsert', async (m) => {
+        m.messages.forEach(async (message) => {
+            if (!message.message) return;
+            handleCommand(sock, message);
+        });
     });
   });
 }
@@ -276,7 +301,7 @@ app.get('/', (req, res) => {
                     ` : `
                         ${process.env.BOT_NUMBER ? `
                             <p>Génération automatique du code pour le numéro <strong>${process.env.BOT_NUMBER}</strong>...</p>
-                            <p><small>Veuillez patienter quelques secondes. Si rien ne s'affiche, actualisez la page.</small></p>
+                            <p><small>Vérifiez également les logs de déploiement Render pour le code.</small></p>
                         ` : `
                             <p>Entrez le numéro du bot (avec code pays) pour obtenir un code de jumelage.</p>
                             <form action="/pair" method="POST">
@@ -343,7 +368,7 @@ app.post('/pair', async (req, res) => {
             await delay(3500);
             const code = await sock.requestPairingCode(number);
             global.pairingCode = code;
-            addLog(`Code de jumelage généré: ${code}`);
+            addLog(`\n\n>>> VOTRE CODE DE JUMELAGE EST : ${code} <<<\n\n`);
             res.redirect('/');
         } catch (e) {
             addLog(`Erreur de jumelage: ${e.message}`);
@@ -403,8 +428,20 @@ app.post('/invite', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  addLog(`Serveur web démarré sur http://localhost:${port}`);
-});
+// STARTUP WRAPPER
+(async () => {
+    addLog("Initialisation du système...");
+    try {
+        // If BOT_NUMBER is set, we block until paired.
+        // Otherwise, we start immediately so the user can use the website to enter the number.
+        await connectToWhatsApp();
 
-connectToWhatsApp();
+        app.listen(port, () => {
+          addLog(`Serveur web démarré sur http://localhost:${port}`);
+          addLog(`Déploiement prêt.`);
+        });
+    } catch (err) {
+        addLog(`ERREUR FATALE AU DÉMARRAGE: ${err.message}`);
+        process.exit(1);
+    }
+})();
