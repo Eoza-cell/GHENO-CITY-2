@@ -1,6 +1,22 @@
 const axios = require('axios');
 const fs = require('fs');
 
+// Inactivity threshold for private notifications (24 hours)
+const INACTIVITY_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Checks if a player should receive a private notification based on their last activity.
+ * This prevents spamming inactive players.
+ * @param {object} player Sequelize Player instance
+ * @returns {boolean}
+ */
+function shouldNotifyPlayer(player) {
+    if (!player || !player.lastActivity) return true;
+    const now = Date.now();
+    const lastActivity = new Date(player.lastActivity).getTime();
+    return (now - lastActivity) < INACTIVITY_THRESHOLD_MS;
+}
+
 /**
  * Resolves player tags like @Name in the text and converts them to WhatsApp mentions.
  * @param {string} text
@@ -78,4 +94,4 @@ async function sendWithImage(sock, jid, aiResponse) {
 async function generateAnimeImage() { return null; }
 function buildAnimePrompt(p) { return p; }
 
-module.exports = { sendWithImage, generateAnimeImage, buildAnimePrompt, resolveMentions };
+module.exports = { sendWithImage, generateAnimeImage, buildAnimePrompt, resolveMentions, shouldNotifyPlayer };

@@ -11,7 +11,7 @@ const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -1075,7 +1075,9 @@ commands.set('donner', async (sock, message, args) => {
         await targetPlayer.increment('col', { by: amount });
 
         await sock.sendMessage(replyJid, { text: `Tu as donné ${amount} Col à ${targetPlayer.name}.` });
-        await sock.sendMessage(mentionedJid, { text: `💰 ${player.name} t'a donné ${amount} Col !` });
+        if (shouldNotifyPlayer(targetPlayer)) {
+            await sock.sendMessage(mentionedJid, { text: `💰 ${player.name} t'a donné ${amount} Col !` });
+        }
         return;
     }
 
@@ -1116,7 +1118,9 @@ commands.set('donner', async (sock, message, args) => {
         await targetPlayer.save();
 
         await sock.sendMessage(replyJid, { text: `Tu as donné ${quantity}x ${itemName} à ${targetPlayer.name}.` });
-        await sock.sendMessage(mentionedJid, { text: `🎒 ${player.name} t'a donné ${quantity}x ${itemName} !` });
+        if (shouldNotifyPlayer(targetPlayer)) {
+            await sock.sendMessage(mentionedJid, { text: `🎒 ${player.name} t'a donné ${quantity}x ${itemName} !` });
+        }
 
         // Handle stat changes if it's an item with bonuses
         const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });

@@ -1,5 +1,5 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact } = require('./database');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
 const { generate3DVisual } = require('./three-renderer');
 const { Op } = require('sequelize');
@@ -81,7 +81,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   // If 'next' is sent but there are NO actions, we still let the MJ intervene if they want
   const aggregatedActions = recentActions.length > 0
     ? recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n')
-    : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde ou interpeller quelqu'un.)";
+    : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde.)";
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -226,7 +226,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     // Mini-Event Trigger (20% chance)
     const triggerMiniEvent = Math.random() < 0.20;
     const miniEventContext = triggerMiniEvent
-        ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
+        ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
   const systemPrompt = `Tu es Arise MJ, narrateur d'un RP fantasy libre.
@@ -308,7 +308,8 @@ LORE FIXE:
         '2. Mentionne les mètres utiles pour les déplacements et les distances entre acteurs/objets importants.',
         '3. En combat, précise membre/arme utilise et zone du corps touchée, sans detail inutile.',
         '4. Si une action est trop vague, fais-la echouer ou rester partielle au lieu de l inventer.',
-        '5. Ne fais agir que les joueurs listés comme acteurs.'
+        '5. Ne fais agir que les joueurs listés comme acteurs.',
+        '6. N\'interpelle JAMAIS les joueurs SPECTATEURS (silencieux). Ignore-les dans la narration.'
     ].join('\n');
 
   try {
@@ -473,9 +474,11 @@ LORE FIXE:
                       });
                       questFeedback.push(`💀 *MORT* : L'âme de ${target.name} a quitté son corps. Il erre désormais à Nécropolis.`);
 
-                      await sock.sendMessage(target.whatsappId, {
-                          text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener."
-                      });
+                      if (shouldNotifyPlayer(target)) {
+                          await sock.sendMessage(target.whatsappId, {
+                              text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener."
+                          });
+                      }
                   }
               }
               targetModified = true;
@@ -674,7 +677,7 @@ LORE FIXE:
                         name: { [Op.like]: `%${parameters.target_name}%` }
                     }
                 });
-                if (notifyTarget) {
+                if (notifyTarget && shouldNotifyPlayer(notifyTarget)) {
                     const { resolveMentions } = require('./message-handler');
                     const { text: msgText, mentions } = await resolveMentions(parameters.message);
                     await sock.sendMessage(notifyTarget.whatsappId, {
@@ -692,10 +695,12 @@ LORE FIXE:
                 const { text: msgText, mentions } = await resolveMentions(parameters.message);
                 const allPlayers = await Player.findAll();
                 for (const p of allPlayers) {
-                    await sock.sendMessage(p.whatsappId, {
-                        text: `🌎 *ANNONCE MONDIALE*\n\n${msgText}`,
-                        mentions
-                    });
+                    if (shouldNotifyPlayer(p)) {
+                        await sock.sendMessage(p.whatsappId, {
+                            text: `🌎 *ANNONCE MONDIALE*\n\n${msgText}`,
+                            mentions
+                        });
+                    }
                 }
             }
             break;
@@ -706,10 +711,12 @@ LORE FIXE:
                 const { resolveMentions } = require('./message-handler');
                 const { text: msgText, mentions } = await resolveMentions(parameters.message);
                 for (const other of nearbyPlayers) {
-                    await sock.sendMessage(other.whatsappId, {
-                        text: `📣 *Annonce RP*\n\n${msgText}`,
-                        mentions
-                    });
+                    if (other.whatsappId !== player.whatsappId && shouldNotifyPlayer(other)) {
+                        await sock.sendMessage(other.whatsappId, {
+                            text: `📣 *Annonce RP*\n\n${msgText}`,
+                            mentions
+                        });
+                    }
                 }
             }
             break;
@@ -753,9 +760,11 @@ LORE FIXE:
                 if (res) {
                     questFeedback.push(`🤝 *Quête coopérative lancée* : ${res.quest.title}`);
                     for (const n of res.notified) {
-                        await sock.sendMessage(n.player.whatsappId, {
-                            text: `🤝 *Quête coopérative !*\n${player.name} t'embarque dans une quête.\n\n${n.line}`
-                        });
+                        if (shouldNotifyPlayer(n.player)) {
+                            await sock.sendMessage(n.player.whatsappId, {
+                                text: `🤝 *Quête coopérative !*\n${player.name} t'embarque dans une quête.\n\n${n.line}`
+                            });
+                        }
                     }
                 }
             }
@@ -837,9 +846,11 @@ LORE FIXE:
 
                     questFeedback.push(`✨ *RÉSURRECTION* : ${deadPlayer.name} a été rappelé du monde des morts par ${caster.name}. Sacrifice de ${sacrifice} PV.`);
 
-                    await sock.sendMessage(deadPlayer.whatsappId, {
-                        text: `✨ *TU ES REVENU !*\n\n${caster.name} a sacrifié sa propre force vitale pour te ramener à la vie. Tu te réveilles à ${deadPlayer.location}, affaibli mais vivant.`
-                    });
+                    if (shouldNotifyPlayer(deadPlayer)) {
+                        await sock.sendMessage(deadPlayer.whatsappId, {
+                            text: `✨ *TU ES REVENU !*\n\n${caster.name} a sacrifié sa propre force vitale pour te ramener à la vie. Tu te réveilles à ${deadPlayer.location}, affaibli mais vivant.`
+                        });
+                    }
                 }
             }
             break;
@@ -859,7 +870,7 @@ LORE FIXE:
       }
 
       // Notify target if it's not the current player
-      if (target.whatsappId !== player.whatsappId) {
+      if (target.whatsappId !== player.whatsappId && shouldNotifyPlayer(target)) {
           await sock.sendMessage(target.whatsappId, {
               text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
           });
@@ -875,7 +886,7 @@ LORE FIXE:
         if (!notice || !notice.target_name || !notice.message) continue;
         const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: `%${notice.target_name}%` }, location: player.location } });
         if (targetPlayer && targetPlayer.subLocation !== player.subLocation) continue;
-        if (targetPlayer) {
+        if (targetPlayer && shouldNotifyPlayer(targetPlayer)) {
           await sock.sendMessage(targetPlayer.whatsappId, {
             text: `🔔 *Message de RP*\n\n${notice.message}`
           });
@@ -885,9 +896,11 @@ LORE FIXE:
 
     if (aiResponse.broadcastMessage) {
       for (const other of nearbyPlayers) {
-        await sock.sendMessage(other.whatsappId, {
-          text: `📣 *Annonce RP*\n\n${aiResponse.broadcastMessage}`
-        });
+        if (other.whatsappId !== player.whatsappId && shouldNotifyPlayer(other)) {
+          await sock.sendMessage(other.whatsappId, {
+            text: `📣 *Annonce RP*\n\n${aiResponse.broadcastMessage}`
+          });
+        }
       }
     }
 
