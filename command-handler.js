@@ -1268,7 +1268,7 @@ commands.set('lore', async (sock, message, args) => {
     const topic = args.join(' ').trim();
 
     if (!topic) {
-        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour en savoir plus :\n\n- *Origines* (One Above All, Idée du Mal)\n- *Royaumes* (Elion, Valkyr, Nécropolis)\n- *Mystères* (Béhérit, Apôtres, Interstice)\n- *Événements* (Convergence, Histoire)\n- *Société* (Clubs, Académie, Aetherys)`;
+        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour lire une archive en texte.\n\nEntrées conseillées :\n- *Origines* : One Above All, Idee du Mal\n- *Mysteres* : Beherit, Apotres, Interstice\n- *Evenements* : Histoire, Convergence, Missions historiques\n- *Societe* : Aetherys, Academie, Clubs\n- *Royaumes* : Elion, Valkyr, Necropolis`;
         return await sock.sendMessage(replyJid, { text: categories });
     }
 
@@ -1298,19 +1298,19 @@ commands.set('lore', async (sock, message, args) => {
 
     if (!loreData) {
         const worldLore = {
-            'one above all': "L'origine même de l'existence, le créateur du temps, de l'espace, de la vie et de la mort. Il demeure silencieux mais reviendra juger sa création.",
-            'idée du mal': "Conscience collective alimentée par les peurs et la haine de l'humanité. Elle manipule discrètement le destin du monde depuis les profondeurs, se nourrissant de la souffrance des mortels.",
-            'béhérit': "Reliques vivantes ressemblant à des visages de pierre déformés avec des yeux et des bouches mal alignés. Ils choisissent leur propriétaire lors d'un moment de désespoir absolu pour déclencher l'Éclipse. Impossibles à trouver sans aide divine ou destin tragique.",
-            'apôtres': "Humains ayant sacrifié ce qu'ils chérissent le plus via un Béhérit pour obtenir un pouvoir dépassant celui des mortels. Ils servent la Main de Dieu et l'Idée du Mal.",
-            'interstice': "Dimension située entre tous les mondes, là où les esprits, les démons et les entités résident. C'est là que l'Idée du Mal réside et que les pactes interdits sont conclus.",
-            'origines': "Au commencement, One Above All façonna les Entités Célestes et Bestiales. L'humanité prospéra jusqu'à ce que ses propres ténèbres donnent naissance à l'Idée du Mal dans l'Interstice.",
-            'nécropolis': "La cité silencieuse des morts gouvernée par Orpheon. Les âmes y attendent le jugement final du Dieu Suprême avant d'être réincorporées dans le flux de l'existence ou condamnées au Néant.",
-            'missions historiques': "Quêtes projetant un Héritier dans le passé pour revivre la chute de grands royaumes, l'avènement des premiers Apôtres ou les guerres entre Célestes et Bestiaux.",
-            'histoire': "Le monde approche d'un nouvel âge chaotique. La Convergence approche : les Béhérits réapparaissent massivement et les frontières entre l'Interstice et le monde matériel s'effacent.",
-            'convergence': "Phénomène apocalyptique où les dimensions fusionnent. Les monstres de l'Interstice se déversent dans Aetherys, et les Apôtres préparent l'arrivée de la Main de Dieu.",
-            'aetherys': "Un monde complexe né de la fusion entre technologie moderne et mana ancestral. Autrefois stable, il vacille maintenant sous la pression de la Causalité.",
-            'mystères': "Les Mystères d'Aetherys englobent les secrets de la Causalité, la nature des Béhérits et l'existence de l'Interstice. Peu d'Héritiers survivent assez longtemps pour en comprendre la portée.",
-            'société': "La société d'Aetherys est structurée autour de l'Académie Impériale, des Guildes et des Clubs. C'est un équilibre fragile entre l'avancée technologique et les anciennes traditions magiques."
+            'one above all': "Source premiere de l'existence, One Above All est l'origine du temps, de la matiere, de la vie et de la mort. Aucun temple ne peut le contenir, aucun royaume ne peut le revendiquer.\n\nDans les archives anciennes, son silence n'est pas une absence mais une attente. Le monde d'Aetherys vit encore sous le poids de ce jugement suspendu.",
+            'idée du mal': "L'Idee du Mal est une conscience nee des peurs, de la haine et du desir d'explication de l'humanite. Elle ne regne pas par decret, mais par causalite, en poussant les mortels vers les moments ou leurs tenebres parlent a leur place.\n\nPlus les hommes desesperent, plus son influence gagne en densite dans l'Interstice.",
+            'béhérit': "Les Beherits sont des reliques vivantes, informes, presque humaines, qui n'apparaissent qu'aux etres brises. Ils ne se possedent pas vraiment: ils choisissent.\n\nQuand le desespoir atteint son point de rupture, le Beherit ouvre la voie vers un sacrifice irreparable et une metamorphose qui depasse la condition mortelle.",
+            'apôtres': "Les Apotres sont d'anciens humains qui ont livre ce qu'ils aimaient le plus pour recevoir une puissance monstrueuse. Leur force vient d'un marche absolu: abandonner leur humanite pour devenir les instruments d'une volonte plus obscure.\n\nIls conservent parfois des traces de leur ancienne personnalite, mais celles-ci servent surtout a rendre leur monstruosite encore plus troublante.",
+            'interstice': "L'Interstice est la faille entre le monde materiel, les royaumes spirituels et les plans interdits. Les esprits y errent, les entites y observent, et les pactes y laissent des cicatrices qui debordent parfois sur la realite.\n\nQuand ses frontieres s'amincissent, les monstres, les visions et les presages commencent a contaminer le quotidien.",
+            'origines': "Au commencement, One Above All donna forme aux puissances celestes et bestiales, puis le monde se developpa autour des mortels. Mais l'humanite, incapable d'assumer seule la somme de ses peurs, engendra peu a peu l'Idee du Mal dans les profondeurs de l'Interstice.\n\nAetherys est ne de cet equilibre instable: grandeur divine au-dessus, desir humain au centre, abime au-dessous.",
+            'nécropolis': "Necropolis est la cite des morts, gouvernee par Orpheon et enveloppee d'un calme qui n'a rien de paisible. Les ames qui y arrivent n'y sont ni libres ni tout a fait condamnees: elles attendent, se souviennent, et tremblent devant le verdict final.\n\nPour les vivants, ce lieu n'est pas une legende. C'est la preuve que la mort, ici, est une frontiere administrative avant d'etre un mystere.",
+            'missions historiques': "Les missions historiques projettent les Heritiers au coeur d'epoques disparues. Ils n'y vont pas comme spectateurs, mais comme temoins exposes aux decisions, aux tragedies et aux batailles qui ont forme le monde present.\n\nChute des royaumes, naissance des Apotres, guerres entre puissances antiques: chaque archive de ce type est un champ de memoire vivant.",
+            'histoire': "L'histoire recente d'Aetherys est celle d'un monde moderne qui croyait avoir domestique le mana, la politique et la violence. Cet equilibre s'effondre a mesure que reapparaissent les Beherits, que les anomalies se multiplient et que la Causalite reprend ses droits.\n\nLa paix n'est plus qu'une mince couche de vernis au-dessus d'une ere de rupture.",
+            'convergence': "La Convergence est le nom donne au moment ou les limites entre les dimensions cessent de tenir. Les phenomenes de l'Interstice gagnent le sol des vivants, les monstres traversent les failles, et les puissances anciennes retrouvent des relais humains.\n\nCe n'est pas seulement une apocalypse. C'est une reorganisation brutale de la realite.",
+            'aetherys': "Aetherys est un monde hybride, ou la technologie moderne cohabite avec le mana ancestral, les institutions académiques et les forces metaphysiques. Les villes brillent, les clubs prosperent, les armes evoluent, mais tout cela repose sur un socle fragile.\n\nSous la surface des routines et des ambitions, la Causalite tisse une guerre invisible qui finit toujours par rattraper les vivants.",
+            'mystères': "Les mysteres d'Aetherys ne se limitent pas a quelques reliques ou cultes caches. Ils concernent la logique meme du monde: pourquoi certains sont choisis, pourquoi certaines chutes semblent ecrites d'avance, et pourquoi l'Interstice repond si bien au desespoir.\n\nComprendre un mystere, ici, c'est souvent s'en approcher assez pour qu'il commence a vous regarder.",
+            'société': "La societe d'Aetherys tient sur un equilibre instable entre academies, guildes, clubs, noblesse, commerce et puissance militaire. Chacun veut imposer son ordre, mais personne ne controle totalement la circulation du mana, des secrets et des dettes.\n\nL'Academie Imperiale forme l'elite. Les clubs recrutent l'influence. Les royaumes negocient. Et dans l'ombre, d'autres forces preparent un avenir moins humain."
         };
         const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const topicNormalized = normalize(topic);
@@ -1446,7 +1446,7 @@ LORE: Convergence, Éveil, Monstres, Entités.
 RÈGLES: Décris l'apparition brutale d'un monstre, d'une entité ou d'un événement environnemental.
 FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
 
-    const userPrompt = `LIEU: ${player.location}\nÉVÉNEMENT: ${eventDesc}`;
+    const userPrompt = `LIEU: ${player.location}\nSOUS_LIEU: ${player.subLocation}\nÉVÉNEMENT: ${eventDesc}`;
 
     try {
         const { callAI } = require('./ai-utils');
@@ -1467,7 +1467,8 @@ FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
             senderJid: 'system',
             senderName: 'Arise MJ',
             content: aiResponse.narrative,
-            location: player.location
+            location: player.location,
+            subLocation: player.subLocation
         });
 
         const { sendWithImage } = require('./message-handler');
@@ -1528,7 +1529,8 @@ commands.set('menu', async (sock, message) => {
 
   const menuText = "╔══════════════════════════╗\n" +
                    "   🌐  *ARISE : GHENO CITY*  🌐\n" +
-                   "╚══════════════════════════╝\n\n" +
+                   "╚══════════════════════════╝\n" +
+                   "_Portes d'Aetherys, archives vivantes et conflits de l'Interstice._\n\n" +
                    "🕹️ *IMMERSION*\n" +
                    "└ `/action` - Entrer dans le RP\n\n" +
                    "👤 *HÉRITIER*\n" +

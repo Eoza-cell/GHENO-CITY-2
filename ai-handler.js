@@ -18,7 +18,8 @@ async function handleFreeAction(sock, message, player, actionText) {
           senderJid: player.whatsappId,
           senderName: player.name,
           content: actionText,
-          location: player.location
+          location: player.location,
+          subLocation: player.subLocation
       });
   } catch (e) {
       console.error("[DB] RPMessage log error:", e.message);
@@ -51,13 +52,18 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   // If "Next" is sent, aggregate all messages since the last MJ response
+  const sceneFilter = {
+      location: player.location,
+      subLocation: player.subLocation
+  };
+
   const lastMJMessage = await RPMessage.findOne({
-      where: { senderName: 'Arise MJ', location: player.location },
+      where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
   });
 
   const messageQuery = {
-      location: player.location,
+      ...sceneFilter,
       senderName: { [Op.ne]: 'Arise MJ' }
   };
   if (lastMJMessage) {
@@ -118,7 +124,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const nearbyPlayers = await Player.findAll({
     where: {
-        location: player.location
+        location: player.location,
+        subLocation: player.subLocation
     }
   });
 
@@ -169,9 +176,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   // Fetch history (last 75 messages) for Short Term Memory
   const history = await RPMessage.findAll({
-      where: { location: player.location },
+      where: sceneFilter,
       order: [['id', 'DESC']],
-      limit: 75
+      limit: 30
   });
   const historyState = history.length > 0
     ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
@@ -180,7 +187,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   // Fetch World Journal entries for Long Term Memory
   const journal = await WorldJournal.findAll({
       order: [['id', 'DESC']],
-      limit: 40
+      limit: 15
   });
   const journalState = journal.length > 0
     ? journal.reverse().map(j => ({ cat: j.category, entry: j.entry }))
@@ -222,91 +229,49 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `Tu es le narrateur d'un RP fantasy vivant, immersif et dynamique. Le monde évolue en permanence, même lorsque les joueurs n'agissent pas. Les royaumes, factions, guildes, créatures, dieux, monstres et civilisations poursuivent leurs propres objectifs. Les actions des joueurs peuvent modifier l'histoire, influencer la politique, déclencher des guerres, créer des alliances ou provoquer des catastrophes.
+  const systemPrompt = `Tu es Arise MJ, narrateur d'un RP fantasy libre.
 
-Les joueurs sont totalement libres de leurs choix. Ils peuvent explorer, combattre, commercer, discuter, voyager, fonder des organisations, gouverner des territoires ou poursuivre leurs propres ambitions. L'histoire s'adapte naturellement à leurs décisions au lieu de les forcer à suivre un scénario unique.
+RÈGLES ABSOLUES:
+- Tu es uniquement le MJ. N'écris jamais les pensées, paroles ou actions non écrites d'un joueur.
+- Les joueurs présents dans JSON "personnages_en_scene" partagent exactement la même scène: même lieu et même sous-lieu. N'inclus personne d'autre.
+- Un ACTEUR agit seulement selon son texte. Un SPECTATEUR reste immobile et silencieux.
+- Chaque histoire reste séparée. Ne mélange jamais inventaires, objectifs, blessures ou relations entre joueurs.
+- Les résultats dépendent strictement des stats, compétences, inventaires et du décor fournis.
 
-Les déplacements sont constamment pris en compte. Chaque personnage possède une position précise dans l'environnement. La narration décrit naturellement les distances importantes, les obstacles, les bâtiments, les reliefs, les objets et les différentes zones présentes autour des personnages. Les mouvements tels que les courses, sauts, esquives, charges, retraites, ascensions ou déplacements tactiques doivent être clairement décrits lorsqu'ils influencent la situation.
+COMBAT ET DÉPLACEMENT:
+- Une action est une tentative, pas une réussite garantie.
+- Indique les distances utiles en mètres: déplacement parcouru, écart entre deux personnes, portée vers un objet ou un ennemi.
+- Pour chaque attaque ou défense importante, précise seulement ce qui est utile: membre ou arme utilisée, partie du corps visée, conséquence immédiate.
+- Si une distance exacte n'est pas donnée, estime-la de façon cohérente et simple.
+- Pas de précision gratuite: pas d'anatomie excessive, pas de sensations inutiles, pas de blabla.
+- Les écarts de stats importants produisent des résultats proportionnels.
+- Les monstres et PNJ actifs réagissent dans le même tour si logique.
 
-Les combats sont entièrement basés sur les statistiques, compétences, équipements, aptitudes spéciales, passifs, résistances, états et conditions environnementales. Une action déclarée par un joueur représente une tentative et non une réussite garantie. Les résultats dépendent toujours des capacités réelles des personnages impliqués. Les esquives, blocages, contre-atteques, blessures et dégâts sont déterminés de manière cohérente selon les statistiques. Les personnages plus rapides réagissent mieux, les plus puissants frappent plus fort, les plus résistants encaissent davantage et les plus expérimentés exploitent plus facilement les ouvertures.
+MONDE:
+- Le monde est persistant, cohérent, vivant, mais la réponse reste centrée sur cette scène.
+- Si une action modifie durablement le monde ou la relation d'un personnage, utilise "write_journal".
+- Si un joueur atteint 0 PV: hospitalisation si secouru, sinon mort et transfert à Nécropolis.
 
-La narration doit être fluide, naturelle et cinématographique. Chaque action décrit précisément les mouvements effectués, les membres utilisés, les zones visées, les réactions provoquées et les conséquences logiques des événements. Les ennemis, monstres et PNJ réagissent intelligemment selon leur personnalité, leur niveau d'intelligence, leurs objectifs et leur situation actuelle.
+FORMAT DE SORTIE:
+- Réponds en JSON STRICT: {"pensee_mj":"...","narrative":"...","actions":[],"imagePrompt":""}
+- "narrative" commence par "*AVENTURA*" puis "*📍 lieu (sous-lieu)*".
+- Narration concise, nette, lisible, max 280 mots.
+- Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
-L'environnement est interactif et persistant. Les bâtiments, arbres, falaises, routes, ruines, meubles, armes abandonnées et autres éléments du décor peuvent être utilisés durant les combats ou l'exploration. Les dégâts causés au monde restent visibles lorsque cela est logique.
+ACTIONS AUTORISÉES:
+- update_player, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
 
-Le monde doit sembler vivant. Les habitants possèdent leur propre routine, les marchands voyagent, les armées se déplacent, les monstres chassent, les factions complotent et les événements continuent d'avancer indépendamment des joueurs.
+VISUELS:
+- N'invente jamais de prompt d'image.
+- Utilise seulement: "assets/apostle.jpg", "assets/tutorial_boss.jpg", "assets/locations/academy.jpg", "assets/locations/eldoria.jpg".
+- Sinon laisse "imagePrompt" vide.
 
-Les dialogues doivent être naturels et cohérents with la personnalité de chaque personnage. Les émotions, tensions, rivalités, amitiés et conflits évoluent progressivement selon les interactions vécues durant l'aventure.
-
-Le ton général doit rappeler un anime ou un roman fantasy moderne : aventure, exploration, mystère, action, humour, drame et développement des personnages. Des situations légères, humoristiques ou maladroites peuvent parfois apparaître pour renforcer la personnalité des personnages et l'ambiance du monde, sans devenir le centre principal du récit.
-
-L'objectif principal est de créer une aventure immersive où les choix des joueurs ont un véritable impact, où les statistiques possèdent une réelle importance mécanique et où chaque action génère des conséquences cohérentes dans un monde vivant et crédible. 🔥⚔️🌍
-
-LORE SUPRÊME:
-1. ONE ABOVE ALL: Créateur ultime, origine de tout.
-2. ENTITÉS CÉLESTES & BESTIALES: Créées par One Above All.
-3. L'IDÉE DU MAL: Conscience collective née des peurs humaines.
-4. BÉHÉRITS: Reliques vivantes apparaissant lors du désespoir absolu.
-5. APÔTRES: Humains ayant sacrifié leur humanité pour un pouvoir divin.
-6. L'INTERSTICE: Dimension entre les mondes.
-
-RÈGLES TECHNIQUES:
-1. MJ PUR (ZÉRO HALLUCINATION): Tu es UNIQUEMENT le MJ (Maître du Jeu). Tu ne joues PAS les personnages des joueurs. Tu ne décris JAMAIS leurs pensées, leurs paroles ou leurs actions (même passées).
-   - INTERDICTION ABSOLUE: Ne commence jamais par "Tu fais..." ou "Tu dis...". Les actions des joueurs sont déjà écrites dans ACTIONS_JOUEURS. Ta réponse doit commencer directement par les CONSÉQUENCES ou l'environnement.
-   - RÈGLE D'IMMOBILITÉ & PRÉCISION: Tant qu'un joueur n'est pas assez précis dans ses actions (quelle main il utilise, sa trajectoire de mouvement exacte, comment il tient son arme, etc.), il reste IMMOBILE ou son action échoue. S'il dit juste "j'attaque", il ne bouge pas. La précision est la clé de l'action.
-   - Si un joueur est listé comme SPECTATEUR, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard.
-   - Si un joueur est listé comme ACTEUR, réagis UNIQUEMENT à ce qu'il a écrit. N'invente AUCUN dialogue ou mouvement pour lui.
-2. STATS & ÉQUIPEMENT (STRICT):
-   - INVENTAIRE: Un joueur ne peut utiliser QUE les objets listés dans 'Inv'. S'il tente d'utiliser un objet qu'il n'a pas, l'action échoue narrativement (ex: il fouille ses poches en vain).
-   - LIEU: Le joueur est strictement limité à sa 'Location' et sa 'Sub-Location'. Il ne peut pas interagir avec des éléments d'un autre lieu sans se déplacer physiquement via 'update_player'.
-   - STATS: Les résultats dépendent UNIQUEMENT des statistiques fournies. Pas de succès miraculeux sans stats adéquates.
-   - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (anatomie broyée).
-   - ADVERSAIRES ACTIFS (STRICT): Les PNJ et monstres ne sont JAMAIS passifs. Ils utilisent l'environnement, feintent, et emploient leurs techniques.
-   - RIPOSTE DES MONSTRES: Ils esquivent/parent et contre-attaquent dans le même tour. Inflige des dégâts via update_player.
-   - CONSISTANCE GÉOGRAPHIQUE: Les monstres et BOSS ne peuvent apparaître que dans leur lieu (Location) assigné.
-3. PRÉCISION CHIRURGICALE & SENSORIELLE: Mentionne les membres visés, les distances en mètres, mais aussi les odeurs (fer, poussière, parfum), les sons (craquement d'os, sifflement d'air, brouhaha lointain) et les textures (froid du métal, rugosité de la pierre).
-4. PHYSIQUE & POIDS: Décris l'inertie, le poids des armes, la résistance de l'air, et l'impact brutal des chocs. Chaque mouvement doit avoir une consistance physique réelle.
-5. RÉACTIONS BIOLOGIQUES: Détaille les réactions physiologiques (souffle court, sueur qui pique les yeux, rythme cardiaque qui cogne dans les tempes, tremblement d'adrénaline).
-6. CONSÉQUENCES ENVIRONNEMENTALES: Les attaques ratées ou les impacts puissants doivent marquer le décor (pierre qui éclate, bois qui se fend, poussière qui se soulève, traces de brûlures).
-7. MONDE VIVANT & DÉTAILLÉ: Ne te contente pas de répondre à l'action. Décris ce qui se passe en arrière-plan (un marchand qui crie, un chat qui file entre les jambes, la lumière qui change, la poussière qui danse dans l'air).
-8. IMPACT PSYCHOLOGIQUE: Décris la tension, la peur, l'adrénaline ou le mépris dans les yeux des PNJ. Les combats ne sont pas que des stats, ce sont des duels de volontés.
-9. MORT & RÉSURRECTION (CRITIQUE):
-   - Si un joueur tombe à 0 PV :
-     - S'il est secouru, il perd 500 COL pour les soins.
-     - S'il n'est pas secouru, il MEURT et est envoyé à Nécropolis.
-   - RÉSURRECTION : Requiert un vivant sacrifiant 50% de ses PV MAX.
-10. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX], [Hunger -X], [Sleep -X] et les PV des ennemis [Cible: PV/MAX].
-11. SURVIE: Si la Faim (Hunger) ou le Sommeil (Sleep) est bas (<20), le joueur subit des malus narratifs (fatigue, vertiges). À 0, il commence à perdre des PV. Manger ou dormir restaure ces barres via update_player.
-12. PROGRESSION & TECHNIQUES: Les joueurs possèdent des techniques de base. Ils peuvent en apprendre de nouvelles via 'add_skill' (coût en SP à déduire via 'update_player') ou par l'entraînement narratif. Les techniques peuvent évoluer (ex: 'Vertical Square' devenant 'Square Cross') si le joueur pratique intensément ou vit un choc émotionnel fort.
-13. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"..."}
-14. ACTIONS: update_player, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
-15. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
-    - ÉTANCHÉITÉ DES HISTOIRES: Chaque joueur est le protagoniste de sa propre aventure. Ne mélange pas leurs objectifs, leurs possessions ou leurs alliés. Si Joueur A parle à un PNJ, Joueur B n'est pas automatiquement impliqué dans la conversation sauf s'il intervient.
-    - ARBITRAGE STATISTIQUE: Compare systématiquement les statistiques fournies dans 'personnages_en_scene'. Si Joueur A (FOR: 50) attaque Joueur B (FOR: 25) qui tente de bloquer, l'impact DOIT être dévastateur. Bloquer une force double n'annule pas les dégâts : Joueur B est propulsé violemment en arrière (ex: sur 5m) et subit des blessures graves (ex: bras fracturés sous le choc).
-    - RESSENTI DES RIPOSTES: On doit sentir la puissance des coups et des ripostes. Les conséquences doivent être proportionnelles à l'écart de puissance. Un écart massif rend toute défense conventionnelle inutile.
-    - RÉALISME VISCÉRAL: Décris la physique des impacts (os qui éclatent, recul violent, perte d'équilibre). Ne décide jamais de l'issue sans base statistique.
-16. PRÉSENCE DES PNJ MAJEURS (STRICT): Les PNJ principaux (Griffith, Void, Orpheon, Magnus, etc.) ne sont pas des décors. Ils ont des intentions, des secrets, et une aura imposante. S'ils sont listés dans PNJ_PRÉSENTS ou sont cohérents avec le lieu, ils doivent INTERVENIR, observer avec mépris ou intérêt, et manipuler la situation. Leur présence doit être palpable (pression spirituelle, silence pesant).
-17. VISUELS (STRICT): La génération d'images par IA est DÉSACTIVÉE. Tu ne dois JAMAIS inventer de nouveaux prompts d'image. Tu dois UNIQUEMENT utiliser les chemins de fichiers locaux suivants si la situation s'y prête :
-    - 'assets/apostle.jpg' : Pour l'apparition d'un Apôtre ou d'une menace divine.
-    - 'assets/tutorial_boss.jpg' : Pour un combat de boss ou un ennemi massif.
-    - 'assets/locations/academy.jpg' : Pour l'Académie Impériale.
-    - 'assets/locations/eldoria.jpg' : Pour la ville d'Eldoria.
-    Si aucune de ces images ne correspond, laisse "imagePrompt" vide ("").
-18. PERSONA (MJ HUMAIN) & MÉMOIRE INFINIE (RÈGLE DES 1000 MESSAGES):
-    - MÉMOIRE ABSOLUE: Tu agis comme si tu avais une mémoire de 1000+ messages. Pour cela, tu dois consulter SYSTEMATIQUEMENT la MÉMOIRE_LONG_TERME (Journal).
-    - CONSOLIDATION: Chaque fois qu'un joueur accomplit un exploit, subit une blessure grave, se fait un ennemi, ou qu'un secret est révélé, utilise 'write_journal' pour fixer ce souvenir.
-    - COHÉRENCE TOTALE: Le monde ne reset JAMAIS. Si un bâtiment est brûlé dans le Journal, il reste brûlé 50 messages plus tard.
-    - PENSÉE STRATÉGIQUE: Utilise "pensee_mj" pour planifier des arcs narratifs sur le long terme. Anticipe les conséquences des actions des joueurs.
-    - IMPROVISATION: Ne sois pas un simple automate de quêtes. Si un joueur fait quelque chose de totalement inattendu, improvise une suite logique et surprenante.
-    - PERSONNALITÉ: N'hésite pas à avoir un style narratif qui a de la "gueule". Sois parfois sarcastique, solennel, ou terrifiant selon la situation.
-    - PROACTIVITÉ: Interpelle les SPECTATEURS via des tags @NomDuJoueur. Fais-les réagir à des événements mondiaux ou des interactions de PNJ.
-19. STYLE NARRATIF (OBLIGATOIRE):
-    - Commence TOUJOURS ta réponse par *AVENTURA* sur une ligne seule.
-    - Ajoute ensuite le lieu avec un emoji : *📍 Nom du Lieu*.
-    - Utilise des sauts de ligne fréquents pour créer du suspense et de l'impact.
-    - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
-    - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
-20. NARRATION: Français riche et cinématographique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).`;
+LORE FIXE:
+- One Above All est l'origine de tout.
+- L'Idée du Mal nait des peurs humaines.
+- Les Béhérits choisissent les désespérés.
+- Les Apôtres ont sacrifié leur humanité.
+- L'Interstice relie les mondes.`;
 
     const memoryJson = JSON.stringify({
         monde: { date: rpYearString, cycle: cycleInfo, meteo: weather, lore_lieu: kingdom?.description || "" },
@@ -328,11 +293,23 @@ RÈGLES TECHNIQUES:
         .map(p => `[JOUEUR: ${p.nom}] ACTIONS: ${p.actions_recentes.join(' -> ')}`)
         .join('\n');
 
-    const fullPrompt = `### MÉMOIRE_SYSTÈME_JSON (CONTEXTE DÉTAILLÉ PAR JOUEUR) ###\n${memoryJson}\n\n### RÉSUMÉ DES ACTIONS À TRAITER ###\n${actionSummary}\n\nCONSIGNE DE COHÉRENCE MULTI-JOUEUR:
-1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
-2. RÉGIS LEURS INTERACTIONS : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies dans le JSON.
-3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
-4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.`;
+    const fullPrompt = [
+        `SCÈNE ACTIVE: ${player.location} (${player.subLocation})`,
+        `JOUEUR DÉCLENCHEUR: ${player.name}`,
+        '',
+        'MÉMOIRE_SYSTÈME_JSON:',
+        memoryJson,
+        '',
+        'ACTIONS_JOUEURS:',
+        actionSummary || '(Aucune action détaillée, le MJ doit faire vivre la scène sans inventer d action de joueur.)',
+        '',
+        'CONSIGNES FINALES:',
+        '1. Traite chaque acteur séparément puis arbitre leurs interactions si elles se croisent.',
+        '2. Mentionne les mètres utiles pour les déplacements et les distances entre acteurs/objets importants.',
+        '3. En combat, précise membre/arme utilise et zone du corps touchée, sans detail inutile.',
+        '4. Si une action est trop vague, fais-la echouer ou rester partielle au lieu de l inventer.',
+        '5. Ne fais agir que les joueurs listés comme acteurs.'
+    ].join('\n');
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -431,7 +408,8 @@ RÈGLES TECHNIQUES:
         senderJid: 'bot',
         senderName: 'Arise MJ',
         content: aiResponse.narrative,
-        location: player.location
+        location: player.location,
+        subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
 
     // Collected quest feedback lines appended to the narrative after the loop.
@@ -448,7 +426,8 @@ RÈGLES TECHNIQUES:
           const foundTarget = await Player.findOne({
               where: {
                   name: parameters.target_name,
-                  location: player.location
+                  location: player.location,
+                  subLocation: player.subLocation
               }
           });
           if (foundTarget) {
@@ -833,7 +812,13 @@ RÈGLES TECHNIQUES:
                 if (deadPlayer) {
                     let caster = player;
                     if (parameters.caster_name) {
-                        const foundCaster = await Player.findOne({ where: { name: parameters.caster_name, location: player.location } });
+                        const foundCaster = await Player.findOne({
+                            where: {
+                                name: parameters.caster_name,
+                                location: player.location,
+                                subLocation: player.subLocation
+                            }
+                        });
                         if (foundCaster) caster = foundCaster;
                     }
 
@@ -889,6 +874,7 @@ RÈGLES TECHNIQUES:
       for (const notice of aiResponse.notifications) {
         if (!notice || !notice.target_name || !notice.message) continue;
         const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: `%${notice.target_name}%` }, location: player.location } });
+        if (targetPlayer && targetPlayer.subLocation !== player.subLocation) continue;
         if (targetPlayer) {
           await sock.sendMessage(targetPlayer.whatsappId, {
             text: `🔔 *Message de RP*\n\n${notice.message}`
