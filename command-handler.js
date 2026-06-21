@@ -80,7 +80,7 @@ commands.set('competences', async (sock, message) => {
 
     let skillText = `*Compétences de ${player.name}:*\n\n`;
 
-    const activeSkills = skills.filter(s => s.type === 'active' || s.type === 'spell' || s.type === 'sword_technique');
+    const activeSkills = skills.filter(s => s.type !== 'passive');
     const passiveSkills = skills.filter(s => s.type === 'passive');
 
     if (activeSkills.length > 0) {
