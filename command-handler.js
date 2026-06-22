@@ -20,7 +20,7 @@ commands.set('profile', async (sock, message) => {
   const remoteJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: remoteJid } });
 
-  if (!player || player.registrationStep < 3) {
+  if (!player || player.registrationStep < 5) {
     await sock.sendMessage(remoteJid, { text: "Tu dois d'abord terminer ton inscription avec /start." });
     return;
   }
@@ -48,8 +48,8 @@ async function handleCommand(sock, message) {
 
   const player = await Player.findOne({ where: { whatsappId: remoteJid } });
 
-  // If player is in registration, intercept all messages except /start
-  if (player && player.registrationStep < 3 && messageText !== '/start') {
+  // If player is in registration, intercept all messages except /start or @start
+  if (player && player.registrationStep < 5 && messageText !== '/start' && messageText !== '@start') {
     const intercepted = await handleRegistration(sock, message, player);
     if (intercepted) {
         await Player.update({ lastActivity: new Date() }, { where: { whatsappId: remoteJid } });
@@ -57,7 +57,7 @@ async function handleCommand(sock, message) {
     }
   }
 
-  if (!messageText || !messageText.startsWith('/')) {
+  if (!messageText || (!messageText.startsWith('/') && !messageText.startsWith('@'))) {
     return;
   }
 

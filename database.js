@@ -36,6 +36,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  quote: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  profileImageUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   level: {
     type: DataTypes.INTEGER,
     defaultValue: 1,
