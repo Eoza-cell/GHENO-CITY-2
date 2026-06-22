@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
 const { generate3DVisual } = require('./three-renderer');
@@ -291,7 +291,7 @@ FORMAT DE SORTIE:
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
-- update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
+- update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
 - update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank.
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
@@ -304,6 +304,10 @@ ACTIONS AUTORISÉES:
 - royal_visit : { "npcName": "...", "reason": "...", "impact": "..." }
 - manage_house : { "action": "grant|revoke|modify", "houseName": "...", "target_name": "..." }
 - set_academic_status : { "target_name": "...", "academicYear": 1-5, "academicGrade": 0-100, "schoolName": "..." }
+- get_player_details : { "target_name": "..." } (Permet de connaître l'état d'un joueur hors-scène).
+- query_database : { "model": "Player|NPC|Kingdom", "search": "nom" } (Demande des détails précis au bot).
+- modify_reputation : { "target_name": "...", "kingdom": "...", "change": -50 à +50 }
+- generate_document : { "type": "exam|note|decree", "content": "...", "title": "..." }
 
 STYLE ET APPARENCE:
 - Le style vestimentaire (inventaire) et l'apparence physique influencent les interactions.
@@ -1167,6 +1171,59 @@ ACTIONS_À_TRAITER: ${p.actions_recentes.join(' -> ')}`;
                 await target.reload();
                 if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
                 questFeedback.push(`🎓 *ACADÉMIE* : Statut mis à jour pour ${target.name}.`);
+            }
+            break;
+        }
+
+        case 'get_player_details': {
+            if (parameters.target_name) {
+                const found = await Player.findOne({ where: { name: { [Op.like]: `%${parameters.target_name}%` } } });
+                if (found) {
+                    questFeedback.push(`🔍 *SCAN SYSTÈME* : Détails récupérés pour ${found.name} (Niv ${found.level}).`);
+                }
+            }
+            break;
+        }
+
+        case 'query_database': {
+            if (parameters.model && parameters.search) {
+                const models = { Player, NPC, Kingdom };
+                const Model = models[parameters.model];
+                if (Model) {
+                    const found = await Model.findOne({ where: { name: { [Op.like]: `%${parameters.search}%` } } });
+                    if (found) {
+                        questFeedback.push(`📡 *BASE DE DONNÉES* : Info trouvée pour ${found.name}.`);
+                        // Logic to re-inject this specifically could go here
+                    }
+                }
+            }
+            break;
+        }
+
+        case 'modify_reputation': {
+            if (parameters.target_name && parameters.kingdom) {
+                // Currently influence is global per kingdom, but we'll log this as a world event
+                await WorldJournal.create({
+                    entry: `Réputation de ${parameters.target_name} chez ${parameters.kingdom} : modification de ${parameters.change}.`,
+                    category: 'character',
+                    importance: 2
+                });
+                questFeedback.push(`⚖️ *RÉPUTATION* : La position de ${parameters.target_name} a changé à ${parameters.kingdom}.`);
+            }
+            break;
+        }
+
+        case 'generate_document': {
+            if (parameters.content) {
+                try {
+                    const paperBuffer = await generatePaperImage(parameters.content, parameters.title || "DOCUMENT OFFICIEL");
+                    await sock.sendMessage(jid, {
+                        image: paperBuffer,
+                        caption: `📄 *Nouveau Document* : ${parameters.title || 'Note'}`
+                    });
+                } catch (e) {
+                    console.error("MJ Document gen failed:", e.message);
+                }
             }
             break;
         }

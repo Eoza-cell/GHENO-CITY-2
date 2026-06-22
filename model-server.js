@@ -23,12 +23,36 @@ const server = http.createServer(async (req, res) => {
 
                 console.log(`[MODEL-SERVER] Processing request...`);
 
-                // LIAISON AU MONDE : Enrichissement automatique
-                // On récupère les 5 dernières entrées du journal pour la continuité mondiale
-                const latestJournal = await WorldJournal.findAll({ order: [['id', 'DESC']], limit: 5 });
-                const journalContext = latestJournal.map(j => `[GLOBAL] ${j.entry}`).join('\n');
+                // MÉMOIRE SYMBIOSE : L'IA accède directement à la moëlle épinière du bot
+                const [journal, activePlayers, totalNpcs, topPlayer, activeConflicts, totalCol, topKingdom] = await Promise.all([
+                    WorldJournal.findAll({ order: [['id', 'DESC']], limit: 40 }),
+                    Player.count({ where: { lastActivity: { [Op.gt]: new Date(Date.now() - 3600000) } } }),
+                    NPC.count(),
+                    Player.findOne({ order: [['level', 'DESC'], ['xp', 'DESC']] }),
+                    Conflict.count({ where: { status: 'active' } }),
+                    Player.sum('col'),
+                    Kingdom.findOne({ order: [['influence', 'DESC']] })
+                ]);
 
-                const enrichedUserMessage = `--- CONTEXTE MONDIAL ---\n${journalContext}\n\n--- ACTION JOUEUR ---\n${userMessage}`;
+                const journalContext = journal.map(j => `[${j.category.toUpperCase()}] ${j.entry}`).join('\n');
+
+                const symbioseContext = `
+--- MÉMOIRE SYSTÈME V4 (SYMBIOSE TOTALE) ---
+MÉTRIX_BOT:
+- Actifs (1h): ${activePlayers}
+- NPCs Totaux: ${totalNpcs}
+- Conflits mondiaux: ${activeConflicts}
+- Économie Globale (COL): ${totalCol || 0}
+- Puissance Dominante: ${topKingdom ? topKingdom.name : 'Empire d\'Elion'} (${topKingdom ? topKingdom.influence : 100} INF)
+- Légende Actuelle: ${topPlayer ? topPlayer.name : 'Aucun'} (Niv ${topPlayer ? topPlayer.level : 0})
+
+MÉMOIRE_MONDE_PROFONDE (HISTORIQUE RÉCENT):
+${journalContext}
+
+--- SESSION_RP ---
+${userMessage}`;
+
+                const enrichedUserMessage = symbioseContext;
 
                 const response = await callAI(systemMessage, enrichedUserMessage, { skipWorldServer: true });
 
