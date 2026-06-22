@@ -32,9 +32,9 @@ async function handleFreeAction(sock, message, player, actionText) {
       const writtenText = writingMatch[1].trim();
       const isExam = actionText.toLowerCase().includes('examen');
       try {
-          const paperPath = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
+          const paperBuffer = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
           await sock.sendMessage(jid, {
-              image: { url: paperPath },
+              image: paperBuffer,
               caption: `📜 *Tu as fini d'écrire...*\n\n"${writtenText.substring(0, 100)}${writtenText.length > 100 ? '...' : ''}"`
           });
       } catch (err) {
@@ -42,18 +42,22 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
+  // Scene Logic
+  const sceneFilter = {
+      location: player.location,
+      subLocation: player.subLocation
+  };
+
   // AI Automation Logic:
   // Solo Scene -> Immediate Response
   // Multiplayer Scene -> Requires 'next' for sync
-  const nearbyPlayers = await Player.findAll({
-    where: {
-        location: player.location,
-        subLocation: player.subLocation
-    }
-  });
+  const nearbyPlayers = await Player.findAll({ where: sceneFilter });
 
   const isTriggerWord = actionText.toLowerCase().trim() === 'next';
-  const isSolo = nearbyPlayers.length <= 1;
+
+  // Check if player is truly alone (ignoring themselves)
+  const otherActorsCount = nearbyPlayers.filter(p => p.whatsappId !== player.whatsappId).length;
+  const isSolo = otherActorsCount === 0;
 
   if (!isTriggerWord && !isSolo) {
       await sock.sendMessage(jid, {
@@ -63,11 +67,6 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   // If "Next" is sent, aggregate all messages since the last MJ response
-  const sceneFilter = {
-      location: player.location,
-      subLocation: player.subLocation
-  };
-
   const lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
@@ -433,13 +432,13 @@ LOGIQUE ACADÉMIE:
 
             const assetPath = assetMap[aiResponse.actionVisual.assetName] || assetMap[player.location] || 'assets/locations/eldoria.jpg';
 
-            const visualPath = await generateActionVisual({
+            const visualBuffer = await generateActionVisual({
                 actionType: aiResponse.actionVisual.type || 'combat',
                 title: aiResponse.actionVisual.title || 'SEQUENCE ACTIVE',
                 description: aiResponse.actionVisual.description || 'Analyse tactique en cours...',
                 assetPath: assetPath
             });
-            aiResponse.imagePrompt = visualPath;
+            aiResponse.imagePrompt = visualBuffer;
         } catch (e) {
             console.error("[Visual] Error generating action visual:", e);
         }
@@ -450,8 +449,8 @@ LOGIQUE ACADÉMIE:
         const types = ['cube', 'sphere', 'pyramid'];
         const type = types.find(t => aiResponse.narrative.toLowerCase().includes(t)) || 'cube';
         try {
-            const threePath = await generate3DVisual(type, 0x00ffff);
-            aiResponse.imagePrompt = threePath;
+            const threeBuffer = await generate3DVisual(type, 0x00ffff);
+            aiResponse.imagePrompt = threeBuffer;
         } catch (e) {
             console.error("[3D] Error:", e);
         }

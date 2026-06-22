@@ -579,9 +579,9 @@ const vetementsCommand = async (sock, message) => {
     }
 
     try {
-        const shopImagePath = await generateShopImage("MODE AETHERYS", items);
+        const shopImageBuffer = await generateShopImage("MODE AETHERYS", items);
         await sock.sendMessage(replyJid, {
-            image: { url: shopImagePath },
+            image: shopImageBuffer,
             caption: "👗 *CATALOGUE DE MODE*\nUtilisez `/acheter [nom]` pour commander."
         });
     } catch (err) {
@@ -679,9 +679,9 @@ commands.set('boutique', async (sock, message) => {
     }
 
     try {
-        const shopImagePath = await generateShopImage("FORGE DE BROKK", items);
+        const shopImageBuffer = await generateShopImage("FORGE DE BROKK", items);
         await sock.sendMessage(replyJid, {
-            image: { url: shopImagePath },
+            image: shopImageBuffer,
             caption: "⚔️ *ÉQUIPEMENT ET ARMES*\nUtilisez `/acheter [nom]` pour acquérir un objet."
         });
     } catch (err) {
@@ -1407,9 +1407,9 @@ commands.set('lore', async (sock, message, args) => {
     }
 
     try {
-        const posterPath = await generateLorePoster(loreData.title, loreData.content, loreData.type, loreData.imageUrl);
+        const posterBuffer = await generateLorePoster(loreData.title, loreData.content, loreData.type, loreData.imageUrl);
         await sock.sendMessage(replyJid, {
-            image: { url: posterPath },
+            image: posterBuffer,
             caption: `📚 *Archives d'Aetherys : ${loreData.title}*\n\n${loreData.content}`
         });
     } catch (err) {

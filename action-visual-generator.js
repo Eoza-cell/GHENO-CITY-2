@@ -3,7 +3,24 @@ const path = require('path');
 const fs = require('fs');
 
 /**
+ * Escapes characters for SVG/XML.
+ */
+function escapeXml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe.replace(/[<>&'"]/g, function (c) {
+        switch (c) {
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '&': return '&amp;';
+            case '\'': return '&apos;';
+            case '"': return '&quot;';
+        }
+    });
+}
+
+/**
  * Generates an immersive action visual by overlaying text and descriptions on local assets.
+ * Returns a Buffer.
  */
 async function generateActionVisual(data) {
     const width = 800;
@@ -36,24 +53,19 @@ async function generateActionVisual(data) {
 
             <!-- Title -->
             <rect x="0" y="30" width="300" height="50" fill="rgba(0,0,0,0.7)" rx="0" ry="0" />
-            <text x="30" y="65" font-family="Arial" font-size="28" fill="${primaryColor}" font-weight="bold">${title.toUpperCase()}</text>
+            <text x="30" y="65" font-family="Arial" font-size="28" fill="${primaryColor}" font-weight="bold">${escapeXml(title.toUpperCase())}</text>
 
             <!-- Description -->
-            <text x="30" y="${height - 60}" font-family="Arial" font-size="20" fill="white" font-weight="bold">${description}</text>
+            <text x="30" y="${height - 60}" font-family="Arial" font-size="20" fill="white" font-weight="bold">${escapeXml(description)}</text>
             <text x="30" y="${height - 30}" font-family="monospace" font-size="12" fill="${primaryColor}" opacity="0.8">OS_ARISE_IMMERSION_V1 // SEQUENCE_${actionType.toUpperCase()}</text>
         </svg>
     `;
 
-    const filename = `immersive_action_${Date.now()}.png`;
-    const outputPath = path.join(__dirname, 'assets', filename);
-
-    await sharp(assetPath)
+    return await sharp(assetPath)
         .resize(width, height)
         .composite([{ input: Buffer.from(overlaySvg), top: 0, left: 0 }])
         .png()
-        .toFile(outputPath);
-
-    return outputPath;
+        .toBuffer();
 }
 
 module.exports = { generateActionVisual };

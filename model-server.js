@@ -30,7 +30,7 @@ const server = http.createServer(async (req, res) => {
 
                 const enrichedUserMessage = `--- CONTEXTE MONDIAL ---\n${journalContext}\n\n--- ACTION JOUEUR ---\n${userMessage}`;
 
-                const response = await callAI(systemMessage, enrichedUserMessage);
+                const response = await callAI(systemMessage, enrichedUserMessage, { skipWorldServer: true });
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({

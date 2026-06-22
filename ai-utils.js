@@ -523,7 +523,8 @@ function callMJFallback(prompt) {
 /**
  * Main AI entry point.
  */
-async function callAI(systemPrompt, userPrompt, depth = 0) {
+async function callAI(systemPrompt, userPrompt, options = {}) {
+    const depth = options.depth || 0;
     if (depth > 2) return null;
 
     // Preserve more context: the RP engine relies on scene isolation and detailed stats.
@@ -540,7 +541,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
-        { name: 'World Server (Local)', fn: callWorldServer },
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
         { name: '9Router', fn: call9Router },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
@@ -566,7 +567,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
                 activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
             }
 
-            const result = await provider.fn(activeSystem, sanitizedUser);
+            const result = await provider.fn(activeSystem, sanitizedUser, options);
             const providerDuration = (Date.now() - providerStart) / 1000;
 
             if (isValidAIResponse(result)) {
@@ -594,7 +595,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth < 1) {
         console.log("[AI] Nouvelle tentative dans 1s avec jitter...");
         await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
-        return callAI(systemPrompt, userPrompt, depth + 1);
+        return callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 });
     }
 
     // Ultimate fallback if even retry fails

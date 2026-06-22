@@ -59,8 +59,14 @@ async function sendWithImage(sock, jid, aiResponse) {
 
     if (imagePrompt) {
         try {
+            // Direct Buffer
+            if (Buffer.isBuffer(imagePrompt)) {
+                await sock.sendMessage(jid, { image: imagePrompt, caption: text, mentions, mimetype: 'image/png' });
+                return;
+            }
+
             // Local file path
-            if (!imagePrompt.startsWith('http') && fs.existsSync(imagePrompt)) {
+            if (typeof imagePrompt === 'string' && !imagePrompt.startsWith('http') && fs.existsSync(imagePrompt)) {
                 const imageBuffer = fs.readFileSync(imagePrompt);
                 await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
                 return;
