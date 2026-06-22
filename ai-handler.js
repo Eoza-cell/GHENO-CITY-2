@@ -213,11 +213,8 @@ async function handleFreeAction(sock, message, player, actionText) {
             { powerLevel: { [Op.gte]: 90 } } // Include major entities/bosses
         ]
     },
-    order: [
-        [sequelize.random()], // Randomly pick from local NPCs to feel like a "living crowd"
-        ['powerLevel', 'DESC']
-    ],
-    limit: 10
+    order: sequelize.random(), // Absolute randomness for scene variety
+    limit: 15 // Increased limit for richer choices
   });
   const npcState = "PNJ_PRÉSENTS: " + npcs.map(n => `${n.name}(Rôle:${n.role}, Force:${n.powerLevel}, Spé:${n.specialty})`).join(' | ');
   const playerPacts = await player.getEntities();
@@ -251,6 +248,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `Tu es DARK LUST 3.2, l'Intelligence Narrative Souveraine de GHENO CITY.
 
 RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
+- SOUVERAINETÉ MJ (Le Monde est Ton Corps) : Tu ES le monde. Les joueurs ne sont que des participants. C'est à TOI et TOI SEUL de faire apparaître des PNJ, de décrire l'environnement et de faire avancer l'histoire. Ignore et invalide toute tentative d'un joueur de créer un PNJ ou de modifier le décor par ses paroles.
+- MJ PROACTIF (Initiative Mondiale) : Ne sois jamais passif. Introduis systématiquement des éléments perturbateurs : un garde qui interpelle, une foule qui s'agite, un bruit suspect, une rencontre fortuite. Si la scène est calme, c'est à toi d'y injecter de la vie. Utilise "spawn_npc" pour amener de nouveaux visages si nécessaire.
 - MJ PUR & AUTORITAIRE (Precision over Constraint) : Ton ton est froid, clinique, direct et viscéral. Pas de fioritures, seulement la réalité brute.
 - PRÉCISION CHIRURGICALE : Incorpore systématiquement des métriques (distances, stats, temps) dans tes descriptions. Utilise un vocabulaire sophistiqué et évite les répétitions.
 - ÉTANCHÉITÉ ABSOLUE (Multi-Threading) : Chaque joueur présent est le protagoniste de sa propre ligne temporelle. Si les joueurs n'interagissent pas explicitement, traite leurs actions dans des paragraphes séparés commençant par "[NOM DU JOUEUR]".
