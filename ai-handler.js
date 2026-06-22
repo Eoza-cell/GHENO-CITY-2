@@ -258,7 +258,9 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - Chaque histoire reste séparée. Ne mélange jamais inventaires, objectifs, blessures ou relations entre joueurs.
 - Les résultats dépendent strictement des stats, compétences, inventaires et du décor fournis.
 
-COMBAT ET DÉPLACEMENT:
+COMBAT, DOMINATION ET INGÉNIOSITÉ:
+- LÉTHALITÉ DES STATS : Les statistiques sont sacrées. Un adversaire avec des stats supérieures doit infliger des dégâts massifs et des traumatismes anatomiques (fractures, hémorragies, perte de membres). Ne sois pas clément.
+- TRIOMPHE DE L'ESPRIT : Un joueur peut vaincre un adversaire plus fort s'il propose une action extrêmement maligne, utilise l'environnement de manière ingénieuse ou exploite une faiblesse logique de l'adversaire. L'ingéniosité prime sur la force brute si elle est bien décrite.
 - Une action est une tentative, pas une réussite garantie.
 - RIPOSTE CRÉATIVE : Les monstres et PNJ ne sont pas des sacs de frappe. Ils innovent leurs actions, utilisent l'environnement (projeter sur un mur, renverser une table, briser le sol) et contre-attaquent violemment selon leurs stats (FOR, AGI, INT, DEF).
 - Narration viscérale et cinématographique : Ne te contente pas d'un schéma technique. Décris la brutalité des impacts, la vitesse des mouvements et l'ingéniosité tactique des adversaires.
@@ -515,6 +517,7 @@ LOGIQUE ACADÉMIE:
           if (parameters.health_change) {
               await target.increment('health', { by: parameters.health_change });
               await target.reload();
+              significantUpdate = true; // Always update profile on health change
               if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
               if (target.health <= 0) {
                   await target.update({ health: 0 });
@@ -538,6 +541,7 @@ LOGIQUE ACADÉMIE:
           if (parameters.mana_change) {
               await target.increment('mana', { by: parameters.mana_change });
               await target.reload();
+              significantUpdate = true; // Always update profile on mana change
               if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
               if (target.mana < 0) await target.update({ mana: 0 });
               hasChanged = true;
@@ -548,8 +552,8 @@ LOGIQUE ACADÉMIE:
           if (parameters.intelligence_change) { await target.increment('intelligence', { by: parameters.intelligence_change }); hasChanged = true; }
           if (parameters.defense_change) { await target.increment('defense', { by: parameters.defense_change }); hasChanged = true; }
           if (parameters.luck_change) { await target.increment('luck', { by: parameters.luck_change }); hasChanged = true; }
-          if (parameters.hunger_change) { await target.increment('hunger', { by: parameters.hunger_change }); hasChanged = true; }
-          if (parameters.sleep_change) { await target.increment('sleep', { by: parameters.sleep_change }); hasChanged = true; }
+          if (parameters.hunger_change) { await target.increment('hunger', { by: parameters.hunger_change }); hasChanged = true; significantUpdate = true; }
+          if (parameters.sleep_change) { await target.increment('sleep', { by: parameters.sleep_change }); hasChanged = true; significantUpdate = true; }
 
           if (parameters.name) { await target.update({ name: parameters.name }); hasChanged = true; significantUpdate = true; }
           if (parameters.new_class) { await target.update({ class: parameters.new_class }); hasChanged = true; significantUpdate = true; }
@@ -720,9 +724,12 @@ LOGIQUE ACADÉMIE:
                 if (item) {
                     if (parameters.durability_change) {
                         await item.increment('durability', { by: parameters.durability_change });
+                        // Update profile if the item belongs to the current scene's context
+                        if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
                     }
                     if (parameters.new_durability) {
                         await item.update({ durability: parameters.new_durability });
+                        if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
                     }
                 }
             }
@@ -986,10 +993,11 @@ LOGIQUE ACADÉMIE:
     // Auto-Profile Delivery
     if (profileUpdateTriggered) {
         try {
+            await player.reload(); // Absolute latest data
             const profileBuffer = await generateProfileCard(player);
             await sock.sendMessage(jid, {
                 image: profileBuffer,
-                caption: `--- 🆔 PROFIL MIS À JOUR : ${player.name} --- \n\nLe système a synchronisé tes nouvelles données.`
+                caption: `--- 🆔 PROFIL MIS À JOUR : ${player.name} --- \n\nLe système a synchronisé tes nouvelles données (PV/PM/Stats).`
             });
         } catch (e) {
             console.error("[AI] Profile auto-update failed:", e.message);
