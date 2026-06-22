@@ -3,6 +3,7 @@ const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
 const { generate3DVisual } = require('./three-renderer');
 const { generateActionVisual } = require('./action-visual-generator');
+const { generateProfileCard } = require('./profile-generator');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
@@ -247,9 +248,10 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - RYTHME NARRATIF : Ne crée pas systématiquement des problèmes ou des combats. Laisse les joueurs respirer, s'entraîner, et vivre des moments de calme ou de triomphe. Le monde est dangereux, mais pas oppressant 100% du temps.
 - APÔTRES : Ce sont des entités rarissimes. Ils ne se trouvent que dans des lieux spécifiques (Interstice, Sanctuaires maudits) et ne traquent pas les joueurs sans raison majeure.
 - COMMERCE IA : Tu peux désormais traiter les achats directement via "buy_item". Si un joueur veut acheter un objet présent dans le "Shop" du contexte, utilise cette action.
-- Tu peux modifier l'état des joueurs (PV, PM, faim, sommeil, bio, lieu) via des actions.
+- GESTIONNAIRE DE FICHE (AUTORITÉ ABSOLUE) : Tu es responsable de la cohérence et de l'évolution des fiches de personnage. Utilise systématiquement "update_player" pour refléter chaque changement narratif (montée en grade, changement de classe, modification physique, évolution de la bio, gain de titre).
+- Tu peux modifier l'intégralité de l'état des joueurs (PV, PM, faim, sommeil, bio, lieu, nom, classe, rang) via des actions.
 - RÉCOMPENSE D'ENTRAÎNEMENT : Tu peux augmenter les statistiques de base (FOR, AGI, INT, DEF, LUK) ou l'argent (COL) d'un joueur s'il réalise un entraînement complexe, intensif ou une action particulièrement brillante et détaillée.
-- Équilibre les gains : +1 ou +2 pour un entraînement classique, plus pour un exploit héroïque.
+- Équilibre les gains : +1 ou +2 pour un entraînement classique, plus pour un exploit héroïque (+5 ou plus).
 - N'écris jamais les pensées, paroles ou actions non écrites d'un joueur.
 - Les joueurs présents dans JSON "personnages_en_scene" partagent exactement la même scène: même lieu et même sous-lieu. N'inclus personne d'autre.
 - Un ACTEUR agit seulement selon son texte. Un SPECTATEUR reste immobile et silencieux.
@@ -277,7 +279,7 @@ FORMAT DE SORTIE:
 
 ACTIONS AUTORISÉES:
 - update_player, buy_item, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
-- update_player peut inclure : characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change.
+- update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank.
 - buy_item : { "itemName": "nom de l'objet", "quantity": 1 }. Vérifie que le joueur a assez de COL avant de l'utiliser.
 
 STYLE ET APPARENCE:
@@ -478,6 +480,7 @@ LOGIQUE ACADÉMIE:
 
     // Collected quest feedback lines appended to the narrative after the loop.
     const questFeedback = [];
+    let profileUpdateTriggered = false;
 
     // Process AI actions
     for (const actionObj of actions) {
@@ -505,6 +508,8 @@ LOGIQUE ACADÉMIE:
       switch (type) {
         case 'update_player': {
           let hasChanged = false;
+          let significantUpdate = false;
+
           if (parameters.col_change) { await target.increment('col', { by: parameters.col_change }); hasChanged = true; }
           if (parameters.xp_gain) { await target.increment('xp', { by: parameters.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
           if (parameters.health_change) {
@@ -545,22 +550,25 @@ LOGIQUE ACADÉMIE:
           if (parameters.luck_change) { await target.increment('luck', { by: parameters.luck_change }); hasChanged = true; }
           if (parameters.hunger_change) { await target.increment('hunger', { by: parameters.hunger_change }); hasChanged = true; }
           if (parameters.sleep_change) { await target.increment('sleep', { by: parameters.sleep_change }); hasChanged = true; }
+
+          if (parameters.name) { await target.update({ name: parameters.name }); hasChanged = true; significantUpdate = true; }
+          if (parameters.new_class) { await target.update({ class: parameters.new_class }); hasChanged = true; significantUpdate = true; }
+          if (parameters.new_rank) { await target.update({ rank: parameters.new_rank }); hasChanged = true; significantUpdate = true; }
+          if (parameters.characterDescription) { await target.update({ characterDescription: parameters.characterDescription }); hasChanged = true; significantUpdate = true; }
+          if (parameters.profilePicUrl) { await target.update({ profilePicUrl: parameters.profilePicUrl }); hasChanged = true; significantUpdate = true; }
+          if (parameters.equippedOutfit) { await target.update({ equippedOutfit: parameters.equippedOutfit }); hasChanged = true; significantUpdate = true; }
+
           if (parameters.new_location) {
               await target.update({ location: parameters.new_location, subLocation: parameters.new_sub_location || 'Entrée' });
               const locationImages = { 'Académie Impériale': 'assets/locations/academy.jpg', 'Eldoria': 'assets/locations/eldoria.jpg' };
               if (locationImages[parameters.new_location] && !aiResponse.imagePrompt) aiResponse.imagePrompt = locationImages[parameters.new_location];
               hasChanged = true;
           }
-          if (parameters.new_rank) { await target.update({ rank: parameters.new_rank }); hasChanged = true; }
-          if (parameters.new_class) { await target.update({ class: parameters.new_class }); hasChanged = true; }
           if (parameters.schoolName) { await target.update({ schoolName: parameters.schoolName }); hasChanged = true; }
-          if (parameters.characterDescription) { await target.update({ characterDescription: parameters.characterDescription }); hasChanged = true; }
           if (parameters.gender) { await target.update({ gender: parameters.gender }); hasChanged = true; }
           if (parameters.age) { await target.update({ age: parameters.age }); hasChanged = true; }
-          if (parameters.profilePicUrl) { await target.update({ profilePicUrl: parameters.profilePicUrl }); hasChanged = true; }
           if (parameters.academicGrade_change) { await target.increment('academicGrade', { by: parameters.academicGrade_change }); hasChanged = true; }
           if (parameters.sp_gain) { await target.increment('skillPoints', { by: parameters.sp_gain }); hasChanged = true; }
-          if (parameters.equippedOutfit) { await target.update({ equippedOutfit: parameters.equippedOutfit }); hasChanged = true; }
 
           if (hasChanged) {
               await target.reload();
@@ -568,6 +576,19 @@ LOGIQUE ACADÉMIE:
               if (target.sleep > 100) await target.update({ sleep: 100 });
               if (target.hunger < 0) await target.update({ hunger: 0 });
               if (target.sleep < 0) await target.update({ sleep: 0 });
+
+              if (significantUpdate && target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+
+              // If significant change for ANOTHER player, send them their new card directly
+              if (significantUpdate && target.whatsappId !== player.whatsappId && shouldNotifyPlayer(target)) {
+                  try {
+                      const card = await generateProfileCard(target);
+                      await sock.sendMessage(target.whatsappId, {
+                          image: card,
+                          caption: `--- 🆔 PROFIL MIS À JOUR : ${target.name} --- \n\nLe MJ a fait évoluer ta fiche suite aux événements récents.`
+                      });
+                  } catch (e) { console.error("Secondary profile update failed:", e.message); }
+              }
           }
           break;
         }
@@ -961,6 +982,19 @@ LOGIQUE ACADÉMIE:
     aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
 
     await sendWithImage(sock, jid, aiResponse);
+
+    // Auto-Profile Delivery
+    if (profileUpdateTriggered) {
+        try {
+            const profileBuffer = await generateProfileCard(player);
+            await sock.sendMessage(jid, {
+                image: profileBuffer,
+                caption: `--- 🆔 PROFIL MIS À JOUR : ${player.name} --- \n\nLe système a synchronisé tes nouvelles données.`
+            });
+        } catch (e) {
+            console.error("[AI] Profile auto-update failed:", e.message);
+        }
+    }
 
   } catch (error) {
     console.error('Erreur avec l\'API Puter.js:', error);
