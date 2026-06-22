@@ -280,9 +280,11 @@ FORMAT DE SORTIE:
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
-- update_player, buy_item, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
+- update_player, buy_item, use_item, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
 - update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank.
-- buy_item : { "itemName": "nom de l'objet", "quantity": 1 }. Vérifie que le joueur a assez de COL avant de l'utiliser.
+- buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
+- use_item : { "itemName": "nom" }. (Vérifie possession).
+- add_skill : { "skillName": "nom", "target_name": "nom" }.
 
 STYLE ET APPARENCE:
 - Le style vestimentaire (inventaire) et l'apparence physique influencent les interactions.
@@ -560,7 +562,17 @@ LOGIQUE ACADÉMIE:
           if (parameters.new_rank) { await target.update({ rank: parameters.new_rank }); hasChanged = true; significantUpdate = true; }
           if (parameters.characterDescription) { await target.update({ characterDescription: parameters.characterDescription }); hasChanged = true; significantUpdate = true; }
           if (parameters.profilePicUrl) { await target.update({ profilePicUrl: parameters.profilePicUrl }); hasChanged = true; significantUpdate = true; }
-          if (parameters.equippedOutfit) { await target.update({ equippedOutfit: parameters.equippedOutfit }); hasChanged = true; significantUpdate = true; }
+          if (parameters.equippedOutfit) {
+              const inv = target.inventory || [];
+              const hasItem = inv.some(i => i.name.toLowerCase().includes(parameters.equippedOutfit.toLowerCase()));
+              if (hasItem || target.isGod) {
+                  await target.update({ equippedOutfit: parameters.equippedOutfit });
+                  hasChanged = true;
+                  significantUpdate = true;
+              } else {
+                  questFeedback.push(`⚠️ *CONDITION ÉQUIPEMENT* : ${target.name} ne possède pas "${parameters.equippedOutfit}" et ne peut donc pas l'équiper.`);
+              }
+          }
 
           if (parameters.new_location) {
               await target.update({ location: parameters.new_location, subLocation: parameters.new_sub_location || 'Entrée' });
@@ -643,6 +655,7 @@ LOGIQUE ACADÉMIE:
                         await target.save();
                         await target.reload();
                         questFeedback.push(`🛒 *ACHAT IA* : ${target.name} a acheté ${parameters.quantity}x ${item.name} pour ${totalPrice} COL.`);
+                        if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
                     } else {
                         questFeedback.push(`❌ *ÉCHEC ACHAT* : ${target.name} n'a pas assez de COL pour ${item.name}.`);
                     }
@@ -651,8 +664,44 @@ LOGIQUE ACADÉMIE:
             break;
         }
 
+        case 'use_item': {
+            if (parameters.itemName) {
+                let inventory = [...target.inventory];
+                const itemIndex = inventory.findIndex(i => i.name.toLowerCase().includes(parameters.itemName.toLowerCase()));
+
+                if (itemIndex !== -1) {
+                    const itemName = inventory[itemIndex].name;
+                    const itemData = await Item.findOne({ where: { name: itemName } });
+
+                    // Consume item
+                    if (inventory[itemIndex].quantity > 1) inventory[itemIndex].quantity -= 1;
+                    else inventory.splice(itemIndex, 1);
+
+                    target.inventory = inventory;
+                    await target.save();
+
+                    // Apply bonuses if any
+                    if (itemData && itemData.statBonuses) {
+                        for (const [stat, value] of Object.entries(itemData.statBonuses)) {
+                            if (['health', 'mana', 'strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                                await target.increment(stat === 'health' ? 'health' : (stat === 'mana' ? 'mana' : stat), { by: value });
+                            }
+                        }
+                    }
+
+                    await target.reload();
+                    questFeedback.push(`🎒 *UTILISATION* : ${target.name} a utilisé ${itemName}.`);
+                    if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                } else {
+                    questFeedback.push(`⚠️ *ÉCHEC UTILISATION* : ${target.name} ne possède pas l'objet "${parameters.itemName}".`);
+                }
+            }
+            break;
+        }
+
         case 'add_item': {
           if (parameters.itemName && parameters.quantity) {
+            if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
             const inventory = [...target.inventory];
             const existingItem = inventory.find(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
 
@@ -689,6 +738,7 @@ LOGIQUE ACADÉMIE:
 
         case 'remove_item': {
             if (parameters.itemName && parameters.quantity) {
+                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
                 let inventory = [...target.inventory];
                 const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
                 if (itemIndex !== -1) {
