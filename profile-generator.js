@@ -80,10 +80,10 @@ async function addOverlay(baseImg, player, width, height) {
             </style>
 
             <!-- Semi-transparent dark background for readability -->
-            <rect x="30" y="180" width="${width-60}" height="${height-250}" fill="rgba(0,0,0,0.85)" rx="15" />
+            <rect x="30" y="180" width="${width-60}" height="${height-250}" fill="#050505" rx="15" />
 
             <!-- Info Container Block -->
-            <rect x="50" y="200" width="700" height="180" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" rx="10" />
+            <rect x="50" y="200" width="700" height="180" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.2)" rx="10" />
 
             <!-- Player Info -->
             <text x="210" y="245" class="text name">${player.name} (${player.gender})</text>

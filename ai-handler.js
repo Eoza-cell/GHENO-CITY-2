@@ -207,8 +207,11 @@ async function handleFreeAction(sock, message, player, actionText) {
             { powerLevel: { [Op.gte]: 90 } } // Include major entities/bosses
         ]
     },
-    order: [['powerLevel', 'DESC']],
-    limit: 5
+    order: [
+        [sequelize.random()], // Randomly pick from local NPCs to feel like a "living crowd"
+        ['powerLevel', 'DESC']
+    ],
+    limit: 10
   });
   const npcState = "PNJ_PRÉSENTS: " + npcs.map(n => `${n.name}(Rôle:${n.role}, Force:${n.powerLevel}, Spé:${n.specialty})`).join(' | ');
   const playerPacts = await player.getEntities();
@@ -234,6 +237,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
 RÈGLES ABSOLUES:
 - Tu es MJ PUR. Tu as le plein contrôle sur le monde et les PNJ.
+- RYTHME NARRATIF : Ne crée pas systématiquement des problèmes ou des combats. Laisse les joueurs respirer, s'entraîner, et vivre des moments de calme ou de triomphe. Le monde est dangereux, mais pas oppressant 100% du temps.
+- APÔTRES : Ce sont des entités rarissimes. Ils ne se trouvent que dans des lieux spécifiques (Interstice, Sanctuaires maudits) et ne traquent pas les joueurs sans raison majeure.
 - Tu peux modifier l'état des joueurs (PV, PM, faim, sommeil, bio, lieu) via des actions.
 - RÉCOMPENSE D'ENTRAÎNEMENT : Tu peux augmenter les statistiques de base (FOR, AGI, INT, DEF, LUK) ou l'argent (COL) d'un joueur s'il réalise un entraînement complexe, intensif ou une action particulièrement brillante et détaillée.
 - Équilibre les gains : +1 ou +2 pour un entraînement classique, plus pour un exploit héroïque.

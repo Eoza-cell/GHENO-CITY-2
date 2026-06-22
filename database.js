@@ -768,11 +768,11 @@ async function setupDatabase() {
         { name: 'L\'Interstice', description: 'Dimension entre les mondes. Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.', status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal' },
         { name: 'Royaume Céleste', description: 'Domaine des Entités Célestes. Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.', status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius' },
         { name: 'Terres Bestiales', description: 'Instinct et évolution. Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.', status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos' },
-        { name: 'Empire d\'Elion', description: 'Royaume humain. Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
+        { name: 'Empire d\'Elion', description: 'Royaume humain. Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
         { name: 'Nécropolis', description: 'Cité des morts. Sub-locations: Le Seuil des Morts, Allée des Tombeaux Oubliés, Trône du Jugement.', status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon' },
         { name: 'Vharos le Maudit', description: 'Territoire de l\'Apôtre. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.', status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos' },
-        { name: 'Valkyr', description: 'Centre technologique. Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen' },
-        { name: 'Gheno souterrain', description: 'Trafic de reliques. Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé.', status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre' }
+        { name: 'Valkyr', description: 'Centre technologique. Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen' },
+        { name: 'Gheno souterrain', description: 'Trafic de reliques. Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé, École des Ombres.', status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre' }
     ];
     for (const k of kingdomsToSeed) {
         await Kingdom.findOrCreate({ where: { name: k.name }, defaults: k });
@@ -791,6 +791,43 @@ async function setupDatabase() {
         });
         // Also update existing ones to add imageUrl if they were already seeded
         await NPC.update({ imageUrl: npc.imageUrl }, { where: { name: npc.name } });
+    }
+
+    // Generate ~1000 Unique NPCs
+    const npcCount = await NPC.count();
+    if (npcCount < 1000) {
+        console.log(`[SEED] Generating ${1000 - npcCount} additional NPCs...`);
+        const firstNames = ["Kael", "Lyra", "Jax", "Elena", "Finn", "Soren", "Mira", "Thorne", "Valen", "Aria", "Zane", "Luna", "Cyrus", "Nyx", "Elias", "Ivy", "Kento", "Yuki", "Sakura", "Ren", "Akira", "Haru", "Misaki", "Tari", "Kenji"];
+        const lastNames = ["Storm", "Shadow", "Light", "Blade", "Heart", "Soul", "Flame", "Frost", "Wind", "Iron", "Silva", "Vance", "Kuro", "Sato", "Watanabe", "Tanaka", "Ito", "Nakamura", "Kobayashi", "Kato"];
+        const roles = ["Étudiant", "Professeur", "Garde", "Marchand", "Citoyen", "Aventurier", "Mercenaire", "Noble", "Prêtre", "Voleur"];
+        const behaviors = ["Calme", "Agressif", "Mystérieux", "Serviable", "Arrogant", "Distrait", "Studieux", "Protecteur", "Malicieux", "Loyal"];
+        const locations = kingdomsToSeed.map(k => k.name);
+
+        const batchSize = 100;
+        for (let i = 0; i < 1000 - npcCount; i += batchSize) {
+            const batch = [];
+            for (let j = 0; j < batchSize && (i + j) < (1000 - npcCount); j++) {
+                const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+                const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+                const name = `${firstName} ${lastName} #${Math.floor(Math.random() * 10000)}`;
+                const role = roles[Math.floor(Math.random() * roles.length)];
+                const behavior = behaviors[Math.floor(Math.random() * behaviors.length)];
+                const location = locations[Math.floor(Math.random() * locations.length)];
+                const power = Math.floor(Math.random() * 80 + 10);
+
+                batch.push({
+                    name,
+                    role,
+                    description: `Un ${role} au tempérament ${behavior.toLowerCase()}. Apparence: Cheveux ${['noirs', 'blonds', 'bleus', 'argentés'][Math.floor(Math.random()*4)]}, yeux ${['perçants', 'doux', 'vifs'][Math.floor(Math.random()*3)]}.`,
+                    location,
+                    powerLevel: power,
+                    specialty: behavior,
+                    imageUrl: `https://images.pollinations.ai/prompt/Anime%20style%20portrait%20of%20${role}%20character%20${firstName}%20in%20${location}?model=flux-anime`
+                });
+            }
+            await NPC.bulkCreate(batch, { ignoreDuplicates: true });
+        }
+        console.log("[SEED] 1000 NPCs ready.");
     }
 
     const entitiesToSeed = [

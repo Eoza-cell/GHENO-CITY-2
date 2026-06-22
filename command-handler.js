@@ -9,6 +9,7 @@ const { generateProfileCard } = require('./profile-generator');
 const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
+const { generateShopImage } = require('./shop-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
@@ -571,29 +572,21 @@ commands.set('recuperer', async (sock, message, args) => {
 // Command: /vetements
 const vetementsCommand = async (sock, message) => {
     const replyJid = message.key.remoteJid;
-    const items = await Item.findAll({ where: { type: 'clothing' } });
+    const items = await Item.findAll({ where: { type: 'clothing' }, limit: 10 });
 
     if (items.length === 0) {
         return await sock.sendMessage(replyJid, { text: "La boutique de vêtements est vide." });
     }
 
-    let text = "👗 *BOUTIQUE DE MODE D'AETHERYS*\n\n";
-
-    for (const item of items) {
-        const itemText = `*${item.name.toUpperCase()}*\n├ 💰 Prix: ${item.price} Col\n└ 📜 ${item.description}\n\n_Acheter via /action : "Je veux acheter ${item.name}"_`;
-
-        if (item.imageUrl) {
-            await sock.sendMessage(replyJid, {
-                image: { url: item.imageUrl },
-                caption: itemText
-            });
-        } else {
-            text += itemText;
-        }
-    }
-
-    if (text.length > 30) {
-        await sock.sendMessage(replyJid, { text });
+    try {
+        const shopImagePath = await generateShopImage("MODE AETHERYS", items);
+        await sock.sendMessage(replyJid, {
+            image: { url: shopImagePath },
+            caption: "👗 *CATALOGUE DE MODE*\nUtilisez `/acheter [nom]` pour commander."
+        });
+    } catch (err) {
+        console.error("Shop image error:", err);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la génération du catalogue visuel." });
     }
 };
 commands.set('vetements', vetementsCommand);
@@ -673,60 +666,27 @@ commands.set('up', async (sock, message, args) => {
 
 // Command: /boutique
 commands.set('boutique', async (sock, message) => {
-    const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const items = await Item.findAll({ order: [['price', 'ASC']] });
+    const items = await Item.findAll({
+        where: { type: { [Op.ne]: 'clothing' } },
+        order: [['price', 'ASC']],
+        limit: 8
+    });
 
     if (items.length === 0) {
         await sock.sendMessage(replyJid, { text: "La boutique est vide pour le moment." });
         return;
     }
 
-    const rarityEmoji = {
-        'common': '⚪',
-        'rare': '🔵',
-        'epic': '🟣',
-        'legendary': '🟡',
-        'artifact': '🔴'
-    };
-
-    let boutiqueText = "--- ⚔️ FORGE DE BROKK (PROMOS !) --- \n\n";
-    items.forEach(item => {
-        const emoji = rarityEmoji[item.rarity] || '⚪';
-        boutiqueText += `${emoji} *${item.name.toUpperCase()}* (${item.rarity})\n`;
-        boutiqueText += `├ 💰 Prix: ${item.price} 🪙\n`;
-        const bonuses = item.statBonuses;
-        const bonusStrings = Object.entries(bonuses).map(([stat, value]) => `${stat}: +${value}`);
-        if (bonusStrings.length > 0) {
-            boutiqueText += `├ ✨ Stats: ${bonusStrings.join(', ')}\n`;
-        }
-        boutiqueText += `└ 📜 ${item.description}\n\n`;
-    });
-
-    boutiqueText += "🛒 *Achat:* Utilise `/action` -> 'Je veux acheter [Objet]'.";
-
-    // Show top-tier item image (Excalibur or Elucidator)
-    const featuredItem = items.find(i => i.name === 'Excalibur') || items.find(i => i.name === 'Elucidator') || items.find(i => i.imageUrl);
-
-    if (featuredItem && featuredItem.imageUrl) {
-        try {
-            const response = await axios.get(featuredItem.imageUrl, {
-                responseType: 'arraybuffer',
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-            });
-            const imageBuffer = Buffer.from(response.data, 'binary');
-            await sock.sendMessage(replyJid, {
-                image: imageBuffer,
-                caption: boutiqueText
-            });
-        } catch (error) {
-            console.error("Erreur envoi image boutique:", error.message);
-            await sock.sendMessage(replyJid, { text: boutiqueText });
-        }
-    } else {
-        await sock.sendMessage(replyJid, { text: boutiqueText });
+    try {
+        const shopImagePath = await generateShopImage("FORGE DE BROKK", items);
+        await sock.sendMessage(replyJid, {
+            image: { url: shopImagePath },
+            caption: "⚔️ *ÉQUIPEMENT ET ARMES*\nUtilisez `/acheter [nom]` pour acquérir un objet."
+        });
+    } catch (err) {
+        console.error("Shop image error:", err);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la génération du catalogue visuel." });
     }
 });
 
