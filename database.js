@@ -782,7 +782,12 @@ async function setupDatabase() {
         { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice.', location: 'Interstice', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
         { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté manipulant les Béhérits.', location: 'L\'Interstice', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
         { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, il prépare les âmes au jugement final de One Above All.', location: 'Nécropolis', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
-        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' }
+        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
+        { name: 'Princesse Seraphina', role: 'Royauté d\'Elion', description: 'Héritière du trône d\'Elion, douée pour la diplomatie de l\'éther.', location: 'Empire d\'Elion', powerLevel: 75, specialty: 'Charisme Royal', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elegant%20princess%20with%20silver%20hair%20and%20royal%20blue%20dress?model=flux-anime' },
+        { name: 'Général Kaelen', role: 'Commandant Militaire', description: 'Main de fer de l\'Empire, ne tolère aucun désordre à l\'Académie.', location: 'Académie Impériale', powerLevel: 95, specialty: 'Stratégie de Guerre', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20battle%20hardened%20general%20in%20golden%20armor?model=flux-anime' },
+        { name: 'Lukas (Classe S)', role: 'Étudiant Élite', description: 'Le meilleur élève de l\'Académie, arrogant et surpuissant.', location: 'Académie Impériale', powerLevel: 60, specialty: 'Maîtrise Parfaite', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20elite%20student%20with%20blond%20hair?model=flux-anime' },
+        { name: 'Maya (Classe A)', role: 'Étudiante Brilliante', description: 'Génie de l\'alchimie, discrète mais redoutable.', location: 'Académie Impériale', powerLevel: 45, specialty: 'Potions Complexes', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20quiet%20smart%20girl%20with%20glasses%20and%20lab%20coat?model=flux-anime' },
+        { name: 'Kael (Classe B)', role: 'Étudiant Ambitieux', description: 'Travaille dur pour monter en Classe A. Spécialiste du combat à mains nues.', location: 'Académie Impériale', powerLevel: 35, specialty: 'Arts Martiaux', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20determined%20student%20training%20hard?model=flux-anime' }
     ];
     for (const npc of npcsToSeed) {
         await NPC.findOrCreate({
@@ -791,6 +796,16 @@ async function setupDatabase() {
         });
         // Also update existing ones to add imageUrl if they were already seeded
         await NPC.update({ imageUrl: npc.imageUrl }, { where: { name: npc.name } });
+    }
+
+    const schoolCount = await School.count();
+    if (schoolCount === 0) {
+        console.log('Seeding Schools...');
+        await School.bulkCreate([
+            { name: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', description: 'L\'élite militaire d\'Elion.', kingdomName: 'Empire d\'Elion' },
+            { name: 'Lycée de l\'Éther', specialty: 'Techno-magie', description: 'Centre de recherche de Valkyr.', kingdomName: 'Valkyr' },
+            { name: 'École des Ombres', specialty: 'Infiltration et Assassinat', description: 'Lieu secret pour les talents illégaux.', kingdomName: 'Gheno souterrain' }
+        ]);
     }
 
     // Generate ~1000 Unique NPCs

@@ -227,6 +227,15 @@ async function handleFreeAction(sock, message, player, actionText) {
   const monsters = await Monster.findAll({ where: { rank: player.rank }, limit: 2 });
   const monsterState = "Monstres: " + monsters.map(m => `${m.name}(PV:${m.health}, FOR:${m.strength}, DEF:${m.defense}, AGI:${m.agility}, INT:${m.intelligence})`).join(', ');
 
+  const conflicts = await Conflict.findAll({ where: { status: 'active' } });
+  const worldConflicts = conflicts.map(c => `[${c.title}] Kingdoms:${c.involvedKingdoms.join(', ')} - ${c.description}`).join(' | ');
+
+  const schools = await School.findAll();
+  const schoolLore = schools.map(s => `[${s.name}] Spec:${s.specialty} Kingdom:${s.kingdomName}`).join(' | ');
+
+  const houses = await player.getHouses();
+  const playerHouses = houses.map(h => `${h.name}(${h.location})`).join(', ');
+
   // Updated Time Logic: 1:9 scale
   const rpTime = getRPTime();
   const rpYearString = rpTime.formatted;
@@ -283,7 +292,7 @@ FORMAT DE SORTIE:
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
-- update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
+- update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
 - update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank.
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
@@ -292,6 +301,10 @@ ACTIONS AUTORISÉES:
 - spawn_monster : { "name": "...", "rank": "G-S", "health": 100, "strength": 10, "defense": 10, "agility": 10, "intelligence": 10 }
 - create_custom_item : { "name": "...", "description": "...", "type": "weapon|clothing|consumable", "rarity": "common|rare|epic|legendary", "statBonuses": {"strength": 5}, "target_name": "..." }
 - change_weather : { "weather": "Ensoleillé|Pluvieux|Orageux|Neigeux|Brouillard" }
+- trigger_conflict : { "title": "...", "description": "...", "involvedKingdoms": ["..."] }
+- royal_visit : { "npcName": "...", "reason": "...", "impact": "..." }
+- manage_house : { "action": "grant|revoke|modify", "houseName": "...", "target_name": "..." }
+- set_academic_status : { "target_name": "...", "academicYear": 1-5, "academicGrade": 0-100, "schoolName": "..." }
 
 STYLE ET APPARENCE:
 - Le style vestimentaire (inventaire) et l'apparence physique influencent les interactions.
@@ -317,18 +330,30 @@ LORE FIXE:
 - Les Apôtres ont sacrifié leur humanité.
 - L'Interstice relie les mondes.
 
-LOGIQUE ACADÉMIE:
-- L'Académie Impériale suit un modèle strict (lycée japonais).
+LOGIQUE ACADÉMIE & HIÉRARCHIE SOCIALE:
+- L'Académie Impériale suit un modèle strict (lycée japonais). Classes : S (Élite), A (Excellence), B-D (Standard).
+- Hiérarchie : Royal > Noble > Étudiant Elite > Citoyen > Exilé.
+- VISITES ROYALES : Les membres de la famille royale d'Elion ou de Valkyr sont des événements mondiaux. Utilise "royal_visit" pour marquer leur passage.
+- CONFLITS : La paix est fragile. Utilise "trigger_conflict" si les actions des joueurs ou le destin provoquent des tensions entre royaumes (ex: Elion vs Valkyr).
+- PROPRIÉTÉS : Les maisons ne sont pas que des lieux de stockage, ce sont des symboles de statut. Le MJ peut récompenser un joueur avec un titre ou une maison via "manage_house".
 - Matières : Maîtrise de l'Éther, Stratégie Militaire, Histoire d'Aetherys, Alchimie, Duel à l'Épée.
 - Scolarité/Uniforme : 500 COL. Porter l'uniforme est obligatoire pour les examens.`;
 
     const memoryJson = JSON.stringify({
-        monde: { date: rpYearString, cycle: cycleInfo, meteo: weather, lore_lieu: kingdom?.description || "" },
+        monde: {
+            date: rpYearString,
+            cycle: cycleInfo,
+            meteo: weather,
+            lore_lieu: kingdom?.description || "",
+            geopolitique: worldConflicts,
+            institutions: schoolLore
+        },
         personnages_en_scene: scenePlayersData,
         env_social: {
             pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel, specialite: n.specialty })),
             monstres_locaux: monsters.map(m => ({ name: m.name, pv: m.health, for: m.strength, def: m.defense, agi: m.agility, int: m.intelligence })),
-            rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`)
+            rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`),
+            immobilier: playerHouses
         },
         objectifs_generaux: {
             quetes_dispo: availableQuests.map(q => q.title),
@@ -1086,6 +1111,63 @@ ACTIONS_À_TRAITER: ${p.actions_recentes.join(' -> ')}`;
                 const { setWeather } = require('./game-state');
                 setWeather(parameters.weather);
                 console.log(`[AI] Weather changed to: ${parameters.weather}`);
+            }
+            break;
+        }
+
+        case 'trigger_conflict': {
+            if (parameters.title && parameters.involvedKingdoms) {
+                await Conflict.create({
+                    title: parameters.title,
+                    description: parameters.description || 'Une nouvelle tension géopolitique.',
+                    involvedKingdoms: parameters.involvedKingdoms,
+                    status: 'active'
+                });
+                console.log(`[AI] Conflict triggered: ${parameters.title}`);
+            }
+            break;
+        }
+
+        case 'royal_visit': {
+            if (parameters.npcName) {
+                await WorldJournal.create({
+                    entry: `Visite Royale de ${parameters.npcName} : ${parameters.reason}. Impact : ${parameters.impact}`,
+                    category: 'world_event',
+                    importance: 4
+                });
+                console.log(`[AI] Royal visit by: ${parameters.npcName}`);
+            }
+            break;
+        }
+
+        case 'manage_house': {
+            if (parameters.houseName && parameters.target_name) {
+                const house = await House.findOne({ where: { name: { [Op.like]: `%${parameters.houseName}%` } } });
+                if (house) {
+                    if (parameters.action === 'grant') {
+                        await house.update({ ownerId: target.whatsappId });
+                        questFeedback.push(`🏠 *IMMOBILIER* : ${target.name} est désormais propriétaire de : ${house.name}.`);
+                    } else if (parameters.action === 'revoke') {
+                        await house.update({ ownerId: null });
+                        questFeedback.push(`🏠 *IMMOBILIER* : La propriété ${house.name} de ${target.name} a été saisie.`);
+                    }
+                    if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                }
+            }
+            break;
+        }
+
+        case 'set_academic_status': {
+            if (parameters.target_name) {
+                const updates = {};
+                if (parameters.academicYear) updates.academicYear = parameters.academicYear;
+                if (parameters.academicGrade) updates.academicGrade = parameters.academicGrade;
+                if (parameters.schoolName) updates.schoolName = parameters.schoolName;
+
+                await target.update(updates);
+                await target.reload();
+                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                questFeedback.push(`🎓 *ACADÉMIE* : Statut mis à jour pour ${target.name}.`);
             }
             break;
         }
