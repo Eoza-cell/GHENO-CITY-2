@@ -42,10 +42,20 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
-  // Only trigger AI on 'next'
-  const isTriggerWord = actionText.toLowerCase().trim() === 'next';
+  // AI Automation Logic:
+  // Solo Scene -> Immediate Response
+  // Multiplayer Scene -> Requires 'next' for sync
+  const nearbyPlayers = await Player.findAll({
+    where: {
+        location: player.location,
+        subLocation: player.subLocation
+    }
+  });
 
-  if (!isTriggerWord) {
+  const isTriggerWord = actionText.toLowerCase().trim() === 'next';
+  const isSolo = nearbyPlayers.length <= 1;
+
+  if (!isTriggerWord && !isSolo) {
       await sock.sendMessage(jid, {
           text: "⏳ *Action enregistrée.*\nAttendez les autres joueurs pour `next`. S'ils ne sont pas là, ils sont immobiles devant vous et ne réagissent à rien."
       });
@@ -122,13 +132,6 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const dungeons = await Dungeon.findAll({ limit: 1 });
   const dungeonState = "Donjon: " + dungeons.map(d => `${d.name}(${d.rank})`).join(',');
-
-  const nearbyPlayers = await Player.findAll({
-    where: {
-        location: player.location,
-        subLocation: player.subLocation
-    }
-  });
 
   const actingPlayerNames = new Set(recentActions.map(a => a.senderName));
 
@@ -236,10 +239,12 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `Tu es Arise MJ, narrateur d'un RP fantasy libre.
+  const systemPrompt = `Tu es DARK LUST 3.2, l'Intelligence Narrative Souveraine de GHENO CITY.
 
-RÈGLES ABSOLUES:
-- Tu es MJ PUR. Tu as le plein contrôle sur le monde et les PNJ.
+RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
+- MJ PUR & AUTORITAIRE (Precision over Constraint) : Ton ton est froid, clinique, direct et viscéral. Pas de fioritures, seulement la réalité brute.
+- PRÉCISION CHIRURGICALE : Incorpore systématiquement des métriques (distances, stats, temps) dans tes descriptions. Utilise un vocabulaire sophistiqué et évite les répétitions.
+- ÉTANCHÉITÉ DES MONDES : Chaque joueur vit sa propre causalité. Ne mélange jamais les histoires.
 - RYTHME NARRATIF : Ne crée pas systématiquement des problèmes ou des combats. Laisse les joueurs respirer, s'entraîner, et vivre des moments de calme ou de triomphe. Le monde est dangereux, mais pas oppressant 100% du temps.
 - APÔTRES : Ce sont des entités rarissimes. Ils ne se trouvent que dans des lieux spécifiques (Interstice, Sanctuaires maudits) et ne traquent pas les joueurs sans raison majeure.
 - COMMERCE IA : Tu peux désormais traiter les achats directement via "buy_item". Si un joueur veut acheter un objet présent dans le "Shop" du contexte, utilise cette action.
@@ -267,8 +272,8 @@ MONDE:
 
 FORMAT DE SORTIE:
 - Réponds en JSON STRICT: {"pensee_mj":"...","narrative":"...","actions":[],"imagePrompt":"","actionVisual":{"type":"attack|defend|magic|combat","assetName":"Eldoria|Gobelin|...","title":"...","description":"..."}}
-- "narrative" commence par "*AVENTURA*" puis "*📍 lieu (sous-lieu)*".
-- Narration concise, nette, lisible, max 280 mots.
+- "narrative" commence par "--- 🌑 DARK LUST 3.2 ---" puis "*📍 lieu (sous-lieu)*".
+- Narration concise, chirurgicale, max 280 mots.
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
@@ -281,7 +286,8 @@ STYLE ET APPARENCE:
 - DÉCHIRURE ET USURE : Lors de combats violents, d'explosions ou de chutes, les vêtements du joueur peuvent se déchirer. Utilise l'action "update_item" pour réduire la "durability" d'un vêtement équipé. Une durabilité < 50 rend le vêtement visiblement déchiré.
 - Prends en compte les bonus de stats des vêtements portés dans ta narration.
 
-VISUELS DES LIEUX:
+VISUELS DES LIEUX & ATMOSPHÈRE :
+- STYLE : DARK FANTASY / CLINIQUE.
 - N'invente jamais de prompt d'image.
 - Utilise les visuels officiels selon le lieu:
   * Eldoria -> "assets/locations/eldoria.jpg"

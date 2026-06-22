@@ -376,7 +376,7 @@ async function callOllama(system, prompt) {
         console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
 
         const payload = {
-            model: process.env.OLLAMA_MODEL || 'gemma4',
+            model: process.env.OLLAMA_MODEL || 'dark-lust',
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
