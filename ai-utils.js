@@ -451,6 +451,27 @@ async function call9Router(system, prompt) {
     return null;
 }
 
+async function callWorldServer(system, prompt) {
+    const url = "http://localhost:3001/v1/chat/completions";
+    try {
+        console.log(`[AI] World Server - Tentative...`);
+        const resp = await axios.post(url, {
+            model: "dark-lust-3.2-1b",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, { timeout: 35000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] World Server indisponible: ${e.message}`);
+    }
+    return null;
+}
+
 async function callLMStudio(system, prompt) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -519,6 +540,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
+        { name: 'World Server (Local)', fn: callWorldServer },
         { name: '9Router', fn: call9Router },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
