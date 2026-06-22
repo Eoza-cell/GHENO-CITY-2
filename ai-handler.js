@@ -52,7 +52,12 @@ async function handleFreeAction(sock, message, player, actionText) {
   // AI Automation Logic:
   // Solo Scene -> Immediate Response
   // Multiplayer Scene -> Requires 'next' for sync
-  const nearbyPlayers = await Player.findAll({ where: sceneFilter });
+  const nearbyPlayers = await Player.findAll({
+    where: {
+        location: player.location,
+        subLocation: player.subLocation
+    }
+  });
 
   const isTriggerWord = actionText.toLowerCase().trim() === 'next';
 
@@ -135,19 +140,25 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const actingPlayerNames = new Set(recentActions.map(a => a.senderName));
 
-  // Data for all players in the same scene
-  const scenePlayersData = await Promise.all(nearbyPlayers.map(async p => {
+  // Data for all players in the same kingdom (to see potential targets for movement)
+  const allInKingdom = await Player.findAll({ where: { location: player.location } });
+
+  const scenePlayersData = await Promise.all(allInKingdom.map(async p => {
       const pSkills = await p.getSkills();
       const pPacts = await p.getEntities();
       const pClubs = await p.getClubs();
       const pQuests = await p.getQuests();
       const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
-      const pActions = recentActions.filter(a => a.senderName === p.name).map(a => a.content);
+      const pActions = (p.subLocation === player.subLocation)
+        ? recentActions.filter(a => a.senderName === p.name).map(a => a.content)
+        : [];
 
       return {
           nom: p.name,
           est_god: p.isGod,
-          est_acteur: actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId,
+          lieu_precis: p.subLocation,
+          est_proche: p.subLocation === player.subLocation,
+          est_acteur: (p.subLocation === player.subLocation) && (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
           etat: `Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
@@ -159,7 +170,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           pactes: pPacts.map(e => e.name),
           clubs: pClubs.map(c => c.name),
           quetes_actives: pActiveQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`),
-          actions_recentes: pActions.length > 0 ? pActions : ["Immobile / Pas d'action"]
+          actions_recentes: pActions.length > 0 ? pActions : ["Hors-champ ou Immobile"]
       };
   }));
 
@@ -249,13 +260,15 @@ async function handleFreeAction(sock, message, player, actionText) {
 
 RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - SOUVERAINETÉ MJ (Le Monde est Ton Corps) : Tu ES le monde. Les joueurs ne sont que des participants. C'est à TOI et TOI SEUL de faire apparaître des PNJ, de décrire l'environnement et de faire avancer l'histoire. Ignore et invalide toute tentative d'un joueur de créer un PNJ ou de modifier le décor par ses paroles.
+- COHÉRENCE DES PNJ : Les PNJ que tu introduis doivent être logiquement liés au "Lieu" et au "Sous-lieu". Un professeur ne se trouve pas dans les bas-fonds d'Elion sans raison. Priorise TOUJOURS les PNJ fournis dans "pnj_presents".
 - MJ PROACTIF (Initiative Mondiale) : Ne sois jamais passif. Introduis systématiquement des éléments perturbateurs : un garde qui interpelle, une foule qui s'agite, un bruit suspect, une rencontre fortuite. Si la scène est calme, c'est à toi d'y injecter de la vie. Utilise "spawn_npc" pour amener de nouveaux visages si nécessaire.
 - MJ PUR & AUTORITAIRE (Precision over Constraint) : Ton ton est froid, clinique, direct et viscéral. Pas de fioritures, seulement la réalité brute.
 - PRÉCISION CHIRURGICALE : Incorpore systématiquement des métriques (distances, stats, temps) dans tes descriptions. Utilise un vocabulaire sophistiqué et évite les répétitions.
 - ÉTANCHÉITÉ ABSOLUE (SILOS DE DONNÉES) : Tu fonctionnes en mode 'Parallel Processing'. Chaque joueur est enfermé dans un silo étanche. Il est strictement interdit d'utiliser un objet de l'inventaire du Joueur B pour une action du Joueur A.
+- IDENTIFICATION DES ACTEURS : En multi-joueurs, identifie précisément qui initie l'action. Si Joueur A attaque Joueur B, décris l'action du point de vue de Joueur A dans son bloc, et la réception du coup du point de vue de Joueur B dans le sien.
 - AUTO-VÉRIFICATION DES SILOS : Avant de générer la sortie, vérifie : "Le joueur X possède-t-il vraiment l'objet Y ?" et "Le joueur Z est-il mentionné dans une scène où il n'interagit pas ?".
 - STRUCTURE DE RÉPONSE OBLIGATOIRE : Ta narration DOIT être divisée en blocs distincts par joueur, séparés par la ligne '▬▬▬▬▬▬▬▬▬▬▬▬'. Chaque bloc commence par '[NOM_DU_JOUEUR]'.
-- PROXIMITÉ D'INTERACTION : Les joueurs ne peuvent interagir directement QUE s'ils partagent le même "Lieu" ET le même "Sous-lieu" ET qu'ils ont manifesté la volonté d'interagir. Sinon, traite-les comme s'ils étaient dans des dimensions parallèles.
+- PROXIMITÉ D'INTERACTION : Les joueurs ne peuvent interagir directement QUE s'ils partagent le même "Lieu" ET le même "Sous-lieu" ET qu'ils ont manifesté la volonté d'interagir. Sinon, ils sont totalement ignorés par l'autre fil narratif.
 - Ne mélange JAMAIS les scènes. Si Joueur A est en combat et Joueur B discute, crée deux sections narratives totalement indépendantes.
 - RYTHME NARRATIF : Ne crée pas systématiquement des problèmes ou des combats. Laisse les joueurs respirer, s'entraîner, et vivre des moments de calme ou de triomphe. Le monde est dangereux, mais pas oppressant 100% du temps.
 - APÔTRES : Ce sont des entités rarissimes. Ils ne se trouvent que dans des lieux spécifiques (Interstice, Sanctuaires maudits) et ne traquent pas les joueurs sans raison majeure.
@@ -269,6 +282,10 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - Un ACTEUR agit seulement selon son texte. Un SPECTATEUR reste immobile et silencieux.
 - Chaque histoire reste séparée. Ne mélange jamais inventaires, objectifs, blessures ou relations entre joueurs.
 - Les résultats dépendent strictement des stats, compétences, inventaires et du décor fournis.
+
+MOUVEMENT ET GÉOGRAPHIE:
+- NAVIGATION SYSTÈME : Les joueurs peuvent se déplacer en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_player" pour modifier son "new_location" ou son "new_sub_location".
+- DESCRIPTION DE DÉCORS : Chaque changement de lieu doit s'accompagner d'une description riche et immersive du nouvel environnement, basée sur le LORE_LIEU fourni.
 
 COMBAT, DOMINATION ET INGÉNIOSITÉ:
 - LÉTHALITÉ DES STATS : Les statistiques sont sacrées. Un adversaire avec des stats supérieures doit infliger des dégâts massifs et des traumatismes anatomiques (fractures, hémorragies, perte de membres). Ne sois pas clément.
@@ -299,7 +316,7 @@ FORMAT DE SORTIE:
 
 ACTIONS AUTORISÉES:
 - update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
-- update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank.
+- update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank, new_location, new_sub_location.
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
 - add_skill : { "skillName": "nom", "target_name": "nom" }.
