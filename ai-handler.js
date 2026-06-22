@@ -172,8 +172,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const worldSocialState = "Rumeurs: " + recentPlayers.map(p => `${p.name}(${p.location})`).join(',');
 
-  const items = await Item.findAll({ limit: 1 });
-  const shopState = "Shop: " + items.map(i => i.name).join(',');
+  const items = await Item.findAll({
+      order: [['rarity', 'DESC']],
+      limit: 15
+  });
+  const shopState = "Shop: " + items.map(i => `${i.name}(${i.price}COL)`).join(',');
 
   // Fetch history (last 75 messages) for Short Term Memory
   const history = await RPMessage.findAll({
@@ -239,6 +242,7 @@ RÈGLES ABSOLUES:
 - Tu es MJ PUR. Tu as le plein contrôle sur le monde et les PNJ.
 - RYTHME NARRATIF : Ne crée pas systématiquement des problèmes ou des combats. Laisse les joueurs respirer, s'entraîner, et vivre des moments de calme ou de triomphe. Le monde est dangereux, mais pas oppressant 100% du temps.
 - APÔTRES : Ce sont des entités rarissimes. Ils ne se trouvent que dans des lieux spécifiques (Interstice, Sanctuaires maudits) et ne traquent pas les joueurs sans raison majeure.
+- COMMERCE IA : Tu peux désormais traiter les achats directement via "buy_item". Si un joueur veut acheter un objet présent dans le "Shop" du contexte, utilise cette action.
 - Tu peux modifier l'état des joueurs (PV, PM, faim, sommeil, bio, lieu) via des actions.
 - RÉCOMPENSE D'ENTRAÎNEMENT : Tu peux augmenter les statistiques de base (FOR, AGI, INT, DEF, LUK) ou l'argent (COL) d'un joueur s'il réalise un entraînement complexe, intensif ou une action particulièrement brillante et détaillée.
 - Équilibre les gains : +1 ou +2 pour un entraînement classique, plus pour un exploit héroïque.
@@ -268,8 +272,9 @@ FORMAT DE SORTIE:
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
-- update_player, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
+- update_player, buy_item, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
 - update_player peut inclure : characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change.
+- buy_item : { "itemName": "nom de l'objet", "quantity": 1 }. Vérifie que le joueur a assez de COL avant de l'utiliser.
 
 STYLE ET APPARENCE:
 - Le style vestimentaire (inventaire) et l'apparence physique influencent les interactions.
@@ -494,127 +499,65 @@ LOGIQUE ACADÉMIE:
 
       switch (type) {
         case 'update_player': {
-          if (parameters.col_change) {
-              await target.increment('col', { by: parameters.col_change });
-              targetModified = true;
-          }
-          if (parameters.xp_gain) {
-              await target.increment('xp', { by: parameters.xp_gain });
-              await checkLevelUp(target, sock);
-              targetModified = true;
-          }
+          let hasChanged = false;
+          if (parameters.col_change) { await target.increment('col', { by: parameters.col_change }); hasChanged = true; }
+          if (parameters.xp_gain) { await target.increment('xp', { by: parameters.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
           if (parameters.health_change) {
               await target.increment('health', { by: parameters.health_change });
               await target.reload();
               if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
-
-              // Handle Death Logic
               if (target.health <= 0) {
                   await target.update({ health: 0 });
-
                   if (parameters.is_hospitalized) {
-                      // Hospitalized: loses 500 COL, stays in current location (hospitalized)
                       await target.decrement('col', { by: 500 });
                       await target.reload();
                       if (target.col < 0) await target.update({ col: 0 });
-                      await target.update({ health: 20 }); // Returns with some HP after care
+                      await target.update({ health: 20 });
                       questFeedback.push(`🏥 *HOSPITALISATION* : ${target.name} a été sauvé de justesse. Coût des soins : 500 COL.`);
                   } else {
-                      // True Death: moved to Nécropolis
-                      await target.update({
-                          location: 'Nécropolis',
-                          subLocation: 'Le Seuil des Morts'
-                      });
+                      await target.update({ location: 'Nécropolis', subLocation: 'Le Seuil des Morts' });
                       questFeedback.push(`💀 *MORT* : L'âme de ${target.name} a quitté son corps. Il erre désormais à Nécropolis.`);
-
                       if (shouldNotifyPlayer(target)) {
-                          await sock.sendMessage(target.whatsappId, {
-                              text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener."
-                          });
+                          await sock.sendMessage(target.whatsappId, { text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener." });
                       }
                   }
               }
-              targetModified = true;
+              hasChanged = true;
           }
-          if (parameters.max_health_change) {
-              await target.increment('maxHealth', { by: parameters.max_health_change });
-              targetModified = true;
-          }
+          if (parameters.max_health_change) { await target.increment('maxHealth', { by: parameters.max_health_change }); hasChanged = true; }
           if (parameters.mana_change) {
               await target.increment('mana', { by: parameters.mana_change });
               await target.reload();
               if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
               if (target.mana < 0) await target.update({ mana: 0 });
-              targetModified = true;
+              hasChanged = true;
           }
-          if (parameters.max_mana_change) {
-              await target.increment('maxMana', { by: parameters.max_mana_change });
-              targetModified = true;
-          }
-          if (parameters.strength_change) {
-              await target.increment('strength', { by: parameters.strength_change });
-              targetModified = true;
-          }
-          if (parameters.agility_change) {
-              await target.increment('agility', { by: parameters.agility_change });
-              targetModified = true;
-          }
-          if (parameters.intelligence_change) {
-              await target.increment('intelligence', { by: parameters.intelligence_change });
-              targetModified = true;
-          }
-          if (parameters.defense_change) {
-              await target.increment('defense', { by: parameters.defense_change });
-              targetModified = true;
-          }
-          if (parameters.luck_change) {
-              await target.increment('luck', { by: parameters.luck_change });
-              targetModified = true;
-          }
-          if (parameters.hunger_change) {
-              await target.increment('hunger', { by: parameters.hunger_change });
-              targetModified = true;
-          }
-          if (parameters.sleep_change) {
-              await target.increment('sleep', { by: parameters.sleep_change });
-              targetModified = true;
-          }
-
+          if (parameters.max_mana_change) { await target.increment('maxMana', { by: parameters.max_mana_change }); hasChanged = true; }
+          if (parameters.strength_change) { await target.increment('strength', { by: parameters.strength_change }); hasChanged = true; }
+          if (parameters.agility_change) { await target.increment('agility', { by: parameters.agility_change }); hasChanged = true; }
+          if (parameters.intelligence_change) { await target.increment('intelligence', { by: parameters.intelligence_change }); hasChanged = true; }
+          if (parameters.defense_change) { await target.increment('defense', { by: parameters.defense_change }); hasChanged = true; }
+          if (parameters.luck_change) { await target.increment('luck', { by: parameters.luck_change }); hasChanged = true; }
+          if (parameters.hunger_change) { await target.increment('hunger', { by: parameters.hunger_change }); hasChanged = true; }
+          if (parameters.sleep_change) { await target.increment('sleep', { by: parameters.sleep_change }); hasChanged = true; }
           if (parameters.new_location) {
-              await target.update({
-                  location: parameters.new_location,
-                  subLocation: parameters.new_sub_location || 'Entrée'
-              });
-              // Check if there is a local image for this location
-              const locationImages = {
-                  'Académie Impériale': 'assets/locations/academy.jpg',
-                  'Eldoria': 'assets/locations/eldoria.jpg',
-              };
-              if (locationImages[parameters.new_location] && !aiResponse.imagePrompt) {
-                  aiResponse.imagePrompt = locationImages[parameters.new_location];
-              }
+              await target.update({ location: parameters.new_location, subLocation: parameters.new_sub_location || 'Entrée' });
+              const locationImages = { 'Académie Impériale': 'assets/locations/academy.jpg', 'Eldoria': 'assets/locations/eldoria.jpg' };
+              if (locationImages[parameters.new_location] && !aiResponse.imagePrompt) aiResponse.imagePrompt = locationImages[parameters.new_location];
+              hasChanged = true;
           }
-          if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
-          if (parameters.new_class) await target.update({ class: parameters.new_class });
-          if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
-          if (parameters.characterDescription) await target.update({ characterDescription: parameters.characterDescription });
-          if (parameters.gender) await target.update({ gender: parameters.gender });
-          if (parameters.age) await target.update({ age: parameters.age });
-          if (parameters.profilePicUrl) await target.update({ profilePicUrl: parameters.profilePicUrl });
-          if (parameters.academicGrade_change) {
-              await target.increment('academicGrade', { by: parameters.academicGrade_change });
-              targetModified = true;
-          }
-          if (parameters.sp_gain) {
-              await target.increment('skillPoints', { by: parameters.sp_gain });
-              targetModified = true;
-          }
-          if (parameters.equippedOutfit) {
-              await target.update({ equippedOutfit: parameters.equippedOutfit });
-          }
+          if (parameters.new_rank) { await target.update({ rank: parameters.new_rank }); hasChanged = true; }
+          if (parameters.new_class) { await target.update({ class: parameters.new_class }); hasChanged = true; }
+          if (parameters.schoolName) { await target.update({ schoolName: parameters.schoolName }); hasChanged = true; }
+          if (parameters.characterDescription) { await target.update({ characterDescription: parameters.characterDescription }); hasChanged = true; }
+          if (parameters.gender) { await target.update({ gender: parameters.gender }); hasChanged = true; }
+          if (parameters.age) { await target.update({ age: parameters.age }); hasChanged = true; }
+          if (parameters.profilePicUrl) { await target.update({ profilePicUrl: parameters.profilePicUrl }); hasChanged = true; }
+          if (parameters.academicGrade_change) { await target.increment('academicGrade', { by: parameters.academicGrade_change }); hasChanged = true; }
+          if (parameters.sp_gain) { await target.increment('skillPoints', { by: parameters.sp_gain }); hasChanged = true; }
+          if (parameters.equippedOutfit) { await target.update({ equippedOutfit: parameters.equippedOutfit }); hasChanged = true; }
 
-          if (targetModified) {
-              await target.save();
+          if (hasChanged) {
               await target.reload();
               if (target.hunger > 100) await target.update({ hunger: 100 });
               if (target.sleep > 100) await target.update({ sleep: 100 });
@@ -651,6 +594,31 @@ LOGIQUE ACADÉMIE:
             }
           }
           break;
+        }
+
+        case 'buy_item': {
+            if (parameters.itemName && parameters.quantity) {
+                const item = await Item.findOne({ where: { name: { [Op.like]: `%${parameters.itemName}%` } } });
+                if (item) {
+                    const totalPrice = item.price * parameters.quantity;
+                    if (target.col >= totalPrice) {
+                        await target.decrement('col', { by: totalPrice });
+
+                        const inventory = [...target.inventory];
+                        const existingItem = inventory.find(i => i.name.toLowerCase() === item.name.toLowerCase());
+                        if (existingItem) existingItem.quantity += parameters.quantity;
+                        else inventory.push({ name: item.name, quantity: parameters.quantity });
+
+                        target.inventory = inventory;
+                        await target.save();
+                        await target.reload();
+                        questFeedback.push(`🛒 *ACHAT IA* : ${target.name} a acheté ${parameters.quantity}x ${item.name} pour ${totalPrice} COL.`);
+                    } else {
+                        questFeedback.push(`❌ *ÉCHEC ACHAT* : ${target.name} n'a pas assez de COL pour ${item.name}.`);
+                    }
+                }
+            }
+            break;
         }
 
         case 'add_item': {
