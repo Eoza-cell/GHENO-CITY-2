@@ -244,7 +244,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - MJ PUR & AUTORITAIRE (Precision over Constraint) : Ton ton est froid, clinique, direct et viscéral. Pas de fioritures, seulement la réalité brute.
 - PRÉCISION CHIRURGICALE : Incorpore systématiquement des métriques (distances, stats, temps) dans tes descriptions. Utilise un vocabulaire sophistiqué et évite les répétitions.
-- ÉTANCHÉITÉ DES MONDES : Chaque joueur vit sa propre causalité. Ne mélange jamais les histoires.
+- ÉTANCHÉITÉ ABSOLUE (Multi-Threading) : Chaque joueur présent est le protagoniste de sa propre ligne temporelle. Si les joueurs n'interagissent pas explicitement, traite leurs actions dans des paragraphes séparés commençant par "[NOM DU JOUEUR]".
+- PROXIMITÉ D'INTERACTION : Les joueurs ne peuvent interagir directement (se parler, se battre, s'échanger des objets) QUE s'ils partagent exactement le même "Lieu" ET le même "Sous-lieu". Sinon, ils sont invisibles l'un pour l'autre.
+- Ne mélange JAMAIS les inventaires, les blessures ou les objectifs des joueurs. Si Joueur A attaque un monstre et Joueur B cherche un objet, décris ces deux scènes séparément dans ta réponse.
 - RYTHME NARRATIF : Ne crée pas systématiquement des problèmes ou des combats. Laisse les joueurs respirer, s'entraîner, et vivre des moments de calme ou de triomphe. Le monde est dangereux, mais pas oppressant 100% du temps.
 - APÔTRES : Ce sont des entités rarissimes. Ils ne se trouvent que dans des lieux spécifiques (Interstice, Sanctuaires maudits) et ne traquent pas les joueurs sans raison majeure.
 - COMMERCE IA : Tu peux désormais traiter les achats directement via "buy_item". Si un joueur veut acheter un objet présent dans le "Shop" du contexte, utilise cette action.
@@ -276,15 +278,20 @@ MONDE:
 FORMAT DE SORTIE:
 - Réponds en JSON STRICT: {"pensee_mj":"...","narrative":"...","actions":[],"imagePrompt":"","actionVisual":{"type":"attack|defend|magic|combat","assetName":"Eldoria|Gobelin|...","title":"...","description":"..."}}
 - "narrative" commence par "--- 🌑 DARK LUST 3.2 ---" puis "*📍 lieu (sous-lieu)*".
+- Structure "narrative" : Utilise des blocs [NOM_DU_JOUEUR] pour séparer les fils narratifs distincts dans une même scène.
 - Narration concise, chirurgicale, max 280 mots.
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
-- update_player, buy_item, use_item, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
+- update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
 - update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank.
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
 - add_skill : { "skillName": "nom", "target_name": "nom" }.
+- spawn_npc : { "name": "...", "role": "...", "powerLevel": 1-100, "description": "...", "specialty": "..." }
+- spawn_monster : { "name": "...", "rank": "G-S", "health": 100, "strength": 10, "defense": 10, "agility": 10, "intelligence": 10 }
+- create_custom_item : { "name": "...", "description": "...", "type": "weapon|clothing|consumable", "rarity": "common|rare|epic|legendary", "statBonuses": {"strength": 5}, "target_name": "..." }
+- change_weather : { "weather": "Ensoleillé|Pluvieux|Orageux|Neigeux|Brouillard" }
 
 STYLE ET APPARENCE:
 - Le style vestimentaire (inventaire) et l'apparence physique influencent les interactions.
@@ -293,13 +300,14 @@ STYLE ET APPARENCE:
 
 VISUELS DES LIEUX & ATMOSPHÈRE :
 - STYLE : DARK FANTASY / CLINIQUE.
+- ÉVEIL DU LORE : Plonge profondément dans la métaphysique d'Aetherys. Béhérits, Apôtres, One Above All, Idée du Mal. La Causalité n'est pas une simple règle, c'est une force qui guide les destins. Mentionne ces éléments quand le moment est opportun.
 - N'invente jamais de prompt d'image.
-- Utilise les visuels officiels selon le lieu:
+- IMMERSION GÉOGRAPHIQUE : Dès qu'un joueur change de "Lieu" ou de "Sous-lieu", tu DOIS refléter ce changement dans l'action "update_player" et utiliser le visuel correspondant :
   * Eldoria -> "assets/locations/eldoria.jpg"
   * Académie Impériale -> "assets/locations/academy.jpg"
   * Nécropolis -> "assets/locations/necropolis.jpg"
   * L'Interstice -> "assets/locations/interstice.jpg"
-- Utilise ces visuels pour illustrer tes réponses narratives dès que le lieu change ou pour poser l'ambiance.
+- Utilise ces visuels pour illustrer tes réponses narratives dès que le lieu change.
 - Sinon laisse "imagePrompt" vide.
 
 LORE FIXE:
@@ -330,10 +338,19 @@ LOGIQUE ACADÉMIE:
         memoire_court_terme: historyState
     }, null, 2);
 
-    const actionSummary = scenePlayersData
-        .filter(p => p.est_acteur)
-        .map(p => `[JOUEUR: ${p.nom}] ACTIONS: ${p.actions_recentes.join(' -> ')}`)
-        .join('\n');
+    const sceneCohesionText = scenePlayersData
+        .map(p => {
+            const status = p.est_acteur ? "ACTIF" : "SPECTATEUR (SILENCIEUX)";
+            return `### PERSONNAGE: ${p.nom} [${status}]
+ÉTAT: ${p.etat}
+DESC: ${p.description}
+CLASSE: ${p.classe}
+INV: ${p.inventaire.join(', ')}
+SKILLS: ${p.competences.join(', ')}
+QUÊTES: ${p.quetes_actives.join(', ')}
+ACTIONS_À_TRAITER: ${p.actions_recentes.join(' -> ')}`;
+        })
+        .join('\n\n');
 
     const fullPrompt = [
         `SCÈNE ACTIVE: ${player.location} (${player.subLocation})`,
@@ -342,8 +359,8 @@ LOGIQUE ACADÉMIE:
         'MÉMOIRE_SYSTÈME_JSON:',
         memoryJson,
         '',
-        'ACTIONS_JOUEURS:',
-        actionSummary || '(Aucune action détaillée, le MJ doit faire vivre la scène sans inventer d action de joueur.)',
+        'CONTEXTE_DÉTAILLÉ_DES_PERSONNAGES:',
+        sceneCohesionText,
         '',
         'CONSIGNES FINALES:',
         '1. Traite chaque acteur séparément puis arbitre leurs interactions si elles se croisent.',
@@ -576,8 +593,15 @@ LOGIQUE ACADÉMIE:
 
           if (parameters.new_location) {
               await target.update({ location: parameters.new_location, subLocation: parameters.new_sub_location || 'Entrée' });
-              const locationImages = { 'Académie Impériale': 'assets/locations/academy.jpg', 'Eldoria': 'assets/locations/eldoria.jpg' };
-              if (locationImages[parameters.new_location] && !aiResponse.imagePrompt) aiResponse.imagePrompt = locationImages[parameters.new_location];
+              const locationImages = {
+                  'Académie Impériale': 'assets/locations/academy.jpg',
+                  'Eldoria': 'assets/locations/eldoria.jpg',
+                  'Nécropolis': 'assets/locations/necropolis.jpg',
+                  'L\'Interstice': 'assets/locations/interstice.jpg'
+              };
+              if (locationImages[parameters.new_location] && !aiResponse.imagePrompt) {
+                  aiResponse.imagePrompt = locationImages[parameters.new_location];
+              }
               hasChanged = true;
           }
           if (parameters.schoolName) { await target.update({ schoolName: parameters.schoolName }); hasChanged = true; }
@@ -990,6 +1014,78 @@ LOGIQUE ACADÉMIE:
                     category: parameters.category || 'general'
                 });
                 console.log(`[JOURNAL] Nouvelle entrée : ${parameters.entry}`);
+            }
+            break;
+        }
+
+        case 'spawn_npc': {
+            if (parameters.name) {
+                await NPC.create({
+                    name: parameters.name,
+                    role: parameters.role || 'Citoyen',
+                    powerLevel: parameters.powerLevel || 10,
+                    description: parameters.description || 'Un nouveau venu dans GHENO.',
+                    specialty: parameters.specialty || 'Aucune',
+                    location: player.location
+                });
+                console.log(`[AI] NPC spawn: ${parameters.name}`);
+            }
+            break;
+        }
+
+        case 'spawn_monster': {
+            if (parameters.name) {
+                await Monster.create({
+                    name: parameters.name,
+                    rank: parameters.rank || 'G',
+                    health: parameters.health || 50,
+                    strength: parameters.strength || 5,
+                    defense: parameters.defense || 5,
+                    agility: parameters.agility || 5,
+                    intelligence: parameters.intelligence || 5,
+                    location: player.location
+                });
+                console.log(`[AI] Monster spawn: ${parameters.name}`);
+            }
+            break;
+        }
+
+        case 'create_custom_item': {
+            if (parameters.name && parameters.target_name) {
+                const item = await Item.create({
+                    name: parameters.name,
+                    description: parameters.description || 'Objet unique.',
+                    type: parameters.type || 'consumable',
+                    rarity: parameters.rarity || 'common',
+                    statBonuses: parameters.statBonuses || {},
+                    price: 9999 // Custom items aren't for sale
+                });
+
+                const inventory = [...target.inventory];
+                inventory.push({ name: item.name, quantity: 1 });
+                target.inventory = inventory;
+                await target.save();
+
+                // If it has bonuses, apply immediately
+                if (parameters.statBonuses) {
+                    for (const [stat, value] of Object.entries(parameters.statBonuses)) {
+                        if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                            await target.increment(stat, { by: value });
+                        }
+                    }
+                }
+                await target.reload();
+                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                questFeedback.push(`🎁 *OBJET UNIQUE* : ${target.name} a reçu "${item.name}".`);
+            }
+            break;
+        }
+
+        case 'change_weather': {
+            if (parameters.weather) {
+                const { setWeather } = require('./game-state');
+                setWeather(parameters.weather);
+                console.log(`[AI] Weather changed to: ${parameters.weather}`);
             }
             break;
         }

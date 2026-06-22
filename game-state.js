@@ -32,4 +32,8 @@ function getWeather() {
     return currentWeather;
 }
 
-module.exports = { startDayNightCycle, isDay, getWeather };
+function setWeather(newWeather) {
+    currentWeather = newWeather;
+}
+
+module.exports = { startDayNightCycle, isDay, getWeather, setWeather };
