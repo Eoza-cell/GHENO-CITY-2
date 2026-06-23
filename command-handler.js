@@ -9,9 +9,10 @@ const { generateProfileCard } = require('./profile-generator');
 const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
+const { generateShopImage } = require('./shop-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
-const { sendWithImage } = require('./message-handler');
+const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -51,6 +52,10 @@ commands.set('start', async (sock, message) => {
     // Resume registration
     if (player.registrationStep === 'awaiting_name') {
         await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton nom, Héritier ?" });
+    } else if (player.registrationStep === 'awaiting_gender') {
+        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton sexe, Héritier ?" });
+    } else if (player.registrationStep === 'awaiting_age') {
+        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton âge, Héritier ?" });
     } else if (player.registrationStep === 'awaiting_description') {
         await sock.sendMessage(replyJid, { text: `Rappel: Enchanté ${player.name}. Décris ton personnage en une phrase.` });
     }
@@ -80,7 +85,7 @@ commands.set('competences', async (sock, message) => {
 
     let skillText = `*Compétences de ${player.name}:*\n\n`;
 
-    const activeSkills = skills.filter(s => s.type === 'active' || s.type === 'spell' || s.type === 'sword_technique');
+    const activeSkills = skills.filter(s => s.type !== 'passive');
     const passiveSkills = skills.filter(s => s.type === 'passive');
 
     if (activeSkills.length > 0) {
@@ -182,6 +187,8 @@ const profileCommand = async (sock, message) => {
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *HÉRITIER:* ${player.name}\n` +
+                          `⚧️ *SEXE:* ${player.gender}\n` +
+                          `🎂 *ÂGE:* ${player.age} ans\n` +
                           `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
                           `🎖️ *RANG:* ${player.rank}\n` +
@@ -235,6 +242,113 @@ const profileCommand = async (sock, message) => {
 };
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
+commands.set('techniques', commands.get('competences'));
+
+// Command: /creer_tenue
+commands.set('creer_tenue', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    if (player.skillPoints < 1) {
+        return await sock.sendMessage(replyJid, { text: "❌ Tu as besoin d'au moins 1 SP pour créer une tenue personnalisée." });
+    }
+
+    const outfitName = args.join(' ');
+    if (!outfitName) {
+        return await sock.sendMessage(replyJid, { text: "❌ Utilise : `/creer_tenue <nom de la tenue>`" });
+    }
+
+    await player.decrement('skillPoints', { by: 1 });
+
+    // Create actual Item record for the custom outfit
+    const itemName = `Tenue : ${outfitName}`;
+    await Item.findOrCreate({
+        where: { name: itemName },
+        defaults: {
+            name: itemName,
+            description: `Une tenue sur mesure conçue par ${player.name}.`,
+            price: 1000,
+            type: 'clothing',
+            rarity: 'rare',
+            slot: 'chest',
+            durability: 100,
+            visualData: { color: "#" + Math.floor(Math.random()*16777215).toString(16), style: "custom" }
+        }
+    });
+
+    let inventory = [...player.inventory];
+    inventory.push({ name: itemName, quantity: 1 });
+    player.inventory = inventory;
+    await player.save();
+
+    await sock.sendMessage(replyJid, { text: `✨ *Tenue créée !* Tu as dépensé 1 SP pour concevoir : ${outfitName}. Elle est maintenant dans ton inventaire.` });
+});
+
+// Command: /acheter
+commands.set('acheter', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const itemName = args.join(' ');
+
+    if (!player || !itemName) return;
+
+    const item = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
+    if (!item) {
+        return await sock.sendMessage(replyJid, { text: "❌ Cet objet n'est pas disponible en magasin." });
+    }
+
+    if (player.col < item.price) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de Col (${item.price} requis).` });
+    }
+
+    await player.decrement('col', { by: item.price });
+
+    let inventory = [...player.inventory];
+    const existing = inventory.find(i => i.name === item.name);
+    if (existing) existing.quantity += 1;
+    else inventory.push({ name: item.name, quantity: 1 });
+
+    player.inventory = inventory;
+    await player.save();
+
+    await sock.sendMessage(replyJid, { text: `🛒 *Achat réussi !* Tu as acheté ${item.name} pour ${item.price} Col.` });
+});
+
+// Command: /equiper
+commands.set('equiper', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const outfitName = args.join(' ');
+
+    if (!player || !outfitName) return;
+
+    const inventory = player.inventory || [];
+    const item = inventory.find(i => i.name.toLowerCase().includes(outfitName.toLowerCase()));
+
+    if (!item) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu ne possèdes pas "${outfitName}" dans ton inventaire.` });
+    }
+
+    await player.update({ equippedOutfit: item.name });
+    await sock.sendMessage(replyJid, { text: `👗 *Style mis à jour !* Tu portes désormais : ${item.name}.` });
+});
+
+// Command: /retirer
+commands.set('retirer', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    await player.update({ equippedOutfit: null });
+    await sock.sendMessage(replyJid, { text: "👗 *Style mis à jour !* Tu as retiré ta tenue." });
+});
 
 // Command: /inspecter
 commands.set('inspecter', async (sock, message) => {
@@ -260,6 +374,8 @@ commands.set('inspecter', async (sock, message) => {
     const xpBar = createStatusBar(targetPlayer.xp, xpNeeded);
 
     const profileText = `--- 🔍 INSPECTION - ${targetPlayer.name} --- \n\n` +
+                        `⚧️ *SEXE:* ${targetPlayer.gender}\n` +
+                        `🎂 *ÂGE:* ${targetPlayer.age} ans\n` +
                         `👪 *FAMILLE:* ${targetPlayer.family}\n` +
                         `🎭 *CLASSE:* ${targetPlayer.class}\n` +
                         `🎖️ *RANG:* ${targetPlayer.rank}\n` +
@@ -456,29 +572,21 @@ commands.set('recuperer', async (sock, message, args) => {
 // Command: /vetements
 const vetementsCommand = async (sock, message) => {
     const replyJid = message.key.remoteJid;
-    const items = await Item.findAll({ where: { type: 'clothing' } });
+    const items = await Item.findAll({ where: { type: 'clothing' }, limit: 10 });
 
     if (items.length === 0) {
         return await sock.sendMessage(replyJid, { text: "La boutique de vêtements est vide." });
     }
 
-    let text = "👗 *BOUTIQUE DE MODE D'AETHERYS*\n\n";
-
-    for (const item of items) {
-        const itemText = `*${item.name.toUpperCase()}*\n├ 💰 Prix: ${item.price} Col\n└ 📜 ${item.description}\n\n_Acheter via /action : "Je veux acheter ${item.name}"_`;
-
-        if (item.imageUrl) {
-            await sock.sendMessage(replyJid, {
-                image: { url: item.imageUrl },
-                caption: itemText
-            });
-        } else {
-            text += itemText;
-        }
-    }
-
-    if (text.length > 30) {
-        await sock.sendMessage(replyJid, { text });
+    try {
+        const shopImageBuffer = await generateShopImage("MODE AETHERYS", items);
+        await sock.sendMessage(replyJid, {
+            image: shopImageBuffer,
+            caption: "👗 *CATALOGUE DE MODE*\nUtilisez `/acheter [nom]` pour commander."
+        });
+    } catch (err) {
+        console.error("Shop image error:", err);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la génération du catalogue visuel." });
     }
 };
 commands.set('vetements', vetementsCommand);
@@ -558,60 +666,27 @@ commands.set('up', async (sock, message, args) => {
 
 // Command: /boutique
 commands.set('boutique', async (sock, message) => {
-    const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const items = await Item.findAll({ order: [['price', 'ASC']] });
+    const items = await Item.findAll({
+        where: { type: { [Op.ne]: 'clothing' } },
+        order: [['price', 'ASC']],
+        limit: 8
+    });
 
     if (items.length === 0) {
         await sock.sendMessage(replyJid, { text: "La boutique est vide pour le moment." });
         return;
     }
 
-    const rarityEmoji = {
-        'common': '⚪',
-        'rare': '🔵',
-        'epic': '🟣',
-        'legendary': '🟡',
-        'artifact': '🔴'
-    };
-
-    let boutiqueText = "--- ⚔️ FORGE DE BROKK (PROMOS !) --- \n\n";
-    items.forEach(item => {
-        const emoji = rarityEmoji[item.rarity] || '⚪';
-        boutiqueText += `${emoji} *${item.name.toUpperCase()}* (${item.rarity})\n`;
-        boutiqueText += `├ 💰 Prix: ${item.price} 🪙\n`;
-        const bonuses = item.statBonuses;
-        const bonusStrings = Object.entries(bonuses).map(([stat, value]) => `${stat}: +${value}`);
-        if (bonusStrings.length > 0) {
-            boutiqueText += `├ ✨ Stats: ${bonusStrings.join(', ')}\n`;
-        }
-        boutiqueText += `└ 📜 ${item.description}\n\n`;
-    });
-
-    boutiqueText += "🛒 *Achat:* Utilise `/action` -> 'Je veux acheter [Objet]'.";
-
-    // Show top-tier item image (Excalibur or Elucidator)
-    const featuredItem = items.find(i => i.name === 'Excalibur') || items.find(i => i.name === 'Elucidator') || items.find(i => i.imageUrl);
-
-    if (featuredItem && featuredItem.imageUrl) {
-        try {
-            const response = await axios.get(featuredItem.imageUrl, {
-                responseType: 'arraybuffer',
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-            });
-            const imageBuffer = Buffer.from(response.data, 'binary');
-            await sock.sendMessage(replyJid, {
-                image: imageBuffer,
-                caption: boutiqueText
-            });
-        } catch (error) {
-            console.error("Erreur envoi image boutique:", error.message);
-            await sock.sendMessage(replyJid, { text: boutiqueText });
-        }
-    } else {
-        await sock.sendMessage(replyJid, { text: boutiqueText });
+    try {
+        const shopImageBuffer = await generateShopImage("FORGE DE BROKK", items);
+        await sock.sendMessage(replyJid, {
+            image: shopImageBuffer,
+            caption: "⚔️ *ÉQUIPEMENT ET ARMES*\nUtilisez `/acheter [nom]` pour acquérir un objet."
+        });
+    } catch (err) {
+        console.error("Shop image error:", err);
+        await sock.sendMessage(replyJid, { text: "Erreur lors de la génération du catalogue visuel." });
     }
 });
 
@@ -1075,7 +1150,9 @@ commands.set('donner', async (sock, message, args) => {
         await targetPlayer.increment('col', { by: amount });
 
         await sock.sendMessage(replyJid, { text: `Tu as donné ${amount} Col à ${targetPlayer.name}.` });
-        await sock.sendMessage(mentionedJid, { text: `💰 ${player.name} t'a donné ${amount} Col !` });
+        if (shouldNotifyPlayer(targetPlayer)) {
+            await sock.sendMessage(mentionedJid, { text: `💰 ${player.name} t'a donné ${amount} Col !` });
+        }
         return;
     }
 
@@ -1116,7 +1193,9 @@ commands.set('donner', async (sock, message, args) => {
         await targetPlayer.save();
 
         await sock.sendMessage(replyJid, { text: `Tu as donné ${quantity}x ${itemName} à ${targetPlayer.name}.` });
-        await sock.sendMessage(mentionedJid, { text: `🎒 ${player.name} t'a donné ${quantity}x ${itemName} !` });
+        if (shouldNotifyPlayer(targetPlayer)) {
+            await sock.sendMessage(mentionedJid, { text: `🎒 ${player.name} t'a donné ${quantity}x ${itemName} !` });
+        }
 
         // Handle stat changes if it's an item with bonuses
         const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
@@ -1328,9 +1407,9 @@ commands.set('lore', async (sock, message, args) => {
     }
 
     try {
-        const posterPath = await generateLorePoster(loreData.title, loreData.content, loreData.type, loreData.imageUrl);
+        const posterBuffer = await generateLorePoster(loreData.title, loreData.content, loreData.type, loreData.imageUrl);
         await sock.sendMessage(replyJid, {
-            image: { url: posterPath },
+            image: posterBuffer,
             caption: `📚 *Archives d'Aetherys : ${loreData.title}*\n\n${loreData.content}`
         });
     } catch (err) {
@@ -1359,6 +1438,32 @@ commands.set('save', async (sock, message) => {
         await sock.sendMessage(replyJid, { text: "Erreur lors de la sauvegarde de tes données." });
     }
 });
+
+// Command: /tuto_rp
+commands.set('tuto_rp', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const { generateLorePoster } = require('./lore-generator');
+
+    const tutoTitle = "MANUEL DU RP IMMERSIF";
+    const tutoContent = "Bienvenue dans GHENO CITY, Egoïste.\n\n" +
+        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par DARK LUST 3.2.\n\n" +
+        "2. LA PRÉCISION\nNe dis pas 'Je frappe'. Dis 'Je pivote sur ma jambe gauche pour envoyer un coup de pied circulaire au niveau des côtes'. Plus tu es précis, plus le MJ est clément.\n\n" +
+        "3. LES STATS\nTout est calculé. Si ton adversaire a 80 en FORCE et toi 20, tu vas souffrir. Utilise ton intelligence ou l'environnement pour compenser.\n\n" +
+        "4. LE COMMERCE\nTu peux acheter des objets directement en parlant aux marchands ou au MJ. Dis 'Je veux acheter l'Épée de Fer' et si tu as les COL, le MJ mettra à jour ton profil.\n\n" +
+        "5. SYNCHRONISATION\nEn multi-joueurs, utilise le mot-clé `next` quand tu as fini tes actions pour laisser le MJ répondre à tout le monde en même temps.";
+
+    try {
+        const posterBuffer = await generateLorePoster(tutoTitle, tutoContent, 'LORE');
+        await sock.sendMessage(replyJid, {
+            image: posterBuffer,
+            caption: `📖 *GUIDE D'APPRENTISSAGE AU RP*\n\n${tutoContent}`
+        });
+    } catch (e) {
+        console.error("Tuto RP error:", e);
+        await sock.sendMessage(replyJid, { text: `*${tutoTitle}*\n\n${tutoContent}` });
+    }
+});
+commands.set('apprendre', commands.get('tuto_rp'));
 
 commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
@@ -1590,7 +1695,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       if (player.registrationStep === 'awaiting_name') {
           const playerName = messageText.trim();
           if (playerName.length > 2 && playerName.length <= 20 && !playerName.startsWith('/')) {
-              await player.update({ name: playerName, registrationStep: 'awaiting_description' });
+              await player.update({ name: playerName, registrationStep: 'awaiting_gender' });
 
               // Create a bank account if not exists
               await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
@@ -1601,9 +1706,21 @@ async function handleCommand(sock, message, downloadMediaMessage) {
                   await player.addQuest(startingQuest, { through: { status: 'not_started' } });
               }
 
-              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
+              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Quel est ton sexe, Héritier ?` });
           } else {
               await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
+          }
+      } else if (player.registrationStep === 'awaiting_gender') {
+          const gender = messageText.trim();
+          await player.update({ gender, registrationStep: 'awaiting_age' });
+          await sock.sendMessage(replyJid, { text: `C'est noté. Quel est ton âge, Héritier ?` });
+      } else if (player.registrationStep === 'awaiting_age') {
+          const age = parseInt(messageText.trim());
+          if (!isNaN(age) && age > 0 && age < 150) {
+              await player.update({ age, registrationStep: 'awaiting_description' });
+              await sock.sendMessage(replyJid, { text: `Très bien. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
+          } else {
+              await sock.sendMessage(replyJid, { text: "Âge invalide. Réessaie." });
           }
       } else if (player.registrationStep === 'awaiting_description') {
         const description = messageText.trim();

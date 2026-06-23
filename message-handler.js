@@ -1,6 +1,22 @@
 const axios = require('axios');
 const fs = require('fs');
 
+// Inactivity threshold for private notifications (24 hours)
+const INACTIVITY_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Checks if a player should receive a private notification based on their last activity.
+ * This prevents spamming inactive players.
+ * @param {object} player Sequelize Player instance
+ * @returns {boolean}
+ */
+function shouldNotifyPlayer(player) {
+    if (!player || !player.lastActivity) return true;
+    const now = Date.now();
+    const lastActivity = new Date(player.lastActivity).getTime();
+    return (now - lastActivity) < INACTIVITY_THRESHOLD_MS;
+}
+
 /**
  * Resolves player tags like @Name in the text and converts them to WhatsApp mentions.
  * @param {string} text
@@ -43,8 +59,14 @@ async function sendWithImage(sock, jid, aiResponse) {
 
     if (imagePrompt) {
         try {
+            // Direct Buffer
+            if (Buffer.isBuffer(imagePrompt)) {
+                await sock.sendMessage(jid, { image: imagePrompt, caption: text, mentions, mimetype: 'image/png' });
+                return;
+            }
+
             // Local file path
-            if (!imagePrompt.startsWith('http') && fs.existsSync(imagePrompt)) {
+            if (typeof imagePrompt === 'string' && !imagePrompt.startsWith('http') && fs.existsSync(imagePrompt)) {
                 const imageBuffer = fs.readFileSync(imagePrompt);
                 await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
                 return;
@@ -78,4 +100,4 @@ async function sendWithImage(sock, jid, aiResponse) {
 async function generateAnimeImage() { return null; }
 function buildAnimePrompt(p) { return p; }
 
-module.exports = { sendWithImage, generateAnimeImage, buildAnimePrompt, resolveMentions };
+module.exports = { sendWithImage, generateAnimeImage, buildAnimePrompt, resolveMentions, shouldNotifyPlayer };

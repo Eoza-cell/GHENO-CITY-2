@@ -1,6 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
+const { escapeXml } = require('./utils');
 
 /**
  * Wraps text into an array of lines based on max width.
@@ -24,7 +25,7 @@ function wrapText(text, maxCharsPerLine) {
 
 /**
  * Generate an image representing a handwritten note or exam paper.
- * Replaced foreignObject with manual text positioning for Sharp compatibility.
+ * Returns a Buffer.
  */
 async function generatePaperImage(text, title = "NOTE") {
     const width = 800;
@@ -35,7 +36,7 @@ async function generatePaperImage(text, title = "NOTE") {
 
     const lines = wrapText(text, maxChars);
     const textSvg = lines.map((line, i) =>
-        `<text x="${padding}" y="${180 + (i * lineHeight)}" font-family="FreeSerif, serif" font-size="22" fill="#1a1a1a" font-style="italic">${line}</text>`
+        `<text x="${padding}" y="${180 + (i * lineHeight)}" font-family="FreeSerif, serif" font-size="22" fill="#1a1a1a" font-style="italic">${escapeXml(line)}</text>`
     ).join('\n');
 
     // SVG for the paper look
@@ -64,7 +65,7 @@ async function generatePaperImage(text, title = "NOTE") {
         <line x1="80" y1="0" x2="80" y2="${height}" stroke="#ff9999" stroke-width="2" />
 
         <!-- Title -->
-        <text x="50%" y="80" font-family="FreeSerif, serif" font-size="40" fill="#2c3e50" text-anchor="middle" font-style="italic" font-weight="bold">${title}</text>
+        <text x="50%" y="80" font-family="FreeSerif, serif" font-size="40" fill="#2c3e50" text-anchor="middle" font-style="italic" font-weight="bold">${escapeXml(title)}</text>
 
         <!-- Content -->
         ${textSvg}
@@ -75,13 +76,7 @@ async function generatePaperImage(text, title = "NOTE") {
     </svg>
     `;
 
-    const outputPath = path.join(__dirname, 'assets', `paper_${Date.now()}.png`);
-
-    if (!fs.existsSync(path.join(__dirname, 'assets'))) {
-        fs.mkdirSync(path.join(__dirname, 'assets'));
-    }
-
-    await sharp({
+    return await sharp({
         create: {
             width: width,
             height: height,
@@ -95,9 +90,7 @@ async function generatePaperImage(text, title = "NOTE") {
         left: 0
     }])
     .png()
-    .toFile(outputPath);
-
-    return outputPath;
+    .toBuffer();
 }
 
 module.exports = { generatePaperImage };

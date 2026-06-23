@@ -6,8 +6,7 @@ const fs = require('fs');
 
 /**
  * Programmatically generate 3D-styled scenes using Three.js and Sharp.
- * Since we don't have a real GPU, we use Software Rendering or SVG paths.
- * We'll use a trick: Three.js SVGRenderer or simple programmatic 2D projection.
+ * Returns a Buffer.
  */
 async function generate3DVisual(type = 'cube', color = 0x00ff00) {
     const width = 512;
@@ -30,10 +29,6 @@ async function generate3DVisual(type = 'cube', color = 0x00ff00) {
     } else {
         geometry = new THREE.BoxGeometry(2, 2, 2);
     }
-
-    // We can't use WebGLRenderer in pure Node without heavy dependencies.
-    // Instead, we will generate an SVG representation of a 3D object manually
-    // or use a programmatic 3D-to-2D projection to create a Sharp image.
 
     const vertices = [];
     const pos = geometry.attributes.position;
@@ -81,12 +76,9 @@ async function generate3DVisual(type = 'cube', color = 0x00ff00) {
     </svg>
     `;
 
-    const outputPath = path.join(__dirname, 'assets', `3d_${Date.now()}.png`);
-    await sharp(Buffer.from(svg))
+    return await sharp(Buffer.from(svg))
         .png()
-        .toFile(outputPath);
-
-    return outputPath;
+        .toBuffer();
 }
 
 module.exports = { generate3DVisual };

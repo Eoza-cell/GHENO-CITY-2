@@ -376,7 +376,7 @@ async function callOllama(system, prompt) {
         console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
 
         const payload = {
-            model: process.env.OLLAMA_MODEL || 'gemma4',
+            model: process.env.OLLAMA_MODEL || 'dark-lust',
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
@@ -451,6 +451,49 @@ async function call9Router(system, prompt) {
     return null;
 }
 
+async function callWorldServer(system, prompt) {
+    const url = "http://localhost:3001/v1/chat/completions";
+    try {
+        console.log(`[AI] World Server - Tentative...`);
+        const resp = await axios.post(url, {
+            model: "dark-lust-3.2-1b",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, { timeout: 35000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] World Server indisponible: ${e.message}`);
+    }
+    return null;
+}
+
+async function callLlamafile(system, prompt) {
+    const url = process.env.LLAMAFILE_URL || "http://localhost:8080/v1/chat/completions";
+    try {
+        console.log(`[AI] Llamafile - Tentative sur ${url}`);
+        const resp = await axios.post(url, {
+            model: "LLaMA_CPP",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.1,
+            stream: false
+        }, { timeout: 45000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Llamafile indisponible: ${e.message}`);
+    }
+    return null;
+}
+
 async function callLMStudio(system, prompt) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -502,7 +545,8 @@ function callMJFallback(prompt) {
 /**
  * Main AI entry point.
  */
-async function callAI(systemPrompt, userPrompt, depth = 0) {
+async function callAI(systemPrompt, userPrompt, options = {}) {
+    const depth = options.depth || 0;
     if (depth > 2) return null;
 
     // Preserve more context: the RP engine relies on scene isolation and detailed stats.
@@ -519,6 +563,8 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     }
 
     const providers = [
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
+        { name: 'Llamafile (Local)', fn: callLlamafile },
         { name: '9Router', fn: call9Router },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
@@ -544,7 +590,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
                 activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
             }
 
-            const result = await provider.fn(activeSystem, sanitizedUser);
+            const result = await provider.fn(activeSystem, sanitizedUser, options);
             const providerDuration = (Date.now() - providerStart) / 1000;
 
             if (isValidAIResponse(result)) {
@@ -572,7 +618,7 @@ async function callAI(systemPrompt, userPrompt, depth = 0) {
     if (depth < 1) {
         console.log("[AI] Nouvelle tentative dans 1s avec jitter...");
         await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
-        return callAI(systemPrompt, userPrompt, depth + 1);
+        return callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 });
     }
 
     // Ultimate fallback if even retry fails

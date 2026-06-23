@@ -2,9 +2,11 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const { escapeXml } = require('./utils');
 
 /**
  * Generate a beautiful lore poster using Sharp and SVG.
+ * Returns a Buffer.
  */
 async function generateLorePoster(title, content, type = 'LORE', imageUrl = null) {
     const width = 800;
@@ -30,7 +32,7 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
         }
     }
 
-    // Wrap content manually for SVG since foreignObject is unreliable with Sharp
+    // Wrap text manually for SVG since foreignObject is unreliable with Sharp
     function wrapText(text, maxWidth, fontSize) {
         const words = text.split(' ');
         const lines = [];
@@ -66,7 +68,7 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
     let contentSvg = '';
     contentLines.forEach((line, i) => {
         if (startY + i * lineHeight < height - 150) {
-            contentSvg += `<text x="80" y="${startY + i * lineHeight}" font-family="serif" font-size="22" fill="#ffffff">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`;
+            contentSvg += `<text x="80" y="${startY + i * lineHeight}" font-family="serif" font-size="22" fill="#ffffff">${escapeXml(line)}</text>`;
         }
     });
 
@@ -86,12 +88,12 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
         <rect x="30" y="30" width="${width - 60}" height="${height - 60}" fill="none" stroke="#d4af37" stroke-width="1" />
 
         <!-- Title -->
-        <text x="50%" y="150" font-family="sans-serif" font-size="60" font-weight="bold" fill="#d4af37" text-anchor="middle" style="text-transform: uppercase; letter-spacing: 5px;">${title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>
+        <text x="50%" y="150" font-family="sans-serif" font-size="60" font-weight="bold" fill="#d4af37" text-anchor="middle" style="text-transform: uppercase; letter-spacing: 5px;">${escapeXml(title)}</text>
         <line x1="200" y1="180" x2="600" y2="180" stroke="#d4af37" stroke-width="2" />
 
         <!-- Type Tag -->
         <rect x="50%" y="210" width="120" height="30" fill="#d4af37" transform="translate(-60, 0)" rx="5" />
-        <text x="50%" y="230" font-family="monospace" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">${type}</text>
+        <text x="50%" y="230" font-family="monospace" font-size="18" font-weight="bold" fill="#000" text-anchor="middle">${escapeXml(type)}</text>
 
         <!-- Content -->
         ${contentSvg}
@@ -101,20 +103,13 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
     </svg>
     `;
 
-    const outputPath = path.join(__dirname, 'assets', `lore_${Date.now()}.png`);
-
-    // Ensure assets directory exists
-    if (!fs.existsSync(path.join(__dirname, 'assets'))) {
-        fs.mkdirSync(path.join(__dirname, 'assets'));
-    }
-
     const composites = [];
     if (imageBuffer) {
         composites.push({ input: imageBuffer, top: 250, left: 50 });
     }
     composites.push({ input: Buffer.from(svg), top: 0, left: 0 });
 
-    await sharp({
+    return await sharp({
         create: {
             width: width,
             height: height,
@@ -124,9 +119,7 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
     })
     .composite(composites)
     .png()
-    .toFile(outputPath);
-
-    return outputPath;
+    .toBuffer();
 }
 
 module.exports = { generateLorePoster };

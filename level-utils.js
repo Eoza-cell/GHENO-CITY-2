@@ -7,6 +7,7 @@
  * @returns {Promise<boolean>} true if at least one level was gained
  */
 async function checkLevelUp(player, sock) {
+    const { shouldNotifyPlayer } = require('./message-handler');
     await player.reload();
     const xpNeeded = player.level * 100;
     if (player.xp < xpNeeded) return false;
@@ -24,7 +25,7 @@ async function checkLevelUp(player, sock) {
         intelligence: player.intelligence + (levelsGained * 1)
     });
 
-    if (sock) {
+    if (sock && shouldNotifyPlayer(player)) {
         await sock.sendMessage(player.whatsappId, {
             text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${player.level} !\nTes stats ont augmenté.`
         });
