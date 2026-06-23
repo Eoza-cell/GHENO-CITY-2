@@ -43,7 +43,8 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
-  // Scene Logic
+  // Scene Logic: Detect players in the same sub-location (Immediate view)
+  // and players in the same kingdom (Potential interaction/navigation)
   const sceneFilter = {
       location: player.location,
       subLocation: player.subLocation
@@ -65,43 +66,68 @@ async function handleFreeAction(sock, message, player, actionText) {
   const otherActorsCount = nearbyPlayers.filter(p => p.whatsappId !== player.whatsappId).length;
   const isSolo = otherActorsCount === 0;
 
-  if (!isTriggerWord && !isSolo) {
-      await sock.sendMessage(jid, {
-          text: "⏳ *Action enregistrée.*\nAttendez les autres joueurs pour `next`. S'ils ne sont pas là, ils sont immobiles devant vous et ne réagissent à rien."
-      });
-      return;
-  }
-
-  // If "Next" is sent, aggregate all messages since the last MJ response
+  // If "Next" is sent or solo, we need the last MJ message to aggregate actions
   const lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
   });
 
-  const messageQuery = {
-      ...sceneFilter,
+  if (!isTriggerWord && !isSolo) {
+      // Logic to remind the player of the sync mechanic if they send many messages
+      const recentPlayerMsgs = await RPMessage.count({
+          where: {
+              senderJid: player.whatsappId,
+              id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 }
+          }
+      });
+
+      let reminder = "";
+      if (recentPlayerMsgs >= 3) {
+          reminder = "\n\n💡 *Note:* Tu as envoyé plusieurs messages. N'oublie pas de taper `next` quand tu as fini pour obtenir une réponse du MJ.";
+      }
+
+      await sock.sendMessage(jid, {
+          text: `⏳ *Action enregistrée.*${reminder}\nAttendez les autres joueurs pour \`next\`. S'ils ne sont pas là, ils sont immobiles devant vous et ne réagissent à rien.`
+      });
+      return;
+  }
+
+  // Fetch all messages in the KINGDOM to detect people moving toward the scene
+  const kingdomMessageQuery = {
+      location: player.location,
       senderName: { [Op.ne]: 'Arise MJ' }
   };
   if (lastMJMessage) {
-      messageQuery.id = { [Op.gt]: lastMJMessage.id };
+      kingdomMessageQuery.id = { [Op.gt]: lastMJMessage.id };
   }
 
-  const recentActions = await RPMessage.findAll({
+  const recentKingdomActions = await RPMessage.findAll({
       where: {
-          ...messageQuery,
-          content: { [Op.notLike]: 'next' } // Filter out the trigger word itself
+          ...kingdomMessageQuery,
+          content: { [Op.notLike]: 'next' }
       },
       order: [['id', 'ASC']]
   });
 
+  // Keep actions that are in the same sub-location OR interaction with a player here
+  const playersCurrentlyHere = nearbyPlayers.map(p => p.name.toLowerCase());
+  const recentActions = recentKingdomActions.filter(a => {
+      if (a.subLocation === player.subLocation) return true;
+      const content = a.content.toLowerCase();
+      // If someone in another sub-location mentions a player here
+      return playersCurrentlyHere.some(pName => content.includes(pName));
+  });
+
   // Enhanced aggregation: Detect movement and interaction intent
-  const otherPlayerNamesInKingdom = (await Player.findAll({
+  const playersInKingdom = await Player.findAll({
       where: { location: player.location },
-      attributes: ['name']
-  })).map(p => p.name);
+      attributes: ['name', 'subLocation']
+  });
+  const otherPlayerNamesInKingdom = playersInKingdom.map(p => p.name);
 
   let hasMovement = false;
   let hasInteraction = false;
+  let interactionTargetSubLocation = null;
 
   const aggregatedActions = recentActions.length > 0
     ? recentActions.map(a => {
@@ -115,10 +141,13 @@ async function handleFreeAction(sock, message, player, actionText) {
         }
 
         // Detection of interaction
-        for (const targetName of otherPlayerNamesInKingdom) {
-            if (a.senderName !== targetName && lowContent.includes(targetName.toLowerCase())) {
-                prefix = `[🤝 INTERACTION avec ${targetName}] `;
+        for (const p of playersInKingdom) {
+            if (a.senderName !== p.name && lowContent.includes(p.name.toLowerCase())) {
+                prefix = `[🤝 INTERACTION avec ${p.name}] `;
                 hasInteraction = true;
+                if (p.subLocation !== player.subLocation) {
+                    interactionTargetSubLocation = p.subLocation;
+                }
                 break;
             }
         }
@@ -129,8 +158,13 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const hints = [];
   if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise 'update_player' et la description du nouveau lieu.");
-  if (hasInteraction) hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
-  if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue.");
+  if (hasInteraction) {
+      hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
+      if (interactionTargetSubLocation) {
+          hints.push(`⚠️ LE JOUEUR ESSAIE D'INTERAGIR AVEC QUELQU'UN À '${interactionTargetSubLocation}'. Propose-lui de se déplacer là-bas ou fais-les se rencontrer.`);
+      }
+  }
+  if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -308,7 +342,7 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - PRIORITÉ NAVIGATION : Dès qu'un joueur exprime l'intention de se déplacer ("Je vais à...", "Je sors de..."), tu DOIS traiter ce mouvement en priorité absolue via "update_player" et décrire immédiatement l'arrivée au nouveau lieu. Ne laisse pas un PNJ bloquer le passage sans raison scénaristique majeure.
 - ÉCONOMIE VISUELLE : N'utilise "actionVisual" ou "imagePrompt" que pour des changements de lieu ou des actions d'éclat (combat majeur, magie puissante). Ne génère JAMAIS d'image pour une simple apparition de PNJ ou une discussion.
 - AUTO-VÉRIFICATION DES SILOS : Avant de générer la sortie, vérifie : "Le joueur X possède-t-il vraiment l'objet Y ?" et "Le joueur Z est-il mentionné dans une scène où il n'interagit pas ?".
-- STRUCTURE DE RÉPONSE OBLIGATOIRE : Ta narration DOIT être divisée en blocs distincts par joueur, séparés par la ligne '▬▬▬▬▬▬▬▬▬▬▬▬'. Chaque bloc commence par '[NOM_DU_JOUEUR]'.
+- STRUCTURE DE RÉPONSE OBLIGATOIRE : Ta narration DOIT être divisée en blocs distincts par joueur, séparés par la ligne '▬▬▬▬▬▬▬▬▬▬▬▬'. Chaque bloc commence par '[NOM_DU_JOUEUR]'. Si les joueurs sont dans la même pièce et interagissent, tu peux fusionner leur récit dans un bloc commun '[INTERACTION : NOM1 & NOM2]' pour plus de fluidité, puis reprendre les blocs individuels pour leurs conséquences propres.
 - PROXIMITÉ D'INTERACTION : Les joueurs ne peuvent interagir directement QUE s'ils partagent le même "Lieu" ET le même "Sous-lieu" ET qu'ils ont manifesté la volonté d'interagir. Sinon, ils sont totalement ignorés par l'autre fil narratif.
 - Ne mélange JAMAIS les scènes. Si Joueur A est en combat et Joueur B discute, crée deux sections narratives totalement indépendantes.
 - RYTHME NARRATIF : Ne crée pas systématiquement des problèmes ou des combats. Laisse les joueurs respirer, s'entraîner, et vivre des moments de calme ou de triomphe. Le monde est dangereux, mais pas oppressant 100% du temps.
@@ -477,8 +511,8 @@ RÉALITÉ PHYSIQUE:
         'CONTEXTE_DÉTAILLÉ_DES_PERSONNAGES (SILOS ÉTANCHES):',
         sceneCohesionText,
         '',
-        'CONSIGNES DE TRAITEMENT PARALLÈLE:',
-        '1. GÉNÉRATION ISOLÉE : Pour chaque joueur actif, génère sa narration en consultant UNIQUEMENT son silo de données.',
+        'CONSIGNES DE RÉALITÉ UNIFIÉE:',
+        '1. GÉNÉRATION COHÉRENTE : Pour chaque joueur actif, génère sa narration. Si les joueurs interagissent, leurs récits DOIVENT être entrelacés et cohérents.',
         '2. ANTI-HALLUCINATION : Interdiction de mentionner un objet d\'un silo A dans la narration d\'un silo B.',
         '3. STRUCTURE OBLIGATOIRE : Utilise [NOM_DU_JOUEUR] et le séparateur ▬▬▬▬▬▬▬▬▬▬▬▬.',
         '4. RÉALISME : Mentionne les mètres utiles et l\'anatomie en combat.',
@@ -727,12 +761,12 @@ RÉALITÉ PHYSIQUE:
               }
           }
 
-          if (parameters.new_location) {
-              // Ensure we reload context for the new location in future messages
-              await target.update({ location: parameters.new_location, subLocation: parameters.new_sub_location || 'Entrée' });
+          if (parameters.new_location || parameters.new_sub_location) {
+              const updates = {};
+              if (parameters.new_location) updates.location = parameters.new_location;
+              if (parameters.new_sub_location) updates.subLocation = parameters.new_sub_location;
 
-              // Clear previous RP history for this scene to prevent "context carry-over" confusion
-              // (Optional, but helps with "identity" spam in new places)
+              await target.update(updates);
 
               const locationImages = {
                   'Académie Impériale': 'assets/locations/academy.jpg',
@@ -741,9 +775,9 @@ RÉALITÉ PHYSIQUE:
                   'L\'Interstice': 'assets/locations/interstice.jpg'
               };
 
-              // If location changed, we FORCE the location image if available
-              if (locationImages[parameters.new_location]) {
-                  aiResponse.imagePrompt = locationImages[parameters.new_location];
+              const finalLoc = parameters.new_location || target.location;
+              if (locationImages[finalLoc]) {
+                  aiResponse.imagePrompt = locationImages[finalLoc];
               }
               hasChanged = true;
           }
