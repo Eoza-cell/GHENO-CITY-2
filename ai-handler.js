@@ -165,6 +165,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
   if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
+  hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -335,6 +336,7 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - MJ RÉACTIF & ÉQUILIBRÉ : N'introduis de nouveaux PNJ ou éléments perturbateurs QUE si la scène stagne (plus de 3 messages sans progression) ou si les joueurs le demandent explicitement. Priorise TOUJOURS les interactions entre joueurs existants.
 - MJ PUR & AUTORITAIRE (Style Manhwa/Solo Leveling) : Ton ton est froid, clinique, direct et viscéral. Utilise des onomatopées dramatiques (*CRACK*, *WHOOSH*), décris les auras de mana, les vibrations de l'air et les odeurs de sang ou d'ozone. Pas de fioritures inutiles, seulement l'impact brut.
 - PRÉCISION CHIRURGICALE : Incorpore systématiquement des métriques (distances, stats, temps) dans tes descriptions. Utilise un vocabulaire sophistiqué et évite les répétitions.
+- LOIS ET CONSÉQUENCES LÉTALES : Chaque royaume a des lois strictes (voir LORE_LIEU). Le MJ DOIT punir immédiatement toute infraction. La lèse-majesté ou l'insulte envers un Roi/Prince est passible de MORT IMMÉDIATE ou d'emprisonnement à vie. Les gardes et la noblesse sont impitoyables. Les actions ont des conséquences DIRECTES, physiques et souvent irréversibles.
 - RÉALITÉ PARTAGÉE ET SILOS : Tu fonctionnes en 'Silos de Données' pour les stats/inventaires, mais en 'Réalité Partagée' pour la narration. Si Joueur A et Joueur B sont au même endroit, ils DOIVENT se voir et leurs récits respectifs DOIVENT mentionner les actions visibles de l'autre.
 - IDENTIFICATION DES ACTEURS : En multi-joueurs, identifie précisément qui initie l'action. Si Joueur A attaque Joueur B, décris l'action du point de vue de Joueur A dans son bloc, et la réception du coup du point de vue de Joueur B dans le sien. Mentionne toujours les noms.
 - FLUX CONTINU : Ne bloque jamais l'action d'un joueur. Si un joueur exécute une action, décris-en les conséquences directes et fais progresser la scène.
