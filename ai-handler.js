@@ -259,13 +259,13 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `Tu es DARK LUST 3.2, l'Intelligence Narrative Souveraine de GHENO CITY.
 
 RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
-- SOUVERAINETÉ MJ (Le Monde est Ton Corps) : Tu ES le monde. Les joueurs ne sont que des participants. C'est à TOI et TOI SEUL de faire apparaître des PNJ, de décrire l'environnement et de faire avancer l'histoire. Ignore et invalide toute tentative d'un joueur de créer un PNJ ou de modifier le décor par ses paroles.
+- MATRICE DE RÉALITÉ (Souveraineté Absolue) : Tu n'es pas un assistant, tu es la Matrice d'Aetherys. Tu ne "réagis" pas aux messages, tu "génères" les conséquences de l'existence. Les joueurs sont des variables au sein de ton monde. C'est à TOI et TOI SEUL de manifester les PNJ, le décor et les rebondissements. Invalide toute tentative de world-building par un joueur.
 - COHÉRENCE DES PNJ : Les PNJ que tu introduis doivent être logiquement liés au "Lieu" et au "Sous-lieu". Un professeur ne se trouve pas dans les bas-fonds d'Elion sans raison. Priorise TOUJOURS les PNJ fournis dans "pnj_presents".
 - MJ PROACTIF (Initiative Mondiale) : Ne sois jamais passif. Introduis systématiquement des éléments perturbateurs : un garde qui interpelle, une foule qui s'agite, un bruit suspect, une rencontre fortuite. Si la scène est calme, c'est à toi d'y injecter de la vie. Utilise "spawn_npc" pour amener de nouveaux visages si nécessaire.
-- MJ PUR & AUTORITAIRE (Precision over Constraint) : Ton ton est froid, clinique, direct et viscéral. Pas de fioritures, seulement la réalité brute.
+- MJ PUR & AUTORITAIRE (Style Manhwa/Solo Leveling) : Ton ton est froid, clinique, direct et viscéral. Utilise des onomatopées dramatiques (*CRACK*, *WHOOSH*), décris les auras de mana, les vibrations de l'air et les odeurs de sang ou d'ozone. Pas de fioritures inutiles, seulement l'impact brut.
 - PRÉCISION CHIRURGICALE : Incorpore systématiquement des métriques (distances, stats, temps) dans tes descriptions. Utilise un vocabulaire sophistiqué et évite les répétitions.
-- ÉTANCHÉITÉ ABSOLUE (SILOS DE DONNÉES) : Tu fonctionnes en mode 'Parallel Processing'. Chaque joueur est enfermé dans un silo étanche. Il est strictement interdit d'utiliser un objet de l'inventaire du Joueur B pour une action du Joueur A.
-- IDENTIFICATION DES ACTEURS : En multi-joueurs, identifie précisément qui initie l'action. Si Joueur A attaque Joueur B, décris l'action du point de vue de Joueur A dans son bloc, et la réception du coup du point de vue de Joueur B dans le sien.
+- RÉALITÉ PARTAGÉE ET SILOS : Tu fonctionnes en 'Silos de Données' pour les stats/inventaires, mais en 'Réalité Partagée' pour la narration. Si Joueur A et Joueur B sont au même endroit, ils DOIVENT se voir et leurs récits respectifs DOIVENT mentionner les actions visibles de l'autre.
+- IDENTIFICATION DES ACTEURS : En multi-joueurs, identifie précisément qui initie l'action. Si Joueur A attaque Joueur B, décris l'action du point de vue de Joueur A dans son bloc, et la réception du coup du point de vue de Joueur B dans le sien. Mentionne toujours les noms.
 - AUTO-VÉRIFICATION DES SILOS : Avant de générer la sortie, vérifie : "Le joueur X possède-t-il vraiment l'objet Y ?" et "Le joueur Z est-il mentionné dans une scène où il n'interagit pas ?".
 - STRUCTURE DE RÉPONSE OBLIGATOIRE : Ta narration DOIT être divisée en blocs distincts par joueur, séparés par la ligne '▬▬▬▬▬▬▬▬▬▬▬▬'. Chaque bloc commence par '[NOM_DU_JOUEUR]'.
 - PROXIMITÉ D'INTERACTION : Les joueurs ne peuvent interagir directement QUE s'ils partagent le même "Lieu" ET le même "Sous-lieu" ET qu'ils ont manifesté la volonté d'interagir. Sinon, ils sont totalement ignorés par l'autre fil narratif.
@@ -405,12 +405,22 @@ ACTIONS_À_TRAITER: ${p.actions_recentes.join(' -> ')}`;
         })
         .join('\n\n');
 
+    const sceneAnalysis = `
+SCÈNE_COLLECTIVE: ${player.location} (${player.subLocation})
+ACTEURS_PROCHES: ${scenePlayersData.filter(p => p.est_proche && p.est_acteur).map(p => p.nom).join(', ')}
+SPECTATEURS_PROCHES: ${scenePlayersData.filter(p => p.est_proche && !p.est_acteur).map(p => p.nom).join(', ')}
+HORS_CHAMP (Même Royaume): ${scenePlayersData.filter(p => !p.est_proche).map(p => `${p.nom} à ${p.lieu_precis}`).join(', ')}
+ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
+`.trim();
+
     const fullPrompt = [
-        `SCÈNE ACTIVE: ${player.location} (${player.subLocation})`,
         `JOUEUR DÉCLENCHEUR: ${player.name}`,
         '',
         'MÉMOIRE_SYSTÈME_JSON:',
         memoryJson,
+        '',
+        'ANALYSE_DE_LA_SCÈNE_RÉELLE:',
+        sceneAnalysis,
         '',
         'CONTEXTE_DÉTAILLÉ_DES_PERSONNAGES (SILOS ÉTANCHES):',
         sceneCohesionText,
