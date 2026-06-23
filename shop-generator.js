@@ -1,21 +1,6 @@
 const sharp = require('sharp');
 const path = require('path');
-
-/**
- * Escapes characters for SVG/XML.
- */
-function escapeXml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe.replace(/[<>&'"]/g, function (c) {
-        switch (c) {
-            case '<': return '&lt;';
-            case '>': return '&gt;';
-            case '&': return '&amp;';
-            case '\'': return '&apos;';
-            case '"': return '&quot;';
-        }
-    });
-}
+const { escapeXml } = require('./utils');
 
 /**
  * Generates a visual catalog for shop items using SVG and Sharp.

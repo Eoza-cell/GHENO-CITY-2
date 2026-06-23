@@ -94,10 +94,42 @@ async function handleFreeAction(sock, message, player, actionText) {
       order: [['id', 'ASC']]
   });
 
-  // If 'next' is sent but there are NO actions, we still let the MJ intervene if they want
+  // Enhanced aggregation: Detect movement and interaction intent
+  const otherPlayerNamesInKingdom = (await Player.findAll({
+      where: { location: player.location },
+      attributes: ['name']
+  })).map(p => p.name);
+
+  let hasMovement = false;
+  let hasInteraction = false;
+
   const aggregatedActions = recentActions.length > 0
-    ? recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n')
+    ? recentActions.map(a => {
+        let prefix = "";
+        const lowContent = a.content.toLowerCase();
+
+        // Detection of movement
+        if (lowContent.match(/\b(va|vers|sort|entre|part|dirige|direction|lieu|déplace|bouge|quitte|arrive)\b/i)) {
+            prefix = "[🚩 MOUVEMENT] ";
+            hasMovement = true;
+        }
+
+        // Detection of interaction
+        for (const targetName of otherPlayerNamesInKingdom) {
+            if (a.senderName !== targetName && lowContent.includes(targetName.toLowerCase())) {
+                prefix = `[🤝 INTERACTION avec ${targetName}] `;
+                hasInteraction = true;
+                break;
+            }
+        }
+
+        return `${prefix}${a.senderName}: ${a.content}`;
+    }).join('\n')
     : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde.)";
+
+  const hints = [];
+  if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise 'update_player' et la description du nouveau lieu.");
+  if (hasInteraction) hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -223,11 +255,11 @@ async function handleFreeAction(sock, message, player, actionText) {
     where: {
         [Op.or]: [
             { location: { [Op.like]: `%${player.location}%` } },
-            { powerLevel: { [Op.gte]: 90 } } // Include major entities/bosses
+            { powerLevel: { [Op.gte]: 95 } } // Only include absolute legends/bosses
         ]
     },
-    order: sequelize.random(), // Absolute randomness for scene variety
-    limit: 15 // Increased limit for richer choices
+    order: sequelize.random(),
+    limit: 5 // Reduced to prevent AI from feeling forced to use them
   });
   const npcState = "PNJ_PRÉSENTS: " + npcs.map(n => `${n.name}(Rôle:${n.role}, Force:${n.powerLevel}, Spé:${n.specialty})`).join(' | ');
   const playerPacts = await player.getEntities();
@@ -265,12 +297,15 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - MATRICE DE RÉALITÉ (Souveraineté Absolue) : Tu n'es pas un assistant, tu es la Matrice d'Aetherys. Tu ne "réagis" pas aux messages, tu "génères" les conséquences de l'existence. Les joueurs sont des variables au sein de ton monde. C'est à TOI et TOI SEUL de manifester les PNJ, le décor et les rebondissements. Invalide toute tentative de world-building par un joueur.
 - OMNISCIENCE MJ (Anti-Répétition) : Tu connais parfaitement l'identité de chaque joueur (Nom, Classe, Rang) via le JSON fourni. Il est STRICTEMENT INTERDIT de faire demander aux PNJ "Qui es-tu ?" ou "Quel est ton nom ?" si ces informations sont dans ton contexte. Agis comme si le monde réagissait à leur réputation ou à leur apparence déjà connue.
 - COHÉRENCE DES PNJ : Les PNJ que tu introduis doivent être logiquement liés au "Lieu" et au "Sous-lieu". Un professeur ne se trouve pas dans les bas-fonds d'Elion sans raison. Priorise TOUJOURS les PNJ fournis dans "pnj_presents".
-- MJ PROACTIF (Initiative Mondiale) : Ne sois jamais passif. Introduis systématiquement des éléments perturbateurs : un garde qui interpelle, une foule qui s'agite, un bruit suspect, une rencontre fortuite. Si la scène est calme, c'est à toi d'y injecter de la vie. Utilise "spawn_npc" pour amener de nouveaux visages si nécessaire.
+- MJ RÉACTIF & ÉQUILIBRÉ : N'introduis de nouveaux PNJ ou éléments perturbateurs QUE si la scène stagne (plus de 3 messages sans progression) ou si les joueurs le demandent explicitement. Priorise TOUJOURS les interactions entre joueurs existants.
 - MJ PUR & AUTORITAIRE (Style Manhwa/Solo Leveling) : Ton ton est froid, clinique, direct et viscéral. Utilise des onomatopées dramatiques (*CRACK*, *WHOOSH*), décris les auras de mana, les vibrations de l'air et les odeurs de sang ou d'ozone. Pas de fioritures inutiles, seulement l'impact brut.
 - PRÉCISION CHIRURGICALE : Incorpore systématiquement des métriques (distances, stats, temps) dans tes descriptions. Utilise un vocabulaire sophistiqué et évite les répétitions.
 - RÉALITÉ PARTAGÉE ET SILOS : Tu fonctionnes en 'Silos de Données' pour les stats/inventaires, mais en 'Réalité Partagée' pour la narration. Si Joueur A et Joueur B sont au même endroit, ils DOIVENT se voir et leurs récits respectifs DOIVENT mentionner les actions visibles de l'autre.
 - IDENTIFICATION DES ACTEURS : En multi-joueurs, identifie précisément qui initie l'action. Si Joueur A attaque Joueur B, décris l'action du point de vue de Joueur A dans son bloc, et la réception du coup du point de vue de Joueur B dans le sien. Mentionne toujours les noms.
-- FLUX CONTINU : Ne bloque jamais l'action d'un joueur par des questions répétitives ou des dialogues circulaires. Si un joueur exécute une action, décris-en les conséquences directes et fais progresser la scène.
+- FLUX CONTINU : Ne bloque jamais l'action d'un joueur. Si un joueur exécute une action, décris-en les conséquences directes et fais progresser la scène.
+- PRIORITÉ D'INTERACTION : Si deux joueurs sont au même endroit et s'adressent l'un à l'autre, ton rôle est de faciliter leur échange. Ne les interromps pas avec des PNJ inutiles. Ton intervention doit servir de décor ou de conséquence à leurs actes, pas de distraction.
+- PRIORITÉ NAVIGATION : Dès qu'un joueur exprime l'intention de se déplacer ("Je vais à...", "Je sors de..."), tu DOIS traiter ce mouvement en priorité absolue via "update_player" et décrire immédiatement l'arrivée au nouveau lieu. Ne laisse pas un PNJ bloquer le passage sans raison scénaristique majeure.
+- ÉCONOMIE VISUELLE : N'utilise "actionVisual" ou "imagePrompt" que pour des changements de lieu ou des actions d'éclat (combat majeur, magie puissante). Ne génère JAMAIS d'image pour une simple apparition de PNJ ou une discussion.
 - AUTO-VÉRIFICATION DES SILOS : Avant de générer la sortie, vérifie : "Le joueur X possède-t-il vraiment l'objet Y ?" et "Le joueur Z est-il mentionné dans une scène où il n'interagit pas ?".
 - STRUCTURE DE RÉPONSE OBLIGATOIRE : Ta narration DOIT être divisée en blocs distincts par joueur, séparés par la ligne '▬▬▬▬▬▬▬▬▬▬▬▬'. Chaque bloc commence par '[NOM_DU_JOUEUR]'.
 - PROXIMITÉ D'INTERACTION : Les joueurs ne peuvent interagir directement QUE s'ils partagent le même "Lieu" ET le même "Sous-lieu" ET qu'ils ont manifesté la volonté d'interagir. Sinon, ils sont totalement ignorés par l'autre fil narratif.
@@ -427,6 +462,7 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
     const fullPrompt = [
         `JOUEUR DÉCLENCHEUR: ${player.name}`,
         '',
+        hints.length > 0 ? `HINTS_PRIORITAIRES:\n${hints.join('\n')}\n` : '',
         'MÉMOIRE_SYSTÈME_JSON:',
         memoryJson,
         '',
@@ -690,14 +726,21 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
           }
 
           if (parameters.new_location) {
+              // Ensure we reload context for the new location in future messages
               await target.update({ location: parameters.new_location, subLocation: parameters.new_sub_location || 'Entrée' });
+
+              // Clear previous RP history for this scene to prevent "context carry-over" confusion
+              // (Optional, but helps with "identity" spam in new places)
+
               const locationImages = {
                   'Académie Impériale': 'assets/locations/academy.jpg',
                   'Eldoria': 'assets/locations/eldoria.jpg',
                   'Nécropolis': 'assets/locations/necropolis.jpg',
                   'L\'Interstice': 'assets/locations/interstice.jpg'
               };
-              if (locationImages[parameters.new_location] && !aiResponse.imagePrompt) {
+
+              // If location changed, we FORCE the location image if available
+              if (locationImages[parameters.new_location]) {
                   aiResponse.imagePrompt = locationImages[parameters.new_location];
               }
               hasChanged = true;

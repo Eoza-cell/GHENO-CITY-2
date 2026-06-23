@@ -1,22 +1,7 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
-
-/**
- * Escapes characters for SVG/XML.
- */
-function escapeXml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe.replace(/[<>&'"]/g, function (c) {
-        switch (c) {
-            case '<': return '&lt;';
-            case '>': return '&gt;';
-            case '&': return '&amp;';
-            case '\'': return '&apos;';
-            case '"': return '&quot;';
-        }
-    });
-}
+const { escapeXml } = require('./utils');
 
 /**
  * Generates an immersive action visual by overlaying text and descriptions on local assets.
