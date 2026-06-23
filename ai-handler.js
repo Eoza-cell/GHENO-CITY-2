@@ -1107,35 +1107,40 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
             break;
         }
 
-        case 'forge_pact': {
-            if (parameters.entityName) {
-                const entity = await Entity.findOne({
-                    where: { name: { [Op.like]: `%${parameters.entityName}%` } },
-                    include: [{ model: Player, as: 'Players' }]
-                });
-                if (entity) {
-                    const pactCount = entity.Players?.length || 0;
-                    if (pactCount > 0) {
-                        questFeedback.push(`⚠️ *ÉCHEC DU PACTE* : ${entity.name} est déjà lié à un autre mortel. Un seul élu par entité.`);
-                    } else {
-                        const hasPact = await target.hasEntity(entity);
-                        if (!hasPact) {
-                            await target.addEntity(entity);
-                            const bonuses = entity.pactBonus || {};
-                            for (const [stat, value] of Object.entries(bonuses)) {
-                                if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
-                                    await target.increment(stat, { by: value });
-                                }
-                            }
-                            await target.save();
-                            await target.reload();
-                            questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
-                        }
-                    }
-                }
-            }
-            break;
-        }
+case 'forge_pact': {
+             if (parameters.entityName) {
+                 const entity = await Entity.findOne({
+                     where: { name: { [Op.like]: `%${parameters.entityName}%` } },
+                     include: [{ model: Player, as: 'Players' }]
+                 });
+                 if (entity) {
+                     const pactCount = entity.Players?.length || 0;
+                     // Check rank requirement: minimum rank C
+                     const rankOrder = ['F', 'E', 'D', 'C', 'B', 'A', 'S'];
+                     const targetRankIndex = rankOrder.indexOf(target.rank);
+                     if (targetRankIndex < 3) { // C is index 3
+                         questFeedback.push(`❌ *ÉCHEC DU PACTE* : ${target.name} (Rang ${target.rank}) n'a pas le rang requis (C minimum) pour sceller un pacte avec ${entity.name}.`);
+                     } else if (pactCount > 0) {
+                         questFeedback.push(`⚠️ *ÉCHEC DU PACTE* : ${entity.name} est déjà lié à un autre mortel. Un seul élu par entité.`);
+                     } else {
+                         const hasPact = await target.hasEntity(entity);
+                         if (!hasPact) {
+                             await target.addEntity(entity);
+                             const bonuses = entity.pactBonus || {};
+                             for (const [stat, value] of Object.entries(bonuses)) {
+                                 if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                                     await target.increment(stat, { by: value });
+                                 }
+                             }
+                             await target.save();
+                             await target.reload();
+                             questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
+                         }
+                     }
+                 }
+             }
+             break;
+         }
 
         case 'join_club': {
             if (parameters.clubName) {

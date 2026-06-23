@@ -5,23 +5,59 @@ const WORLD_NAME = 'AETHERYS';
 
 const KINGDOMS = [
     {
-        name: "Empire Impérial d'Elion", short: "EMPIRE D'ELION", status: 'Paix',
+        name: "Empire d'Elion", short: "EMPIRE D'ELION", status: 'Paix',
         color: '#f4c542', fill: 'rgba(244,197,66,0.16)',
         labelPos: [620, 410],
+        cuisine: 'Poulet glastig aux champignons noirs, soupe d\'or, pain de mana',
+        clothing: 'Uniformes impeccables, robes nobles, armures ornées',
         polygon: [[470, 360], [760, 320], [880, 470], [820, 690], [560, 740], [430, 600]]
     },
     {
-        name: 'Royaume de Valkyrr', short: 'VALKYRR', status: 'Trêve',
+        name: 'Royaume de Valkyr', short: 'VALKYR', status: 'Trêve',
         color: '#9fd8ff', fill: 'rgba(159,216,255,0.14)',
         labelPos: [520, 200],
+        cuisine: 'Poisson vapeur d\'éther, ramen magique, tempura énergétique',
+        clothing: 'Kimono technomagiques, uniformes d\'académie, vêtements élégants',
         polygon: [[360, 150], [720, 130], [770, 300], [470, 350], [330, 300]]
     },
     {
         name: 'Dominion Noir de Vharos', short: 'DOMINION NOIR', status: 'Guerre',
         color: '#b06bff', fill: 'rgba(150,70,220,0.20)',
         labelPos: [890, 560],
+        cuisine: 'Viande séchée, pain d\'os, breuvage de sang',
+        clothing: 'Armures noircies, capes de liche, tissus maudits',
         polygon: [[830, 480], [1040, 540], [1060, 760], [880, 850], [770, 720], [840, 600]]
+    },
+    {
+        name: 'Nécropolis', short: 'NÉCROPOLIS', status: 'Neutre',
+        color: '#7a8cff', fill: 'rgba(122,140,255,0.18)',
+        labelPos: [940, 790],
+        cuisine: 'Pain d\'ombres, breuvage translucide, épices funéraires',
+        clothing: 'Rouges funéraires, perles funéraires, robes de deuil',
+        polygon: [[930, 780], [970, 750], [1000, 800], [960, 830]]
+    },
+    {
+        name: 'L\'Interstice', short: 'INTERSTICE', status: 'Instable',
+        color: '#ff6b9d', fill: 'rgba(255,107,157,0.12)',
+        labelPos: [350, 80],
+        cuisine: 'Rien - dimension éthérée',
+        clothing: 'Apparence changeante, formes fluides',
+        polygon: [[300, 60], [400, 40], [450, 100], [350, 120]]
     }
+];
+
+const VILLAGES = [
+    { name: 'Hoshi', sub: 'Village artisanal', kingdom: 'Valkyr', x: 420, y: 180, specialty: 'Forgeron' },
+    { name: 'Kuro', sub: 'Village des ombres', kingdom: 'Elion', x: 520, y: 680, specialty: 'Alchimie' },
+    { name: 'Shinrin', sub: 'Village forestier', kingdom: 'Valkyr', x: 340, y: 220, specialty: 'Herboristerie' },
+    { name: 'Ashikaga', sub: 'Monastère guerrier', kingdom: 'Elion', x: 680, y: 520, specialty: 'Technique' }
+];
+
+const ROYALS = [
+    { name: 'Empereur Valerius II', title: 'Souverain d\'Elion', x: 660, y: 600, kingdom: 'Empire d\'Elion' },
+    { name: 'Archimage Kaelen', title: 'Conseiller de Valkyr', x: 520, y: 200, kingdom: 'Royaume de Valkyr' },
+    { name: 'Seigneur Vharos', title: 'Apôtre maudit', x: 850, y: 650, kingdom: 'Dominion Noir de Vharos' },
+    { name: 'Princesse Seraphina', title: 'Héritière d\'Elion', x: 660, y: 580, kingdom: 'Empire d\'Elion' }
 ];
 
 const CONTINENT = [
@@ -114,6 +150,24 @@ async function generateWorldMapImage() {
         `;
     });
 
+    let villagesSvg = '';
+    VILLAGES.forEach(v => {
+        villagesSvg += `
+            <rect x="${v.x - 4}" y="${v.y - 4}" width="8" height="8" fill="#a8d8ff" stroke="#5a7a4a" stroke-width="1" />
+            <text x="${v.x + 12}" y="${v.y - 2}" dominant-baseline="middle" font-family="serif" font-weight="bold" font-size="13" fill="#2a4a2a">${v.name}</text>
+            <text x="${v.x + 12}" y="${v.y + 11}" dominant-baseline="middle" font-family="serif" font-style="italic" font-size="10" fill="#5c7a4a">${v.specialty}</text>
+        `;
+    });
+
+    let royalsSvg = '';
+    ROYALS.forEach(r => {
+        royalsSvg += `
+            <circle cx="${r.x}" cy="${r.y}" r="10" fill="none" stroke="#ffd700" stroke-width="3" style="filter: drop-shadow(0 0 5px #ffd700);" />
+            <text x="${r.x}" y="${r.y - 18}" text-anchor="middle" font-family="serif" font-weight="bold" font-size="12" fill="#ffd700">${r.name}</text>
+            <text x="${r.x}" y="${r.y + 22}" text-anchor="middle" font-family="serif" font-style="italic" font-size="10" fill="#c9a24a">${r.title}</text>
+        `;
+    });
+
     const svg = `
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -139,10 +193,11 @@ async function generateWorldMapImage() {
             ${kingdomsSvg}
         </g>
 
-        ${labelsSvg}
+${labelsSvg}
         ${dungeonsSvg}
+        ${villagesSvg}
         ${citiesSvg}
-
+        ${royalsSvg}
         <!-- Title -->
         <rect x="${W/2 - 320}" y="24" width="640" height="78" fill="rgba(20,12,6,0.72)" stroke="#c9a24a" stroke-width="3" />
         <text x="${W/2}" y="64" text-anchor="middle" font-family="serif" font-weight="bold" font-size="44" fill="#f4e3b0">CARTE DU MONDE — ${WORLD_NAME}</text>
