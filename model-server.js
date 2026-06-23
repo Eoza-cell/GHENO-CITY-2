@@ -1,5 +1,5 @@
 const http = require('http');
-const { Player, NPC, Kingdom, WorldJournal, RPMessage } = require('./database');
+const { Player, NPC, Kingdom, WorldJournal, RPMessage, Conflict } = require('./database');
 const { callAI } = require('./ai-utils');
 const { Op } = require('sequelize');
 

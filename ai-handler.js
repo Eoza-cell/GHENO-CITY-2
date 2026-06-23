@@ -123,14 +123,14 @@ async function handleFreeAction(sock, message, player, actionText) {
       await player.update({ lastActivity: new Date() });
   }
 
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
 
   const playerQuests = await player.getQuests();
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
-  const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`).join(',') : "Pas de quête";
+  const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%, Récompense:${q.reward})`).join(',') : "Pas de quête";
 
   const availableQuests = await Quest.findAll({ where: { rank_required: player.rank }, limit: 2 });
   const availableQuestState = "Dispo: " + availableQuests.map(q => q.title).join(',');
@@ -169,7 +169,9 @@ async function handleFreeAction(sock, message, player, actionText) {
           competences: pSkills.map(s => s.name),
           pactes: pPacts.map(e => e.name),
           clubs: pClubs.map(c => c.name),
-          quetes_actives: pActiveQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`),
+          quetes_actives: pActiveQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%)`),
+          recherche: p.wantedLevel > 0 ? `Niveau ${p.wantedLevel}` : "Non recherché",
+          est_prisonnier: p.isPrisoner,
           actions_recentes: pActions.length > 0 ? pActions : ["Hors-champ ou Immobile"]
       };
   }));
@@ -196,7 +198,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const history = await RPMessage.findAll({
       where: sceneFilter,
       order: [['id', 'DESC']],
-      limit: 30
+      limit: 75
   });
   const historyState = history.length > 0
     ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
@@ -205,7 +207,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   // Fetch World Journal entries for Long Term Memory
   const journal = await WorldJournal.findAll({
       order: [['id', 'DESC']],
-      limit: 15
+      limit: 40
   });
   const journalState = journal.length > 0
     ? journal.reverse().map(j => ({ cat: j.category, entry: j.entry }))
@@ -259,13 +261,16 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `Tu es DARK LUST 3.2, l'Intelligence Narrative Souveraine de GHENO CITY.
 
 RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
+- CHRONOLOGIE CRITIQUE : Respecte l'ordre exact des messages fournis dans "CHRONOLOGIE_DES_ACTIONS". Traite les actions les unes après les autres. Si Joueur A attaque Joueur B puis Joueur B répond, ta narration doit refléter cet enchaînement exact.
 - MATRICE DE RÉALITÉ (Souveraineté Absolue) : Tu n'es pas un assistant, tu es la Matrice d'Aetherys. Tu ne "réagis" pas aux messages, tu "génères" les conséquences de l'existence. Les joueurs sont des variables au sein de ton monde. C'est à TOI et TOI SEUL de manifester les PNJ, le décor et les rebondissements. Invalide toute tentative de world-building par un joueur.
+- OMNISCIENCE MJ (Anti-Répétition) : Tu connais parfaitement l'identité de chaque joueur (Nom, Classe, Rang) via le JSON fourni. Il est STRICTEMENT INTERDIT de faire demander aux PNJ "Qui es-tu ?" ou "Quel est ton nom ?" si ces informations sont dans ton contexte. Agis comme si le monde réagissait à leur réputation ou à leur apparence déjà connue.
 - COHÉRENCE DES PNJ : Les PNJ que tu introduis doivent être logiquement liés au "Lieu" et au "Sous-lieu". Un professeur ne se trouve pas dans les bas-fonds d'Elion sans raison. Priorise TOUJOURS les PNJ fournis dans "pnj_presents".
 - MJ PROACTIF (Initiative Mondiale) : Ne sois jamais passif. Introduis systématiquement des éléments perturbateurs : un garde qui interpelle, une foule qui s'agite, un bruit suspect, une rencontre fortuite. Si la scène est calme, c'est à toi d'y injecter de la vie. Utilise "spawn_npc" pour amener de nouveaux visages si nécessaire.
 - MJ PUR & AUTORITAIRE (Style Manhwa/Solo Leveling) : Ton ton est froid, clinique, direct et viscéral. Utilise des onomatopées dramatiques (*CRACK*, *WHOOSH*), décris les auras de mana, les vibrations de l'air et les odeurs de sang ou d'ozone. Pas de fioritures inutiles, seulement l'impact brut.
 - PRÉCISION CHIRURGICALE : Incorpore systématiquement des métriques (distances, stats, temps) dans tes descriptions. Utilise un vocabulaire sophistiqué et évite les répétitions.
 - RÉALITÉ PARTAGÉE ET SILOS : Tu fonctionnes en 'Silos de Données' pour les stats/inventaires, mais en 'Réalité Partagée' pour la narration. Si Joueur A et Joueur B sont au même endroit, ils DOIVENT se voir et leurs récits respectifs DOIVENT mentionner les actions visibles de l'autre.
 - IDENTIFICATION DES ACTEURS : En multi-joueurs, identifie précisément qui initie l'action. Si Joueur A attaque Joueur B, décris l'action du point de vue de Joueur A dans son bloc, et la réception du coup du point de vue de Joueur B dans le sien. Mentionne toujours les noms.
+- FLUX CONTINU : Ne bloque jamais l'action d'un joueur par des questions répétitives ou des dialogues circulaires. Si un joueur exécute une action, décris-en les conséquences directes et fais progresser la scène.
 - AUTO-VÉRIFICATION DES SILOS : Avant de générer la sortie, vérifie : "Le joueur X possède-t-il vraiment l'objet Y ?" et "Le joueur Z est-il mentionné dans une scène où il n'interagit pas ?".
 - STRUCTURE DE RÉPONSE OBLIGATOIRE : Ta narration DOIT être divisée en blocs distincts par joueur, séparés par la ligne '▬▬▬▬▬▬▬▬▬▬▬▬'. Chaque bloc commence par '[NOM_DU_JOUEUR]'.
 - PROXIMITÉ D'INTERACTION : Les joueurs ne peuvent interagir directement QUE s'ils partagent le même "Lieu" ET le même "Sous-lieu" ET qu'ils ont manifesté la volonté d'interagir. Sinon, ils sont totalement ignorés par l'autre fil narratif.
@@ -274,6 +279,7 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - APÔTRES : Ce sont des entités rarissimes. Ils ne se trouvent que dans des lieux spécifiques (Interstice, Sanctuaires maudits) et ne traquent pas les joueurs sans raison majeure.
 - COMMERCE IA : Tu peux désormais traiter les achats directement via "buy_item". Si un joueur veut acheter un objet présent dans le "Shop" du contexte, utilise cette action.
 - GESTIONNAIRE DE FICHE (AUTORITÉ ABSOLUE) : Tu es responsable de la cohérence et de l'évolution des fiches de personnage. Utilise systématiquement "update_player" pour refléter chaque changement narratif (montée en grade, changement de classe, modification physique, évolution de la bio, gain de titre).
+- INVENTAIRE ET STATS : Si tu décris qu'un joueur perd un objet, en gagne un, ou subit une blessure, tu DOIS impérativement utiliser l'action correspondante (add_item, remove_item, update_player) immédiatement. Ne te contente pas de la narration.
 - Tu peux modifier l'intégralité de l'état des joueurs (PV, PM, faim, sommeil, bio, lieu, nom, classe, rang) via des actions.
 - RÉCOMPENSE D'ENTRAÎNEMENT : Tu peux augmenter les statistiques de base (FOR, AGI, INT, DEF, LUK) ou l'argent (COL) d'un joueur s'il réalise un entraînement complexe, intensif ou une action particulièrement brillante et détaillée.
 - Équilibre les gains : +1 ou +2 pour un entraînement classique, plus pour un exploit héroïque (+5 ou plus).
@@ -286,6 +292,7 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 MOUVEMENT ET GÉOGRAPHIE:
 - NAVIGATION SYSTÈME : Les joueurs peuvent se déplacer en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_player" pour modifier son "new_location" ou son "new_sub_location".
 - DESCRIPTION DE DÉCORS : Chaque changement de lieu doit s'accompagner d'une description riche et immersive du nouvel environnement, basée sur le LORE_LIEU fourni.
+- DISCRÉTION & FUITE (Système de Recherche) : Si un joueur a un "Wanted Level" > 0, il peut tenter de se cacher ou de fuir. Si son action de discrétion est réussie (test AGI/LUK vs INT des gardes), tu peux utiliser "update_player" avec "wantedLevel_change: -1". À 0, le joueur n'est plus recherché.
 
 COMBAT, DOMINATION ET INGÉNIOSITÉ:
 - LÉTHALITÉ DES STATS : Les statistiques sont sacrées. Un adversaire avec des stats supérieures doit infliger des dégâts massifs et des traumatismes anatomiques (fractures, hémorragies, perte de membres). Ne sois pas clément.
@@ -315,8 +322,8 @@ FORMAT DE SORTIE:
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
-- update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
-- update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank, new_location, new_sub_location.
+- update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, release_player, forge_pact, join_club, resurrect_player, write_journal.
+- update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank, new_location, new_sub_location, wantedLevel_change.
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
 - add_skill : { "skillName": "nom", "target_name": "nom" }.
@@ -398,6 +405,7 @@ STATUS: ${status}
 ÉTAT_PHYSIQUE: ${p.etat}
 DESCRIPTION: ${p.description}
 CLASSE_ACTUELLE: ${p.classe}
+RECHERCHE_CRIMINELLE: ${p.recherche} | PRISONNIER: ${p.est_prisonnier ? 'OUI' : 'NON'}
 INVENTAIRE_PRIVÉ: ${p.inventaire.join(', ')}
 COMPÉTENCES_UNIQUES: ${p.competences.join(', ')}
 OBJECTIFS_PERSONNELS: ${p.quetes_actives.join(', ')}
@@ -407,6 +415,9 @@ ACTIONS_À_TRAITER: ${p.actions_recentes.join(' -> ')}`;
 
     const sceneAnalysis = `
 SCÈNE_COLLECTIVE: ${player.location} (${player.subLocation})
+CHRONOLOGIE_DES_ACTIONS (ORDRE STRICT):
+${aggregatedActions}
+
 ACTEURS_PROCHES: ${scenePlayersData.filter(p => p.est_proche && p.est_acteur).map(p => p.nom).join(', ')}
 SPECTATEURS_PROCHES: ${scenePlayersData.filter(p => p.est_proche && !p.est_acteur).map(p => p.nom).join(', ')}
 HORS_CHAMP (Même Royaume): ${scenePlayersData.filter(p => !p.est_proche).map(p => `${p.nom} à ${p.lieu_precis}`).join(', ')}
@@ -421,6 +432,9 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
         '',
         'ANALYSE_DE_LA_SCÈNE_RÉELLE:',
         sceneAnalysis,
+        '',
+        'CHRONOLOGIE_GLOBALE:',
+        aggregatedActions,
         '',
         'CONTEXTE_DÉTAILLÉ_DES_PERSONNAGES (SILOS ÉTANCHES):',
         sceneCohesionText,
@@ -569,23 +583,42 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
     let profileUpdateTriggered = false;
 
     // Process AI actions
+    const notifiedTargets = new Set();
+    const playerTargetableActions = ['update_player', 'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'arrest_player', 'set_wanted_level', 'release_player', 'manage_house', 'set_academic_status', 'get_player_details', 'modify_reputation', 'resurrect_player', 'forge_pact', 'join_club'];
+
     for (const actionObj of actions) {
       try {
       const { type, parameters } = actionObj;
       if (!parameters) continue;
 
       let target = player;
+      let targetFound = true;
+
       if (parameters.target_name) {
           const foundTarget = await Player.findOne({
               where: {
-                  name: parameters.target_name,
-                  location: player.location,
-                  subLocation: player.subLocation
+                  name: { [Op.like]: `%${parameters.target_name}%` },
+                  location: player.location
               }
           });
           if (foundTarget) {
               target = foundTarget;
+          } else {
+              targetFound = false;
+              target = null;
           }
+      }
+
+      // If a target was specified but not found, and the action requires a player target, skip it.
+      // This prevents NPC actions from accidentally affecting the triggering player.
+      if (!targetFound && playerTargetableActions.includes(type)) {
+          console.log(`[AI] Action ${type} skipped: target "${parameters.target_name}" is not a registered player.`);
+          continue;
+      }
+
+      // Track that this target was involved
+      if (target && target.whatsappId !== player.whatsappId) {
+          notifiedTargets.add(target.whatsappId);
       }
 
       // Track if target needs a final reload/save
@@ -674,6 +707,7 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
           if (parameters.age) { await target.update({ age: parameters.age }); hasChanged = true; }
           if (parameters.academicGrade_change) { await target.increment('academicGrade', { by: parameters.academicGrade_change }); hasChanged = true; }
           if (parameters.sp_gain) { await target.increment('skillPoints', { by: parameters.sp_gain }); hasChanged = true; }
+          if (parameters.wantedLevel_change) { await target.increment('wantedLevel', { by: parameters.wantedLevel_change }); hasChanged = true; }
 
           if (hasChanged) {
               await target.reload();
@@ -753,6 +787,50 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
             break;
         }
 
+        case 'arrest_player': {
+            if (parameters.target_name) {
+                await target.update({
+                    isPrisoner: true,
+                    wantedLevel: 0,
+                    location: 'Empire d\'Elion',
+                    subLocation: 'Prison Impériale'
+                });
+                await target.reload();
+                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                questFeedback.push(`⛓️ *ARRESTATION* : ${target.name} a été jeté au cachot.`);
+
+                if (shouldNotifyPlayer(target)) {
+                    await sock.sendMessage(target.whatsappId, {
+                        text: "⛓️ *ARRÊTÉ.*\n\nTes crimes t'ont rattrapé. Tu as été arrêté et transféré à la Prison Impériale d'Elion."
+                    });
+                }
+            }
+            break;
+        }
+
+        case 'set_wanted_level': {
+            if (parameters.target_name && typeof parameters.level === 'number') {
+                await target.update({ wantedLevel: Math.max(0, Math.min(10, parameters.level)) });
+                await target.reload();
+                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                questFeedback.push(`📜 *RECHERCHÉ* : Le niveau de recherche de ${target.name} est désormais de ${target.wantedLevel}.`);
+            }
+            break;
+        }
+
+        case 'release_player': {
+            if (parameters.target_name) {
+                await target.update({
+                    isPrisoner: false,
+                    subLocation: 'Porte d\'Elion'
+                });
+                await target.reload();
+                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                questFeedback.push(`🔓 *LIBÉRATION* : ${target.name} a purgé sa peine.`);
+            }
+            break;
+        }
+
         case 'use_item': {
             if (parameters.itemName) {
                 let inventory = [...target.inventory];
@@ -792,7 +870,7 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
           if (parameters.itemName && parameters.quantity) {
             if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
             const inventory = [...target.inventory];
-            const existingItem = inventory.find(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
+            const existingItem = inventory.find(i => i.name.toLowerCase().includes(parameters.itemName.toLowerCase()));
 
             if (existingItem) {
                 existingItem.quantity += parameters.quantity;
@@ -829,7 +907,7 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
             if (parameters.itemName && parameters.quantity) {
                 if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
                 let inventory = [...target.inventory];
-                const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
+                const itemIndex = inventory.findIndex(i => i.name.toLowerCase().includes(parameters.itemName.toLowerCase()));
                 if (itemIndex !== -1) {
                     const actualQuantityToRemove = Math.min(parameters.quantity, inventory[itemIndex].quantity);
                     inventory[itemIndex].quantity -= actualQuantityToRemove;
@@ -1266,15 +1344,19 @@ ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
         }
       }
 
-      // Notify target if it's not the current player
-      if (target.whatsappId !== player.whatsappId && shouldNotifyPlayer(target)) {
-          await sock.sendMessage(target.whatsappId, {
-              text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
-          });
-      }
       } catch (actionError) {
           console.error(`[AI] Erreur lors du traitement d'une action (${actionObj.type}):`, actionError);
       }
+    }
+
+    // Batch notifications to targets to avoid spam
+    for (const targetJid of notifiedTargets) {
+        const targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
+        if (targetPlayer && shouldNotifyPlayer(targetPlayer)) {
+            await sock.sendMessage(targetJid, {
+                text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
+            });
+        }
     }
 
     // Additional player notifications

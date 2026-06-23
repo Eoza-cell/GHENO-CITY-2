@@ -239,6 +239,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  wantedLevel: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0, // 0 to 5 stars
+  },
+  isPrisoner: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 });
 
 const Item = sequelize.define('Item', {
@@ -768,7 +776,7 @@ async function setupDatabase() {
         { name: 'L\'Interstice', description: 'Dimension entre les mondes. Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.', status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal' },
         { name: 'Royaume Céleste', description: 'Domaine des Entités Célestes. Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.', status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius' },
         { name: 'Terres Bestiales', description: 'Instinct et évolution. Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.', status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos' },
-        { name: 'Empire d\'Elion', description: 'Royaume humain. Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
+        { name: 'Empire d\'Elion', description: 'Royaume humain régi par le Code de Valerius. Lois : Pas de magie sans licence, respect de la noblesse, interdiction du vol. Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale.', status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II' },
         { name: 'Nécropolis', description: 'Cité des morts. Sub-locations: Le Seuil des Morts, Allée des Tombeaux Oubliés, Trône du Jugement.', status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon' },
         { name: 'Vharos le Maudit', description: 'Territoire de l\'Apôtre. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.', status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos' },
         { name: 'Valkyr', description: 'Centre technologique. Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.', status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen' },

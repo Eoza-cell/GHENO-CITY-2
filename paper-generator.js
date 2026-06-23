@@ -62,8 +62,7 @@ async function generatePaperImage(text, title = "NOTE") {
                 <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="5" result="noise" />
                 <feDiffuseLighting in="noise" lighting-color="#f4e4bc" surfaceScale="2">
                     <feDistantLight azimuth="45" elevation="60" />
-                </feDistantLight>
-            </diffuseLighting>
+                </feDiffuseLighting>
             </filter>
         </defs>
 
