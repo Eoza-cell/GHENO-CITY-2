@@ -130,6 +130,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const hints = [];
   if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise 'update_player' et la description du nouveau lieu.");
   if (hasInteraction) hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
+  if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue.");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -453,10 +454,11 @@ SCÈNE_COLLECTIVE: ${player.location} (${player.subLocation})
 CHRONOLOGIE_DES_ACTIONS (ORDRE STRICT):
 ${aggregatedActions}
 
-ACTEURS_PROCHES: ${scenePlayersData.filter(p => p.est_proche && p.est_acteur).map(p => p.nom).join(', ')}
-SPECTATEURS_PROCHES: ${scenePlayersData.filter(p => p.est_proche && !p.est_acteur).map(p => p.nom).join(', ')}
-HORS_CHAMP (Même Royaume): ${scenePlayersData.filter(p => !p.est_proche).map(p => `${p.nom} à ${p.lieu_precis}`).join(', ')}
-ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
+RÉALITÉ PHYSIQUE:
+- ACTEURS DANS LA PIÈCE: ${scenePlayersData.filter(p => p.est_proche && p.est_acteur).map(p => p.nom).join(', ')} (Ils se voient et s'entendent parfaitement)
+- SPECTATEURS PROCHES: ${scenePlayersData.filter(p => p.est_proche && !p.est_acteur).map(p => p.nom).join(', ')} (Ils sont là mais immobiles)
+- HORS_CHAMP (Même Royaume): ${scenePlayersData.filter(p => !p.est_proche).map(p => `${p.nom} est à ${p.lieu_precis}`).join(', ')}
+- ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
 `.trim();
 
     const fullPrompt = [
