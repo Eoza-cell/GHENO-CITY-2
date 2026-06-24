@@ -54,7 +54,12 @@ commands.set('ping', async (sock, message) => {
 
 async function handleCommand(sock, message) {
   const remoteJid = message.key.remoteJid;
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
+
+  // Only process private chats
+  if (!remoteJid.endsWith('@s.whatsapp.net')) return;
+
+  const msg = message.message;
+  const messageText = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption;
 
   const player = await Player.findOne({ where: { whatsappId: remoteJid } });
 

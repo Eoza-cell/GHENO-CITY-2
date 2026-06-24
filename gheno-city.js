@@ -1,10 +1,10 @@
-const { default: makeWASocket, useMultiFileAuthState, delay, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, delay, DisconnectReason, proto, BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
-const { setupDatabase } = require('./database');
+const { setupDatabase, Auth } = require('./database');
 const { handleCommand } = require('./command-handler');
 
 const app = express();
@@ -26,6 +26,66 @@ function addLog(msg) {
     console.log(`[${timestamp}] ${msg}`);
 }
 
+async function useDatabaseAuthState() {
+    const readData = async (id) => {
+        try {
+            const auth = await Auth.findByPk(id);
+            if (!auth) return null;
+            return JSON.parse(auth.value, BufferJSON.reviver);
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const writeData = async (data, id) => {
+        const value = JSON.stringify(data, BufferJSON.replacer);
+        await Auth.upsert({ id, value });
+    };
+
+    const removeData = async (id) => {
+        await Auth.destroy({ where: { id } });
+    };
+
+    const creds = await readData('creds') || initAuthCreds();
+
+    return {
+        state: {
+            creds,
+            keys: {
+                get: async (type, ids) => {
+                    const data = {};
+                    await Promise.all(
+                        ids.map(async (id) => {
+                            let value = await readData(`${type}-${id}`);
+                            if (type === 'app-state-sync-key' && value) {
+                                value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                            }
+                            data[id] = value;
+                        })
+                    );
+                    return data;
+                },
+                set: async (data) => {
+                    const tasks = [];
+                    for (const category in data) {
+                        for (const id in data[category]) {
+                            const value = data[category][id];
+                            const sId = `${category}-${id}`;
+                            if (value) {
+                                tasks.push(writeData(value, sId));
+                            } else {
+                                tasks.push(removeData(sId));
+                            }
+                        }
+                    }
+                    await Promise.all(tasks);
+                },
+            },
+        },
+        saveCreds: () => writeData(creds, 'creds'),
+    };
+}
+
 function connectToWhatsApp() {
   return new Promise(async (resolve, reject) => {
     try {
@@ -34,8 +94,7 @@ function connectToWhatsApp() {
         return reject(dbError);
     }
 
-    const authFolder = 'auth_info_baileys';
-    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+    const { state, saveCreds } = await useDatabaseAuthState();
 
     sock = makeWASocket({
         auth: state,
@@ -93,7 +152,7 @@ function connectToWhatsApp() {
             } else {
                 addLog("Déconnecté par l'utilisateur ou session expirée. Suppression des identifiants...");
                 try {
-                    fs.rmSync(authFolder, { recursive: true, force: true });
+                    await Auth.destroy({ where: {} });
                     addLog("Session réinitialisée.");
                     connectToWhatsApp().then(resolve).catch(reject);
                 } catch (e) {
@@ -113,8 +172,9 @@ function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('messages.upsert', async (m) => {
+        if (m.type !== 'notify') return;
         m.messages.forEach(async (message) => {
-            if (!message.message) return;
+            if (!message.message || message.key.fromMe) return;
             handleCommand(sock, message);
         });
     });
@@ -254,6 +314,10 @@ app.get('/', (req, res) => {
                 border: 2px dashed #f39c12;
                 margin: 20px 0;
                 font-family: monospace;
+                transition: transform 0.2s;
+            }
+            .pairing-code-box:active {
+                transform: scale(0.95);
             }
 
             .status-badge {
@@ -285,28 +349,37 @@ app.get('/', (req, res) => {
                 ${global.connectionError ? `<div class="error-msg">${global.connectionError}</div>` : ''}
 
                 ${global.isConnected ? `
-                    <p>Le bot est connecté. Entrez le numéro d'un nouveau joueur pour lui envoyer une invitation.</p>
+                    <p>Le bot est connecté et prêt à l'action.</p>
+                    <div style="text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; margin-bottom: 20px;">
+                        <p style="margin: 0; font-size: 0.9rem; color: #f39c12;">🎯 <strong>Actions Rapides :</strong></p>
+                        <ul style="font-size: 0.85rem; padding-left: 20px; margin: 5px 0;">
+                            <li>Les joueurs peuvent s'inscrire via <b>/start</b></li>
+                            <li>Gérez les inscriptions depuis WhatsApp</li>
+                        </ul>
+                    </div>
                     <form action="/invite" method="POST">
+                        <label style="display:block; text-align:left; font-size: 0.8rem; margin-bottom: 5px;">Inviter un nouveau joueur :</label>
                         <input type="text" name="number" id="invite-number" placeholder="Ex: 2250102030405" required>
                         <button type="submit">Envoyer l'Invitation</button>
                     </form>
                 ` : `
                     ${global.pairingCode ? `
-                        <p>Voici votre code de jumelage. Cliquez dessus pour le copier, puis entrez-le sur votre WhatsApp (Appareils connectés > Jumeler avec le numéro de téléphone).</p>
+                        <p>Cliquez sur le code pour le copier, puis allez sur WhatsApp : <b>Appareils connectés > Lier un appareil > Lier avec le numéro de téléphone</b>.</p>
                         <div class="pairing-code-box" id="pcode" onclick="copyCode()" style="cursor:pointer">${global.pairingCode}</div>
-                        <p><small>Le code est valable 2-3 minutes.</small></p>
+                        <p><small id="copy-hint">Cliquez pour copier</small></p>
                         <form action="/reset" method="POST">
-                            <button type="submit" class="secondary">Annuler et Recommencer</button>
+                            <button type="submit" class="secondary">Annuler</button>
                         </form>
                     ` : `
                         ${process.env.BOT_NUMBER ? `
-                            <p>Génération automatique du code pour le numéro <strong>${process.env.BOT_NUMBER}</strong>...</p>
-                            <p><small>Vérifiez également les logs de déploiement Render pour le code.</small></p>
+                            <p>Génération du code pour <strong>${process.env.BOT_NUMBER}</strong>...</p>
+                            <div class="loader" style="margin: 20px auto; border: 4px solid #333; border-top: 4px solid #f39c12; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite;"></div>
+                            <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
                         ` : `
-                            <p>Entrez le numéro du bot (avec code pays) pour obtenir un code de jumelage.</p>
+                            <p>Entrez le numéro du bot (avec code pays) pour obtenir votre code de jumelage.</p>
                             <form action="/pair" method="POST">
                                 <input type="text" name="number" id="bot-number" placeholder="Ex: 2250102030405" required>
-                                <button type="submit">Générer le Code</button>
+                                <button type="submit">Obtenir le Code</button>
                             </form>
                         `}
                     `}
@@ -347,7 +420,13 @@ app.get('/', (req, res) => {
                 function copyCode() {
                     const code = document.getElementById('pcode').innerText;
                     navigator.clipboard.writeText(code).then(() => {
-                        alert("Code " + code + " copié !");
+                        const hint = document.getElementById('copy-hint');
+                        hint.innerText = "Copié ! ✅";
+                        hint.style.color = "#27ae60";
+                        setTimeout(() => {
+                            hint.innerText = "Cliquez pour copier";
+                            hint.style.color = "#e0d0b0";
+                        }, 2000);
                     });
                 }
             </script>
@@ -387,7 +466,7 @@ app.post('/reset', async (req, res) => {
             try { await sock.logout(); } catch (e) {}
             try { sock.end(); } catch (e) {}
         }
-        fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+        await Auth.destroy({ where: {} });
         global.isConnected = false;
         global.pairingCode = null;
         global.connectionError = null;

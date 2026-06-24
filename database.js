@@ -19,6 +19,16 @@ const sequelize = databaseUrl
       logging: false,
     });
 
+const Auth = sequelize.define('Auth', {
+  id: {
+    type: DataTypes.STRING,
+    primaryKey: true,
+  },
+  value: {
+    type: DataTypes.TEXT,
+  },
+});
+
 const Player = sequelize.define('Player', {
   whatsappId: {
     type: DataTypes.STRING,
@@ -108,5 +118,6 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   Player,
+  Auth,
   setupDatabase,
 };

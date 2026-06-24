@@ -4,8 +4,9 @@ const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 
 async function handleRegistration(sock, message, player) {
   const remoteJid = message.key.remoteJid;
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
-  const hasImage = !!(message.message.imageMessage);
+  const msg = message.message;
+  const messageText = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption;
+  const hasImage = !!(msg.imageMessage);
 
   // Step 0: User just started, show Image 1 (Asking for name)
   if (player.registrationStep === 0) {
@@ -30,19 +31,15 @@ async function handleRegistration(sock, message, player) {
 
   // Step 2: User provides photo, show Image 3 (Asking for skill)
   if (player.registrationStep === 2) {
-    if (!hasImage && !messageText) return true; // Wait for something
-
-    let profileImageUrl = player.profileImageUrl;
-    if (hasImage) {
-        try {
-            // In a real production environment, we would upload this to S3/Cloudinary
-            // For now, we'll mark it as received in the database
-            profileImageUrl = "RECU_MOBILE_UPLOAD";
-            console.log(`[PHOTO] Image reçue pour le joueur ${player.whatsappId}`);
-        } catch (e) {
-            console.error("Erreur lors de la capture de l'image:", e);
+    if (!hasImage) {
+        if (messageText && !messageText.startsWith('/') && !messageText.startsWith('@')) {
+            await sock.sendMessage(remoteJid, { text: "❌ *Erreur:* Tu dois envoyer une image de toi (photo ou illustration) pour continuer ton inscription." });
         }
+        return true;
     }
+
+    let profileImageUrl = "RECU_MOBILE_UPLOAD";
+    console.log(`[PHOTO] Image reçue pour le joueur ${player.whatsappId}`);
 
     await player.update({
         registrationStep: 3,
