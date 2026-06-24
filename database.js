@@ -774,47 +774,47 @@ async function setupDatabase() {
     const kingdomsToSeed = [
         {
             name: 'Origine de l\'Existence',
-            description: 'Le domaine de ONE ABOVE ALL. Lois: Causalité Absolue (Rien n\'arrive par hasard, chaque action est gravée dans le destin). Sub-locations: Autel de la Causalité, Mer de Conscience, Les Portes du Temps.',
+            description: 'Le domaine de ONE ABOVE ALL, où la Causalité Absolue lie chaque action au destin éternel. Sub-locations: Autel de la Causalité, Mer de Conscience, Les Portes du Temps.',
             status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL'
         },
         {
             name: 'L\'Interstice',
-            description: 'Dimension entre les mondes. Lois: Loi du Plus Fort (Aucune pitié, survie des plus aptes magiquement). Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.',
+            description: 'Dimension entre les mondes où règne la loi du plus fort et où la survie dépend de l\'aptitude magique. Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.',
             status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal'
         },
         {
             name: 'Royaume Céleste',
-            description: 'Domaine des Entités Célestes. Lois: Pureté d\'Aether (Interdiction de toute noirceur ou malice). Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.',
+            description: 'Domaine des Entités Célestes baigné dans la pureté de l\'Aether, où toute noirceur est proscrite. Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.',
             status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius'
         },
         {
             name: 'Terres Bestiales',
-            description: 'Domaine sauvage. Lois: Loi de la Chasse (Ne tuer que pour se nourrir ou se défendre). Villages: Oakhaven (Village de chasseurs), Claw-reach (Poste avancé). Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
+            description: 'Domaine sauvage régi par l\'instinct de chasse, où l\'on ne tue que par nécessité. Villages: Oakhaven (Village de chasseurs), Claw-reach (Poste avancé). Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
             status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos'
         },
         {
             name: 'Empire Impérial d\'Elion',
-            description: 'Royaume humain régi par le Code de Valerius. Lois: Obéissance Absolue à la Royauté, Interdiction de la Magie non-licenciée, Respect des Nobles. Sanction: Exécution immédiate pour crime de Lèse-Majesté. Villages: Riverbend (Pêcheurs), Green-Fields (Agriculteurs). Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale, Solis.',
+            description: 'Royaume humain sous le Code de Valerius, exigeant respect des nobles et obéissance à la couronne. La magie y est strictement régulée. Villages: Riverbend (Pêcheurs), Green-Fields (Agriculteurs). Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale, Solis.',
             status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II'
         },
         {
             name: 'Nécropolis',
-            description: 'Cité des morts entourée de brumes éternelles. Lois: Silence Éternel. Sub-locations: Le Seuil, Allée des Tombeaux Oubliés, Trône du Jugement.',
+            description: 'Cité des morts drapée de brumes, où le silence éternel est la seule règle. Sub-locations: Le Seuil, Allée des Tombeaux Oubliés, Trône du Jugement.',
             status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon'
         },
         {
             name: 'Dominion Noir de Vharos',
-            description: 'Territoire désolé sous le joug de la liche. Lois: Volonté de Vharos. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.',
+            description: 'Territoire désolé pliant sous la volonté de la liche Vharos. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.',
             status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos'
         },
         {
             name: 'Royaume de Valkyrr',
-            description: 'Centre de recherche magique et technologique. Lois: Innovation Régulée. Villages: Gearhead (Mineurs), Sparkwell (Artisans). Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.',
+            description: 'Centre d\'innovation magique et technologique où chaque recherche est méticuleusement régulée. Villages: Gearhead (Mineurs), Sparkwell (Artisans). Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.',
             status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen'
         },
         {
             name: 'Gheno souterrain',
-            description: 'Trafic de reliques. Lois: Loi du Silence (Ne jamais dénoncer l\'Ombre). Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé, École des Ombres.',
+            description: 'Plaque tournante du trafic de reliques où le silence est une question de survie face à l\'Ombre. Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé, École des Ombres.',
             status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre'
         }
     ];
