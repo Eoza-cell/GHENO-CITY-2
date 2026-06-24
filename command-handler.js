@@ -60,7 +60,7 @@ commands.set('start', async (sock, message) => {
         await sock.sendMessage(replyJid, { text: `Rappel: Enchanté ${player.name}. Décris ton personnage en une phrase.` });
     }
   } else {
-    await sock.sendMessage(replyJid, { text: `Content de te revoir, ${player.name} ! Utilise /quests pour voir tes objectifs.` });
+    await sock.sendMessage(replyJid, { text: `« Te revoilà, ${player.name}. L'Interstice s'agite en ton absence... Ne tarde pas trop. »\n\nUtilise /quests pour voir tes objectifs.` });
   }
 });
 
@@ -129,7 +129,8 @@ commands.set('quests', async (sock, message) => {
         return;
     }
 
-    let questText = '╔══════════════════════════╗\n' +
+    let questText = '« Le destin n\'est pas écrit, il se forge par le sang et la volonté. »\n\n' +
+                    '╔══════════════════════════╗\n' +
                     '   📜 *JOURNAL DES QUÊTES*   \n' +
                     '╚══════════════════════════╝\n\n';
 
@@ -414,7 +415,7 @@ commands.set('inventory', async (sock, message) => {
     }
 
     const inventoryText = inventory.map(item => `├ ${item.name} (x${item.quantity})`).join('\n');
-    await sock.sendMessage(replyJid, { text: `--- 🎒 INVENTAIRE --- \n\n${inventoryText}\n\n└ _Utilise /action pour utiliser ou équiper un objet._` });
+    await sock.sendMessage(replyJid, { text: `« Tes possessions ne sont que des outils. C'est ta force qui compte vraiment. »\n\n--- 🎒 INVENTAIRE --- \n\n${inventoryText}\n\n└ _Utilise /action pour utiliser ou équiper un objet._` });
 });
 
 // Command: /map
@@ -1753,14 +1754,14 @@ async function handleCommand(sock, message, downloadMediaMessage) {
                   await player.addQuest(startingQuest, { through: { status: 'not_started' } });
               }
 
-              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Quel est ton sexe, Héritier ?` });
+              await sock.sendMessage(replyJid, { text: `« ${playerName}... Un nom qui résonnera bientôt dans les couloirs de l'Interstice, je l'espère. »\n\nEnchanté. Quel est ton sexe, Héritier ?` });
           } else {
               await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
           }
       } else if (player.registrationStep === 'awaiting_gender') {
           const gender = messageText.trim();
           await player.update({ gender, registrationStep: 'awaiting_age' });
-          await sock.sendMessage(replyJid, { text: `C'est noté. Quel est ton âge, Héritier ?` });
+          await sock.sendMessage(replyJid, { text: `« Très bien. Et quel est ton âge, Héritier ? Le temps s'écoule différemment ici, mais ton enveloppe charnelle a bien une origine. »` });
       } else if (player.registrationStep === 'awaiting_age') {
           const age = parseInt(messageText.trim());
           if (!isNaN(age) && age > 0 && age < 150) {
@@ -1777,7 +1778,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
                 registrationStep: null, // Registration finished
                 awaitingProfilePic: true
             });
-            await sock.sendMessage(replyJid, { text: `Description enregistrée ! Pour terminer, envoie une image qui représentera ton personnage.` });
+            await sock.sendMessage(replyJid, { text: `« Je vois... Ton essence commence à se stabiliser. »\n\nDescription enregistrée ! Pour terminer, envoie une image qui représentera ton personnage. Elle sera gravée dans la matrice d'Aetherys.` });
         } else {
             await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères). Réessaie." });
         }
