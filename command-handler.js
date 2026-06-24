@@ -1490,6 +1490,25 @@ commands.set('tuto_rp', async (sock, message) => {
 });
 commands.set('apprendre', commands.get('tuto_rp'));
 
+// Command: /next
+commands.set('next', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
+
+    try {
+        await handleFreeAction(sock, message, player, "next");
+    } catch (error) {
+        console.error('Erreur commande /next:', error);
+        await sock.sendMessage(replyJid, { text: "Le MJ n'a pas pu répondre. Réessaie." });
+    }
+});
+
 commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
                    "/start - Commencer l'aventure.\n" +
@@ -1516,6 +1535,7 @@ commands.set('help', async (sock, message) => {
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
                    "/action - Mode immersif (RP).\n" +
+                   "/next - Forcer la réponse du MJ.\n" +
                    "/menu - Menu principal.\n" +
                    "/reset - Réinitialiser ton personnage.\n" +
                    "/help - Cette aide.";

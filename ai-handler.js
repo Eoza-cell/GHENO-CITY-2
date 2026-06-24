@@ -297,9 +297,15 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const npcs = await NPC.findAll({
     where: {
-        [Op.or]: [
-            { location: { [Op.like]: `%${player.location}%` } },
-            { powerLevel: { [Op.gte]: 95 } } // Only include absolute legends/bosses
+        [Op.and]: [
+            {
+                [Op.or]: [
+                    { location: { [Op.like]: `%${player.location}%` } },
+                    { powerLevel: { [Op.gte]: 95 } } // Only include absolute legends/bosses
+                ]
+            },
+            { role: { [Op.notLike]: '%Garde%' } },
+            { role: { [Op.notLike]: '%Policier%' } }
         ]
     },
     order: sequelize.random(),
@@ -377,6 +383,8 @@ RÈGLES TECHNIQUES:
    - NON-BLOCAGE : Ne bloque JAMAIS un joueur qui veut entrer ou sortir d'un lieu (sauf porte verrouillée magiquement ou garde hostile). Si un joueur dit "Je sors", déplace-le immédiatement dans le Sous-lieu logique suivant (ex: Taverne -> Rue d'Eldoria -> Portes d'Elion -> Plaines).
    - STATS: Les résultats dépendent UNIQUEMENT des statistiques fournies. Pas de succès miraculeux sans stats adéquates.
    - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (anatomie broyée).
+   - LIBERTÉ ET AVENTURE (PRIORITÉ) : Le joueur est libre et son aventure est le cœur du récit. Ne t'enlise PAS dans des procédures administratives, des gardes omniprésents ou des rappels constants aux lois. Priorise l'exploration, l'action, le lore métaphysique et les interactions significatives.
+   - MINIMISATION DES GARDES : Ne fais intervenir des gardes ou la police QUE si le joueur commet un crime flagrant et public, ou si cela sert un arc narratif majeur. Évite les "contrôles d'identité" ou les "procédures" ennuyeuses qui cassent le rythme.
    - SUBTILITÉ DES LOIS : Ne liste JAMAIS les lois ou "le Code" d'un royaume de manière systématique. Les lois sont des détails du monde, pas des règles de jeu à afficher. Elles doivent transparaître naturellement à travers le comportement des PNJ ou des conséquences immédiates, sans être citées comme un règlement.
    - ADVERSAIRES ACTIFS (STRICT): Les PNJ et monstres ne sont JAMAIS passifs. Ils utilisent l'environnement, feintent, et emploient leurs techniques.
    - RIPOSTE ADAPTATIVE (STRICT): Les monstres et PNJ ne se contentent pas de frapper au hasard. Leurs ripostes s'adaptent SPÉCIFIQUEMENT aux actions du joueur. Si un joueur feinte, le PNJ (selon son INT) peut voir clair dans le jeu ou se faire piéger. Si un joueur vise une jambe, le PNJ tente de protéger cette zone ou utilise le déséquilibre pour contre-attaquer. Chaque riposte doit être une réponse tactique directe au mouvement du joueur.
@@ -748,7 +756,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                         await target.update({ health: 20 });
                         questFeedback.push(`🏥 *HOSPITALISATION* : ${target.name} a été sauvé de justesse. Coût des soins : 500 COL.`);
                     } else {
-                        await target.update({ location: 'Nécropolis', subLocation: 'Le Seuil des Morts' });
+                        await target.update({ location: 'Nécropolis', subLocation: 'Le Seuil' });
                         questFeedback.push(`💀 *MORT* : L'âme de ${target.name} a quitté son corps. Il erre désormais à Nécropolis.`);
                         if (shouldNotifyPlayer(target)) {
                             await sock.sendMessage(target.whatsappId, { text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener." });
