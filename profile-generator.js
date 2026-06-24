@@ -31,7 +31,9 @@ async function generateProfileCard(player) {
 }
 
 async function addOverlay(baseImg, player, width, height) {
-    const { Item } = require('./database');
+    const { Item, Bank } = require('./database');
+    const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
+    const bankBalance = bank ? bank.balance : 0;
 
     // Fetch equipped outfit details
     let outfitColor = "rgba(255,255,255,0.2)";
@@ -101,7 +103,7 @@ async function addOverlay(baseImg, player, width, height) {
             <text x="730" y="245" class="text value" text-anchor="end">${escapeXml(player.occupation || 'Citoyen')}</text>
             <text x="730" y="278" class="text value" text-anchor="end">${escapeXml(player.organization || 'Aucune')}</text>
             <text x="730" y="311" class="text value" text-anchor="end">INF: ${player.influence || 0}</text>
-            <text x="730" y="344" class="text value" text-anchor="end">GRADE ${player.academicGrade || 0}</text>
+            <text x="730" y="344" class="text value" text-anchor="end">SP: ${player.skillPoints || 0}</text>
 
             <!-- Status Container Block -->
             <rect x="50" y="400" width="700" height="120" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" rx="10" />
@@ -138,7 +140,8 @@ async function addOverlay(baseImg, player, width, height) {
 
             <!-- Resources Box -->
             <rect x="50" y="745" width="350" height="75" fill="rgba(255,255,255,0.05)" stroke="#ffd700" stroke-width="2" rx="15" />
-            <text x="75" y="795" class="money">💰 ${(player.col || 0).toLocaleString()} COL</text>
+            <text x="75" y="775" class="item-text" style="fill: #ffd700; font-size: 12px;">ESPÈCES &amp; BANQUE</text>
+            <text x="75" y="805" class="money" style="font-size: 24px;">💰 ${(player.col || 0).toLocaleString()} | 🏦 ${(bankBalance || 0).toLocaleString()}</text>
 
             <!-- Family Tag -->
             <rect x="420" y="745" width="330" height="75" fill="rgba(255,255,255,0.05)" stroke="#ff00ff" stroke-width="1" rx="15" />

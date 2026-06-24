@@ -216,6 +216,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       const pPacts = await p.getEntities();
       const pClubs = await p.getClubs();
       const pQuests = await p.getQuests();
+      const [pBank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: p.whatsappId } });
       const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
       const pActions = (p.subLocation === player.subLocation)
         ? recentActions.filter(a => a.senderName === p.name).map(a => a.content)
@@ -227,7 +228,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           lieu_precis: p.subLocation,
           est_proche: p.subLocation === player.subLocation,
           est_acteur: (p.subLocation === player.subLocation) && (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
-          etat: `Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck}`,
+          etat: `Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
           metier: p.occupation,
@@ -405,9 +406,10 @@ RÈGLES TECHNIQUES:
 11. SURVIE: Si la Faim (Hunger) ou le Sommeil (Sleep) est bas (<20), le joueur subit des malus narratifs (fatigue, vertiges). À 0, il commence à perdre des PV. Manger ou dormir restaure ces barres via update_stats.
 12. PROGRESSION & TECHNIQUES: Les joueurs possèdent des techniques de base. Ils peuvent en apprendre de nouvelles via 'add_skill' (coût en SP à déduire via 'update_stats') ou par l'entraînement narratif. Les techniques peuvent évoluer (ex: 'Vertical Square' devenant 'Square Cross') si le joueur pratique intensément ou vit un choc émotionnel fort.
 13. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"", "actionVisual":{"type":"attack|defend|magic|combat","assetName":"Eldoria|Gobelin|...","title":"...","description":"..."}}
-14. ACTIONS AUTORISÉES: update_location, update_stats, update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, release_player, forge_pact, join_club, resurrect_player, write_journal.
+14. ACTIONS AUTORISÉES: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, release_player, forge_pact, join_club, resurrect_player, write_journal.
     - update_location : { "new_location": "Royaume", "new_sub_location": "Lieu" }. (OBLIGATOIRE dès que le lieu change).
-    - update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n, "hunger_change": n, "sleep_change": n }. (OBLIGATOIRE dès qu'une stat, XP ou monnaie change).
+    - update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n, "hunger_change": n, "sleep_change": n }. (OBLIGATOIRE dès qu'une stat, XP ou monnaie (Col) change).
+    - bank_transaction : { "type": "deposit|withdraw", "amount": n }. (OBLIGATOIRE pour gérer l'argent en banque).
     - update_player : name, characterDescription, profilePicUrl, gender, age, new_class, new_rank, wantedLevel_change. (OBLIGATOIRE dès qu'un élément d'identité change).
 15. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
     - ÉTANCHÉITÉ DES HISTOIRES: Chaque joueur est le protagoniste de sa propre aventure. Ne mélange pas leurs objectifs, leurs possessions ou leurs alliés. Si Joueur A parle à un PNJ, Joueur B n'est pas automatiquement impliqué dans la conversation sauf s'il intervient.
@@ -667,11 +669,11 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     // Collected quest feedback lines appended to the narrative after the loop.
     const questFeedback = [];
-    let profileUpdateTriggered = false;
+    const playersToUpdate = new Set();
 
     // Process AI actions
     const notifiedTargets = new Set();
-    const playerTargetableActions = ['update_location', 'update_stats', 'update_player', 'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'arrest_player', 'set_wanted_level', 'release_player', 'manage_house', 'set_academic_status', 'get_player_details', 'modify_reputation', 'resurrect_player', 'forge_pact', 'join_club'];
+    const playerTargetableActions = ['update_location', 'update_stats', 'update_player', 'bank_transaction', 'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'arrest_player', 'set_wanted_level', 'release_player', 'manage_house', 'set_academic_status', 'get_player_details', 'modify_reputation', 'resurrect_player', 'forge_pact', 'join_club'];
 
     for (const actionObj of actions) {
       try {
@@ -708,9 +710,6 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
           notifiedTargets.add(target.whatsappId);
       }
 
-      // Track if target needs a final reload/save
-      let targetModified = false;
-
       switch (type) {
         case 'update_location': {
             const updates = {};
@@ -735,22 +734,20 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
             if (locationImages[finalLoc]) {
                 aiResponse.imagePrompt = locationImages[finalLoc];
             }
-            if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+            playersToUpdate.add(target.whatsappId);
             break;
         }
 
         case 'update_stats': {
             let hasChanged = false;
-            let significantUpdate = false;
 
             if (parameters.col_change) { await target.increment('col', { by: parameters.col_change }); hasChanged = true; }
             if (parameters.xp_gain) { await target.increment('xp', { by: parameters.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
-            if (parameters.hunger_change) { await target.increment('hunger', { by: parameters.hunger_change }); hasChanged = true; significantUpdate = true; }
-            if (parameters.sleep_change) { await target.increment('sleep', { by: parameters.sleep_change }); hasChanged = true; significantUpdate = true; }
+            if (parameters.hunger_change) { await target.increment('hunger', { by: parameters.hunger_change }); hasChanged = true; }
+            if (parameters.sleep_change) { await target.increment('sleep', { by: parameters.sleep_change }); hasChanged = true; }
             if (parameters.health_change) {
                 await target.increment('health', { by: parameters.health_change });
                 await target.reload();
-                significantUpdate = true;
                 if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
                 if (target.health <= 0) {
                     await target.update({ health: 0 });
@@ -773,7 +770,6 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
             if (parameters.mana_change) {
                 await target.increment('mana', { by: parameters.mana_change });
                 await target.reload();
-                significantUpdate = true;
                 if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
                 if (target.mana < 0) await target.update({ mana: 0 });
                 hasChanged = true;
@@ -783,33 +779,56 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
             if (parameters.intelligence_change) { await target.increment('intelligence', { by: parameters.intelligence_change }); hasChanged = true; }
             if (parameters.defense_change) { await target.increment('defense', { by: parameters.defense_change }); hasChanged = true; }
             if (parameters.luck_change) { await target.increment('luck', { by: parameters.luck_change }); hasChanged = true; }
+            if (parameters.sp_change) { await target.increment('skillPoints', { by: parameters.sp_change }); hasChanged = true; }
 
             if (hasChanged) {
                 await target.reload();
-                if (significantUpdate && target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                playersToUpdate.add(target.whatsappId);
             }
+            break;
+        }
+
+        case 'bank_transaction': {
+            const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: target.whatsappId } });
+            if (parameters.type === 'deposit') {
+                if (target.col >= parameters.amount) {
+                    await target.decrement('col', { by: parameters.amount });
+                    await bank.increment('balance', { by: parameters.amount });
+                    questFeedback.push(`🏦 *BANQUE* : ${target.name} a déposé ${parameters.amount} Col.`);
+                } else {
+                    questFeedback.push(`❌ *ÉCHEC BANQUE* : ${target.name} n'a pas assez de Col pour déposer.`);
+                }
+            } else if (parameters.type === 'withdraw') {
+                if (bank.balance >= parameters.amount) {
+                    await bank.decrement('balance', { by: parameters.amount });
+                    await target.increment('col', { by: parameters.amount });
+                    questFeedback.push(`🏦 *BANQUE* : ${target.name} a retiré ${parameters.amount} Col.`);
+                } else {
+                    questFeedback.push(`❌ *ÉCHEC BANQUE* : ${target.name} n'a pas assez en banque pour retirer.`);
+                }
+            }
+            await target.reload();
+            playersToUpdate.add(target.whatsappId);
             break;
         }
 
         case 'update_player': {
           let hasChanged = false;
-          let significantUpdate = false;
 
           if (parameters.max_health_change) { await target.increment('maxHealth', { by: parameters.max_health_change }); hasChanged = true; }
           if (parameters.max_mana_change) { await target.increment('maxMana', { by: parameters.max_mana_change }); hasChanged = true; }
 
-          if (parameters.name) { await target.update({ name: parameters.name }); hasChanged = true; significantUpdate = true; }
-          if (parameters.new_class) { await target.update({ class: parameters.new_class }); hasChanged = true; significantUpdate = true; }
-          if (parameters.new_rank) { await target.update({ rank: parameters.new_rank }); hasChanged = true; significantUpdate = true; }
-          if (parameters.characterDescription) { await target.update({ characterDescription: parameters.characterDescription }); hasChanged = true; significantUpdate = true; }
-          if (parameters.profilePicUrl) { await target.update({ profilePicUrl: parameters.profilePicUrl }); hasChanged = true; significantUpdate = true; }
+          if (parameters.name) { await target.update({ name: parameters.name }); hasChanged = true; }
+          if (parameters.new_class) { await target.update({ class: parameters.new_class }); hasChanged = true; }
+          if (parameters.new_rank) { await target.update({ rank: parameters.new_rank }); hasChanged = true; }
+          if (parameters.characterDescription) { await target.update({ characterDescription: parameters.characterDescription }); hasChanged = true; }
+          if (parameters.profilePicUrl) { await target.update({ profilePicUrl: parameters.profilePicUrl }); hasChanged = true; }
           if (parameters.equippedOutfit) {
               const inv = target.inventory || [];
               const hasItem = inv.some(i => i.name.toLowerCase().includes(parameters.equippedOutfit.toLowerCase()));
               if (hasItem || target.isGod) {
                   await target.update({ equippedOutfit: parameters.equippedOutfit });
                   hasChanged = true;
-                  significantUpdate = true;
               } else {
                   questFeedback.push(`⚠️ *CONDITION ÉQUIPEMENT* : ${target.name} ne possède pas "${parameters.equippedOutfit}" et ne peut donc pas l'équiper.`);
               }
@@ -828,19 +847,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
               if (target.sleep > 100) await target.update({ sleep: 100 });
               if (target.hunger < 0) await target.update({ hunger: 0 });
               if (target.sleep < 0) await target.update({ sleep: 0 });
-
-              if (significantUpdate && target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
-
-              // If significant change for ANOTHER player, send them their new card directly
-              if (significantUpdate && target.whatsappId !== player.whatsappId && shouldNotifyPlayer(target)) {
-                  try {
-                      const card = await generateProfileCard(target);
-                      await sock.sendMessage(target.whatsappId, {
-                          image: card,
-                          caption: `--- 🆔 PROFIL MIS À JOUR : ${target.name} --- \n\nLe MJ a fait évoluer ta fiche suite aux événements récents.`
-                      });
-                  } catch (e) { console.error("Secondary profile update failed:", e.message); }
-              }
+              playersToUpdate.add(target.whatsappId);
           }
           break;
         }
@@ -1509,17 +1516,20 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     await sendWithImage(sock, jid, aiResponse);
 
-    // Auto-Profile Delivery
-    if (profileUpdateTriggered) {
+    // Auto-Profile Delivery for all updated players
+    for (const pId of playersToUpdate) {
         try {
-            await player.reload(); // Absolute latest data
-            const profileBuffer = await generateProfileCard(player);
-            await sock.sendMessage(jid, {
-                image: profileBuffer,
-                caption: `--- 🆔 PROFIL MIS À JOUR : ${player.name} --- \n\nLe système a synchronisé tes nouvelles données (PV/PM/Stats).`
-            });
+            const pToUpdate = await Player.findOne({ where: { whatsappId: pId } });
+            if (pToUpdate && shouldNotifyPlayer(pToUpdate)) {
+                await pToUpdate.reload();
+                const profileBuffer = await generateProfileCard(pToUpdate);
+                await sock.sendMessage(pId, {
+                    image: profileBuffer,
+                    caption: `--- 🆔 PROFIL MIS À JOUR : ${pToUpdate.name} --- \n\nLe système a synchronisé tes nouvelles données (PV/PM/Stats/Finances).`
+                });
+            }
         } catch (e) {
-            console.error("[AI] Profile auto-update failed:", e.message);
+            console.error(`[AI] Profile auto-update failed for ${pId}:`, e.message);
         }
     }
 
