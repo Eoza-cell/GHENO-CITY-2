@@ -6,35 +6,58 @@ const WORLD_NAME = 'AETHERYS';
 const KINGDOMS = [
     {
         name: "Empire Impérial d'Elion", short: "EMPIRE D'ELION", status: 'Paix',
-        color: '#f4c542', fill: 'rgba(244,197,66,0.16)',
-        labelPos: [620, 410],
+        color: '#f4c542', fill: 'rgba(244,197,66,0.18)',
+        labelPos: [650, 450],
         polygon: [[470, 360], [760, 320], [880, 470], [820, 690], [560, 740], [430, 600]]
     },
     {
         name: 'Royaume de Valkyrr', short: 'VALKYRR', status: 'Trêve',
-        color: '#9fd8ff', fill: 'rgba(159,216,255,0.14)',
-        labelPos: [520, 200],
+        color: '#9fd8ff', fill: 'rgba(159,216,255,0.15)',
+        labelPos: [520, 220],
         polygon: [[360, 150], [720, 130], [770, 300], [470, 350], [330, 300]]
     },
     {
-        name: 'Dominion Noir de Vharos', short: 'DOMINION NOIR', status: 'Guerre',
-        color: '#b06bff', fill: 'rgba(150,70,220,0.20)',
-        labelPos: [890, 560],
-        polygon: [[830, 480], [1040, 540], [1060, 760], [880, 850], [770, 720], [840, 600]]
+        name: 'Dominion Noir de Vharos', short: 'VHAROS', status: 'Guerre',
+        color: '#b06bff', fill: 'rgba(150,70,220,0.22)',
+        labelPos: [950, 620],
+        polygon: [[830, 480], [1150, 540], [1180, 850], [950, 920], [770, 720], [840, 600]]
+    },
+    {
+        name: 'Terres Bestiales', short: 'BESTIALIA', status: 'Sauvage',
+        color: '#8dc63f', fill: 'rgba(141,198,63,0.15)',
+        labelPos: [350, 550],
+        polygon: [[150, 350], [330, 290], [430, 600], [410, 770], [200, 750], [120, 550]]
+    },
+    {
+        name: 'Royaume Céleste', short: 'AETHERIA', status: 'Éternel',
+        color: '#ffffff', fill: 'rgba(255,255,255,0.25)',
+        labelPos: [1150, 250],
+        polygon: [[1000, 100], [1300, 80], [1350, 350], [1100, 450], [900, 330]]
+    },
+    {
+        name: 'Nécropolis', short: 'NÉCROPOLIS', status: 'Mort',
+        color: '#7f8c8d', fill: 'rgba(127,140,141,0.25)',
+        labelPos: [550, 880],
+        polygon: [[410, 770], [560, 800], [690, 860], [800, 950], [400, 980], [300, 850]]
     }
 ];
 
 const CONTINENT = [
-    [330, 290], [350, 160], [520, 90], [760, 110], [880, 200], [900, 330],
-    [1010, 470], [1075, 620], [1040, 800], [880, 880], [690, 860], [560, 800],
-    [410, 770], [300, 640], [270, 470]
+    [150, 350], [350, 160], [520, 90], [760, 110], [880, 200], [1000, 100],
+    [1300, 80], [1350, 350], [1100, 450], [1150, 540], [1180, 850], [950, 920],
+    [800, 950], [400, 980], [300, 850], [200, 750], [120, 550]
 ];
 
 const CITIES = [
     { name: 'Eldoria', sub: 'Cité de départ', x: 610, y: 540, capital: false },
     { name: 'Académie Impériale', sub: 'Académie de magie', x: 700, y: 450, capital: false },
     { name: 'Lux Aeterna', sub: 'Chevaliers du Sang', x: 540, y: 640, capital: false },
-    { name: 'Solis', sub: "Capitale d'Elion", x: 660, y: 600, capital: true }
+    { name: 'Solis', sub: "Capitale d'Elion", x: 660, y: 600, capital: true },
+    { name: 'Oakhaven', sub: 'Village de chasseurs', x: 280, y: 520, capital: false },
+    { name: 'Gearhead', sub: 'Cité minière', x: 480, y: 240, capital: false },
+    { name: 'Palais d\'Argent', sub: 'Cœur Céleste', x: 1180, y: 200, capital: true },
+    { name: 'Donjon de la Liche', sub: 'Trône de Vharos', x: 1020, y: 750, capital: true },
+    { name: 'Le Seuil', sub: 'Porte des Morts', x: 550, y: 920, capital: true }
 ];
 
 const RANK_COLORS = {
@@ -118,25 +141,64 @@ async function generateWorldMapImage() {
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         <defs>
             <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#1b3a55;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#0e2236;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#152b3e;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#091520;stop-opacity:1" />
             </linearGradient>
             <linearGradient id="landGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:#e9dcb5;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#cdb988;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#d4c294;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#bca876;stop-opacity:1" />
             </linearGradient>
+            <pattern id="paperPattern" x="0" y="0" width="100" height="100" patternUnits="userSpaceOnUse">
+                <path d="M 0 0 L 100 0 L 100 100 L 0 100 Z" fill="url(#landGrad)" />
+                <circle cx="20" cy="20" r="1" fill="#a69466" opacity="0.3" />
+                <circle cx="80" cy="40" r="1" fill="#a69466" opacity="0.3" />
+                <circle cx="50" cy="70" r="1" fill="#a69466" opacity="0.3" />
+            </pattern>
+            <filter id="parchmentFilter">
+                <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="5" result="noise" />
+                <feDiffuseLighting in="noise" lighting-color="#fff5e6" surfaceScale="2">
+                    <feDistantLight azimuth="45" elevation="60" />
+                </feDiffuseLighting>
+            </filter>
             <clipPath id="continentClip">
                 <path d="${continentPath}" />
             </clipPath>
         </defs>
 
+        <!-- Ocean with texture -->
         <rect width="100%" height="100%" fill="url(#oceanGrad)" />
+        <rect width="100%" height="100%" fill="#ffffff" opacity="0.03" style="filter: url(#parchmentFilter);" />
+
+        <!-- Waves -->
+        <g opacity="0.2" fill="none" stroke="#2c5364" stroke-width="1.5">
+            <path d="M 100,200 Q 120,180 140,200 T 180,200" />
+            <path d="M 400,100 Q 420,80 440,100 T 480,100" />
+            <path d="M 1100,600 Q 1120,580 1140,600 T 1180,600" />
+            <path d="M 800,800 Q 820,780 840,800 T 880,800" />
+        </g>
 
         <!-- Landmass -->
-        <path d="${continentPath}" fill="url(#landGrad)" stroke="#5c4a2a" stroke-width="4" style="filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));" />
+        <path d="${continentPath}" fill="url(#landGrad)" stroke="#4a3b22" stroke-width="5" style="filter: drop-shadow(0 0 15px rgba(0,0,0,0.6));" />
+        <path d="${continentPath}" fill="#000000" opacity="0.05" style="filter: url(#parchmentFilter);" clip-path="url(#continentClip)" />
 
         <g clip-path="url(#continentClip)">
             ${kingdomsSvg}
+
+            <!-- Mountain Ranges -->
+            <g opacity="0.3" fill="none" stroke="#5c4a2a" stroke-width="2">
+                <path d="M 500,300 L 520,270 L 540,300 M 520,270 L 530,285" />
+                <path d="M 540,320 L 560,290 L 580,320 M 560,290 L 570,305" />
+                <path d="M 800,500 L 820,470 L 840,500 M 820,470 L 830,485" />
+            </g>
+
+            <!-- Forests -->
+            <g opacity="0.3" fill="#2d5a27">
+                <circle cx="400" cy="500" r="15" />
+                <circle cx="420" cy="480" r="12" />
+                <circle cx="380" cy="485" r="10" />
+                <circle cx="250" cy="600" r="20" />
+                <circle cx="230" cy="580" r="15" />
+            </g>
         </g>
 
         ${labelsSvg}

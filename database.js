@@ -793,23 +793,23 @@ async function setupDatabase() {
             status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos'
         },
         {
-            name: 'Empire d\'Elion',
-            description: 'Royaume humain régi par le Code de Valerius. Lois: Obéissance Absolue à la Royauté, Interdiction de la Magie non-licenciée, Respect des Nobles. Sanction: Exécution immédiate pour crime de Lèse-Majesté. Villages: Riverbend (Pêcheurs), Green-Fields (Agriculteurs). Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale.',
+            name: 'Empire Impérial d\'Elion',
+            description: 'Royaume humain régi par le Code de Valerius. Lois: Obéissance Absolue à la Royauté, Interdiction de la Magie non-licenciée, Respect des Nobles. Sanction: Exécution immédiate pour crime de Lèse-Majesté. Villages: Riverbend (Pêcheurs), Green-Fields (Agriculteurs). Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale, Solis.',
             status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II'
         },
         {
             name: 'Nécropolis',
-            description: 'Cité des morts. Lois: Silence Éternel (Toute tentative de retour au monde des vivants est un crime). Sub-locations: Le Seuil des Morts, Allée des Tombeaux Oubliés, Trône du Jugement.',
+            description: 'Cité des morts entourée de brumes éternelles. Lois: Silence Éternel. Sub-locations: Le Seuil, Allée des Tombeaux Oubliés, Trône du Jugement.',
             status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon'
         },
         {
-            name: 'Vharos le Maudit',
-            description: 'Territoire de l\'Apôtre. Lois: Volonté de Vharos (Seule la parole du Seigneur Liche fait foi). Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.',
+            name: 'Dominion Noir de Vharos',
+            description: 'Territoire désolé sous le joug de la liche. Lois: Volonté de Vharos. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.',
             status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos'
         },
         {
-            name: 'Valkyr',
-            description: 'Centre technologique. Lois: Innovation Régulée (Toute invention doit être enregistrée). Villages: Gearhead (Mineurs), Sparkwell (Artisans). Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.',
+            name: 'Royaume de Valkyrr',
+            description: 'Centre de recherche magique et technologique. Lois: Innovation Régulée. Villages: Gearhead (Mineurs), Sparkwell (Artisans). Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.',
             status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen'
         },
         {
@@ -830,11 +830,11 @@ async function setupDatabase() {
         { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté manipulant les Béhérits.', location: 'L\'Interstice', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
         { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, il prépare les âmes au jugement final de One Above All.', location: 'Nécropolis', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
         { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
-        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire d\'Elion', powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
-        { name: 'Princesse Seraphina', role: 'Royauté d\'Elion', description: 'Héritière du trône d\'Elion, douée pour la diplomatie de l\'éther.', location: 'Empire d\'Elion', powerLevel: 75, specialty: 'Charisme Royal', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elegant%20princess%20with%20silver%20hair%20and%20royal%20blue%20dress?model=flux-anime' },
-        { name: 'Prince Lucian', role: 'Commandant des Chevaliers', description: 'Frère de Seraphina, un prodige de l\'escrime magique.', location: 'Empire d\'Elion', powerLevel: 90, specialty: 'Épée Solaire', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20handsome%20prince%20knight%20commander?model=flux-anime' },
-        { name: 'Duc de Windsor', role: 'Haute Noblesse', description: 'Gouverneur du Quartier des Nobles, influent et riche.', location: 'Empire d\'Elion', powerLevel: 65, specialty: 'Influence Politique', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20noble%20duke%20with%20refined%20clothes?model=flux-anime' },
-        { name: 'Baron de l\'Est', role: 'Petite Noblesse', description: 'Garde la frontière vers Vharos, un homme d\'action.', location: 'Empire d\'Elion', powerLevel: 55, specialty: 'Vigilance Frontière', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20rugged%20baron%20at%20border%20fortress?model=flux-anime' },
+        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
+        { name: 'Princesse Seraphina', role: 'Royauté d\'Elion', description: 'Héritière du trône d\'Elion, douée pour la diplomatie de l\'éther.', location: 'Empire Impérial d\'Elion', powerLevel: 75, specialty: 'Charisme Royal', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elegant%20princess%20with%20silver%20hair%20and%20royal%20blue%20dress?model=flux-anime' },
+        { name: 'Prince Lucian', role: 'Commandant des Chevaliers', description: 'Frère de Seraphina, un prodige de l\'escrime magique.', location: 'Empire Impérial d\'Elion', powerLevel: 90, specialty: 'Épée Solaire', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20handsome%20prince%20knight%20commander?model=flux-anime' },
+        { name: 'Duc de Windsor', role: 'Haute Noblesse', description: 'Gouverneur du Quartier des Nobles, influent et riche.', location: 'Empire Impérial d\'Elion', powerLevel: 65, specialty: 'Influence Politique', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20noble%20duke%20with%20refined%20clothes?model=flux-anime' },
+        { name: 'Baron de l\'Est', role: 'Petite Noblesse', description: 'Garde la frontière vers Vharos, un homme d\'action.', location: 'Empire Impérial d\'Elion', powerLevel: 55, specialty: 'Vigilance Frontière', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20rugged%20baron%20at%20border%20fortress?model=flux-anime' },
         { name: 'Général Kaelen', role: 'Commandant Militaire', description: 'Main de fer de l\'Empire, ne tolère aucun désordre à l\'Académie.', location: 'Académie Impériale', powerLevel: 95, specialty: 'Stratégie de Guerre', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20battle%20hardened%20general%20in%20golden%20armor?model=flux-anime' },
         { name: 'Lukas (Classe S)', role: 'Étudiant Élite', description: 'Le meilleur élève de l\'Académie, arrogant et surpuissant.', location: 'Académie Impériale', powerLevel: 60, specialty: 'Maîtrise Parfaite', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20elite%20student%20with%20blond%20hair?model=flux-anime' },
         { name: 'Maya (Classe A)', role: 'Étudiante Brilliante', description: 'Génie de l\'alchimie, discrète mais redoutable.', location: 'Académie Impériale', powerLevel: 45, specialty: 'Potions Complexes', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20quiet%20smart%20girl%20with%20glasses%20and%20lab%20coat?model=flux-anime' },
@@ -861,8 +861,8 @@ async function setupDatabase() {
     if (schoolCount === 0) {
         console.log('Seeding Schools...');
         await School.bulkCreate([
-            { name: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', description: 'L\'élite militaire d\'Elion.', kingdomName: 'Empire d\'Elion' },
-            { name: 'Lycée de l\'Éther', specialty: 'Techno-magie', description: 'Centre de recherche de Valkyr.', kingdomName: 'Valkyr' },
+            { name: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', description: 'L\'élite militaire d\'Elion.', kingdomName: 'Empire Impérial d\'Elion' },
+            { name: 'Lycée de l\'Éther', specialty: 'Techno-magie', description: 'Centre de recherche de Valkyr.', kingdomName: 'Royaume de Valkyrr' },
             { name: 'École des Ombres', specialty: 'Infiltration et Assassinat', description: 'Lieu secret pour les talents illégaux.', kingdomName: 'Gheno souterrain' }
         ]);
     }
