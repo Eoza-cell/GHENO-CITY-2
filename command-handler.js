@@ -690,6 +690,31 @@ commands.set('boutique', async (sock, message) => {
     }
 });
 
+// Command: /lieux
+commands.set('lieux', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const kingdom = await Kingdom.findOne({ where: { name: player.location } });
+
+    let text = `--- 📍 POSITION ACTUELLE --- \n\n`;
+    text += `🌍 *Royaume:* ${player.location}\n`;
+    text += `📌 *Lieu précis:* ${player.subLocation}\n\n`;
+
+    if (kingdom) {
+        text += `📜 *Description du Royaume:*\n${kingdom.description}\n\n`;
+    }
+
+    text += `🗺️ *Où aller ?*\n`;
+    text += `_Tu peux te déplacer librement via /action en décrivant ton trajet._\n`;
+    text += `_Exemple: "Je sors de la taverne pour aller sur la place centrale" ou "Je quitte la ville vers les plaines"._`;
+
+    await sock.sendMessage(replyJid, { text });
+});
+
 // Command: /joueurs
 commands.set('joueurs', async (sock, message) => {
     const jid = getJid(message);
@@ -1476,6 +1501,7 @@ commands.set('help', async (sock, message) => {
                    "/bank - Accéder à ton compte en banque.\n" +
                    "/boutique - Acheter de l'équipement.\n" +
                    "/joueurs - Voir les joueurs à proximité.\n" +
+                   "/lieux - Voir ta position et les environs.\n" +
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
                    "/royaumes - Géopolitique mondiale.\n" +
@@ -1645,7 +1671,8 @@ commands.set('menu', async (sock, message) => {
                    "📍 *NAVIGATION*\n" +
                    "├ `/map` - Monde & Donjons\n" +
                    "├ `/quests` - Journal d'objectifs\n" +
-                   "└ `/joueurs` - Qui est ici ?\n\n" +
+                   "├ `/joueurs` - Qui est ici ?\n" +
+                   "└ `/lieux` - Ta position actuelle\n\n" +
                    "💰 *ÉCONOMIE*\n" +
                    "├ `/bank` - Ton compte (Col)\n" +
                    "├ `/boutique` - Armes & Items\n" +

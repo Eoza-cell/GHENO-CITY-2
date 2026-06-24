@@ -284,7 +284,15 @@ async function handleFreeAction(sock, message, player, actionText) {
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0 ? "Skills: " + playerSkills.map(s => s.name).join(', ') : "Aucun skill";
 
-  const kingdom = await Kingdom.findOne({ where: { name: player.location } });
+  const allKingdoms = await Kingdom.findAll();
+  const worldGeography = allKingdoms.map(k => `- ${k.name}: ${k.description}`).join('\n');
+
+  // Find current kingdom lore even if location is a city name
+  let kingdom = allKingdoms.find(k => k.name === player.location);
+  if (!kingdom) {
+      // Fallback: search if the current location is mentioned in any kingdom's description (as a city)
+      kingdom = allKingdoms.find(k => k.description.toLowerCase().includes(player.location.toLowerCase()));
+  }
   const subLocContext = kingdom ? `\nLORE_LIEU: ${kingdom.description}` : "";
 
   const npcs = await NPC.findAll({
@@ -362,8 +370,10 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - Les résultats dépendent strictement des stats, compétences, inventaires et du décor fournis.
 
 MOUVEMENT ET GÉOGRAPHIE:
-- NAVIGATION SYSTÈME : Les joueurs peuvent se déplacer en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_player" pour modifier son "new_location" ou son "new_sub_location".
-- DESCRIPTION DE DÉCORS : Chaque changement de lieu doit s'accompagner d'une description riche et immersive du nouvel environnement, basée sur le LORE_LIEU fourni.
+- NAVIGATION SYSTÈME : Les joueurs peuvent se déplacer librement en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_player" pour modifier son "new_location" (Royaume) ou son "new_sub_location" (Lieu précis/Ville/Bâtiment).
+- STRUCTURE GÉOGRAPHIQUE : "Lieu" (location) est le Royaume/Région (ex: Empire Impérial d'Elion). "Sous-lieu" (subLocation) est la ville, le bâtiment ou la pièce (ex: Eldoria, Taverne, Place Centrale).
+- NON-BLOCAGE : Ne bloque JAMAIS un joueur qui veut entrer ou sortir d'un lieu (sauf porte verrouillée magiquement ou garde hostile). Si un joueur dit "Je sors", déplace-le immédiatement dans le Sous-lieu logique suivant (ex: Taverne -> Rue d'Eldoria -> Portes d'Elion -> Plaines).
+- DESCRIPTION DE DÉCORS : Chaque changement de lieu doit s'accompagner d'une description riche et immersive du nouvel environnement, basée sur la "geographie_mondiale" fournie.
 - DISCRÉTION & FUITE (Système de Recherche) : Si un joueur a un "Wanted Level" > 0, il peut tenter de se cacher ou de fuir. Si son action de discrétion est réussie (test AGI/LUK vs INT des gardes), tu peux utiliser "update_player" avec "wantedLevel_change: -1". À 0, le joueur n'est plus recherché.
 
 COMBAT, DOMINATION ET INGÉNIOSITÉ:
@@ -450,7 +460,9 @@ LOGIQUE ACADÉMIE & HIÉRARCHIE SOCIALE:
             date: rpYearString,
             cycle: cycleInfo,
             meteo: weather,
-            lore_lieu: kingdom?.description || "",
+            geographie_mondiale: worldGeography,
+            royaume_actuel: kingdom?.name || player.location,
+            lore_lieu_actuel: kingdom?.description || "",
             geopolitique: worldConflicts,
             institutions: schoolLore
         },
@@ -883,7 +895,7 @@ RÉALITÉ PHYSIQUE:
                 await target.update({
                     isPrisoner: true,
                     wantedLevel: 0,
-                    location: 'Empire d\'Elion',
+                    location: 'Empire Impérial d\'Elion',
                     subLocation: 'Prison Impériale'
                 });
                 await target.reload();
@@ -913,7 +925,7 @@ RÉALITÉ PHYSIQUE:
             if (parameters.target_name) {
                 await target.update({
                     isPrisoner: false,
-                    subLocation: 'Porte d\'Elion'
+                    subLocation: 'Portes d\'Elion'
                 });
                 await target.reload();
                 if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
@@ -1223,8 +1235,8 @@ RÉALITÉ PHYSIQUE:
 
                     // Resurrection
                     await deadPlayer.update({
-                        location: parameters.new_location || 'Eldoria',
-                        subLocation: 'Cimetière',
+                        location: parameters.new_location || "Empire Impérial d'Elion",
+                        subLocation: parameters.new_sub_location || 'Eldoria (Cimetière)',
                         health: Math.floor(deadPlayer.maxHealth * 0.1) // Returns with low HP
                     });
 

@@ -153,11 +153,11 @@ const Player = sequelize.define('Player', {
   },
   location: {
     type: DataTypes.STRING,
-    defaultValue: 'Eldoria',
+    defaultValue: "Empire Impérial d'Elion",
   },
   subLocation: {
     type: DataTypes.STRING,
-    defaultValue: 'Place Centrale',
+    defaultValue: 'Eldoria',
   },
   mode: {
     type: DataTypes.STRING,
