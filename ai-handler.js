@@ -218,16 +218,14 @@ async function handleFreeAction(sock, message, player, actionText) {
       const pQuests = await p.getQuests();
       const [pBank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: p.whatsappId } });
       const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
-      const pActions = (p.subLocation === player.subLocation)
-        ? recentActions.filter(a => a.senderName === p.name).map(a => a.content)
-        : [];
+      const pActions = recentActions.filter(a => a.senderName === p.name).map(a => a.content);
 
       return {
           nom: p.name,
           est_god: p.isGod,
           lieu_precis: p.subLocation,
           est_proche: p.subLocation === player.subLocation,
-          est_acteur: (p.subLocation === player.subLocation) && (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
+          est_acteur: (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
           etat: `Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
@@ -374,6 +372,7 @@ RÈGLES TECHNIQUES:
    - INTERDICTION ABSOLUE: Ne commence jamais par "Tu fais..." ou "Tu dis...". Les actions des joueurs sont déjà écrites dans ACTIONS_JOUEURS. Ta réponse doit commencer directement par les CONSÉQUENCES, les DIALOGUES des PNJ ou l'environnement.
    - CHRONOLOGIE CRITIQUE & PERSISTANCE : Tu ne dois JAMAIS oublier une action de la chronologie. Respecte l'ordre exact des messages fournis dans "CHRONOLOGIE_DES_ACTIONS". Si Joueur A attaque Joueur B puis Joueur B répond, ta narration doit refléter cet enchaînement exact et donner un résultat pour CHAQUE tentative.
    - LE JOUEUR N'EST PAS UN DIEU : Le monde est cruel et exigeant. Rien n'est obtenu facilement. Pour chaque gain (objet, info, stats), le joueur doit fournir un effort proportionnel, réussir un test de stats ou surmonter une épreuve. Ne sois pas généreux par défaut. Le mérite et l'ingéniosité sont les seules monnaies valables.
+   - ÉQUILIBRE "CRUEL MAIS SYMPA" (INDISPENSABLE) : Le monde d'Aetherys est impitoyable (sang, blessures, conséquences réelles) mais doit rester un terrain de jeu plaisant. Alterne entre des épreuves rudes et des moments de répit, de camaraderie ou d'humour. Ne sois jamais un tortionnaire gratuit, mais un arbitre juste et sévère.
    - RÈGLE D'IMMOBILITÉ & PRÉCISION: Tant qu'un joueur n'est pas assez précis dans ses actions (quelle main il utilise, sa trajectoire de mouvement exacte, comment il tient son arme, etc.), il reste IMMOBILE ou son action échoue. S'il dit juste "j'attaque", il ne bouge pas. La précision est la clé de l'action.
    - Si un joueur est listé comme SPECTATEUR, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard.
    - Si un joueur est listé comme ACTEUR, réagis UNIQUEMENT à ce qu'il a écrit. N'invente AUCUN dialogue ou mouvement pour lui.
@@ -426,7 +425,11 @@ RÈGLES TECHNIQUES:
   * 'assets/monsters/goblin.jpg' : Gobelin.
   * 'assets/monsters/boss.jpg' : Boss.
     Si aucune de ces images ne correspond, laisse "imagePrompt" vide ("").
-18. PERSONA (MJ HUMAIN) & MÉMOIRE INFINIE:
+18. DISTINCTION DES JOUEURS & INTERACTIONS :
+    - Tu dois impérativement savoir "qui est qui". Ne confonds JAMAIS les actions d'un joueur avec celles d'un autre.
+    - Si Joueur A parle à Joueur B, décris la réaction de Joueur B UNIQUEMENT si celui-ci a déjà posté une action de réponse dans ACTIONS_À_TRAITER. Sinon, Joueur B reste en attente.
+    - Utilise les noms des joueurs systématiquement pour éviter toute confusion dans les dialogues ou les descriptions de combat.
+19. PERSONA (MJ HUMAIN) & MÉMOIRE INFINIE:
     - MÉMOIRE ABSOLUE: Tu agis comme si tu avais une mémoire de 1000+ messages. Pour cela, tu dois consulter SYSTEMATIQUEMENT la MÉMOIRE_LONG_TERME (Journal).
     - CONSOLIDATION: Chaque fois qu'un joueur accomplit un exploit, subit une blessure grave, se fait un ennemi, ou qu'un secret est révélé, utilise 'write_journal' pour fixer ce souvenir.
     - COHÉRENCE TOTALE: Le monde ne reset JAMAIS. Si un bâtiment est brûlé dans le Journal, il reste brûlé 50 messages plus tard.
@@ -875,6 +878,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                 }
                 await target.save();
                 await target.reload();
+                playersToUpdate.add(target.whatsappId);
               }
             }
           }
@@ -898,7 +902,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                         await target.save();
                         await target.reload();
                         questFeedback.push(`🛒 *ACHAT IA* : ${target.name} a acheté ${parameters.quantity}x ${item.name} pour ${totalPrice} COL.`);
-                        if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                        playersToUpdate.add(target.whatsappId);
                     } else {
                         questFeedback.push(`❌ *ÉCHEC ACHAT* : ${target.name} n'a pas assez de COL pour ${item.name}.`);
                     }
@@ -916,7 +920,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                     subLocation: 'Prison Impériale'
                 });
                 await target.reload();
-                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                playersToUpdate.add(target.whatsappId);
                 questFeedback.push(`⛓️ *ARRESTATION* : ${target.name} a été jeté au cachot.`);
 
                 if (shouldNotifyPlayer(target)) {
@@ -932,7 +936,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
             if (parameters.target_name && typeof parameters.level === 'number') {
                 await target.update({ wantedLevel: Math.max(0, Math.min(10, parameters.level)) });
                 await target.reload();
-                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                playersToUpdate.add(target.whatsappId);
                 questFeedback.push(`📜 *RECHERCHÉ* : Le niveau de recherche de ${target.name} est désormais de ${target.wantedLevel}.`);
             }
             break;
@@ -945,7 +949,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                     subLocation: 'Portes d\'Elion'
                 });
                 await target.reload();
-                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                playersToUpdate.add(target.whatsappId);
                 questFeedback.push(`🔓 *LIBÉRATION* : ${target.name} a purgé sa peine.`);
             }
             break;
@@ -978,7 +982,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
                     await target.reload();
                     questFeedback.push(`🎒 *UTILISATION* : ${target.name} a utilisé ${itemName}.`);
-                    if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                    playersToUpdate.add(target.whatsappId);
                 } else {
                     questFeedback.push(`⚠️ *ÉCHEC UTILISATION* : ${target.name} ne possède pas l'objet "${parameters.itemName}".`);
                 }
@@ -988,7 +992,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
         case 'add_item': {
           if (parameters.itemName && parameters.quantity) {
-            if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+            playersToUpdate.add(target.whatsappId);
             const inventory = [...target.inventory];
             const existingItem = inventory.find(i => i.name.toLowerCase().includes(parameters.itemName.toLowerCase()));
 
@@ -1025,7 +1029,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
         case 'remove_item': {
             if (parameters.itemName && parameters.quantity) {
-                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                playersToUpdate.add(target.whatsappId);
                 let inventory = [...target.inventory];
                 const itemIndex = inventory.findIndex(i => i.name.toLowerCase().includes(parameters.itemName.toLowerCase()));
                 if (itemIndex !== -1) {
@@ -1061,12 +1065,11 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                 if (item) {
                     if (parameters.durability_change) {
                         await item.increment('durability', { by: parameters.durability_change });
-                        // Update profile if the item belongs to the current scene's context
-                        if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                        playersToUpdate.add(target.whatsappId);
                     }
                     if (parameters.new_durability) {
                         await item.update({ durability: parameters.new_durability });
-                        if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                        playersToUpdate.add(target.whatsappId);
                     }
                 }
             }
@@ -1207,7 +1210,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                             await target.save();
                             await target.reload();
                             questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
-                            if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                            playersToUpdate.add(target.whatsappId);
                         }
                     }
                 }
@@ -1223,7 +1226,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                     if (!hasClub) {
                         await target.addClub(club);
                         questFeedback.push(`🏫 *CLUB REJOINT* : Tu es désormais membre du ${club.name}.`);
-                        if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                        playersToUpdate.add(target.whatsappId);
                     }
                 }
             }
@@ -1260,7 +1263,8 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                     });
 
                     questFeedback.push(`✨ *RÉSURRECTION* : ${deadPlayer.name} a été rappelé du monde des morts par ${caster.name}. Sacrifice de ${sacrifice} PV.`);
-                    if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                    playersToUpdate.add(deadPlayer.whatsappId);
+                    playersToUpdate.add(caster.whatsappId);
 
                     if (shouldNotifyPlayer(deadPlayer)) {
                         await sock.sendMessage(deadPlayer.whatsappId, {
@@ -1341,7 +1345,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                     }
                 }
                 await target.reload();
-                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                playersToUpdate.add(target.whatsappId);
                 questFeedback.push(`🎁 *OBJET UNIQUE* : ${target.name} a reçu "${item.name}".`);
             }
             break;
@@ -1392,7 +1396,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                         await house.update({ ownerId: null });
                         questFeedback.push(`🏠 *IMMOBILIER* : La propriété ${house.name} de ${target.name} a été saisie.`);
                     }
-                    if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                    playersToUpdate.add(target.whatsappId);
                 }
             }
             break;
@@ -1407,7 +1411,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
                 await target.update(updates);
                 await target.reload();
-                if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+                playersToUpdate.add(target.whatsappId);
                 questFeedback.push(`🎓 *ACADÉMIE* : Statut mis à jour pour ${target.name}.`);
             }
             break;

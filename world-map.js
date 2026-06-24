@@ -39,6 +39,12 @@ const KINGDOMS = [
         color: '#7f8c8d', fill: 'rgba(127,140,141,0.25)',
         labelPos: [550, 880],
         polygon: [[410, 770], [560, 800], [690, 860], [800, 950], [400, 980], [300, 850]]
+    },
+    {
+        name: 'Gheno souterrain', short: 'GHENO', status: 'Ombre',
+        color: '#2c3e50', fill: 'rgba(44,62,80,0.3)',
+        labelPos: [150, 200],
+        polygon: [[50, 50], [250, 50], [300, 250], [50, 250]]
     }
 ];
 
@@ -57,7 +63,8 @@ const CITIES = [
     { name: 'Gearhead', sub: 'Cité minière', x: 480, y: 240, capital: false },
     { name: 'Palais d\'Argent', sub: 'Cœur Céleste', x: 1180, y: 200, capital: true },
     { name: 'Donjon de la Liche', sub: 'Trône de Vharos', x: 1020, y: 750, capital: true },
-    { name: 'Le Seuil', sub: 'Porte des Morts', x: 550, y: 920, capital: true }
+    { name: 'Le Seuil', sub: 'Porte des Morts', x: 550, y: 920, capital: true },
+    { name: 'Marché Noir', sub: 'Cœur de Gheno', x: 150, y: 150, capital: true }
 ];
 
 const RANK_COLORS = {
