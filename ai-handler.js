@@ -406,9 +406,9 @@ RÈGLES TECHNIQUES:
 12. PROGRESSION & TECHNIQUES: Les joueurs possèdent des techniques de base. Ils peuvent en apprendre de nouvelles via 'add_skill' (coût en SP à déduire via 'update_stats') ou par l'entraînement narratif. Les techniques peuvent évoluer (ex: 'Vertical Square' devenant 'Square Cross') si le joueur pratique intensément ou vit un choc émotionnel fort.
 13. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"", "actionVisual":{"type":"attack|defend|magic|combat","assetName":"Eldoria|Gobelin|...","title":"...","description":"..."}}
 14. ACTIONS AUTORISÉES: update_location, update_stats, update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, release_player, forge_pact, join_club, resurrect_player, write_journal.
-    - update_location : { "new_location": "Royaume", "new_sub_location": "Lieu" }.
-    - update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n, "hunger_change": n, "sleep_change": n }.
-    - update_player : name, characterDescription, profilePicUrl, gender, age, new_class, new_rank, wantedLevel_change.
+    - update_location : { "new_location": "Royaume", "new_sub_location": "Lieu" }. (OBLIGATOIRE dès que le lieu change).
+    - update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n, "hunger_change": n, "sleep_change": n }. (OBLIGATOIRE dès qu'une stat, XP ou monnaie change).
+    - update_player : name, characterDescription, profilePicUrl, gender, age, new_class, new_rank, wantedLevel_change. (OBLIGATOIRE dès qu'un élément d'identité change).
 15. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
     - ÉTANCHÉITÉ DES HISTOIRES: Chaque joueur est le protagoniste de sa propre aventure. Ne mélange pas leurs objectifs, leurs possessions ou leurs alliés. Si Joueur A parle à un PNJ, Joueur B n'est pas automatiquement impliqué dans la conversation sauf s'il intervient.
     - ARBITRAGE STATISTIQUE: Compare systématiquement les statistiques fournies dans 'personnages_en_scene'. Si Joueur A (FOR: 50) attaque Joueur B (FOR: 25) qui tente de bloquer, l'impact DOIT être dévastateur. Bloquer une force double n'annule pas les dégâts : Joueur B est propulsé violemment en arrière (ex: sur 5m) et subit des blessures graves (ex: bras fracturés sous le choc).
@@ -437,6 +437,7 @@ RÈGLES TECHNIQUES:
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
     - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
 20. NARRATION & DIALOGUES: Français riche et cinématographique. Les dialogues des PNJ doivent être percutants et refléter leur personnalité unique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).
+21. SYNCHRONISATION ABSOLUE: Toute modification de l'état d'un joueur décrite dans la narrative (blessure, gain d'objet, déplacement, changement de classe, etc.) DOIT impérativement être accompagnée de l'action correspondante (update_stats, add_item, update_location, etc.) dans le champ "actions". La fiche du joueur doit être le reflet exact de la narration.
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
 - add_skill : { "skillName": "nom", "target_name": "nom" }.
@@ -731,6 +732,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
             if (locationImages[finalLoc]) {
                 aiResponse.imagePrompt = locationImages[finalLoc];
             }
+            if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
             break;
         }
 
@@ -1195,6 +1197,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                             await target.save();
                             await target.reload();
                             questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
+                            if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
                         }
                     }
                 }
@@ -1210,6 +1213,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                     if (!hasClub) {
                         await target.addClub(club);
                         questFeedback.push(`🏫 *CLUB REJOINT* : Tu es désormais membre du ${club.name}.`);
+                        if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
                     }
                 }
             }
@@ -1246,6 +1250,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                     });
 
                     questFeedback.push(`✨ *RÉSURRECTION* : ${deadPlayer.name} a été rappelé du monde des morts par ${caster.name}. Sacrifice de ${sacrifice} PV.`);
+                    if (target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
 
                     if (shouldNotifyPlayer(deadPlayer)) {
                         await sock.sendMessage(deadPlayer.whatsappId, {
