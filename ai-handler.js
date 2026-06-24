@@ -409,7 +409,7 @@ RÈGLES TECHNIQUES:
     - update_location : { "new_location": "Royaume", "new_sub_location": "Lieu" }. (OBLIGATOIRE dès que le lieu change).
     - update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n, "hunger_change": n, "sleep_change": n }. (OBLIGATOIRE dès qu'une stat, XP ou monnaie (Col) change).
     - bank_transaction : { "type": "deposit|withdraw", "amount": n }. (OBLIGATOIRE pour gérer l'argent en banque).
-    - update_player : name, characterDescription, profilePicUrl, gender, age, new_class, new_rank, wantedLevel_change. (OBLIGATOIRE dès qu'un élément d'identité change).
+    - update_player : name, characterDescription, profilePicUrl, gender, age, new_class, new_rank, wantedLevel_change. (OBLIGATOIRE dès qu'un élément d'identité ou de fiche change narratiment, ex: une cicatrice, un changement de tenue, une nouvelle réputation).
 15. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
     - ÉTANCHÉITÉ DES HISTOIRES: Chaque joueur est le protagoniste de sa propre aventure. Ne mélange pas leurs objectifs, leurs possessions ou leurs alliés. Si Joueur A parle à un PNJ, Joueur B n'est pas automatiquement impliqué dans la conversation sauf s'il intervient.
     - ARBITRAGE STATISTIQUE: Compare systématiquement les statistiques fournies dans 'personnages_en_scene'. Si Joueur A (FOR: 50) attaque Joueur B (FOR: 25) qui tente de bloquer, l'impact DOIT être dévastateur. Bloquer une force double n'annule pas les dégâts : Joueur B est propulsé violemment en arrière (ex: sur 5m) et subit des blessures graves (ex: bras fracturés sous le choc).
@@ -445,7 +445,7 @@ RÈGLES TECHNIQUES:
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
     - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
 20. NARRATION & DIALOGUES: Français riche et cinématographique. Les dialogues des PNJ doivent être percutants et refléter leur personnalité unique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).
-21. SYNCHRONISATION ABSOLUE: Toute modification de l'état d'un joueur décrite dans la narrative (blessure, gain d'objet, déplacement, changement de classe, etc.) DOIT impérativement être accompagnée de l'action correspondante (update_stats, add_item, update_location, etc.) dans le champ "actions". La fiche du joueur doit être le reflet exact de la narration.
+21. SYNCHRONISATION ABSOLUE: Toute modification de l'état d'un joueur décrite dans la narrative (blessure, gain d'objet, déplacement, changement de classe, etc.) DOIT impérativement être accompagnée de l'action correspondante (update_stats, add_item, update_location, bank_transaction, etc.) dans le champ "actions". La fiche du joueur doit être le reflet exact de la narration. Si un joueur dépose de l'argent à la banque, tu DOIS utiliser 'bank_transaction'.
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
 - add_skill : { "skillName": "nom", "target_name": "nom" }.
@@ -792,12 +792,16 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
         }
 
         case 'bank_transaction': {
+            await target.reload();
             const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: target.whatsappId } });
+            await bank.reload();
             if (parameters.type === 'deposit') {
                 if (target.col >= parameters.amount) {
                     await target.decrement('col', { by: parameters.amount });
                     await bank.increment('balance', { by: parameters.amount });
-                    questFeedback.push(`🏦 *BANQUE* : ${target.name} a déposé ${parameters.amount} Col.`);
+                    await target.reload();
+                    await bank.reload();
+                    questFeedback.push(`🏦 *BANQUE* : ${target.name} a déposé ${parameters.amount} Col. Nouveau solde : ${bank.balance} Col.`);
                 } else {
                     questFeedback.push(`❌ *ÉCHEC BANQUE* : ${target.name} n'a pas assez de Col pour déposer.`);
                 }
@@ -805,12 +809,13 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                 if (bank.balance >= parameters.amount) {
                     await bank.decrement('balance', { by: parameters.amount });
                     await target.increment('col', { by: parameters.amount });
-                    questFeedback.push(`🏦 *BANQUE* : ${target.name} a retiré ${parameters.amount} Col.`);
+                    await target.reload();
+                    await bank.reload();
+                    questFeedback.push(`🏦 *BANQUE* : ${target.name} a retiré ${parameters.amount} Col. Nouveau solde : ${bank.balance} Col.`);
                 } else {
                     questFeedback.push(`❌ *ÉCHEC BANQUE* : ${target.name} n'a pas assez en banque pour retirer.`);
                 }
             }
-            await target.reload();
             playersToUpdate.add(target.whatsappId);
             break;
         }
@@ -823,7 +828,11 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
           if (parameters.name) { await target.update({ name: parameters.name }); hasChanged = true; }
           if (parameters.new_class) { await target.update({ class: parameters.new_class }); hasChanged = true; }
+          if (parameters.derivative) { await target.update({ derivative: parameters.derivative }); hasChanged = true; }
           if (parameters.new_rank) { await target.update({ rank: parameters.new_rank }); hasChanged = true; }
+          if (parameters.family) { await target.update({ family: parameters.family }); hasChanged = true; }
+          if (parameters.occupation) { await target.update({ occupation: parameters.occupation }); hasChanged = true; }
+          if (parameters.organization) { await target.update({ organization: parameters.organization }); hasChanged = true; }
           if (parameters.characterDescription) { await target.update({ characterDescription: parameters.characterDescription }); hasChanged = true; }
           if (parameters.profilePicUrl) { await target.update({ profilePicUrl: parameters.profilePicUrl }); hasChanged = true; }
           if (parameters.equippedOutfit) {

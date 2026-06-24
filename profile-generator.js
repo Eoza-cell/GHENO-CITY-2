@@ -53,10 +53,10 @@ async function addOverlay(baseImg, player, width, height) {
     // Stats positioning (moved lower to make room for HP/MP)
     const stats = [
         { name: 'Force', value: player.strength, max: 100, y: 550 },
-        { name: 'Dextérité', value: player.agility, max: 100, y: 580 },
+        { name: 'Agilité', value: player.agility, max: 100, y: 580 },
         { name: 'Intelligence', value: player.intelligence, max: 100, y: 610 },
-        { name: 'Endurance', value: player.defense, max: 100, y: 640 },
-        { name: 'Charisme', value: player.luck, max: 100, y: 670 },
+        { name: 'Défense', value: player.defense, max: 100, y: 640 },
+        { name: 'Influence', value: player.influence || 0, max: 100, y: 670 },
         { name: 'Chance', value: player.luck, max: 100, y: 700 }
     ];
 
@@ -73,8 +73,8 @@ async function addOverlay(baseImg, player, width, height) {
 
     const inventory = player.inventory || [];
     const weaponKeywords = ['épée', 'lame', 'dague', 'bâton', 'arc', 'lance', 'hache', 'sword', 'blade', 'dagger', 'staff', 'bow', 'spear', 'axe', 'katana', 'rapier'];
-    const weapons = inventory.filter(i => weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
-    const equipment = inventory.filter(i => !weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
+    const weapons = inventory.filter(i => weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 6);
+    const equipment = inventory.filter(i => !weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 6);
 
     const overlaySvg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -97,8 +97,8 @@ async function addOverlay(baseImg, player, width, height) {
             <!-- Player Info -->
             <text x="210" y="245" class="text name">${escapeXml(player.name)} (${escapeXml(player.gender)})</text>
             <text x="210" y="278" class="text value">LVL ${player.level} | ${player.age} ans</text>
-            <text x="210" y="311" class="text value">${escapeXml(player.schoolName || 'Aventurier Libre')}</text>
-            <text x="210" y="344" class="text value">RANG ${escapeXml(player.rank)}</text>
+            <text x="210" y="311" class="text value">${escapeXml(player.class || 'Sans Classe')} ${player.derivative && player.derivative !== 'Aucun' ? `(${escapeXml(player.derivative)})` : ''}</text>
+            <text x="210" y="344" class="text value">${escapeXml(player.schoolName || 'Aventurier Libre')} | RANG ${escapeXml(player.rank)}</text>
 
             <text x="730" y="245" class="text value" text-anchor="end">${escapeXml(player.occupation || 'Citoyen')}</text>
             <text x="730" y="278" class="text value" text-anchor="end">${escapeXml(player.organization || 'Aucune')}</text>
@@ -148,27 +148,27 @@ async function addOverlay(baseImg, player, width, height) {
             <text x="585" y="790" class="text header" text-anchor="middle" style="fill: #ff00ff; font-size: 20px;">${escapeXml(player.family || 'SANS FAMILLE')}</text>
 
             <!-- Grid: Weapons -->
-            <rect x="50" y="840" width="340" height="200" fill="rgba(255,255,255,0.02)" stroke="#ff4444" stroke-width="1" rx="10" />
-            <text x="70" y="875" class="header" style="fill: #ff4444;">⚔️ ARMES</text>
-            <g transform="translate(70, 900)">
+            <rect x="50" y="840" width="340" height="210" fill="rgba(255,255,255,0.02)" stroke="#ff4444" stroke-width="1" rx="10" />
+            <text x="70" y="870" class="header" style="fill: #ff4444; font-size: 18px;">⚔️ ARMES</text>
+            <g transform="translate(70, 885)">
                 ${weapons.length > 0 ? weapons.map((item, i) => `
-                    <g transform="translate(0, ${i * 45})">
-                        <rect width="300" height="35" fill="rgba(255,255,255,0.03)" rx="5" />
-                        <text x="10" y="22" class="text item-text" style="font-size: 14px;">${escapeXml(item.name.substring(0, 25))}</text>
-                        <text x="280" y="22" class="text item-qty" text-anchor="end">x${item.quantity}</text>
+                    <g transform="translate(0, ${i * 26})">
+                        <rect width="300" height="22" fill="rgba(255,255,255,0.03)" rx="3" />
+                        <text x="10" y="16" class="text item-text" style="font-size: 13px;">${escapeXml(item.name.substring(0, 30))}</text>
+                        <text x="290" y="16" class="text item-qty" text-anchor="end" style="font-size: 12px;">x${item.quantity}</text>
                     </g>
                 `).join('') : '<text y="40" class="text value" style="fill: #555;">Aucune arme...</text>'}
             </g>
 
             <!-- Grid: Equipment -->
-            <rect x="410" y="840" width="340" height="200" fill="rgba(255,255,255,0.02)" stroke="#4fb3ff" stroke-width="1" rx="10" />
-            <text x="430" y="875" class="header" style="fill: #4fb3ff;">🛡️ ÉQUIPEMENT</text>
-            <g transform="translate(430, 900)">
+            <rect x="410" y="840" width="340" height="210" fill="rgba(255,255,255,0.02)" stroke="#4fb3ff" stroke-width="1" rx="10" />
+            <text x="430" y="870" class="header" style="fill: #4fb3ff; font-size: 18px;">🛡️ ÉQUIPEMENT</text>
+            <g transform="translate(430, 885)">
                 ${equipment.length > 0 ? equipment.map((item, i) => `
-                    <g transform="translate(0, ${i * 45})">
-                        <rect width="300" height="35" fill="rgba(255,255,255,0.03)" rx="5" />
-                        <text x="10" y="22" class="text item-text" style="font-size: 14px;">${escapeXml(item.name.substring(0, 25))}</text>
-                        <text x="280" y="22" class="text item-qty" text-anchor="end">x${item.quantity}</text>
+                    <g transform="translate(0, ${i * 26})">
+                        <rect width="300" height="22" fill="rgba(255,255,255,0.03)" rx="3" />
+                        <text x="10" y="16" class="text item-text" style="font-size: 13px;">${escapeXml(item.name.substring(0, 30))}</text>
+                        <text x="290" y="16" class="text item-qty" text-anchor="end" style="font-size: 12px;">x${item.quantity}</text>
                     </g>
                 `).join('') : '<text y="40" class="text value" style="fill: #555;">Aucun équipement...</text>'}
             </g>

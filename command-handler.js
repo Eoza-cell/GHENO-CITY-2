@@ -1113,7 +1113,7 @@ commands.set('conflits', async (sock, message) => {
 });
 
 // Command: /bank
-commands.set('bank', async (sock, message) => {
+const bankCommand = async (sock, message) => {
     const jid = getJid(message);
     const player = await Player.findOne({ where: { whatsappId: jid } });
     const replyJid = message.key.remoteJid;
@@ -1124,14 +1124,82 @@ commands.set('bank', async (sock, message) => {
     }
 
     const [bank, created] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
+    await bank.reload();
 
     const bankText = `--- 🏦 BANQUE D'ELION --- \n\n` +
-                     `💳 *SOLDE:* ${bank.balance} 🪙\n\n` +
+                     `👤 *CLIENT:* ${player.name}\n` +
+                     `💰 *ESPÈCES:* ${player.col} 🪙\n` +
+                     `💳 *SOLDE BANCAIRE:* ${bank.balance} 🪙\n\n` +
                      `--------------------------- \n` +
-                     `_Pour déposer ou retirer, utilise le mode /action._\n` +
-                     `_Ex: "Je dépose 50 col à la banque"_`;
+                     `💡 *COMMANDES:* \n` +
+                     `└ \`/deposer <montant>\` \n` +
+                     `└ \`/retirer <montant>\` \n\n` +
+                     `_Tu peux aussi demander au MJ en mode /action._`;
 
     await sock.sendMessage(replyJid, { text: bankText });
+};
+commands.set('bank', bankCommand);
+commands.set('banque', bankCommand);
+
+// Command: /deposer
+commands.set('deposer', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const amount = parseInt(args[0]);
+    if (isNaN(amount) || amount <= 0) {
+        return await sock.sendMessage(replyJid, { text: "❌ Utilise : `/deposer <montant>`" });
+    }
+
+    if (player.col < amount) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de Col sur toi (${player.col} Col dispos).` });
+    }
+
+    const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+
+    await player.decrement('col', { by: amount });
+    await bank.increment('balance', { by: amount });
+
+    await player.reload();
+    await bank.reload();
+
+    await sock.sendMessage(replyJid, {
+        text: `🏦 *DÉPÔT RÉUSSI*\n\nMontant : ${amount} Col\nNouveau solde : ${bank.balance} Col\nEspèces restantes : ${player.col} Col`
+    });
+});
+
+// Command: /retirer
+commands.set('retirer', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+    await bank.reload();
+
+    const amount = parseInt(args[0]);
+    if (isNaN(amount) || amount <= 0) {
+        return await sock.sendMessage(replyJid, { text: "❌ Utilise : `/retirer <montant>`" });
+    }
+
+    if (bank.balance < amount) {
+        return await sock.sendMessage(replyJid, { text: `❌ Ton solde bancaire est insuffisant (${bank.balance} Col dispos).` });
+    }
+
+    await bank.decrement('balance', { by: amount });
+    await player.increment('col', { by: amount });
+
+    await player.reload();
+    await bank.reload();
+
+    await sock.sendMessage(replyJid, {
+        text: `🏦 *RETRAIT RÉUSSI*\n\nMontant : ${amount} Col\nNouveau solde : ${bank.balance} Col\nEspèces sur toi : ${player.col} Col`
+    });
 });
 
 // Command: /donner
@@ -1519,6 +1587,8 @@ commands.set('help', async (sock, message) => {
                    "/quests - Voir tes quêtes actives.\n" +
                    "/map - Afficher la carte du monde et les donjons.\n" +
                    "/bank - Accéder à ton compte en banque.\n" +
+                   "/deposer <montant> - Déposer de l'argent en banque.\n" +
+                   "/retirer <montant> - Retirer de l'argent de la banque.\n" +
                    "/boutique - Acheter de l'équipement.\n" +
                    "/joueurs - Voir les joueurs à proximité.\n" +
                    "/lieux - Voir ta position et les environs.\n" +
