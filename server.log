@@ -1,0 +1,48 @@
+[2:56:06 PM] Initialisation du système...
+Connection to the database has been established successfully.
+Database synchronized.
+[2:56:07 PM] Serveur web démarré sur http://localhost:3000
+[2:56:07 PM] Déploiement prêt.
+[2:56:07 PM] QR Code disponible (ignoré pour pairing code)
+[2:56:34 PM] Demande de code pour le numéro: 2250102030405
+[2:56:37 PM]
+
+>>> VOTRE CODE DE JUMELAGE EST : PRW2GAF1 <<<
+
+
+[2:57:07 PM] QR Code disponible (ignoré pour pairing code)
+[2:57:27 PM] QR Code disponible (ignoré pour pairing code)
+[2:57:47 PM] QR Code disponible (ignoré pour pairing code)
+[2:58:07 PM] QR Code disponible (ignoré pour pairing code)
+[2:58:27 PM] QR Code disponible (ignoré pour pairing code)
+[2:58:47 PM] Connexion fermée (Code: 408). Reconnexion: true
+Connection to the database has been established successfully.
+Database synchronized.
+[2:58:53 PM] Connexion fermée (Code: 401). Reconnexion: false
+[2:58:53 PM] Déconnecté par l'utilisateur ou session expirée. Suppression des identifiants...
+[2:58:53 PM] Session réinitialisée.
+Connection to the database has been established successfully.
+Database synchronized.
+[2:58:54 PM] QR Code disponible (ignoré pour pairing code)
+[2:59:54 PM] QR Code disponible (ignoré pour pairing code)
+[3:00:14 PM] QR Code disponible (ignoré pour pairing code)
+[3:00:34 PM] QR Code disponible (ignoré pour pairing code)
+[3:00:54 PM] QR Code disponible (ignoré pour pairing code)
+[3:01:14 PM] QR Code disponible (ignoré pour pairing code)
+[3:01:34 PM] Connexion fermée (Code: 408). Reconnexion: true
+Connection to the database has been established successfully.
+Database synchronized.
+[3:01:35 PM] QR Code disponible (ignoré pour pairing code)
+[3:02:35 PM] QR Code disponible (ignoré pour pairing code)
+[3:02:55 PM] QR Code disponible (ignoré pour pairing code)
+[3:03:15 PM] QR Code disponible (ignoré pour pairing code)
+[3:03:35 PM] QR Code disponible (ignoré pour pairing code)
+[3:03:55 PM] QR Code disponible (ignoré pour pairing code)
+[3:04:16 PM] Connexion fermée (Code: 408). Reconnexion: true
+Connection to the database has been established successfully.
+Database synchronized.
+[3:04:17 PM] QR Code disponible (ignoré pour pairing code)
+[3:05:17 PM] QR Code disponible (ignoré pour pairing code)
+[3:05:37 PM] QR Code disponible (ignoré pour pairing code)
+[3:05:57 PM] QR Code disponible (ignoré pour pairing code)
+[3:06:17 PM] QR Code disponible (ignoré pour pairing code)
