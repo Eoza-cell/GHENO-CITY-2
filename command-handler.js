@@ -38,8 +38,18 @@ commands.set('help', async (sock, message) => {
     const helpText = "🏰 *Aide - Throne of Epsylion* 🏰\n\n" +
                      "/start - Commencer ou recommencer l'inscription.\n" +
                      "/profile - Voir ta fiche de personnage.\n" +
+                     "/ping - Vérifier la connexion du bot.\n" +
                      "/help - Afficher ce message.";
     await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+commands.set('ping', async (sock, message) => {
+    const start = Date.now();
+    await sock.sendMessage(message.key.remoteJid, { text: "🏓 Pong !" });
+    const end = Date.now();
+    // Optionnel: On peut renvoyer la latence dans un second message ou éditer le premier
+    // Mais Baileys ne supporte pas l'édition de message aussi simplement.
+    // On va juste confirmer que le bot est en ligne.
 });
 
 async function handleCommand(sock, message) {

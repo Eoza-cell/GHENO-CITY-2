@@ -11,8 +11,7 @@ async function handleRegistration(sock, message, player) {
   if (player.registrationStep === 0) {
     await player.update({ registrationStep: 1 });
     await sock.sendMessage(remoteJid, {
-      image: fs.readFileSync('./assets/step1_name.jpg'),
-      caption: "Akuma. C'est comme ça qu'on m'appelle. Je ne t'ai jamais croisé dans les environs... Un nouveau prétendant au Grand Tournoi Mondial ? Alors tu tombes bien, je serai ton guide à travers les formalités. Commençons simplement : quel est ton nom ? Celui que les foules scanderont peut-être un jour dans les arènes de Gaïa..."
+      image: fs.readFileSync('./assets/step1_name.jpg')
     });
     return true;
   }
@@ -24,8 +23,7 @@ async function handleRegistration(sock, message, player) {
     await player.update({ characterName, registrationStep: 2 });
 
     await sock.sendMessage(remoteJid, {
-      image: fs.readFileSync('./assets/step2_photo.jpg'),
-      caption: "Fascinant... Tu dégages cette même aura étrange que quelques autres candidats récents. Quelque chose venu d'ailleurs, difficile à expliquer mais impossible à ignorer. Et curieusement, ton nom non plus ne vient d'aucun coin de Gaïa. Enfin, je divague peut-être... ça arrive quand on observe des futurs champions toute la journée. Envoie-moi maintenant une image de toi, pour compléter ton dossier d'inscription..."
+      image: fs.readFileSync('./assets/step2_photo.jpg')
     });
     return true;
   }
@@ -52,8 +50,7 @@ async function handleRegistration(sock, message, player) {
     });
 
     await sock.sendMessage(remoteJid, {
-      image: fs.readFileSync('./assets/step3_skill.jpg'),
-      caption: "Bien. Les présentations sont terminées. Chaque combattant de Gaïa possède un Epsylion unique, et tout commence par une seule chose : ton Skill de Base. C'est le cœur de ton pouvoir, la racine d'où naîtront toutes tes futures capacités. Réfléchis bien, mais ne te laisse pas intimider... modeste ou capable de faire trembler les étoiles, le système ajustera sa puissance pour garder l'équilibre. Ce qui compte, ce n'est pas la force brute, mais l'originalité et la maîtrise."
+      image: fs.readFileSync('./assets/step3_skill.jpg')
     });
     return true;
   }
@@ -65,8 +62,7 @@ async function handleRegistration(sock, message, player) {
     await player.update({ skill, registrationStep: 4 });
 
     await sock.sendMessage(remoteJid, {
-      image: fs.readFileSync('./assets/step4_quote.jpg'),
-      caption: "Avant de clore ce chapitre, offre-nous une dernière parole digne d'être gravée. Une citation, une devise, une vérité qui te définit. Fais-en quelque chose d'imposant... une phrase qui inspire le respect et rappelle à tous que les grandes choses ne sont jamais accomplies par ceux qui hésitent."
+      image: fs.readFileSync('./assets/step4_quote.jpg')
     });
     return true;
   }
