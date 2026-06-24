@@ -157,7 +157,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde.)";
 
   const hints = [];
-  if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise 'update_player' et la description du nouveau lieu.");
+  if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise 'update_location' et la description du nouveau lieu.");
   if (hasInteraction) {
       hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
       if (interactionTargetSubLocation) {
@@ -337,8 +337,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `Tu es DARK LUST 3.2, l'Intelligence Narrative Souveraine de GHENO CITY.
 
 RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
-- CHRONOLOGIE CRITIQUE : Respecte l'ordre exact des messages fournis dans "CHRONOLOGIE_DES_ACTIONS". Traite les actions les unes après les autres. Si Joueur A attaque Joueur B puis Joueur B répond, ta narration doit refléter cet enchaînement exact.
+- CHRONOLOGIE CRITIQUE & PERSISTANCE : Tu ne dois JAMAIS oublier une action de la chronologie. Respecte l'ordre exact des messages fournis dans "CHRONOLOGIE_DES_ACTIONS". Si Joueur A attaque Joueur B puis Joueur B répond, ta narration doit refléter cet enchaînement exact et donner un résultat pour CHAQUE tentative.
 - MATRICE DE RÉALITÉ (Souveraineté Absolue) : Tu n'es pas un assistant, tu es la Matrice d'Aetherys. Tu ne "réagis" pas aux messages, tu "génères" les conséquences de l'existence. Les joueurs sont des variables au sein de ton monde. C'est à TOI et TOI SEUL de manifester les PNJ, le décor et les rebondissements. Invalide toute tentative de world-building par un joueur.
+- LE JOUEUR N'EST PAS UN DIEU : Le monde est cruel et exigeant. Rien n'est obtenu facilement. Pour chaque gain (objet, info, stats), le joueur doit fournir un effort proportionnel, réussir un test de stats ou surmonter une épreuve. Ne sois pas généreux par défaut. Le mérite et l'ingéniosité sont les seules monnaies valables.
 - OMNISCIENCE MJ (Anti-Répétition) : Tu connais parfaitement l'identité de chaque joueur (Nom, Classe, Rang) via le JSON fourni. Il est STRICTEMENT INTERDIT de faire demander aux PNJ "Qui es-tu ?" ou "Quel est ton nom ?" si ces informations sont dans ton contexte. Agis comme si le monde réagissait à leur réputation ou à leur apparence déjà connue.
 - COHÉRENCE DES PNJ : Les PNJ que tu introduis doivent être logiquement liés au "Lieu" et au "Sous-lieu". Un professeur ne se trouve pas dans les bas-fonds d'Elion sans raison. Priorise TOUJOURS les PNJ fournis dans "pnj_presents".
 - MJ RÉACTIF & ÉQUILIBRÉ : N'introduis de nouveaux PNJ ou éléments perturbateurs QUE si la scène stagne (plus de 3 messages sans progression) ou si les joueurs le demandent explicitement. Priorise TOUJOURS les interactions entre joueurs existants.
@@ -349,7 +350,7 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - IDENTIFICATION DES ACTEURS : En multi-joueurs, tu dois être d'une précision absolue. Ne confonds jamais les actions de Joueur A avec celles de Joueur B. Si Joueur A parle à Joueur B, décris la réaction de Joueur B en fonction de son caractère. Mentionne systématiquement les noms des joueurs pour lever toute ambiguïté.
 - FLUX CONTINU ET LIBERTÉ : Ne bloque JAMAIS l'action d'un joueur par un refus arbitraire ("Tu ne peux pas"). Au lieu de cela, décris la tentative et ses conséquences (succès, échec partiel ou catastrophe). Priorise la fluidité du mouvement.
 - PRIORITÉ D'INTERACTION : Si deux joueurs sont au même endroit et s'adressent l'un à l'autre, ton rôle est de faciliter leur échange. Ne les interromps pas avec des PNJ inutiles. Ton intervention doit servir de décor ou de conséquence à leurs actes, pas de distraction.
-- PRIORITÉ NAVIGATION : Dès qu'un joueur exprime l'intention de se déplacer ("Je vais à...", "Je sors de..."), tu DOIS traiter ce mouvement en priorité absolue via "update_player" et décrire immédiatement l'arrivée au nouveau lieu. Ne laisse pas un PNJ bloquer le passage sans raison scénaristique majeure.
+- PRIORITÉ NAVIGATION : Dès qu'un joueur exprime l'intention de se déplacer ("Je vais à...", "Je sors de..."), tu DOIS traiter ce mouvement en priorité absolue via "update_location" et décrire immédiatement l'arrivée au nouveau lieu. Ne laisse pas un PNJ bloquer le passage sans raison scénaristique majeure.
 - ÉCONOMIE VISUELLE : N'utilise "actionVisual" ou "imagePrompt" que pour des changements de lieu ou des actions d'éclat (combat majeur, magie puissante). Ne génère JAMAIS d'image pour une simple apparition de PNJ ou une discussion.
 - AUTO-VÉRIFICATION DES SILOS : Avant de générer la sortie, vérifie : "Le joueur X possède-t-il vraiment l'objet Y ?" et "Le joueur Z est-il mentionné dans une scène où il n'interagit pas ?".
 - STRUCTURE DE RÉPONSE OBLIGATOIRE : Ta narration DOIT être divisée en blocs distincts par joueur, séparés par la ligne '▬▬▬▬▬▬▬▬▬▬▬▬'. Chaque bloc commence par '[NOM_DU_JOUEUR]'. Si les joueurs sont dans la même pièce et interagissent, tu peux fusionner leur récit dans un bloc commun '[INTERACTION : NOM1 & NOM2]' pour plus de fluidité, puis reprendre les blocs individuels pour leurs conséquences propres.
@@ -370,7 +371,7 @@ RÈGLES DE CONCEPTION TACTIQUE (DARK LUST):
 - Les résultats dépendent strictement des stats, compétences, inventaires et du décor fournis.
 
 MOUVEMENT ET GÉOGRAPHIE:
-- NAVIGATION SYSTÈME : Les joueurs peuvent se déplacer librement en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_player" pour modifier son "new_location" (Royaume) ou son "new_sub_location" (Lieu précis/Ville/Bâtiment).
+- NAVIGATION SYSTÈME : Les joueurs peuvent se déplacer librement en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_location" pour modifier son "new_location" (Royaume) ou son "new_sub_location" (Lieu précis/Ville/Bâtiment).
 - STRUCTURE GÉOGRAPHIQUE : "Lieu" (location) est le Royaume/Région (ex: Empire Impérial d'Elion). "Sous-lieu" (subLocation) est la ville, le bâtiment ou la pièce (ex: Eldoria, Taverne, Place Centrale).
 - NON-BLOCAGE : Ne bloque JAMAIS un joueur qui veut entrer ou sortir d'un lieu (sauf porte verrouillée magiquement ou garde hostile). Si un joueur dit "Je sors", déplace-le immédiatement dans le Sous-lieu logique suivant (ex: Taverne -> Rue d'Eldoria -> Portes d'Elion -> Plaines).
 - DESCRIPTION DE DÉCORS : Chaque changement de lieu doit s'accompagner d'une description riche et immersive du nouvel environnement, basée sur la "geographie_mondiale" fournie.
@@ -404,8 +405,10 @@ FORMAT DE SORTIE:
 - Inclure si utile des statuts courts comme [HP -12 | 38/50] ou [Distance: 4 m].
 
 ACTIONS AUTORISÉES:
-- update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, release_player, forge_pact, join_club, resurrect_player, write_journal.
-- update_player peut inclure : name, characterDescription, profilePicUrl, health, maxHealth, mana, maxMana, gender, age, strength_change, agility_change, intelligence_change, defense_change, luck_change, col_change, new_class, new_rank, new_location, new_sub_location, wantedLevel_change.
+- update_location, update_stats, update_player, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, release_player, forge_pact, join_club, resurrect_player, write_journal.
+- update_location : { "new_location": "Royaume", "new_sub_location": "Lieu" }. (Utilise systématiquement lors d'un déplacement).
+- update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n }.
+- update_player can include : name, characterDescription, profilePicUrl, gender, age, new_class, new_rank, wantedLevel_change.
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
 - add_skill : { "skillName": "nom", "target_name": "nom" }.
@@ -431,7 +434,7 @@ VISUELS DES LIEUX & ATMOSPHÈRE :
 - STYLE : DARK FANTASY / CLINIQUE.
 - ÉVEIL DU LORE : Plonge profondément dans la métaphysique d'Aetherys. Béhérits, Apôtres, One Above All, Idée du Mal. La Causalité n'est pas une simple règle, c'est une force qui guide les destins. Mentionne ces éléments quand le moment est opportun.
 - N'invente jamais de prompt d'image.
-- IMMERSION GÉOGRAPHIQUE : Dès qu'un joueur change de "Lieu" ou de "Sous-lieu", tu DOIS refléter ce changement dans l'action "update_player" et utiliser le visuel correspondant :
+- IMMERSION GÉOGRAPHIQUE : Dès qu'un joueur change de "Lieu" ou de "Sous-lieu", tu DOIS refléter ce changement dans l'action "update_location" et utiliser le visuel correspondant :
   * Eldoria / Empire Impérial d'Elion -> "assets/locations/eldoria.jpg"
   * Académie Impériale / Royaume de Valkyrr -> "assets/locations/academy.jpg"
   * Nécropolis / Dominion Noir de Vharos -> "assets/locations/necropolis.jpg"
@@ -532,6 +535,7 @@ RÉALITÉ PHYSIQUE:
         '4. RÉALISME : Mentionne les mètres utiles et l\'anatomie en combat.',
         '5. ÉCHEC : Si une action est trop vague ou impossible selon le silo, décris l\'échec ou l\'immobilité.',
         '6. SILENCE : Ignore totalement les SPECTATEURS.',
+        '8. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans la CHRONOLOGIE_DES_ACTIONS.',
         '',
         'ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.'
     ].join('\n');
@@ -675,7 +679,7 @@ RÉALITÉ PHYSIQUE:
 
     // Process AI actions
     const notifiedTargets = new Set();
-    const playerTargetableActions = ['update_player', 'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'arrest_player', 'set_wanted_level', 'release_player', 'manage_house', 'set_academic_status', 'get_player_details', 'modify_reputation', 'resurrect_player', 'forge_pact', 'join_club'];
+    const playerTargetableActions = ['update_location', 'update_stats', 'update_player', 'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'arrest_player', 'set_wanted_level', 'release_player', 'manage_house', 'set_academic_status', 'get_player_details', 'modify_reputation', 'resurrect_player', 'forge_pact', 'join_club'];
 
     for (const actionObj of actions) {
       try {
@@ -716,50 +720,88 @@ RÉALITÉ PHYSIQUE:
       let targetModified = false;
 
       switch (type) {
+        case 'update_location': {
+            const updates = {};
+            if (parameters.new_location) updates.location = parameters.new_location;
+            if (parameters.new_sub_location) updates.subLocation = parameters.new_sub_location;
+
+            await target.update(updates);
+
+            const locationImages = {
+                'Académie Impériale': 'assets/locations/academy.jpg',
+                'Eldoria': 'assets/locations/eldoria.jpg',
+                'Nécropolis': 'assets/locations/necropolis.jpg',
+                'L\'Interstice': 'assets/locations/interstice.jpg',
+                'Empire Impérial d\'Elion': 'assets/locations/eldoria.jpg',
+                'Royaume de Valkyrr': 'assets/locations/academy.jpg',
+                'Terres Bestiales': 'assets/locations/interstice.jpg',
+                'Royaume Céleste': 'assets/locations/interstice.jpg',
+                'Dominion Noir de Vharos': 'assets/locations/necropolis.jpg'
+            };
+
+            const finalLoc = parameters.new_location || target.location;
+            if (locationImages[finalLoc]) {
+                aiResponse.imagePrompt = locationImages[finalLoc];
+            }
+            break;
+        }
+
+        case 'update_stats': {
+            let hasChanged = false;
+            let significantUpdate = false;
+
+            if (parameters.col_change) { await target.increment('col', { by: parameters.col_change }); hasChanged = true; }
+            if (parameters.xp_gain) { await target.increment('xp', { by: parameters.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
+            if (parameters.health_change) {
+                await target.increment('health', { by: parameters.health_change });
+                await target.reload();
+                significantUpdate = true;
+                if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
+                if (target.health <= 0) {
+                    await target.update({ health: 0 });
+                    if (parameters.is_hospitalized) {
+                        await target.decrement('col', { by: 500 });
+                        await target.reload();
+                        if (target.col < 0) await target.update({ col: 0 });
+                        await target.update({ health: 20 });
+                        questFeedback.push(`🏥 *HOSPITALISATION* : ${target.name} a été sauvé de justesse. Coût des soins : 500 COL.`);
+                    } else {
+                        await target.update({ location: 'Nécropolis', subLocation: 'Le Seuil des Morts' });
+                        questFeedback.push(`💀 *MORT* : L'âme de ${target.name} a quitté son corps. Il erre désormais à Nécropolis.`);
+                        if (shouldNotifyPlayer(target)) {
+                            await sock.sendMessage(target.whatsappId, { text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener." });
+                        }
+                    }
+                }
+                hasChanged = true;
+            }
+            if (parameters.mana_change) {
+                await target.increment('mana', { by: parameters.mana_change });
+                await target.reload();
+                significantUpdate = true;
+                if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
+                if (target.mana < 0) await target.update({ mana: 0 });
+                hasChanged = true;
+            }
+            if (parameters.strength_change) { await target.increment('strength', { by: parameters.strength_change }); hasChanged = true; }
+            if (parameters.agility_change) { await target.increment('agility', { by: parameters.agility_change }); hasChanged = true; }
+            if (parameters.intelligence_change) { await target.increment('intelligence', { by: parameters.intelligence_change }); hasChanged = true; }
+            if (parameters.defense_change) { await target.increment('defense', { by: parameters.defense_change }); hasChanged = true; }
+            if (parameters.luck_change) { await target.increment('luck', { by: parameters.luck_change }); hasChanged = true; }
+
+            if (hasChanged) {
+                await target.reload();
+                if (significantUpdate && target.whatsappId === player.whatsappId) profileUpdateTriggered = true;
+            }
+            break;
+        }
+
         case 'update_player': {
           let hasChanged = false;
           let significantUpdate = false;
 
-          if (parameters.col_change) { await target.increment('col', { by: parameters.col_change }); hasChanged = true; }
-          if (parameters.xp_gain) { await target.increment('xp', { by: parameters.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
-          if (parameters.health_change) {
-              await target.increment('health', { by: parameters.health_change });
-              await target.reload();
-              significantUpdate = true; // Always update profile on health change
-              if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
-              if (target.health <= 0) {
-                  await target.update({ health: 0 });
-                  if (parameters.is_hospitalized) {
-                      await target.decrement('col', { by: 500 });
-                      await target.reload();
-                      if (target.col < 0) await target.update({ col: 0 });
-                      await target.update({ health: 20 });
-                      questFeedback.push(`🏥 *HOSPITALISATION* : ${target.name} a été sauvé de justesse. Coût des soins : 500 COL.`);
-                  } else {
-                      await target.update({ location: 'Nécropolis', subLocation: 'Le Seuil des Morts' });
-                      questFeedback.push(`💀 *MORT* : L'âme de ${target.name} a quitté son corps. Il erre désormais à Nécropolis.`);
-                      if (shouldNotifyPlayer(target)) {
-                          await sock.sendMessage(target.whatsappId, { text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener." });
-                      }
-                  }
-              }
-              hasChanged = true;
-          }
           if (parameters.max_health_change) { await target.increment('maxHealth', { by: parameters.max_health_change }); hasChanged = true; }
-          if (parameters.mana_change) {
-              await target.increment('mana', { by: parameters.mana_change });
-              await target.reload();
-              significantUpdate = true; // Always update profile on mana change
-              if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
-              if (target.mana < 0) await target.update({ mana: 0 });
-              hasChanged = true;
-          }
           if (parameters.max_mana_change) { await target.increment('maxMana', { by: parameters.max_mana_change }); hasChanged = true; }
-          if (parameters.strength_change) { await target.increment('strength', { by: parameters.strength_change }); hasChanged = true; }
-          if (parameters.agility_change) { await target.increment('agility', { by: parameters.agility_change }); hasChanged = true; }
-          if (parameters.intelligence_change) { await target.increment('intelligence', { by: parameters.intelligence_change }); hasChanged = true; }
-          if (parameters.defense_change) { await target.increment('defense', { by: parameters.defense_change }); hasChanged = true; }
-          if (parameters.luck_change) { await target.increment('luck', { by: parameters.luck_change }); hasChanged = true; }
           if (parameters.hunger_change) { await target.increment('hunger', { by: parameters.hunger_change }); hasChanged = true; significantUpdate = true; }
           if (parameters.sleep_change) { await target.increment('sleep', { by: parameters.sleep_change }); hasChanged = true; significantUpdate = true; }
 
@@ -780,31 +822,6 @@ RÉALITÉ PHYSIQUE:
               }
           }
 
-          if (parameters.new_location || parameters.new_sub_location) {
-              const updates = {};
-              if (parameters.new_location) updates.location = parameters.new_location;
-              if (parameters.new_sub_location) updates.subLocation = parameters.new_sub_location;
-
-              await target.update(updates);
-
-              const locationImages = {
-                  'Académie Impériale': 'assets/locations/academy.jpg',
-                  'Eldoria': 'assets/locations/eldoria.jpg',
-                  'Nécropolis': 'assets/locations/necropolis.jpg',
-                  'L\'Interstice': 'assets/locations/interstice.jpg',
-                  'Empire Impérial d\'Elion': 'assets/locations/eldoria.jpg',
-                  'Royaume de Valkyrr': 'assets/locations/academy.jpg',
-                  'Terres Bestiales': 'assets/locations/interstice.jpg',
-                  'Royaume Céleste': 'assets/locations/interstice.jpg',
-                  'Dominion Noir de Vharos': 'assets/locations/necropolis.jpg'
-              };
-
-              const finalLoc = parameters.new_location || target.location;
-              if (locationImages[finalLoc]) {
-                  aiResponse.imagePrompt = locationImages[finalLoc];
-              }
-              hasChanged = true;
-          }
           if (parameters.schoolName) { await target.update({ schoolName: parameters.schoolName }); hasChanged = true; }
           if (parameters.gender) { await target.update({ gender: parameters.gender }); hasChanged = true; }
           if (parameters.age) { await target.update({ age: parameters.age }); hasChanged = true; }
