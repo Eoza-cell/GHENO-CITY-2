@@ -198,7 +198,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerQuests = await player.getQuests();
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
-  const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%, Récompense:${q.reward})`).join(',') : "Pas de quête";
+  const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%, Récompenses:${q.reward_col}Col/${q.reward_xp}XP)`).join(',') : "Pas de quête";
 
   const availableQuests = await Quest.findAll({ where: { rank_required: player.rank }, limit: 2 });
   const availableQuestState = "Dispo: " + availableQuests.map(q => q.title).join(',');
@@ -444,8 +444,11 @@ RÈGLES TECHNIQUES:
       (Narration pour joueur 2...)
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
     - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
-20. NARRATION & DIALOGUES: Français riche et cinématographique. Les dialogues des PNJ doivent être percutants et refléter leur personnalité unique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).
-21. SYNCHRONISATION ABSOLUE: Toute modification de l'état d'un joueur décrite dans la narrative (blessure, gain d'objet, déplacement, changement de classe, etc.) DOIT impérativement être accompagnée de l'action correspondante (update_stats, add_item, update_location, bank_transaction, etc.) dans le champ "actions". La fiche du joueur doit être le reflet exact de la narration. Si un joueur dépose de l'argent à la banque, tu DOIS utiliser 'bank_transaction'.
+20. NARRATION & DIALOGUES: Français riche et cinématographique. Les dialogues des PNJ doivent être percutants et refléter leur personnalité unique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 500 mots). Va droit au but, évite les fioritures inutiles.
+21. RÔLE DOUBLE (MJ & MOTEUR LOGIQUE) : Tu es à la fois le narrateur immersif et l'ordinateur qui gère le code du jeu. Tu as le contrôle total sur les fiches des joueurs.
+22. SYNCHRONISATION ABSOLUE & GESTION DES QUÊTES: Toute modification de l'état d'un joueur décrite dans la narrative (blessure, gain d'objet, déplacement, changement de classe, nouvelle cicatrice, etc.) DOIT impérativement être accompagnée de l'action correspondante (update_stats, add_item, update_location, bank_transaction, update_player, etc.) dans le champ "actions".
+   - COMPTAGE & SUIVI DES QUÊTES : Tu es responsable du comptage des objectifs (ex: nombre de monstres tués). Inclus le décompte actuel dans ta pensée_mj (ex: "Objectif: 10 gobelins. Actuel: 4. +1 kill = 5. Progrès: 50%"). Utilise ensuite "advance_quest" : { "questTitle": "nom", "progress": n, "note": "5/10 tués" }. Dès que 100% est atteint, utilise "complete_quest" : { "questTitle": "nom" } pour clôturer et verser les récompenses automatiquement.
+   - MISE À JOUR DE LA FICHE : Utilise "update_player" pour refléter l'évolution RP sur la fiche /profile (ex: changement de métier, de famille, ajout d'une description physique suite à un événement).
 - buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
 - use_item : { "itemName": "nom" }. (Vérifie possession).
 - add_skill : { "skillName": "nom", "target_name": "nom" }.
@@ -676,7 +679,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     // Process AI actions
     const notifiedTargets = new Set();
-    const playerTargetableActions = ['update_location', 'update_stats', 'update_player', 'bank_transaction', 'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'arrest_player', 'set_wanted_level', 'release_player', 'manage_house', 'set_academic_status', 'get_player_details', 'modify_reputation', 'resurrect_player', 'forge_pact', 'join_club'];
+    const playerTargetableActions = ['update_location', 'update_stats', 'update_player', 'bank_transaction', 'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'arrest_player', 'set_wanted_level', 'release_player', 'manage_house', 'set_academic_status', 'get_player_details', 'modify_reputation', 'resurrect_player', 'forge_pact', 'join_club', 'start_quest', 'advance_quest', 'complete_quest', 'update_quest'];
 
     for (const actionObj of actions) {
       try {
