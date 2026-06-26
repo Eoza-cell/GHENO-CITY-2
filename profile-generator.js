@@ -3,6 +3,7 @@ const path = require('path');
 const axios = require('axios');
 const fs = require('fs');
 const { escapeXml } = require('./utils');
+const { generate3DVisual } = require('./three-renderer');
 
 async function generateProfileCard(player) {
     const width = 800;
@@ -181,13 +182,28 @@ async function addOverlay(baseImg, player, width, height) {
             <line x1="60" y1="200" x2="300" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
             <line x1="480" y1="200" x2="740" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
 
+            <!-- Bottom Section for 3D Model -->
+            <rect x="60" y="760" width="340" height="260" fill="rgba(255,255,255,0.05)" rx="10" stroke="rgba(255,255,255,0.1)" />
+            <text x="75" y="790" class="label" style="fill: #ffffff; font-size: 14px;">● LIVE_3D_MODEL_SCAN</text>
+            <text x="385" y="790" class="label" text-anchor="end" style="fill: #00ffff; font-size: 10px; font-weight: normal;">SYNC_STATUS: 100%</text>
+            <rect x="250" y="782" width="80" height="8" fill="rgba(0,255,255,0.1)" rx="2" />
+            <rect x="250" y="782" width="80" height="8" fill="#00ffff" rx="2">
+                <animate attributeName="width" from="0" to="80" dur="2s" fill="freeze" />
+            </rect>
+
             <text x="50%" y="1060" text-anchor="middle" font-family="monospace" font-size="12" fill="rgba(255,255,255,0.3)">S-RANK_ENCRYPTED_ID: ${player.whatsappId.substring(0, 16)}</text>
         </svg>
     `;
 
     try {
+        // Generate 3D Character Model
+        const modelType = (player.gender || "").toLowerCase().includes('f') ? 'female' : 'male';
+        const threeBuffer = await generate3DVisual(modelType, 0x00ffff, outfitColor);
+        const threeResized = await sharp(threeBuffer).resize(300, 240, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
+
         const compositeOperations = [
-            { input: Buffer.from(overlaySvg), top: 0, left: 0 }
+            { input: Buffer.from(overlaySvg), top: 0, left: 0 },
+            { input: threeResized, top: 780, left: 80 }
         ];
 
         // Legacy Silhouette support if background image is missing
