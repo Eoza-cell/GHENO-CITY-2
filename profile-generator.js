@@ -3,6 +3,7 @@ const path = require('path');
 const axios = require('axios');
 const fs = require('fs');
 const { escapeXml } = require('./utils');
+const { generate3DVisual } = require('./three-renderer');
 
 async function generateProfileCard(player) {
     const width = 800;
@@ -12,28 +13,55 @@ async function generateProfileCard(player) {
     let baseImg;
 
     // Use player's profile picture as background if available, otherwise template
-    if (player.profilePicUrl && fs.existsSync(player.profilePicUrl)) {
-        baseImg = await sharp(player.profilePicUrl)
-            .resize(width, height, { fit: 'cover' })
-            .toBuffer();
-    } else if (fs.existsSync(templatePath)) {
-        baseImg = await sharp(templatePath).resize(width, height).toBuffer();
-    } else {
+    if (player.profilePicUrl) {
+        try {
+            if (player.profilePicUrl.startsWith('http')) {
+                const response = await axios.get(player.profilePicUrl, { responseType: 'arraybuffer' });
+                baseImg = await sharp(response.data)
+                    .resize(width, height, { fit: 'cover' })
+                    .toBuffer();
+            } else if (fs.existsSync(player.profilePicUrl)) {
+                baseImg = await sharp(player.profilePicUrl)
+                    .resize(width, height, { fit: 'cover' })
+                    .toBuffer();
+            }
+        } catch (e) {
+            console.warn("Could not load background profile pic:", e.message);
+        }
+    }
+
+    if (!baseImg) {
+        if (fs.existsSync(templatePath)) {
+            baseImg = await sharp(templatePath).resize(width, height).toBuffer();
+        } else {
         const svg = `
             <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
                 <rect width="100%" height="100%" fill="#050510" />
             </svg>
         `;
         baseImg = await sharp(Buffer.from(svg)).png().toBuffer();
+        }
     }
 
     return await addOverlay(baseImg, player, width, height);
 }
 
 async function addOverlay(baseImg, player, width, height) {
-    const { Item } = require('./database');
+    const { Item, Bank, Skill } = require('./database');
+    const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
+    const bankBalance = bank ? bank.balance : 0;
 
-    // Fetch equipped outfit details
+    const skills = await player.getSkills();
+    const skillsList = skills.map(s => s.name).slice(0, 5);
+
+    const inventory = player.inventory || [];
+    const weaponKeywords = ['épée', 'lame', 'dague', 'bâton', 'arc', 'lance', 'hache', 'sword', 'blade', 'dagger', 'staff', 'bow', 'spear', 'axe', 'katana', 'rapier'];
+    const weapons = inventory.filter(i => weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 3);
+    const equipment = inventory.filter(i => !weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 3);
+
+    const rankColor = player.rank === 'S' ? '#ffd700' : (player.rank === 'A' ? '#ff4fb3' : '#4fb3ff');
+
+    // Fetch equipped outfit details for silhouette (legacy support)
     let outfitColor = "rgba(255,255,255,0.2)";
     let isTorn = false;
     if (player.equippedOutfit) {
@@ -44,197 +72,157 @@ async function addOverlay(baseImg, player, width, height) {
         }
     }
 
-    // Calculate bar widths
-    const maxBarWidth = 150;
-    const getBarWidth = (current, max) => Math.max(5, Math.min(maxBarWidth, (current / Math.max(1, max)) * maxBarWidth));
+    // Helper for multi-line description
+    const wrapText = (text, maxChars) => {
+        if (!text) return [""];
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = "";
+        words.forEach(w => {
+            if ((currentLine + w).length > maxChars) {
+                lines.push(currentLine.trim());
+                currentLine = w + " ";
+            } else {
+                currentLine += w + " ";
+            }
+        });
+        lines.push(currentLine.trim());
+        return lines.slice(0, 6);
+    };
 
-    // Stats positioning (moved lower to make room for HP/MP)
-    const stats = [
-        { name: 'Force', value: player.strength, max: 100, y: 550 },
-        { name: 'Dextérité', value: player.agility, max: 100, y: 580 },
-        { name: 'Intelligence', value: player.intelligence, max: 100, y: 610 },
-        { name: 'Endurance', value: player.defense, max: 100, y: 640 },
-        { name: 'Charisme', value: player.luck, max: 100, y: 670 },
-        { name: 'Chance', value: player.luck, max: 100, y: 700 }
-    ];
-
-    let statsSvg = '';
-    stats.forEach(stat => {
-        const barWidth = getBarWidth(stat.value, stat.max);
-        statsSvg += `
-            <text x="70" y="${stat.y + 10}" class="text item-text" style="font-size: 14px;">${stat.name.toUpperCase()}</text>
-            <rect x="180" y="${stat.y}" width="${maxBarWidth}" height="10" fill="rgba(255,255,255,0.1)" rx="2" />
-            <rect x="180" y="${stat.y}" width="${barWidth}" height="10" fill="#4fb3ff" rx="2" />
-            <text x="340" y="${stat.y + 10}" class="text item-qty">${stat.value}</text>
-        `;
-    });
-
-    const inventory = player.inventory || [];
-    const weaponKeywords = ['épée', 'lame', 'dague', 'bâton', 'arc', 'lance', 'hache', 'sword', 'blade', 'dagger', 'staff', 'bow', 'spear', 'axe', 'katana', 'rapier'];
-    const weapons = inventory.filter(i => weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
-    const equipment = inventory.filter(i => !weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
+    const bioLines = wrapText(player.characterDescription || "Le destin se forge à chaque pas dans l'Interstice.", 35);
 
     const overlaySvg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
             <style>
-                .text { fill: white; font-family: 'Arial'; font-weight: bold; }
-                .name { font-size: 28px; fill: #ffd700; }
-                .value { font-size: 20px; }
-                .header { font-size: 22px; fill: #4fb3ff; }
-                .money { font-size: 32px; fill: #ffd700; font-weight: 900; }
-                .item-text { font-size: 16px; fill: #ffffff; }
-                .item-qty { font-size: 14px; fill: #00ffff; }
+                .text { fill: white; font-family: 'Segoe UI', Verdana, sans-serif; }
+                .rank { font-size: 110px; font-weight: 900; fill: ${rankColor}; font-style: italic; filter: drop-shadow(0 0 10px ${rankColor}); }
+                .rank-label { font-size: 24px; font-weight: bold; fill: ${rankColor}; letter-spacing: 5px; }
+                .aka { font-size: 20px; fill: rgba(255,255,255,0.6); font-weight: 300; letter-spacing: 2px; }
+                .name { font-size: 50px; font-weight: 900; fill: #ffffff; text-transform: uppercase; letter-spacing: -1px; }
+                .bio { font-size: 17px; fill: rgba(255,255,255,0.85); line-height: 1.5; font-style: italic; }
+                .label { font-size: 16px; font-weight: bold; fill: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 3px; }
+                .stat-val { font-size: 19px; font-weight: bold; fill: #ffffff; filter: drop-shadow(0 0 5px rgba(255,255,255,0.3)); }
+                .about-header { font-size: 32px; font-weight: 900; fill: #ffffff; letter-spacing: 2px; }
             </style>
 
-            <!-- Semi-transparent dark background for readability -->
-            <rect x="30" y="180" width="${width-60}" height="${height-250}" fill="#050505" rx="15" />
+            <defs>
+                <!-- Dramatic dark gradient to separate UI from portrait -->
+                <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:rgb(0,0,0);stop-opacity:0.9" />
+                    <stop offset="40%" style="stop-color:rgb(0,0,0);stop-opacity:0.3" />
+                    <stop offset="60%" style="stop-color:rgb(0,0,0);stop-opacity:0.3" />
+                    <stop offset="100%" style="stop-color:rgb(0,0,0);stop-opacity:0.8" />
+                </linearGradient>
+                <filter id="glow">
+                    <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+            </defs>
 
-            <!-- Info Container Block -->
-            <rect x="50" y="200" width="700" height="180" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.2)" rx="10" />
+            <!-- Dark glass background -->
+            <rect width="100%" height="100%" fill="url(#mainGrad)" />
 
-            <!-- Player Info -->
-            <text x="210" y="245" class="text name">${escapeXml(player.name)} (${escapeXml(player.gender)})</text>
-            <text x="210" y="278" class="text value">LVL ${player.level} | ${player.age} ans</text>
-            <text x="210" y="311" class="text value">${escapeXml(player.schoolName || 'Aventurier Libre')}</text>
-            <text x="210" y="344" class="text value">RANG ${escapeXml(player.rank)}</text>
-
-            <text x="730" y="245" class="text value" text-anchor="end">${escapeXml(player.occupation || 'Citoyen')}</text>
-            <text x="730" y="278" class="text value" text-anchor="end">${escapeXml(player.organization || 'Aucune')}</text>
-            <text x="730" y="311" class="text value" text-anchor="end">INF: ${player.influence || 0}</text>
-            <text x="730" y="344" class="text value" text-anchor="end">GRADE ${player.academicGrade || 0}</text>
-
-            <!-- Status Container Block -->
-            <rect x="50" y="400" width="700" height="120" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" rx="10" />
-
-            <!-- Combat Status (Left) -->
-            <g transform="translate(70, 420)">
-                <text x="0" y="15" class="text item-text" style="fill: #ff4444;">❤️ PV</text>
-                <rect x="50" y="3" width="250" height="15" fill="#333" rx="5" />
-                <rect x="50" y="3" width="${(player.health / Math.max(1, player.maxHealth)) * 250}" height="15" fill="#ff4444" rx="5" />
-                <text x="310" y="15" class="text item-qty" text-anchor="start">${player.health}/${player.maxHealth}</text>
-
-                <text x="0" y="50" class="text item-text" style="fill: #4fb3ff;">🔷 PM</text>
-                <rect x="50" y="38" width="250" height="15" fill="#333" rx="5" />
-                <rect x="50" y="38" width="${(player.mana / Math.max(1, player.maxMana)) * 250}" height="15" fill="#4fb3ff" rx="5" />
-                <text x="310" y="50" class="text item-qty" text-anchor="start">${player.mana}/${player.maxMana}</text>
+            <!-- Fake Navbar from reference image -->
+            <g transform="translate(60, 50)">
+                <text x="0" y="0" style="fill:white; font-size: 20px; font-weight:900;">나 혼자만<tspan x="0" dy="18">레벨업</tspan></text>
+                <text x="180" y="10" style="fill:rgba(255,255,255,0.8); font-size: 16px; font-weight:bold;">Home   Characters   Help</text>
+                <text x="600" y="10" style="fill:white; font-size: 16px; font-weight:bold;">Sign Up</text>
+                <rect x="680" y="-10" width="100" height="30" fill="rgba(255,255,255,0.1)" rx="5" />
+                <text x="690" y="10" style="fill:rgba(255,255,255,0.4); font-size: 12px;">Search Here...</text>
             </g>
 
-            <!-- Survival Status (Right) -->
-            <g transform="translate(450, 420)">
-                <text x="0" y="15" class="text item-text" style="fill: #00ff00;">🍔 FAIM</text>
-                <rect x="70" y="3" width="150" height="15" fill="#333" rx="5" />
-                <rect x="70" y="3" width="${(player.hunger / 100) * 150}" height="15" fill="#00ff00" rx="5" />
-                <text x="230" y="15" class="text item-qty" text-anchor="start">${player.hunger}%</text>
+            <!-- LEFT SIDE: Identity -->
+            <g transform="translate(60, 240)">
+                <text x="0" y="0" class="rank" filter="url(#glow)">${player.rank}</text>
+                <text x="100" y="-15" class="rank-label">RANK</text>
 
-                <text x="0" y="50" class="text item-text" style="fill: #8a2be2;">😴 SOMMEIL</text>
-                <rect x="70" y="38" width="150" height="15" fill="#333" rx="5" />
-                <rect x="70" y="38" width="${(player.sleep / 100) * 150}" height="15" fill="#8a2be2" rx="5" />
-                <text x="230" y="50" class="text item-qty" text-anchor="start">${player.sleep}%</text>
+                <text x="0" y="50" class="aka">${escapeXml(player.derivative || "Shadow Monarch")} A.K.A</text>
+                <text x="0" y="105" class="name">${escapeXml(player.name)}</text>
+
+                <g transform="translate(0, 160)">
+                    ${bioLines.map((line, i) => `
+                        <text x="0" y="${i * 26}" class="bio">${escapeXml(line)}</text>
+                    `).join('')}
+                </g>
             </g>
 
-            <!-- Stats Container -->
-            <rect x="50" y="530" width="350" height="200" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.1)" rx="10" />
-            ${statsSvg}
+            <!-- RIGHT SIDE: Attributes -->
+            <g transform="translate(480, 240)">
+                <text x="0" y="0" class="about-header">● ABOUT</text>
 
-            <!-- Resources Box -->
-            <rect x="50" y="745" width="350" height="75" fill="rgba(255,255,255,0.05)" stroke="#ffd700" stroke-width="2" rx="15" />
-            <text x="75" y="795" class="money">💰 ${(player.col || 0).toLocaleString()} COL</text>
+                <g transform="translate(0, 70)">
+                    <text x="0" y="0" class="label">AFFILIATION</text>
+                    <text x="0" y="25" class="stat-val">${escapeXml(player.organization || player.schoolName || "SOLO PLAYER")}</text>
 
-            <!-- Family Tag -->
-            <rect x="420" y="745" width="330" height="75" fill="rgba(255,255,255,0.05)" stroke="#ff00ff" stroke-width="1" rx="15" />
-            <text x="585" y="790" class="text header" text-anchor="middle" style="fill: #ff00ff; font-size: 20px;">${escapeXml(player.family || 'SANS FAMILLE')}</text>
+                    <text x="0" y="70" class="label">STATUS</text>
+                    <text x="0" y="95" class="stat-val">LVL ${player.level} • HP ${player.health}/${player.maxHealth}</text>
 
-            <!-- Grid: Weapons -->
-            <rect x="50" y="840" width="340" height="200" fill="rgba(255,255,255,0.02)" stroke="#ff4444" stroke-width="1" rx="10" />
-            <text x="70" y="875" class="header" style="fill: #ff4444;">⚔️ ARMES</text>
-            <g transform="translate(70, 900)">
-                ${weapons.length > 0 ? weapons.map((item, i) => `
-                    <g transform="translate(0, ${i * 45})">
-                        <rect width="300" height="35" fill="rgba(255,255,255,0.03)" rx="5" />
-                        <text x="10" y="22" class="text item-text" style="font-size: 14px;">${escapeXml(item.name.substring(0, 25))}</text>
-                        <text x="280" y="22" class="text item-qty" text-anchor="end">x${item.quantity}</text>
+                    <text x="0" y="140" class="label">RELATIONSHIPS</text>
+                    <text x="0" y="165" class="stat-val">${escapeXml(player.family || "NONE")}</text>
+
+                    <text x="0" y="210" class="label">SKILLS</text>
+                    <text x="0" y="235" class="stat-val">${skillsList.length > 0 ? skillsList.join(' • ') : "AWAKENING..."}</text>
+
+                    <text x="0" y="280" class="label">FINANCES</text>
+                    <text x="0" y="305" class="stat-val">${player.col.toLocaleString()} COL • 🏦 ${bankBalance.toLocaleString()}</text>
+
+                    <text x="0" y="350" class="label">WEAPONS &amp; EQS</text>
+                    <g transform="translate(0, 375)">
+                        ${weapons.map((w, i) => `<text y="${i * 25}" class="stat-val">⚔️ ${escapeXml(w.name)}</text>`).join('')}
+                        ${equipment.map((e, i) => `<text y="${(weapons.length + i) * 25}" class="stat-val">🛡️ ${escapeXml(e.name)}</text>`).join('')}
                     </g>
-                `).join('') : '<text y="40" class="text value" style="fill: #555;">Aucune arme...</text>'}
+                </g>
             </g>
 
-            <!-- Grid: Equipment -->
-            <rect x="410" y="840" width="340" height="200" fill="rgba(255,255,255,0.02)" stroke="#4fb3ff" stroke-width="1" rx="10" />
-            <text x="430" y="875" class="header" style="fill: #4fb3ff;">🛡️ ÉQUIPEMENT</text>
-            <g transform="translate(430, 900)">
-                ${equipment.length > 0 ? equipment.map((item, i) => `
-                    <g transform="translate(0, ${i * 45})">
-                        <rect width="300" height="35" fill="rgba(255,255,255,0.03)" rx="5" />
-                        <text x="10" y="22" class="text item-text" style="font-size: 14px;">${escapeXml(item.name.substring(0, 25))}</text>
-                        <text x="280" y="22" class="text item-qty" text-anchor="end">x${item.quantity}</text>
-                    </g>
-                `).join('') : '<text y="40" class="text value" style="fill: #555;">Aucun équipement...</text>'}
-            </g>
+            <!-- UI Decoration lines -->
+            <line x1="60" y1="200" x2="300" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
+            <line x1="480" y1="200" x2="740" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
 
-            <text x="50%" y="1070" text-anchor="middle" font-family="monospace" font-size="14" fill="rgba(255,255,255,0.4)">ID_ENCRYPTED: ${player.whatsappId.substring(0, 8)}...</text>
+            <!-- Bottom Section for 3D Model -->
+            <rect x="60" y="760" width="340" height="260" fill="rgba(255,255,255,0.05)" rx="10" stroke="rgba(255,255,255,0.1)" />
+            <text x="75" y="790" class="label" style="fill: #ffffff; font-size: 14px;">● LIVE_3D_MODEL_SCAN</text>
+            <text x="385" y="790" class="label" text-anchor="end" style="fill: #00ffff; font-size: 10px; font-weight: normal;">SYNC_STATUS: 100%</text>
+            <rect x="250" y="782" width="80" height="8" fill="rgba(0,255,255,0.1)" rx="2" />
+            <rect x="250" y="782" width="80" height="8" fill="#00ffff" rx="2">
+                <animate attributeName="width" from="0" to="80" dur="2s" fill="freeze" />
+            </rect>
+
+            <text x="50%" y="1060" text-anchor="middle" font-family="monospace" font-size="12" fill="rgba(255,255,255,0.3)">S-RANK_ENCRYPTED_ID: ${player.whatsappId.substring(0, 16)}</text>
         </svg>
     `;
 
     try {
-        let profileImg;
-        if (player.profilePicUrl) {
-            try {
-                if (player.profilePicUrl.startsWith('http')) {
-                    const response = await axios.get(player.profilePicUrl, { responseType: 'arraybuffer' });
-                    profileImg = await sharp(response.data).resize(150, 150).toBuffer();
-                } else if (fs.existsSync(player.profilePicUrl)) {
-                    profileImg = await sharp(player.profilePicUrl).resize(150, 150).toBuffer();
-                }
-            } catch (e) {
-                console.warn("Could not load profile pic:", e.message);
-            }
-        }
+        // Generate 3D Character Model
+        const modelType = (player.gender || "").toLowerCase().includes('f') ? 'female' : 'male';
+        const threeBuffer = await generate3DVisual(modelType, 0x00ffff, outfitColor);
+        const threeResized = await sharp(threeBuffer).resize(300, 240, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
 
         const compositeOperations = [
-            { input: Buffer.from(overlaySvg), top: 0, left: 0 }
+            { input: Buffer.from(overlaySvg), top: 0, left: 0 },
+            { input: threeResized, top: 780, left: 80 }
         ];
 
-        if (profileImg) {
-            compositeOperations.push({ input: profileImg, top: 200, left: 45 });
-        }
-
-        // Add human silhouette and outfit overlay
+        // Legacy Silhouette support if background image is missing
         const silhouettePath = path.join(__dirname, 'assets/silhouette.jpg');
-        if (fs.existsSync(silhouettePath)) {
-            // Silhouette logic
-            const silhouetteResized = await sharp(silhouettePath).resize(300, 500).toBuffer();
-
-            // Create the "clothing" layer by tinting the silhouette
+        if (!player.profilePicUrl && fs.existsSync(silhouettePath)) {
+            const silhouetteResized = await sharp(silhouettePath).resize(500, 800).toBuffer();
             const clothingLayer = await sharp(silhouetteResized)
-                .threshold(200) // Keep black parts
-                .negate() // Invert
-                .tint(outfitColor)
-                .modulate({ opacity: 0.7 })
-                .toBuffer();
+                .threshold(200).negate().tint(outfitColor).modulate({ opacity: 0.6 }).toBuffer();
 
-            // If torn, add some "holes" to the clothing layer via SVG mask
             let mask = null;
             if (isTorn) {
-                const maskSvg = `
-                    <svg width="300" height="500">
-                        <rect width="100%" height="100%" fill="white" />
-                        <circle cx="150" cy="150" r="30" fill="black" />
-                        <circle cx="120" cy="250" r="20" fill="black" />
-                        <rect x="50" y="350" width="100" height="10" fill="black" transform="rotate(45 100 350)"/>
-                    </svg>
-                `;
+                const maskSvg = `<svg width="500" height="800"><rect width="100%" height="100%" fill="white" /><circle cx="200" cy="200" r="40" fill="black" /><circle cx="150" cy="350" r="30" fill="black" /></svg>`;
                 mask = Buffer.from(maskSvg);
             }
+            const finalClothing = mask ? await sharp(clothingLayer).composite([{ input: mask, blend: 'dest-in' }]).toBuffer() : clothingLayer;
+            const silhouetteBlack = await sharp(silhouetteResized).threshold(240).toBuffer();
 
-            const finalClothing = mask ?
-                await sharp(clothingLayer).composite([{ input: mask, blend: 'dest-in' }]).toBuffer() :
-                clothingLayer;
-
-            const silhouetteBlack = await sharp(silhouetteResized)
-                .threshold(240) // Keep the black silhouette
-                .toBuffer();
-
-            compositeOperations.push({ input: silhouetteBlack, top: 480, left: 450 });
-            compositeOperations.push({ input: finalClothing, top: 480, left: 450, blend: 'over' });
+            compositeOperations.unshift({ input: silhouetteBlack, top: 250, left: 150 });
+            compositeOperations.unshift({ input: finalClothing, top: 250, left: 150, blend: 'over' });
         }
 
         return await sharp(baseImg)

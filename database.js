@@ -153,11 +153,11 @@ const Player = sequelize.define('Player', {
   },
   location: {
     type: DataTypes.STRING,
-    defaultValue: 'Eldoria',
+    defaultValue: "Empire Impérial d'Elion",
   },
   subLocation: {
     type: DataTypes.STRING,
-    defaultValue: 'Place Centrale',
+    defaultValue: 'Eldoria',
   },
   mode: {
     type: DataTypes.STRING,
@@ -308,6 +308,15 @@ const PlayerQuest = sequelize.define('PlayerQuest', {
     // Lets the AI "modifier le cours de certaines quêtes".
     branch: { type: DataTypes.STRING, allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
+    metadata: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const raw = this.getDataValue('metadata');
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        },
+        set(val) { this.setDataValue('metadata', JSON.stringify(val)); }
+    }
 });
 
 const Bank = sequelize.define('Bank', {
@@ -774,47 +783,47 @@ async function setupDatabase() {
     const kingdomsToSeed = [
         {
             name: 'Origine de l\'Existence',
-            description: 'Le domaine de ONE ABOVE ALL. Lois: Causalité Absolue (Rien n\'arrive par hasard, chaque action est gravée dans le destin). Sub-locations: Autel de la Causalité, Mer de Conscience, Les Portes du Temps.',
+            description: 'Le domaine de ONE ABOVE ALL, où la Causalité Absolue lie chaque action au destin éternel. Sub-locations: Autel de la Causalité, Mer de Conscience, Les Portes du Temps.',
             status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL'
         },
         {
             name: 'L\'Interstice',
-            description: 'Dimension entre les mondes. Lois: Loi du Plus Fort (Aucune pitié, survie des plus aptes magiquement). Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.',
+            description: 'Dimension entre les mondes où règne la loi du plus fort et où la survie dépend de l\'aptitude magique. Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.',
             status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal'
         },
         {
             name: 'Royaume Céleste',
-            description: 'Domaine des Entités Célestes. Lois: Pureté d\'Aether (Interdiction de toute noirceur ou malice). Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.',
+            description: 'Domaine des Entités Célestes baigné dans la pureté de l\'Aether, où toute noirceur est proscrite. Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.',
             status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius'
         },
         {
             name: 'Terres Bestiales',
-            description: 'Domaine sauvage. Lois: Loi de la Chasse (Ne tuer que pour se nourrir ou se défendre). Villages: Oakhaven (Village de chasseurs), Claw-reach (Poste avancé). Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
+            description: 'Domaine sauvage régi par l\'instinct de chasse, où l\'on ne tue que par nécessité. Villages: Oakhaven (Village de chasseurs), Claw-reach (Poste avancé). Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
             status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos'
         },
         {
-            name: 'Empire d\'Elion',
-            description: 'Royaume humain régi par le Code de Valerius. Lois: Obéissance Absolue à la Royauté, Interdiction de la Magie non-licenciée, Respect des Nobles. Sanction: Exécution immédiate pour crime de Lèse-Majesté. Villages: Riverbend (Pêcheurs), Green-Fields (Agriculteurs). Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale.',
+            name: 'Empire Impérial d\'Elion',
+            description: 'Royaume humain sous le Code de Valerius, exigeant respect des nobles et obéissance à la couronne. La magie y est strictement régulée. Villages: Riverbend (Pêcheurs), Green-Fields (Agriculteurs). Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale, Solis.',
             status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II'
         },
         {
             name: 'Nécropolis',
-            description: 'Cité des morts. Lois: Silence Éternel (Toute tentative de retour au monde des vivants est un crime). Sub-locations: Le Seuil des Morts, Allée des Tombeaux Oubliés, Trône du Jugement.',
+            description: 'Cité des morts drapée de brumes, où le silence éternel est la seule règle. Sub-locations: Le Seuil, Allée des Tombeaux Oubliés, Trône du Jugement.',
             status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon'
         },
         {
-            name: 'Vharos le Maudit',
-            description: 'Territoire de l\'Apôtre. Lois: Volonté de Vharos (Seule la parole du Seigneur Liche fait foi). Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.',
+            name: 'Dominion Noir de Vharos',
+            description: 'Territoire désolé pliant sous la volonté de la liche Vharos. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.',
             status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos'
         },
         {
-            name: 'Valkyr',
-            description: 'Centre technologique. Lois: Innovation Régulée (Toute invention doit être enregistrée). Villages: Gearhead (Mineurs), Sparkwell (Artisans). Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.',
+            name: 'Royaume de Valkyrr',
+            description: 'Centre d\'innovation magique et technologique où chaque recherche est méticuleusement régulée. Villages: Gearhead (Mineurs), Sparkwell (Artisans). Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.',
             status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen'
         },
         {
             name: 'Gheno souterrain',
-            description: 'Trafic de reliques. Lois: Loi du Silence (Ne jamais dénoncer l\'Ombre). Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé, École des Ombres.',
+            description: 'Plaque tournante du trafic de reliques où le silence est une question de survie face à l\'Ombre. Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé, École des Ombres.',
             status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre'
         }
     ];
@@ -826,19 +835,24 @@ async function setupDatabase() {
     }
 
     const npcsToSeed = [
-        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice.', location: 'Interstice', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
-        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté manipulant les Béhérits.', location: 'L\'Interstice', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
-        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, il prépare les âmes au jugement final de One Above All.', location: 'Nécropolis', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
-        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
-        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire d\'Elion', powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
-        { name: 'Princesse Seraphina', role: 'Royauté d\'Elion', description: 'Héritière du trône d\'Elion, douée pour la diplomatie de l\'éther.', location: 'Empire d\'Elion', powerLevel: 75, specialty: 'Charisme Royal', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elegant%20princess%20with%20silver%20hair%20and%20royal%20blue%20dress?model=flux-anime' },
-        { name: 'Prince Lucian', role: 'Commandant des Chevaliers', description: 'Frère de Seraphina, un prodige de l\'escrime magique.', location: 'Empire d\'Elion', powerLevel: 90, specialty: 'Épée Solaire', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20handsome%20prince%20knight%20commander?model=flux-anime' },
-        { name: 'Duc de Windsor', role: 'Haute Noblesse', description: 'Gouverneur du Quartier des Nobles, influent et riche.', location: 'Empire d\'Elion', powerLevel: 65, specialty: 'Influence Politique', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20noble%20duke%20with%20refined%20clothes?model=flux-anime' },
-        { name: 'Baron de l\'Est', role: 'Petite Noblesse', description: 'Garde la frontière vers Vharos, un homme d\'action.', location: 'Empire d\'Elion', powerLevel: 55, specialty: 'Vigilance Frontière', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20rugged%20baron%20at%20border%20fortress?model=flux-anime' },
+        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle. "Tout ce que je possède, je l\'ai obtenu par ma propre volonté."', location: 'Interstice', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
+        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté manipulant les Béhérits. S\'exprime par énigmes métaphysiques avec une voix profonde et résonnante. "La causalité est un fil que nul mortel ne saurait trancher."', location: 'L\'Interstice', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
+        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, il prépare les âmes au jugement final de One Above All. Calme et impartial, il parle avec une autorité absolue mais sans haine. "Silence, voyageur. Ici, seul le poids de tes actes parle encore."', location: 'Nécropolis', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
+        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits. Voix fatiguée mais ferme d\'un mentor qui en a trop vu. "Le savoir est une lame à double tranchant, ne l\'oublie jamais."', location: 'Académie Impériale', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
+        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code. Parle avec une autorité impériale, chaque mot pesant comme une sentence. "Le Code est l\'armure de mon peuple. Quiconque le brise se brisera contre ma loi."', location: 'Empire Impérial d\'Elion', powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
+        { name: 'Princesse Seraphina', role: 'Royauté d\'Elion', description: 'Héritière du trône d\'Elion, douée pour la diplomatie de l\'éther.', location: 'Empire Impérial d\'Elion', powerLevel: 75, specialty: 'Charisme Royal', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elegant%20princess%20with%20silver%20hair%20and%20royal%20blue%20dress?model=flux-anime' },
+        { name: 'Prince Lucian', role: 'Commandant des Chevaliers', description: 'Frère de Seraphina, un prodige de l\'escrime magique.', location: 'Empire Impérial d\'Elion', powerLevel: 90, specialty: 'Épée Solaire', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20handsome%20prince%20knight%20commander?model=flux-anime' },
+        { name: 'Duc de Windsor', role: 'Haute Noblesse', description: 'Gouverneur du Quartier des Nobles, influent et riche.', location: 'Empire Impérial d\'Elion', powerLevel: 65, specialty: 'Influence Politique', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20noble%20duke%20with%20refined%20clothes?model=flux-anime' },
+        { name: 'Baron de l\'Est', role: 'Petite Noblesse', description: 'Garde la frontière vers Vharos, un homme d\'action.', location: 'Empire Impérial d\'Elion', powerLevel: 55, specialty: 'Vigilance Frontière', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20rugged%20baron%20at%20border%20fortress?model=flux-anime' },
         { name: 'Général Kaelen', role: 'Commandant Militaire', description: 'Main de fer de l\'Empire, ne tolère aucun désordre à l\'Académie.', location: 'Académie Impériale', powerLevel: 95, specialty: 'Stratégie de Guerre', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20battle%20hardened%20general%20in%20golden%20armor?model=flux-anime' },
-        { name: 'Lukas (Classe S)', role: 'Étudiant Élite', description: 'Le meilleur élève de l\'Académie, arrogant et surpuissant.', location: 'Académie Impériale', powerLevel: 60, specialty: 'Maîtrise Parfaite', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20elite%20student%20with%20blond%20hair?model=flux-anime' },
-        { name: 'Maya (Classe A)', role: 'Étudiante Brilliante', description: 'Génie de l\'alchimie, discrète mais redoutable.', location: 'Académie Impériale', powerLevel: 45, specialty: 'Potions Complexes', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20quiet%20smart%20girl%20with%20glasses%20and%20lab%20coat?model=flux-anime' },
-        { name: 'Kael (Classe B)', role: 'Étudiant Ambitieux', description: 'Travaille dur pour monter en Classe A. Spécialiste du combat à mains nues.', location: 'Académie Impériale', powerLevel: 35, specialty: 'Arts Martiaux', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20determined%20student%20training%20hard?model=flux-anime' }
+        { name: 'Erius (Classe S)', role: 'Étudiant Suprême', description: 'L\'étudiant le plus fort de l\'histoire de l\'Académie. Possède une aura écrasante et un regard blasé. Il ne s\'intéresse qu\'aux adversaires dignes de lui. "Ne me fais pas perdre mon temps, gamin."', location: 'Académie Impériale', powerLevel: 98, specialty: 'Dévastation Totale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Erius%20strongest%20student%20with%20dark%20hair%20and%20intense%20gaze?model=flux-anime' },
+        { name: 'Lukas (Classe S)', role: 'Étudiant Élite', description: 'Second derrière Erius, dévoré par la rivalité.', location: 'Académie Impériale', powerLevel: 85, specialty: 'Maîtrise Parfaite', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20elite%20student%20with%20blond%20hair?model=flux-anime' },
+        { name: 'Maya (Classe A)', role: 'Étudiante Brilliante', description: 'Génie de l\'alchimie au charme discret, souvent vêtue d\'une blouse de laboratoire un peu trop courte.', location: 'Académie Impériale', powerLevel: 45, specialty: 'Potions Complexes', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20attractive%20smart%20girl%20with%20glasses%20and%20short%20lab%20coat?model=flux-anime' },
+        { name: 'Sensei Sora', role: 'Professeur Relax', description: 'Un professeur incroyablement paresseux qui passe son temps à faire la sieste ou à lire des magazines douteux. "La jeunesse, c\'est fait pour s\'amuser, non ?" ', location: 'Académie Impériale', powerLevel: 90, specialty: 'Esquive Paresseuse', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20lazy%20sensei%20sleeping%20with%20a%20magazine?model=flux-anime' },
+        { name: 'Lila', role: 'Tenancière de la Taverne', description: 'Toujours accueillante avec un décolleté plongeant, elle sait comment détendre les aventuriers fatigués. "Oh, un nouveau visage ? La première tournée est pour moi, beau brun."', location: 'Eldoria', powerLevel: 30, specialty: 'Charme Naturel', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20curvy%20tavern%20maid%20smiling?model=flux-anime' },
+        { name: 'Kaelith', role: 'Marchande d\'Esclaves (Libérée)', description: 'Une ancienne esclave devenue marchande de reliques. Elle est dure en affaires mais a un cœur d\'or pour ceux qui la respectent. "Le prix est le prix, mais pour toi... je ferai une exception."', location: 'Gheno souterrain', powerLevel: 50, specialty: 'Estimation de Reliques', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20tough%20mercante%20woman%20with%20scars%20and%20jewelry?model=flux-anime' },
+        { name: 'Vrax', role: 'Maître des Ombres', description: 'Le bras droit de L\'Ombre. Il ne parle jamais, s\'exprimant par des gestes précis. Son silence est plus terrifiant que n\'importe quel cri.', location: 'Gheno souterrain', powerLevel: 92, specialty: 'Assassinat Silencieux', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20masked%20assassin%20in%20the%20dark?model=flux-anime' },
+        { name: 'Uriel', role: 'Archange de l\'Éther', description: 'Une entité céleste à l\'aura éblouissante. Il juge les mortels sans pitié mais récompense la vertu. "Ton âme brille... ou s\'assombrit ? Montre-moi ta vérité."', location: 'Royaume Céleste', powerLevel: 95, specialty: 'Jugement Divin', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20radiant%20angel%20with%20golden%20armor?model=flux-anime' }
     ];
     for (const npc of npcsToSeed) {
         const [npcInstance, created] = await NPC.findOrCreate({
@@ -861,8 +875,8 @@ async function setupDatabase() {
     if (schoolCount === 0) {
         console.log('Seeding Schools...');
         await School.bulkCreate([
-            { name: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', description: 'L\'élite militaire d\'Elion.', kingdomName: 'Empire d\'Elion' },
-            { name: 'Lycée de l\'Éther', specialty: 'Techno-magie', description: 'Centre de recherche de Valkyr.', kingdomName: 'Valkyr' },
+            { name: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', description: 'L\'élite militaire d\'Elion.', kingdomName: 'Empire Impérial d\'Elion' },
+            { name: 'Lycée de l\'Éther', specialty: 'Techno-magie', description: 'Centre de recherche de Valkyr.', kingdomName: 'Royaume de Valkyrr' },
             { name: 'École des Ombres', specialty: 'Infiltration et Assassinat', description: 'Lieu secret pour les talents illégaux.', kingdomName: 'Gheno souterrain' }
         ]);
     }

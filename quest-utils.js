@@ -55,7 +55,17 @@ async function advanceQuest(player, title, progress, note) {
     if (!pq || pq.status === 'completed') return null;
 
     const newProgress = Math.max(0, Math.min(100, progress != null ? Number(progress) : pq.progress));
-    await pq.update({ progress: newProgress, notes: note || pq.notes });
+
+    // Auto-Logic: If progress is a increment string like "+1", handle metadata
+    if (typeof progress === 'string' && progress.startsWith('+')) {
+        const inc = parseInt(progress.substring(1)) || 0;
+        const meta = pq.metadata || {};
+        meta.counter = (meta.counter || 0) + inc;
+        await pq.update({ metadata: meta, progress: newProgress, notes: note || pq.notes });
+    } else {
+        await pq.update({ progress: newProgress, notes: note || pq.notes });
+    }
+
     return `📈 *${quest.title}* — progression : ${newProgress}%`;
 }
 

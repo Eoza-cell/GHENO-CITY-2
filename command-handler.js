@@ -60,7 +60,7 @@ commands.set('start', async (sock, message) => {
         await sock.sendMessage(replyJid, { text: `Rappel: Enchanté ${player.name}. Décris ton personnage en une phrase.` });
     }
   } else {
-    await sock.sendMessage(replyJid, { text: `Content de te revoir, ${player.name} ! Utilise /quests pour voir tes objectifs.` });
+    await sock.sendMessage(replyJid, { text: `« Te revoilà, ${player.name}. L'Interstice s'agite en ton absence... Ne tarde pas trop. »\n\nUtilise /quests pour voir tes objectifs.` });
   }
 });
 
@@ -129,7 +129,8 @@ commands.set('quests', async (sock, message) => {
         return;
     }
 
-    let questText = '╔══════════════════════════╗\n' +
+    let questText = '« Le destin n\'est pas écrit, il se forge par le sang et la volonté. »\n\n' +
+                    '╔══════════════════════════╗\n' +
                     '   📜 *JOURNAL DES QUÊTES*   \n' +
                     '╚══════════════════════════╝\n\n';
 
@@ -414,7 +415,7 @@ commands.set('inventory', async (sock, message) => {
     }
 
     const inventoryText = inventory.map(item => `├ ${item.name} (x${item.quantity})`).join('\n');
-    await sock.sendMessage(replyJid, { text: `--- 🎒 INVENTAIRE --- \n\n${inventoryText}\n\n└ _Utilise /action pour utiliser ou équiper un objet._` });
+    await sock.sendMessage(replyJid, { text: `« Tes possessions ne sont que des outils. C'est ta force qui compte vraiment. »\n\n--- 🎒 INVENTAIRE --- \n\n${inventoryText}\n\n└ _Utilise /action pour utiliser ou équiper un objet._` });
 });
 
 // Command: /map
@@ -688,6 +689,31 @@ commands.set('boutique', async (sock, message) => {
         console.error("Shop image error:", err);
         await sock.sendMessage(replyJid, { text: "Erreur lors de la génération du catalogue visuel." });
     }
+});
+
+// Command: /lieux
+commands.set('lieux', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const kingdom = await Kingdom.findOne({ where: { name: player.location } });
+
+    let text = `--- 📍 POSITION ACTUELLE --- \n\n`;
+    text += `🌍 *Royaume:* ${player.location}\n`;
+    text += `📌 *Lieu précis:* ${player.subLocation}\n\n`;
+
+    if (kingdom) {
+        text += `📜 *Description du Royaume:*\n${kingdom.description}\n\n`;
+    }
+
+    text += `🗺️ *Où aller ?*\n`;
+    text += `_Tu peux te déplacer librement via /action en décrivant ton trajet._\n`;
+    text += `_Exemple: "Je sors de la taverne pour aller sur la place centrale" ou "Je quitte la ville vers les plaines"._`;
+
+    await sock.sendMessage(replyJid, { text });
 });
 
 // Command: /joueurs
@@ -1087,7 +1113,7 @@ commands.set('conflits', async (sock, message) => {
 });
 
 // Command: /bank
-commands.set('bank', async (sock, message) => {
+const bankCommand = async (sock, message) => {
     const jid = getJid(message);
     const player = await Player.findOne({ where: { whatsappId: jid } });
     const replyJid = message.key.remoteJid;
@@ -1098,14 +1124,82 @@ commands.set('bank', async (sock, message) => {
     }
 
     const [bank, created] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
+    await bank.reload();
 
     const bankText = `--- 🏦 BANQUE D'ELION --- \n\n` +
-                     `💳 *SOLDE:* ${bank.balance} 🪙\n\n` +
+                     `👤 *CLIENT:* ${player.name}\n` +
+                     `💰 *ESPÈCES:* ${player.col} 🪙\n` +
+                     `💳 *SOLDE BANCAIRE:* ${bank.balance} 🪙\n\n` +
                      `--------------------------- \n` +
-                     `_Pour déposer ou retirer, utilise le mode /action._\n` +
-                     `_Ex: "Je dépose 50 col à la banque"_`;
+                     `💡 *COMMANDES:* \n` +
+                     `└ \`/deposer <montant>\` \n` +
+                     `└ \`/retirer <montant>\` \n\n` +
+                     `_Tu peux aussi demander au MJ en mode /action._`;
 
     await sock.sendMessage(replyJid, { text: bankText });
+};
+commands.set('bank', bankCommand);
+commands.set('banque', bankCommand);
+
+// Command: /deposer
+commands.set('deposer', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const amount = parseInt(args[0]);
+    if (isNaN(amount) || amount <= 0) {
+        return await sock.sendMessage(replyJid, { text: "❌ Utilise : `/deposer <montant>`" });
+    }
+
+    if (player.col < amount) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de Col sur toi (${player.col} Col dispos).` });
+    }
+
+    const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+
+    await player.decrement('col', { by: amount });
+    await bank.increment('balance', { by: amount });
+
+    await player.reload();
+    await bank.reload();
+
+    await sock.sendMessage(replyJid, {
+        text: `🏦 *DÉPÔT RÉUSSI*\n\nMontant : ${amount} Col\nNouveau solde : ${bank.balance} Col\nEspèces restantes : ${player.col} Col`
+    });
+});
+
+// Command: /retirer
+commands.set('retirer', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+    await bank.reload();
+
+    const amount = parseInt(args[0]);
+    if (isNaN(amount) || amount <= 0) {
+        return await sock.sendMessage(replyJid, { text: "❌ Utilise : `/retirer <montant>`" });
+    }
+
+    if (bank.balance < amount) {
+        return await sock.sendMessage(replyJid, { text: `❌ Ton solde bancaire est insuffisant (${bank.balance} Col dispos).` });
+    }
+
+    await bank.decrement('balance', { by: amount });
+    await player.increment('col', { by: amount });
+
+    await player.reload();
+    await bank.reload();
+
+    await sock.sendMessage(replyJid, {
+        text: `🏦 *RETRAIT RÉUSSI*\n\nMontant : ${amount} Col\nNouveau solde : ${bank.balance} Col\nEspèces sur toi : ${player.col} Col`
+    });
 });
 
 // Command: /donner
@@ -1465,6 +1559,25 @@ commands.set('tuto_rp', async (sock, message) => {
 });
 commands.set('apprendre', commands.get('tuto_rp'));
 
+// Command: /next
+commands.set('next', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
+
+    try {
+        await handleFreeAction(sock, message, player, "next");
+    } catch (error) {
+        console.error('Erreur commande /next:', error);
+        await sock.sendMessage(replyJid, { text: "Le MJ n'a pas pu répondre. Réessaie." });
+    }
+});
+
 commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
                    "/start - Commencer l'aventure.\n" +
@@ -1474,8 +1587,11 @@ commands.set('help', async (sock, message) => {
                    "/quests - Voir tes quêtes actives.\n" +
                    "/map - Afficher la carte du monde et les donjons.\n" +
                    "/bank - Accéder à ton compte en banque.\n" +
+                   "/deposer <montant> - Déposer de l'argent en banque.\n" +
+                   "/retirer <montant> - Retirer de l'argent de la banque.\n" +
                    "/boutique - Acheter de l'équipement.\n" +
                    "/joueurs - Voir les joueurs à proximité.\n" +
+                   "/lieux - Voir ta position et les environs.\n" +
                    "/inspecter @joueur - Voir le profil d'un autre joueur.\n" +
                    "/donner @joueur <montant> col OU <objet> - Donner un objet ou de l'argent.\n" +
                    "/royaumes - Géopolitique mondiale.\n" +
@@ -1490,6 +1606,7 @@ commands.set('help', async (sock, message) => {
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
                    "/action - Mode immersif (RP).\n" +
+                   "/next - Forcer la réponse du MJ.\n" +
                    "/menu - Menu principal.\n" +
                    "/reset - Réinitialiser ton personnage.\n" +
                    "/help - Cette aide.";
@@ -1645,7 +1762,8 @@ commands.set('menu', async (sock, message) => {
                    "📍 *NAVIGATION*\n" +
                    "├ `/map` - Monde & Donjons\n" +
                    "├ `/quests` - Journal d'objectifs\n" +
-                   "└ `/joueurs` - Qui est ici ?\n\n" +
+                   "├ `/joueurs` - Qui est ici ?\n" +
+                   "└ `/lieux` - Ta position actuelle\n\n" +
                    "💰 *ÉCONOMIE*\n" +
                    "├ `/bank` - Ton compte (Col)\n" +
                    "├ `/boutique` - Armes & Items\n" +
@@ -1706,14 +1824,14 @@ async function handleCommand(sock, message, downloadMediaMessage) {
                   await player.addQuest(startingQuest, { through: { status: 'not_started' } });
               }
 
-              await sock.sendMessage(replyJid, { text: `Enchanté, ${playerName}. Quel est ton sexe, Héritier ?` });
+              await sock.sendMessage(replyJid, { text: `« ${playerName}... Un nom qui résonnera bientôt dans les couloirs de l'Interstice, je l'espère. »\n\nEnchanté. Quel est ton sexe, Héritier ?` });
           } else {
               await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
           }
       } else if (player.registrationStep === 'awaiting_gender') {
           const gender = messageText.trim();
           await player.update({ gender, registrationStep: 'awaiting_age' });
-          await sock.sendMessage(replyJid, { text: `C'est noté. Quel est ton âge, Héritier ?` });
+          await sock.sendMessage(replyJid, { text: `« Très bien. Et quel est ton âge, Héritier ? Le temps s'écoule différemment ici, mais ton enveloppe charnelle a bien une origine. »` });
       } else if (player.registrationStep === 'awaiting_age') {
           const age = parseInt(messageText.trim());
           if (!isNaN(age) && age > 0 && age < 150) {
@@ -1730,7 +1848,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
                 registrationStep: null, // Registration finished
                 awaitingProfilePic: true
             });
-            await sock.sendMessage(replyJid, { text: `Description enregistrée ! Pour terminer, envoie une image qui représentera ton personnage.` });
+            await sock.sendMessage(replyJid, { text: `« Je vois... Ton essence commence à se stabiliser. »\n\nDescription enregistrée ! Pour terminer, envoie une image qui représentera ton personnage. Elle sera gravée dans la matrice d'Aetherys.` });
         } else {
             await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères). Réessaie." });
         }
