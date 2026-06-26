@@ -1,24 +1,33 @@
 {
-  "name": "app",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "gheno-city-2",
+  "version": "2.0.0",
+  "description": "GHENO CITY 2 - Serveur Gemma 3 Local - Jeu RPG Aetherys sur WhatsApp avec IA locale",
+  "main": "skype-bot.js",
   "scripts": {
     "start": "node skype-bot.js",
-    "test": "echo \"No tests specified\" && exit 0"
+    "server": "node model-server.js",
+    "dev": "concurrently \"npm run server\" \"npm start\"",
+    "test": "echo \"No tests specified\" && exit 0",
+    "setup": "node setup.js",
+    "check-ollama": "node -e \"const http=require('http');const req=http.request({hostname:'localhost',port:11434,path:'/api/tags',method:'GET',timeout:5000},(res)=>{let d='';res.on('data',c=>d+=c);res.on('end',()=>{const j=JSON.parse(d);const g=j.models.find(m=>m.name.includes('gemma3'));if(g)console.log('✅ Gemma 3 trouvé:',g.name);else{console.log('❌ Gemma 3 non trouvé. Modèles disponibles:',j.models.map(m=>m.name).join(', '));process.exit(1);}})});req.on('error',e=>{console.log('❌ Ollama non accessible:',e.message);process.exit(1)});req.end();\""
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Eoza-cell/GHENO-CITY-2.git"
+    "url": "https://github.com/Eoza-cell/GHENO-CITY-2.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "rpg",
+    "whatsapp",
+    "bot",
+    "gemma3",
+    "ollama",
+    "ia-locale",
+    "aetherys",
+    "arise"
+  ],
+  "author": "Eoza-cell",
   "license": "ISC",
   "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/Eoza-cell/GHENO-CITY-2/issues"
-  },
-  "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
     "@heyputer/puter.js": "^2.3.2",
     "@whiskeysockets/baileys": "7.0.0-rc13",
@@ -35,6 +44,10 @@
     "sequelize": "^6.37.7",
     "sharp": "^0.34.5",
     "sqlite3": "^5.1.7",
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -33,6 +33,11 @@ const PUTER_MODELS = [
     "meta-llama-3.1-70b-instruct"
 ];
 
+// Configuration Gemma 3
+const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+const WORLD_SERVER_URL = `http://localhost:${process.env.MODEL_PORT || 3001}`;
+
 /**
  * Detect responses that are not real narrative content.
  */
@@ -64,13 +69,8 @@ function isValidAIResponse(text) {
         'service unavailable'
     ];
 
-    // If it's a tiny response with an error marker, it's definitely an error
     if (cleaned.length < 150 && errorMarkers.some(m => lower.includes(m))) return false;
-
-    // If it's just technical jargon without narrative content
     if (cleaned.startsWith('data: [DONE]') || cleaned === '[DONE]') return false;
-
-    // Check if it's an HTML error page
     if (lower.includes('<!doctype html>') || lower.includes('<html>')) return false;
 
     return true;
@@ -122,9 +122,182 @@ function extractMessageContent(content) {
     return null;
 }
 
+// ============================================================================
+// PROVIDERS AI - ORDRE DE PRIORITÉ (Gemma 3 Local en premier)
+// ============================================================================
+
 /**
- * Call Puter's AI over its V1 OpenAI-compatible endpoint.
+ * [1] World Server Local - Gemma 3 via Ollama (PRIORITÉ MAXIMALE)
+ * Le serveur model-server.js tourne localement et utilise Gemma 3
  */
+async function callWorldServer(system, prompt) {
+    try {
+        console.log(`[AI] 🧠 World Server (Gemma 3 Local) - Tentative sur ${WORLD_SERVER_URL}...`);
+        const resp = await axios.post(`${WORLD_SERVER_URL}/v1/chat/completions`, {
+            model: OLLAMA_MODEL,
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, { timeout: 120000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) {
+            console.log(`[AI] ✅ World Server (Gemma 3) - Succès`);
+            return content;
+        }
+    } catch (e) {
+        console.warn(`[AI] ❌ World Server indisponible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
+ * [2] Ollama Direct - Connexion directe à Ollama (BYPASS World Server)
+ */
+async function callOllama(system, prompt) {
+    const apiBaseUrl = OLLAMA_URL + (OLLAMA_URL.includes('/api') ? '' : '/api');
+    const isCloud = OLLAMA_URL.includes('ollama.com');
+
+    try {
+        console.log(`[AI] 🧠 Ollama Direct (${OLLAMA_MODEL}) - Tentative sur ${apiBaseUrl}...`);
+
+        const payload = {
+            model: OLLAMA_MODEL,
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: prompt }
+            ],
+            stream: false,
+            format: 'json',
+            options: {
+                temperature: 0.85,
+                num_predict: 2048,
+                num_ctx: 16384,
+                top_p: 0.9,
+                repeat_penalty: 1.1
+            }
+        };
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (isCloud && process.env.OLLAMA_API_KEY) {
+            headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
+        }
+
+        const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
+            headers,
+            timeout: 120000
+        });
+
+        const content = resp.data?.message?.content || resp.data?.response;
+        if (isValidAIResponse(content)) {
+            console.log(`[AI] ✅ Ollama Direct (${OLLAMA_MODEL}) - Succès`);
+            return content;
+        }
+    } catch (e) {
+        console.warn(`[AI] ❌ Ollama Direct error: ${e.response?.data?.error || e.message}`);
+    }
+    return null;
+}
+
+/**
+ * [3] Llamafile (Local) - Alternative locale
+ */
+async function callLlamafile(system, prompt) {
+    const url = process.env.LLAMAFILE_URL || "http://localhost:8080/v1/chat/completions";
+    try {
+        console.log(`[AI] Llamafile - Tentative sur ${url}`);
+        const resp = await axios.post(url, {
+            model: "LLaMA_CPP",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.1,
+            stream: false
+        }, { timeout: 45000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Llamafile indisponible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
+ * [4] 9Router (Local)
+ */
+async function call9Router(system, prompt) {
+    const baseUrl = process.env.NINEROUTER_URL || "http://localhost:20128/v1";
+    const key = process.env.NINEROUTER_API_KEY || "9router";
+
+    const models = [
+        "qw/qwen-2.5-72b-instruct",
+        "mi/mistral-large",
+        "gg/gemini-2.0-flash",
+        "ll/llama-3.3-70b",
+        "ds/deepseek-r1"
+    ];
+
+    for (const model of models) {
+        try {
+            console.log(`[AI] 9Router - Tentative avec ${model}...`);
+            const resp = await axios.post(`${baseUrl}/chat/completions`, {
+                model: model,
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ],
+                stream: false
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 15000
+            });
+
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] 9Router error (${model}): ${e.message}`);
+            continue;
+        }
+    }
+    return null;
+}
+
+/**
+ * [5] LM Studio (Local)
+ */
+async function callLMStudio(system, prompt) {
+    const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
+    try {
+        console.log(`[AI] LM Studio - Tentative sur ${url}`);
+        const resp = await axios.post(url, {
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: -1,
+            stream: false
+        }, { timeout: 15000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] LM Studio inaccessible: ${e.message}`);
+    }
+    return null;
+}
+
+// ============================================================================
+// PROVIDERS CLOUD (FALLBACKS)
+// ============================================================================
+
 async function callPuterAPI(system, prompt) {
     const key = process.env.PUTER_API_KEY;
     if (!key || key.length < 6 || key === 'test_key') return null;
@@ -159,9 +332,6 @@ async function callPuterAPI(system, prompt) {
     return null;
 }
 
-/**
- * Try Puter SDK (Keyless).
- */
 async function callPuterSDK(system, prompt) {
     if (!puter || !puter.ai) return null;
     const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
@@ -169,7 +339,6 @@ async function callPuterSDK(system, prompt) {
     for (const model of models) {
         try {
             console.log(`[AI] Puter SDK (Keyless) - Tentative avec ${model}...`);
-            // Using array format for better system prompt adherence
             const result = await puter.ai.chat([
                 { role: "system", content: system },
                 { role: "user", content: prompt }
@@ -267,6 +436,41 @@ async function callBlackbox(system, prompt) {
     return null;
 }
 
+async function callPollinationsPOST(system, prompt) {
+    const models = ['openai', 'mistral', 'llama', 'unity', 'p1', 'searchgp'];
+    const shuffled = models.sort(() => Math.random() - 0.5);
+
+    for (const model of shuffled) {
+        try {
+            console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
+            const resp = await axios.post("https://text.pollinations.ai/", {
+                messages: [
+                    { role: "system", content: system + "\nTu DOIS répondre au format JSON." },
+                    { role: "user", content: prompt }
+                ],
+                model: model,
+                jsonMode: true,
+                seed: Math.floor(Math.random() * 1000000),
+                cache: false
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
+                },
+                timeout: 15000
+            });
+
+            let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
+            if (isValidAIResponse(resText)) return resText;
+        } catch (e) {
+            console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
+            await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+            continue;
+        }
+    }
+    return null;
+}
+
 async function callPollinationsGen(system, prompt) {
     const key = process.env.POLLINATIONS_API_KEY;
     if (!key) return null;
@@ -300,48 +504,9 @@ async function callPollinationsGen(system, prompt) {
     return null;
 }
 
-async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'unity', 'p1', 'searchgp'];
-    // Shuffle models to avoid hitting the same one first
-    const shuffled = models.sort(() => Math.random() - 0.5);
-
-    for (const model of shuffled) {
-        try {
-            console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
-            const resp = await axios.post("https://text.pollinations.ai/", {
-                messages: [
-                    { role: "system", content: system + "\nTu DOIS répondre au format JSON." },
-                    { role: "user", content: prompt }
-                ],
-                model: model,
-                jsonMode: true,
-                seed: Math.floor(Math.random() * 1000000),
-                cache: false
-            }, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
-                },
-                timeout: 15000
-            });
-
-            let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
-            if (isValidAIResponse(resText)) return resText;
-        } catch (e) {
-            console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
-            // Jitter delay
-            await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
-            continue;
-        }
-    }
-    return null;
-}
-
 async function callPollinationsGET(system, prompt) {
     try {
         console.log(`[AI] Pollinations GET - Tentative...`);
-        // Use a more concise prompt for GET to stay within URL limits
-        // Pollinations GET supports /prompt?model=...&seed=...&system=...
         const miniPrompt = `Action Joueur: ${prompt.substring(prompt.length - 800)}`;
         const fullPrompt = encodeURIComponent(miniPrompt);
         const systemEncoded = encodeURIComponent(system.substring(0, 800));
@@ -358,167 +523,7 @@ async function callPollinationsGET(system, prompt) {
 }
 
 /**
- * Call a local Ollama instance if available.
- */
-async function callOllama(system, prompt) {
-    let ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-
-    // Robust sanitization of OLLAMA_URL
-    if (!ollamaUrl.startsWith('http')) {
-        ollamaUrl = 'http://' + ollamaUrl;
-    }
-
-    // According to docs, the API is served at /api
-    const apiBaseUrl = ollamaUrl.replace(/\/$/, '') + (ollamaUrl.includes('/api') ? '' : '/api');
-    const isCloud = ollamaUrl.includes('ollama.com');
-
-    try {
-        console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
-
-        const payload = {
-            model: process.env.OLLAMA_MODEL || 'dark-lust',
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
-            ],
-            stream: false,
-            format: 'json',
-            options: {
-                temperature: 0.2,
-                num_predict: 1024,
-                num_ctx: 8192
-            }
-        };
-
-        const headers = { 'Content-Type': 'application/json' };
-        if (isCloud && process.env.OLLAMA_API_KEY) {
-            headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
-        }
-
-        const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
-            headers,
-            timeout: 30000
-        });
-
-        const content = resp.data?.message?.content || resp.data?.response;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] Ollama error on ${ollamaUrl}:`, e.response?.data || e.message);
-    }
-    return null;
-}
-
-/**
- * Call a local LM Studio instance if available.
- */
-async function call9Router(system, prompt) {
-    const baseUrl = process.env.NINEROUTER_URL || "http://localhost:20128/v1";
-    const key = process.env.NINEROUTER_API_KEY || "9router";
-
-    const models = [
-        "qw/qwen-2.5-72b-instruct",
-        "mi/mistral-large",
-        "gg/gemini-2.0-flash",
-        "ll/llama-3.3-70b",
-        "ds/deepseek-r1"
-    ];
-
-    for (const model of models) {
-        try {
-            console.log(`[AI] 9Router - Tentative avec ${model}...`);
-            const resp = await axios.post(`${baseUrl}/chat/completions`, {
-                model: model,
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                stream: false
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${key}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
-            });
-
-            const content = resp.data?.choices?.[0]?.message?.content;
-            if (isValidAIResponse(content)) return content;
-        } catch (e) {
-            console.warn(`[AI] 9Router error (${model}): ${e.message}`);
-            continue;
-        }
-    }
-    return null;
-}
-
-async function callWorldServer(system, prompt) {
-    const url = "http://localhost:3001/v1/chat/completions";
-    try {
-        console.log(`[AI] World Server - Tentative...`);
-        const resp = await axios.post(url, {
-            model: "dark-lust-3.2-1b",
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            stream: false
-        }, { timeout: 35000 });
-
-        const content = resp.data?.choices?.[0]?.message?.content;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] World Server indisponible: ${e.message}`);
-    }
-    return null;
-}
-
-async function callLlamafile(system, prompt) {
-    const url = process.env.LLAMAFILE_URL || "http://localhost:8080/v1/chat/completions";
-    try {
-        console.log(`[AI] Llamafile - Tentative sur ${url}`);
-        const resp = await axios.post(url, {
-            model: "LLaMA_CPP",
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            temperature: 0.1,
-            stream: false
-        }, { timeout: 45000 });
-
-        const content = resp.data?.choices?.[0]?.message?.content;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] Llamafile indisponible: ${e.message}`);
-    }
-    return null;
-}
-
-async function callLMStudio(system, prompt) {
-    const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
-    try {
-        console.log(`[AI] LM Studio - Tentative sur ${url}`);
-        const resp = await axios.post(url, {
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            temperature: 0.7,
-            max_tokens: -1,
-            stream: false
-        }, { timeout: 15000 });
-
-        const content = resp.data?.choices?.[0]?.message?.content;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] LM Studio inaccessible: ${e.message}`);
-    }
-    return null;
-}
-
-/**
  * Local MJ Fallback in case all AI providers fail.
- * Generates a simple but immersive response based on the action.
  */
 function callMJFallback(prompt) {
     console.log("[AI] Utilisation du MJ Fallback Local.");
@@ -537,19 +542,24 @@ function callMJFallback(prompt) {
     const narrative = responses[Math.floor(Math.random() * responses.length)];
 
     return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._`,
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Gemma 3 (IA locale) est actuellement indisponible. Vérifie qu'Ollama est démarré avec: ollama serve_`,
         actions: []
     });
 }
 
+// ============================================================================
+// MAIN AI ENTRY POINT
+// ============================================================================
+
 /**
  * Main AI entry point.
+ * Priorité: Gemma 3 Local > Ollama Direct > Autres locaux > Cloud > Fallback
  */
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
     if (depth > 2) return null;
 
-    // Preserve more context: the RP engine relies on scene isolation and detailed stats.
+    // Preserve context: the RP engine relies on scene isolation and detailed stats.
     const maxSystemLength = 12000;
     const maxUserLength = 16000;
     const sanitizedSystem = systemPrompt.length > maxSystemLength
@@ -562,18 +572,21 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
+    // ORDRE DE PRIORITÉ: Locaux d'abord, puis cloud
     const providers = [
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
+        // === LOCAUX (Priorité maximale) ===
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Gemma 3)', fn: callWorldServer }]),
+        { name: 'Ollama Direct (Gemma 3)', fn: callOllama },
         { name: 'Llamafile (Local)', fn: callLlamafile },
-        { name: '9Router', fn: call9Router },
+        { name: '9Router (Local)', fn: call9Router },
+        { name: 'LM Studio (Local)', fn: callLMStudio },
+        // === CLOUD (Fallbacks) ===
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
         { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Ollama (Local)', fn: callOllama },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Blackbox', fn: callBlackbox }
     ];
 
@@ -594,7 +607,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             const providerDuration = (Date.now() - providerStart) / 1000;
 
             if (isValidAIResponse(result)) {
-                console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration}s`);
+                console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration.toFixed(2)}s`);
                 // Verify the result is not just a technical JSON dump without narrative
                 if (result.trim().startsWith('{')) {
                     try {
@@ -621,7 +634,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         return callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 });
     }
 
-    // Ultimate fallback if even retry fails
+    // Ultimate fallback
     return callMJFallback(userPrompt);
 }
 
