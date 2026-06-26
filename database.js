@@ -308,6 +308,15 @@ const PlayerQuest = sequelize.define('PlayerQuest', {
     // Lets the AI "modifier le cours de certaines quêtes".
     branch: { type: DataTypes.STRING, allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
+    metadata: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const raw = this.getDataValue('metadata');
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        },
+        set(val) { this.setDataValue('metadata', JSON.stringify(val)); }
+    }
 });
 
 const Bank = sequelize.define('Bank', {
