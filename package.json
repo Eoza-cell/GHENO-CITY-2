@@ -30,6 +30,7 @@
   "type": "commonjs",
   "dependencies": {
     "@heyputer/puter.js": "^2.3.2",
+    "@huggingface/hub": "^2.13.2",
     "@whiskeysockets/baileys": "7.0.0-rc13",
     "axios": "^1.13.2",
     "concurrently": "^8.2.2",

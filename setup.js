@@ -94,10 +94,14 @@ async function setupEnv() {
     console.log('  5. gemma3:4b    (Excellent)');
     console.log('  6. gemma3:12b   (Lourd)');
 
-    const choice = await question('Votre choix (1-6, défaut: 2): ') || '2';
+    console.log('--- HUGGING FACE (Direct) ---');
+    console.log('  7. Qwen 2.5 3B GGUF (via HF)');
+
+    const choice = await question('Votre choix (1-7, défaut: 2): ') || '2';
     const models = {
         '1': 'qwen2.5:1.5b', '2': 'qwen2.5:3b', '3': 'qwen2.5:7b',
-        '4': 'gemma3:1b', '5': 'gemma3:4b', '6': 'gemma3:12b'
+        '4': 'gemma3:1b', '5': 'gemma3:4b', '6': 'gemma3:12b',
+        '7': 'qwen2.5-3b-gguf'
     };
     const model = models[choice] || 'qwen2.5:3b';
 
@@ -129,12 +133,20 @@ async function main() {
         await setupEnv();
     }
 
-    if (ollamaOk) {
-        // Re-lire le .env pour avoir le modèle choisi
-        const envContent = fs.readFileSync('.env', 'utf8');
-        const modelMatch = envContent.match(/OLLAMA_MODEL=([^\n]+)/);
-        const selectedModel = modelMatch ? modelMatch[1] : 'gemma3:4b';
+    const envContentFinal = fs.readFileSync('.env', 'utf8');
+    const modelMatch = envContentFinal.match(/OLLAMA_MODEL=([^\n]+)/);
+    const selectedModel = modelMatch ? modelMatch[1] : 'qwen2.5:3b';
 
+    if (selectedModel.includes('gguf')) {
+        const hf = require('./hf-downloader');
+        console.log(`\n📥 Téléchargement de ${selectedModel} via Hugging Face...`);
+        try {
+            await hf.downloadFromHF("Qwen/Qwen2.5-3B-Instruct-GGUF", "qwen2.5-3b-instruct-q4_k_m.gguf");
+            console.log("✅ Modèle GGUF téléchargé dans ./models/");
+        } catch (e) {
+            console.log("❌ Échec HF:", e.message);
+        }
+    } else if (ollamaOk) {
         const modelsList = execSync('ollama list', { encoding: 'utf8' });
         if (!modelsList.includes(selectedModel.split(':')[0])) {
             const install = await question(`\nVoulez-vous télécharger ${selectedModel} maintenant ? [Y/n]: `);
