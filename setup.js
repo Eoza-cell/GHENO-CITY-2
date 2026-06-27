@@ -84,14 +84,21 @@ async function setupEnv() {
     envContent = envContent.replace('PHONE_NUMBER=votre_numéro_de_téléphone_ici', `PHONE_NUMBER=${phoneNumber}`);
 
     // Proposer le choix du modèle
-    console.log('\nChoisissez la version de Gemma 3:');
-    console.log('  1. gemma3:1b  (2GB VRAM - Basique)');
-    console.log('  2. gemma3:4b  (4-6GB VRAM - Recommandé)');
-    console.log('  3. gemma3:12b (10-12GB VRAM - Excellente)');
-    console.log('  4. gemma3:27b (20GB+ VRAM - Ultime)');
+    console.log('\nChoisissez votre modèle local (via Ollama):');
+    console.log('--- GEMMA 3 (Google) ---');
+    console.log('  1. gemma3:1b  (Léger)');
+    console.log('  2. gemma3:4b  (Recommandé)');
+    console.log('  3. gemma3:12b (Équilibré)');
+    console.log('--- QWEN 2.5 (Alibaba) ---');
+    console.log('  4. qwen2.5:1.5b (Très rapide)');
+    console.log('  5. qwen2.5:7b   (Puissant)');
+    console.log('  6. qwen2.5:14b  (Excellent)');
 
-    const choice = await question('Votre choix (1-4, défaut: 2): ') || '2';
-    const models = { '1': 'gemma3:1b', '2': 'gemma3:4b', '3': 'gemma3:12b', '4': 'gemma3:27b' };
+    const choice = await question('Votre choix (1-6, défaut: 2): ') || '2';
+    const models = {
+        '1': 'gemma3:1b', '2': 'gemma3:4b', '3': 'gemma3:12b',
+        '4': 'qwen2.5:1.5b', '5': 'qwen2.5:7b', '6': 'qwen2.5:14b'
+    };
     const model = models[choice] || 'gemma3:4b';
 
     envContent += `\nOLLAMA_MODEL=${model}\nOLLAMA_URL=http://localhost:11434`;

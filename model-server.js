@@ -29,16 +29,16 @@ async function checkOllamaHealth() {
     try {
         const resp = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 });
         const models = resp.data?.models || [];
-        const gemmaModel = models.find(m => m.name.includes('gemma3'));
+        const targetModel = models.find(m => m.name.includes(OLLAMA_MODEL.split(':')[0]));
 
-        if (gemmaModel) {
-            console.log(`[MODEL-SERVER] ✅ Gemma 3 détecté: ${gemmaModel.name}`);
-            console.log(`[MODEL-SERVER]    Taille: ${(gemmaModel.size / 1e9).toFixed(2)} GB`);
-            console.log(`[MODEL-SERVER]    Format: ${gemmaModel.details?.format || 'N/A'}`);
-            console.log(`[MODEL-SERVER]    Famille: ${gemmaModel.details?.family || 'N/A'}`);
+        if (targetModel) {
+            console.log(`[MODEL-SERVER] ✅ Modèle local détecté: ${targetModel.name}`);
+            console.log(`[MODEL-SERVER]    Taille: ${(targetModel.size / 1e9).toFixed(2)} GB`);
+            console.log(`[MODEL-SERVER]    Format: ${targetModel.details?.format || 'N/A'}`);
+            console.log(`[MODEL-SERVER]    Famille: ${targetModel.details?.family || 'N/A'}`);
             return true;
         } else {
-            console.warn(`[MODEL-SERVER] ⚠️ Gemma 3 non trouvé dans Ollama.`);
+            console.warn(`[MODEL-SERVER] ⚠️ Modèle ${OLLAMA_MODEL} non trouvé dans Ollama.`);
             console.warn(`[MODEL-SERVER]    Modèles disponibles: ${models.map(m => m.name).join(', ')}`);
             console.warn(`[MODEL-SERVER]    Exécutez: ollama pull ${OLLAMA_MODEL}`);
             return false;
@@ -58,7 +58,7 @@ async function callGemma3(systemPrompt, userPrompt) {
     const startTime = Date.now();
 
     try {
-        console.log(`[MODEL-SERVER] 🧠 Appel Gemma 3 (${OLLAMA_MODEL})...`);
+        console.log(`[MODEL-SERVER] 🧠 Appel ${OLLAMA_MODEL}...`);
 
         const messages = [
             { role: 'system', content: systemPrompt },
@@ -301,7 +301,7 @@ async function startModelServer() {
     server.listen(PORT, () => {
         console.log('');
         console.log('╔══════════════════════════════════════════════════════════════╗');
-        console.log('║         🧠 GEMMA 3 WORLD INTELLIGENCE SERVER 🧠              ║');
+        console.log('║         🧠 LOCAL WORLD INTELLIGENCE SERVER 🧠                ║');
         console.log('╠══════════════════════════════════════════════════════════════╣');
         console.log(`║  Modèle: ${OLLAMA_MODEL.padEnd(52)} ║`);
         console.log(`║  Ollama: ${OLLAMA_URL.padEnd(52)} ║`);

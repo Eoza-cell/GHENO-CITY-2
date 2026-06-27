@@ -585,6 +585,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        { name: 'Pollinations Free (Quick)', fn: callPollinationsFree },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Blackbox', fn: callBlackbox }
@@ -636,6 +637,27 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     // Ultimate fallback
     return callMJFallback(userPrompt);
+}
+
+/**
+ * [FREE] Pollinations (Direct link) - Ultre-rapide et gratuit, pas besoin de clé.
+ */
+async function callPollinationsFree(system, prompt) {
+    try {
+        const seed = Math.floor(Math.random() * 1000000);
+        const resp = await axios.post("https://text.pollinations.ai/", {
+            messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
+            seed: seed,
+            model: "openai", // Utilise un modèle par défaut performant
+            jsonMode: true
+        }, { timeout: 15000 });
+
+        const content = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn("[AI] Pollinations Free Error:", e.message);
+    }
+    return null;
 }
 
 function parsePuterResponse(resp) {
