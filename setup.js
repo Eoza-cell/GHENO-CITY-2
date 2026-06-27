@@ -85,21 +85,21 @@ async function setupEnv() {
 
     // Proposer le choix du modèle
     console.log('\nChoisissez votre modèle local (via Ollama):');
-    console.log('--- GEMMA 3 (Google) ---');
-    console.log('  1. gemma3:1b  (Léger)');
-    console.log('  2. gemma3:4b  (Recommandé)');
-    console.log('  3. gemma3:12b (Équilibré)');
-    console.log('--- QWEN 2.5 (Alibaba) ---');
-    console.log('  4. qwen2.5:1.5b (Très rapide)');
-    console.log('  5. qwen2.5:7b   (Puissant)');
-    console.log('  6. qwen2.5:14b  (Excellent)');
+    console.log('--- QWEN 2.5 (Alibaba) - Recommandé pour la rapidité ---');
+    console.log('  1. qwen2.5:1.5b (Ultra-léger)');
+    console.log('  2. qwen2.5:3b   (Recommandé - Équilibré)');
+    console.log('  3. qwen2.5:7b   (Puissant)');
+    console.log('--- GEMMA 3 (Google) - Plus créatif ---');
+    console.log('  4. gemma3:1b    (Léger)');
+    console.log('  5. gemma3:4b    (Excellent)');
+    console.log('  6. gemma3:12b   (Lourd)');
 
     const choice = await question('Votre choix (1-6, défaut: 2): ') || '2';
     const models = {
-        '1': 'gemma3:1b', '2': 'gemma3:4b', '3': 'gemma3:12b',
-        '4': 'qwen2.5:1.5b', '5': 'qwen2.5:7b', '6': 'qwen2.5:14b'
+        '1': 'qwen2.5:1.5b', '2': 'qwen2.5:3b', '3': 'qwen2.5:7b',
+        '4': 'gemma3:1b', '5': 'gemma3:4b', '6': 'gemma3:12b'
     };
-    const model = models[choice] || 'gemma3:4b';
+    const model = models[choice] || 'qwen2.5:3b';
 
     envContent += `\nOLLAMA_MODEL=${model}\nOLLAMA_URL=http://localhost:11434`;
 
@@ -109,7 +109,7 @@ async function setupEnv() {
 
 async function main() {
     console.log('╔═══════════════════════════════════════════════════╗');
-    console.log('║  GHENO CITY 2 - Configuration Gemma 3 Local       ║');
+    console.log('║  GHENO CITY 2 - Configuration IA Locale           ║');
     console.log('╚═══════════════════════════════════════════════════╝\n');
 
     // Vérifications

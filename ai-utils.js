@@ -35,7 +35,7 @@ const PUTER_MODELS = [
 
 // Configuration Gemma 3
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const WORLD_SERVER_URL = `http://localhost:${process.env.MODEL_PORT || 3001}`;
 
 /**

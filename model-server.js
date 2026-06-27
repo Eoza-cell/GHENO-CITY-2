@@ -2,10 +2,11 @@ const http = require('http');
 const axios = require('axios');
 const { Player, NPC, Kingdom, WorldJournal, RPMessage, Conflict } = require('./database');
 const { Op } = require('sequelize');
+const { callAI } = require('./ai-utils');
 
 const PORT = process.env.MODEL_PORT || 3001;
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
 
 /**
@@ -224,11 +225,17 @@ ${worldCtx.journalContext}
 --- SESSION_RP ---
 ${userMessage}`;
 
-                // Appelle Gemma 3
-                const response = await callGemma3(systemMessage, symbioseContext);
+                // Appelle Ollama Local
+                let response = await callGemma3(systemMessage, symbioseContext);
+
+                // Si Ollama local échoue, bascule sur les providers cloud
+                if (!response) {
+                    console.log("[MODEL-SERVER] ⚠️ Ollama local échoué, basculement sur Cloud Fallback...");
+                    response = await callAI(systemMessage, symbioseContext, { skipWorldServer: true });
+                }
 
                 if (!response) {
-                    // Fallback: réponse minimale si Gemma 3 échoue
+                    // Fallback: réponse minimale si tout échoue
                     const fallbackResponse = JSON.stringify({
                         narrative: "🌀 *Le flux magique est instable...* L'Ether ne répond pas à tes appels. Réessaie dans un instant.",
                         actions: []
