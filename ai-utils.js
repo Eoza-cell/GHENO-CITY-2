@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
+const { askLocalAI, checkLocalAIStatus } = require('./localAI');
 
 // Setup JSDOM for Puter SDK if needed
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -127,12 +128,34 @@ function extractMessageContent(content) {
 // ============================================================================
 
 /**
- * [1] World Server Local - Gemma 3 via Ollama (PRIORITÉ MAXIMALE)
- * Le serveur model-server.js tourne localement et utilise Gemma 3
+ * [1] Local AI Service (Ollama / vLLM) - PRIORITÉ MAXIMALE
+ */
+async function callLocalOpenAI(system, prompt) {
+    try {
+        console.log(`[AI] 🧠 Local AI Service (${process.env.MODEL || OLLAMA_MODEL}) - Tentative...`);
+        const content = await askLocalAI(system, prompt);
+        if (isValidAIResponse(content)) {
+            console.log(`[AI] ✅ Local AI - Succès`);
+            return content;
+        }
+    } catch (e) {
+        console.warn(`[AI] ❌ Local AI indisponible ou erreur: ${e.message}`);
+        if (e.message.includes("Ollama n'est pas lancé")) {
+            return JSON.stringify({
+                narrative: "⚠️ *Le flux magique est coupé.* Ollama n'est pas lancé localement. Utilisez `ollama serve`.",
+                actions: []
+            });
+        }
+    }
+    return null;
+}
+
+/**
+ * [2] World Server Local - Proxy enrichi (PRIORITÉ SECONDAIRE)
  */
 async function callWorldServer(system, prompt) {
     try {
-        console.log(`[AI] 🧠 World Server (Gemma 3 Local) - Tentative sur ${WORLD_SERVER_URL}...`);
+        console.log(`[AI] 🧠 World Server (Proxy) - Tentative sur ${WORLD_SERVER_URL}...`);
         const resp = await axios.post(`${WORLD_SERVER_URL}/v1/chat/completions`, {
             model: OLLAMA_MODEL,
             messages: [
@@ -144,7 +167,7 @@ async function callWorldServer(system, prompt) {
 
         const content = resp.data?.choices?.[0]?.message?.content;
         if (isValidAIResponse(content)) {
-            console.log(`[AI] ✅ World Server (Gemma 3) - Succès`);
+            console.log(`[AI] ✅ World Server - Succès`);
             return content;
         }
     } catch (e) {
@@ -575,6 +598,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     // ORDRE DE PRIORITÉ: Locaux d'abord, puis cloud
     const providers = [
         // === LOCAUX (Priorité maximale) ===
+        { name: 'Local OpenAI (Ollama/vLLM)', fn: callLocalOpenAI },
         ...(options.skipWorldServer ? [] : [{ name: 'World Server (Gemma 3)', fn: callWorldServer }]),
         { name: 'Ollama Direct (Gemma 3)', fn: callOllama },
         { name: 'Llamafile (Local)', fn: callLlamafile },

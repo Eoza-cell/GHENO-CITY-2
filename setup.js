@@ -101,7 +101,7 @@ async function setupEnv() {
     };
     const model = models[choice] || 'qwen2.5:3b';
 
-    envContent += `\nOLLAMA_MODEL=${model}\nOLLAMA_URL=http://localhost:11434`;
+    envContent += `\nAI_PROVIDER=local\nLOCAL_API=http://127.0.0.1:11434\nMODEL=${model}\nOLLAMA_MODEL=${model}\nOLLAMA_URL=http://localhost:11434`;
 
     fs.writeFileSync('.env', envContent);
     console.log(`✅ Fichier .env créé avec le modèle ${model}`);
