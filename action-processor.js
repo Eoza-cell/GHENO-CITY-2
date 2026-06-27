@@ -211,35 +211,48 @@ async function handleUpdatePlayer(target, params, questFeedback, playersToUpdate
 
 async function handleBuyItem(target, params, questFeedback, playersToUpdate) {
     const item = await Item.findOne({ where: { name: { [Op.like]: `%${params.itemName}%` } } });
-    if (item && target.col >= (item.price * (params.quantity || 1))) {
-        const cost = item.price * (params.quantity || 1);
+    const quantity = parseInt(params.quantity) || 1;
+    if (item && target.col >= (item.price * quantity)) {
+        const cost = item.price * quantity;
         await target.decrement('col', { by: cost });
-        let inv = [...target.inventory];
+        let inv = JSON.parse(JSON.stringify(target.inventory || []));
         const existing = inv.find(i => i.name === item.name);
-        if (existing) existing.quantity += (params.quantity || 1);
-        else inv.push({ name: item.name, quantity: (params.quantity || 1) });
+        if (existing) existing.quantity = (parseInt(existing.quantity) || 1) + quantity;
+        else inv.push({ name: item.name, quantity: quantity });
         target.inventory = inv;
         await target.save();
-        questFeedback.push(`🛒 *ACHAT* : ${target.name} a acheté ${params.quantity || 1}x ${item.name}.`);
+        questFeedback.push(`🛒 *ACHAT* : ${target.name} a acheté ${quantity}x ${item.name}.`);
         playersToUpdate.add(target.whatsappId);
     }
 }
 
 async function handleAddItem(target, params, aiResponse, player, playersToUpdate) {
-    let inv = [...target.inventory];
-    const existing = inv.find(i => i.name.toLowerCase().includes(params.itemName.toLowerCase()));
-    if (existing) existing.quantity += (params.quantity || 1);
-    else inv.push({ name: params.itemName, quantity: (params.quantity || 1) });
+    const itemName = params.itemName;
+    const quantity = parseInt(params.quantity) || 1;
+    let inv = JSON.parse(JSON.stringify(target.inventory || []));
+    const existing = inv.find(i => i.name.toLowerCase() === itemName.toLowerCase());
+    if (existing) {
+        existing.quantity = (parseInt(existing.quantity) || 1) + quantity;
+    } else {
+        inv.push({ name: itemName, quantity: quantity });
+    }
     target.inventory = inv;
     await target.save();
     playersToUpdate.add(target.whatsappId);
 }
 
 async function handleRemoveItem(target, params, playersToUpdate) {
-    let inv = [...target.inventory];
-    const idx = inv.findIndex(i => i.name.toLowerCase().includes(params.itemName.toLowerCase()));
+    const itemName = params.itemName;
+    const quantity = parseInt(params.quantity) || 1;
+    let inv = JSON.parse(JSON.stringify(target.inventory || []));
+    let idx = inv.findIndex(i => i.name.toLowerCase() === itemName.toLowerCase());
+
+    if (idx === -1) {
+        idx = inv.findIndex(i => i.name.toLowerCase().includes(itemName.toLowerCase()));
+    }
+
     if (idx !== -1) {
-        inv[idx].quantity -= (params.quantity || 1);
+        inv[idx].quantity = (parseInt(inv[idx].quantity) || 1) - quantity;
         if (inv[idx].quantity <= 0) inv.splice(idx, 1);
         target.inventory = inv;
         await target.save();
@@ -248,11 +261,20 @@ async function handleRemoveItem(target, params, playersToUpdate) {
 }
 
 async function handleUseItem(target, params, questFeedback, playersToUpdate) {
-    let inv = [...target.inventory];
-    const idx = inv.findIndex(i => i.name.toLowerCase().includes(params.itemName.toLowerCase()));
+    let inv = JSON.parse(JSON.stringify(target.inventory || []));
+    const idx = inv.findIndex(i => i.name.toLowerCase() === params.itemName.toLowerCase());
+    if (idx === -1) {
+        // Fallback to fuzzy if exact match fails
+        const fuzzyIdx = inv.findIndex(i => i.name.toLowerCase().includes(params.itemName.toLowerCase()));
+        if (fuzzyIdx !== -1) {
+            return await handleUseItem(target, { ...params, itemName: inv[fuzzyIdx].name }, questFeedback, playersToUpdate);
+        }
+    }
+
     if (idx !== -1) {
-        const item = await Item.findOne({ where: { name: inv[idx].name } });
-        inv[idx].quantity -= 1;
+        const usedItemName = inv[idx].name;
+        const item = await Item.findOne({ where: { name: usedItemName } });
+        inv[idx].quantity = (parseInt(inv[idx].quantity) || 1) - 1;
         if (inv[idx].quantity <= 0) inv.splice(idx, 1);
         target.inventory = inv;
         await target.save();
@@ -265,7 +287,7 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
         }
         await target.reload();
         playersToUpdate.add(target.whatsappId);
-        questFeedback.push(`🎒 *OBJET* : ${target.name} utilise ${params.itemName}.`);
+        questFeedback.push(`🎒 *OBJET* : ${target.name} utilise ${usedItemName}.`);
     }
 }
 
@@ -289,19 +311,24 @@ async function handleP2PTransfer(player, params, questFeedback, playersToUpdate,
     }
 
     if (params.itemName) {
-        let sInv = [...sender.inventory];
-        const idx = sInv.findIndex(i => i.name.toLowerCase().includes(params.itemName.toLowerCase()));
+        let sInv = JSON.parse(JSON.stringify(sender.inventory || []));
+        let idx = sInv.findIndex(i => i.name.toLowerCase() === params.itemName.toLowerCase());
+        if (idx === -1) {
+            idx = sInv.findIndex(i => i.name.toLowerCase().includes(params.itemName.toLowerCase()));
+        }
+
         if (idx !== -1) {
-            const qty = Math.min(params.quantity || 1, sInv[idx].quantity);
+            const quantity = parseInt(params.quantity) || 1;
+            const qty = Math.min(quantity, parseInt(sInv[idx].quantity) || 1);
             const itemRealName = sInv[idx].name;
-            sInv[idx].quantity -= qty;
+            sInv[idx].quantity = (parseInt(sInv[idx].quantity) || 1) - qty;
             if (sInv[idx].quantity <= 0) sInv.splice(idx, 1);
             sender.inventory = sInv;
             await sender.save();
 
-            let rInv = [...recipient.inventory];
+            let rInv = JSON.parse(JSON.stringify(recipient.inventory || []));
             const rIdx = rInv.findIndex(i => i.name === itemRealName);
-            if (rIdx !== -1) rInv[rIdx].quantity += qty;
+            if (rIdx !== -1) rInv[rIdx].quantity = (parseInt(rInv[rIdx].quantity) || 1) + qty;
             else rInv.push({ name: itemRealName, quantity: qty });
             recipient.inventory = rInv;
             await recipient.save();
@@ -319,30 +346,33 @@ async function handleNPCTrade(player, params, questFeedback, playersToUpdate) {
     const item = await Item.findOne({ where: { name: { [Op.like]: `%${params.itemName}%` } } });
     if (!item) return;
 
+    const quantity = parseInt(params.quantity) || 1;
+
     if (params.action === 'buy') {
-        const cost = item.price * (params.quantity || 1);
+        const cost = item.price * quantity;
         if (player.col >= cost) {
             await player.decrement('col', { by: cost });
-            let inv = [...player.inventory];
+            let inv = JSON.parse(JSON.stringify(player.inventory || []));
             const existing = inv.find(i => i.name === item.name);
-            if (existing) existing.quantity += (params.quantity || 1);
-            else inv.push({ name: item.name, quantity: (params.quantity || 1) });
+            if (existing) existing.quantity = (parseInt(existing.quantity) || 1) + quantity;
+            else inv.push({ name: item.name, quantity: quantity });
             player.inventory = inv;
             await player.save();
-            questFeedback.push(`🤝 *ACHAT PNJ* : Tu as acheté ${params.quantity || 1}x ${item.name} à ${npc.name}.`);
+            questFeedback.push(`🤝 *ACHAT PNJ* : Tu as acheté ${quantity}x ${item.name} à ${npc.name}.`);
         }
     } else if (params.action === 'sell') {
-        let inv = [...player.inventory];
-        const idx = inv.findIndex(i => i.name.toLowerCase().includes(params.itemName.toLowerCase()));
+        let inv = JSON.parse(JSON.stringify(player.inventory || []));
+        const idx = inv.findIndex(i => i.name.toLowerCase() === item.name.toLowerCase());
         if (idx !== -1) {
-            const qty = Math.min(params.quantity || 1, inv[idx].quantity);
+            const qty = Math.min(quantity, parseInt(inv[idx].quantity) || 1);
             const gain = Math.floor(item.price * 0.5) * qty;
-            inv[idx].quantity -= qty;
+            const soldItemName = inv[idx].name;
+            inv[idx].quantity = (parseInt(inv[idx].quantity) || 1) - qty;
             if (inv[idx].quantity <= 0) inv.splice(idx, 1);
             player.inventory = inv;
             await player.save();
             await player.increment('col', { by: gain });
-            questFeedback.push(`🤝 *VENTE PNJ* : Tu as vendu ${qty}x ${inv[idx]?.name || params.itemName} à ${npc.name} pour ${gain} Col.`);
+            questFeedback.push(`🤝 *VENTE PNJ* : Tu as vendu ${qty}x ${soldItemName} à ${npc.name} pour ${gain} Col.`);
         }
     }
     playersToUpdate.add(player.whatsappId);
