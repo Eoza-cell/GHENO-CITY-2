@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Script de configuration automatique pour GHENO CITY 2 - Gemma 3
+ * Script de configuration automatique pour GHENO CITY 2
  * Vérifie l'environnement et guide l'utilisateur
  */
 
@@ -40,17 +40,17 @@ async function checkOllama() {
     }
 }
 
-async function checkGemma3Model() {
+async function checkGemmaModel() {
     try {
         const result = execSync('ollama list', { encoding: 'utf8' });
-        if (result.includes('gemma3')) {
-            const lines = result.split('\n').filter(l => l.includes('gemma3'));
-            console.log(`✅ Gemma 3 détecté:`);
+        if (result.includes('gemma')) {
+            const lines = result.split('\n').filter(l => l.includes('gemma'));
+            console.log(`✅ Modèle Gemma détecté:`);
             lines.forEach(l => console.log(`   ${l.trim()}`));
             return true;
         } else {
-            console.log('❌ Gemma 3 non trouvé.');
-            console.log('   Exécutez: ollama pull gemma3:4b');
+            console.log('❌ Modèle Gemma non trouvé.');
+            console.log('   Exécutez: ollama pull gemma4:31b');
             return false;
         }
     } catch {
@@ -89,19 +89,20 @@ async function setupEnv() {
     console.log('  1. qwen2.5:1.5b (Ultra-léger)');
     console.log('  2. qwen2.5:3b   (Recommandé - Équilibré)');
     console.log('  3. qwen2.5:7b   (Puissant)');
-    console.log('--- GEMMA 3 (Google) - Plus créatif ---');
-    console.log('  4. gemma3:1b    (Léger)');
-    console.log('  5. gemma3:4b    (Excellent)');
-    console.log('  6. gemma3:12b   (Lourd)');
+    console.log('--- GEMMA (Google) - Créativité & Raisonnement ---');
+    console.log('  4. gemma3:4b    (Gemma 3 - Équilibré)');
+    console.log('  5. gemma4:e4b   (Gemma 4 Edge - Rapide)');
+    console.log('  6. gemma4:12b   (Gemma 4 - Puissant)');
+    console.log('  7. gemma4:31b   (Gemma 4 - Frontier/Lourd)');
 
     console.log('--- HUGGING FACE (Direct) ---');
-    console.log('  7. Qwen 2.5 3B GGUF (via HF)');
+    console.log('  8. Qwen 2.5 3B GGUF (via HF)');
 
-    const choice = await question('Votre choix (1-7, défaut: 2): ') || '2';
+    const choice = await question('Votre choix (1-8, défaut: 2): ') || '2';
     const models = {
         '1': 'qwen2.5:1.5b', '2': 'qwen2.5:3b', '3': 'qwen2.5:7b',
-        '4': 'gemma3:1b', '5': 'gemma3:4b', '6': 'gemma3:12b',
-        '7': 'qwen2.5-3b-gguf'
+        '4': 'gemma3:4b', '5': 'gemma4:e4b', '6': 'gemma4:12b', '7': 'gemma4:31b',
+        '8': 'qwen2.5-3b-gguf'
     };
     const model = models[choice] || 'qwen2.5:3b';
 
@@ -192,7 +193,7 @@ async function main() {
     console.log('║  ✅ Configuration terminée !                      ║');
     console.log('╠═══════════════════════════════════════════════════╣');
     console.log('║  Pour démarrer:                                   ║');
-    console.log('║    npm start    (Bot + Serveur Gemma 3)           ║');
+    console.log('║    npm start    (Bot + Serveur IA Locale)         ║');
     console.log('║    npm run dev  (Mode développement)              ║');
     console.log('╚═══════════════════════════════════════════════════╝');
 

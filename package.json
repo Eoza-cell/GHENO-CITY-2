@@ -1,7 +1,7 @@
 {
   "name": "gheno-city-2",
   "version": "2.0.0",
-  "description": "GHENO CITY 2 - Serveur Gemma 3 Local - Jeu RPG Aetherys sur WhatsApp avec IA locale",
+  "description": "GHENO CITY 2 - Serveur IA Locale - Jeu RPG Aetherys sur WhatsApp avec IA locale",
   "main": "skype-bot.js",
   "scripts": {
     "start": "node skype-bot.js",
@@ -9,7 +9,7 @@
     "dev": "concurrently \"npm run server\" \"npm start\"",
     "test": "echo \"No tests specified\" && exit 0",
     "setup": "node setup.js",
-    "check-ollama": "node -e \"const http=require('http');const req=http.request({hostname:'localhost',port:11434,path:'/api/tags',method:'GET',timeout:5000},(res)=>{let d='';res.on('data',c=>d+=c);res.on('end',()=>{const j=JSON.parse(d);const g=j.models.find(m=>m.name.includes('gemma3'));if(g)console.log('✅ Gemma 3 trouvé:',g.name);else{console.log('❌ Gemma 3 non trouvé. Modèles disponibles:',j.models.map(m=>m.name).join(', '));process.exit(1);}})});req.on('error',e=>{console.log('❌ Ollama non accessible:',e.message);process.exit(1)});req.end();\""
+    "check-ollama": "node -e \"const http=require('http');const req=http.request({hostname:'localhost',port:11434,path:'/api/tags',method:'GET',timeout:5000},(res)=>{let d='';res.on('data',c=>d+=c);res.on('end',()=>{const j=JSON.parse(d);const m_name=(process.env.OLLAMA_MODEL||'gemma').split(':')[0];const g=j.models.find(m=>m.name.includes(m_name));if(g)console.log('✅ Modèle trouvé:',g.name);else{console.log('❌ Modèle '+m_name+' non trouvé. Modèles disponibles:',j.models.map(m=>m.name).join(', '));process.exit(1);}})});req.on('error',e=>{console.log('❌ Ollama non accessible:',e.message);process.exit(1)});req.end();\""
   },
   "repository": {
     "type": "git",
@@ -37,7 +37,7 @@
     "dotenv": "^16.4.5",
     "jsdom": "^29.1.1",
     "ollama": "^0.6.3",
-    "openai": "^6.45.0",
+    "openai": "^4.85.0",
     "p-queue": "^6.6.2",
     "p-retry": "^4.6.2",
     "pg": "^8.11.5",

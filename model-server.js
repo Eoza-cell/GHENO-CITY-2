@@ -10,27 +10,23 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
 
 /**
- * GHENO CITY 2.0 - Gemma 3 World Intelligence Server
+ * GHENO CITY 2.0 - World Intelligence Server
  *
- * Ce serveur est le cerveau central du jeu ARISE. Il utilise Gemma 3
- * via Ollama pour générer des réponses immersives en tant que Maître du Jeu.
+ * Ce serveur est le cerveau central du jeu ARISE. Il utilise des modèles locaux
+ * (Gemma, Qwen) via Ollama pour générer des réponses immersives.
  *
  * Endpoint: POST /v1/chat/completions (compatible OpenAI)
- *
- * Pour démarrer:
- *   1. Installer Ollama: https://ollama.com
- *   2. Télécharger Gemma 3: ollama pull gemma3:4b
- *   3. Démarrer ce serveur: npm run server
  */
 
 /**
- * Vérifie si Ollama est accessible et si le modèle Gemma 3 est disponible
+ * Vérifie si Ollama est accessible et si le modèle est disponible
  */
 async function checkOllamaHealth() {
     try {
         const resp = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 });
         const models = resp.data?.models || [];
-        const targetModel = models.find(m => m.name.includes(OLLAMA_MODEL.split(':')[0]));
+        const targetModelName = OLLAMA_MODEL.split(':')[0];
+        const targetModel = models.find(m => m.name.includes(targetModelName));
 
         if (targetModel) {
             console.log(`[MODEL-SERVER] ✅ Modèle local détecté: ${targetModel.name}`);
@@ -53,9 +49,9 @@ async function checkOllamaHealth() {
 }
 
 /**
- * Appelle Gemma 3 via Ollama avec le contexte du monde
+ * Appelle l'IA via Ollama avec le contexte du monde
  */
-async function callGemma3(systemPrompt, userPrompt) {
+async function callLocalModel(systemPrompt, userPrompt) {
     const startTime = Date.now();
 
     try {
@@ -181,7 +177,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
-            name: 'GHENO CITY 2 - Gemma 3 World Intelligence Server',
+            name: 'GHENO CITY 2 - World Intelligence Server',
             version: '2.0.0',
             model: OLLAMA_MODEL,
             endpoints: {
@@ -210,7 +206,7 @@ const server = http.createServer(async (req, res) => {
                 const worldCtx = await getWorldContext();
 
                 const symbioseContext = `
---- MÉMOIRE SYSTÈME V5 (SYMBIOSE GEMMA 3) ---
+--- MÉMOIRE SYSTÈME V5 (SYMBIOSE IA) ---
 MÉTRIX_BOT:
 - Actifs (1h): ${worldCtx.activePlayers}
 - NPCs Totaux: ${worldCtx.totalNpcs}
@@ -226,7 +222,7 @@ ${worldCtx.journalContext}
 ${userMessage}`;
 
                 // Appelle Ollama Local
-                let response = await callGemma3(systemMessage, symbioseContext);
+                let response = await callLocalModel(systemMessage, symbioseContext);
 
                 // Si Ollama local échoue, bascule sur les providers cloud
                 if (!response) {
@@ -300,8 +296,8 @@ async function startModelServer() {
     if (!healthy) {
         console.warn('[MODEL-SERVER] ⚠️ Ollama n\'est pas prêt. Le serveur démarre quand même.');
         console.warn('[MODEL-SERVER]    Les requêtes retourneront des réponses de fallback.');
-        console.warn('[MODEL-SERVER]    Pour installer Gemma 3:');
-        console.warn('[MODEL-SERVER]      1. ollama pull gemma3:4b');
+        console.warn('[MODEL-SERVER]    Vérifiez que votre modèle est installé:');
+        console.log(`[MODEL-SERVER]      1. ollama pull ${OLLAMA_MODEL}`);
         console.warn('[MODEL-SERVER]      2. ollama serve');
     }
 

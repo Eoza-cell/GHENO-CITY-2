@@ -18,8 +18,18 @@ async function downloadFromHF(repo, filename, destDir = './models') {
             path: filename,
         });
 
-        const buffer = await response.arrayBuffer();
-        fs.writeFileSync(destPath, Buffer.from(buffer));
+        if (!response.body) throw new Error("No body in response");
+
+        const writer = fs.createWriteStream(destPath);
+        const reader = response.body.getReader();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            writer.write(Buffer.from(value));
+        }
+
+        writer.end();
         console.log(`[HF] ✅ Téléchargement terminé !`);
         return destPath;
     } catch (err) {

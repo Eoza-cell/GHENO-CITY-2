@@ -34,7 +34,7 @@ const PUTER_MODELS = [
     "meta-llama-3.1-70b-instruct"
 ];
 
-// Configuration Gemma 3
+// Configuration Gemma
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const WORLD_SERVER_URL = `http://localhost:${process.env.MODEL_PORT || 3001}`;
@@ -124,7 +124,7 @@ function extractMessageContent(content) {
 }
 
 // ============================================================================
-// PROVIDERS AI - ORDRE DE PRIORITÉ (Gemma 3 Local en premier)
+// PROVIDERS AI - ORDRE DE PRIORITÉ (IA Locale en premier)
 // ============================================================================
 
 /**
@@ -388,7 +388,8 @@ async function callOpenRouter(system, prompt) {
         "qwen/qwen-2.5-72b-instruct:free",
         "nvidia/llama-3.1-nemotron-70b-instruct:free",
         "google/gemma-2-9b-it:free",
-        "google/gemma-4-26b-a4b-it:free"
+        "google/gemma-4-26b-a4b-it:free",
+        "google/gemma-4-31b-it:free"
     ];
 
     for (const model of models) {
@@ -565,7 +566,7 @@ function callMJFallback(prompt) {
     const narrative = responses[Math.floor(Math.random() * responses.length)];
 
     return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Gemma 3 (IA locale) est actuellement indisponible. Vérifie qu'Ollama est démarré avec: ollama serve_`,
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: L'IA locale (${OLLAMA_MODEL}) est actuellement indisponible. Vérifie qu'Ollama est démarré avec: ollama serve_`,
         actions: []
     });
 }
@@ -576,7 +577,7 @@ function callMJFallback(prompt) {
 
 /**
  * Main AI entry point.
- * Priorité: Gemma 3 Local > Ollama Direct > Autres locaux > Cloud > Fallback
+ * Priorité: IA Locale > Ollama Direct > Autres locaux > Cloud > Fallback
  */
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
@@ -599,8 +600,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const providers = [
         // === LOCAUX (Priorité maximale) ===
         { name: 'Local OpenAI (Ollama/vLLM)', fn: callLocalOpenAI },
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Gemma 3)', fn: callWorldServer }]),
-        { name: 'Ollama Direct (Gemma 3)', fn: callOllama },
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Gemma)', fn: callWorldServer }]),
+        { name: 'Ollama Direct (Gemma)', fn: callOllama },
         { name: 'Llamafile (Local)', fn: callLlamafile },
         { name: '9Router (Local)', fn: call9Router },
         { name: 'LM Studio (Local)', fn: callLMStudio },
