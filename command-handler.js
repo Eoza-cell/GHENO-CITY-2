@@ -8,10 +8,22 @@ const OWNER_NUMBER = process.env.OWNER_NUMBER || '33700000000@s.whatsapp.net';
  */
 function getJid(message) {
   if (!message || !message.key) return null;
-  if (message.key.remoteJid && message.key.remoteJid.endsWith('@g.us')) {
-      return message.key.participant || null;
+
+  // If it's a group message, the sender is in 'participant'
+  if (message.key.participant) {
+      return message.key.participant;
   }
-  return message.key.remoteJid || null;
+
+  // If it's a DM, the remoteJid is the sender (unless it's from me)
+  if (message.key.remoteJid) {
+      if (message.key.fromMe) {
+          // If we want to know who "we" are, but usually we care about the other person in DM
+          return message.key.remoteJid;
+      }
+      return message.key.remoteJid;
+  }
+
+  return null;
 }
 
 const commands = new Map();
@@ -49,9 +61,21 @@ commands.set('help', async (sock, message) => {
                    "🎨 */artiste* - Devine l'artiste\n" +
                    "🏎️ */course* - Jeu de course Nitro Asphalt\n\n" +
                    "📊 */top* - Classement général\n" +
-                   "ℹ️ */ping* - Vérifier la latence\n" +
-                   "🚀 */start* - Initialiser ton profil";
+                   "👤 */me* - Voir tes infos\n" +
+                   "ℹ️ */ping* - Vérifier la latence";
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+// Command: /me
+commands.set('me', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) return;
+
+    const msg = `👤 *PROFIL DE ${player.name}*\n\n` +
+                `🆔 ID: ${jid.split('@')[0]}\n` +
+                `💰 Points: ${player.points}`;
+    await sock.sendMessage(message.key.remoteJid, { text: msg });
 });
 
 // Game Commands
@@ -135,24 +159,38 @@ commands.set('top', async (sock, message) => {
 
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
+  const messageText = message.message.conversation ||
+                      message.message.extendedTextMessage?.text ||
+                      message.message.imageMessage?.caption;
   if (!messageText) return;
 
   const jid = getJid(message);
   const replyJid = message.key.remoteJid;
+  if (!jid) return;
 
   const isOwner = jid === OWNER_NUMBER || message.key.fromMe;
-  const chat = await Chat.findOne({ where: { jid: replyJid } });
-  const isActive = chat ? chat.isActive : false;
 
-  // Activation check
-  if (!isActive && !isOwner && !messageText.startsWith('/activer')) {
+  // Auto-activation of the chat if owner speaks
+  let chat = await Chat.findOne({ where: { jid: replyJid } });
+  if (!chat) {
+      chat = await Chat.create({ jid: replyJid, isActive: isOwner });
+  } else if (isOwner && !chat.isActive) {
+      await chat.update({ isActive: true });
+  }
+
+  // If chat is not active and not owner, ignore
+  if (!chat.isActive && !isOwner) {
       return;
   }
 
-  const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (!player && !messageText.startsWith('/start')) {
-      return;
+  // Auto-registration of the player
+  let player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) {
+      player = await Player.create({
+          whatsappId: jid,
+          name: message.pushName || 'Joueur'
+      });
+      console.log(`[AUTH] Nouveau joueur enregistré: ${player.name} (${jid})`);
   }
 
   // Handle standard commands

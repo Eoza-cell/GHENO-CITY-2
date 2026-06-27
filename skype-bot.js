@@ -114,11 +114,6 @@ async function connectToWhatsApp() {
             try {
                 if (!message.message) return;
 
-                const jid = getJid(message);
-                if (!jid) return;
-
-                const player = await Player.findOne({ where: { whatsappId: jid } });
-
                 // Handle as a normal command/message
                 await handleCommand(sock, message, downloadMediaMessage);
             } catch (globalError) {
