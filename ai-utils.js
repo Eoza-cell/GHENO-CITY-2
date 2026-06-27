@@ -140,12 +140,6 @@ async function callLocalOpenAI(system, prompt) {
         }
     } catch (e) {
         console.warn(`[AI] ❌ Local AI indisponible ou erreur: ${e.message}`);
-        if (e.message.includes("Ollama n'est pas lancé")) {
-            return JSON.stringify({
-                narrative: "⚠️ *Le flux magique est coupé.* Ollama n'est pas lancé localement. Utilisez `ollama serve`.",
-                actions: []
-            });
-        }
     }
     return null;
 }
@@ -566,7 +560,7 @@ function callMJFallback(prompt) {
     const narrative = responses[Math.floor(Math.random() * responses.length)];
 
     return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: L'IA locale (${OLLAMA_MODEL}) est actuellement indisponible. Vérifie qu'Ollama est démarré avec: ollama serve_`,
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Gemma 4 (IA locale) est actuellement indisponible. Utilisez **ollama serve** ou vérifiez vos clés API cloud._`,
         actions: []
     });
 }
