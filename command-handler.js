@@ -1,5 +1,7 @@
-const { Player, GameScore } = require('./database');
+const { Player, GameScore, Chat } = require('./database');
 const { gameLogic, handleGameMessage, activeGames } = require('./games-handler');
+
+const OWNER_NUMBER = process.env.OWNER_NUMBER || '33700000000@s.whatsapp.net';
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -91,6 +93,28 @@ commands.set('join', async (sock, message) => {
     }
 });
 
+// Command: /activer
+commands.set('activer', async (sock, message) => {
+    const jid = getJid(message);
+    if (jid !== OWNER_NUMBER && !message.key.fromMe) {
+        return await sock.sendMessage(message.key.remoteJid, { text: "❌ Seul le propriétaire peut activer le bot." });
+    }
+    const [chat, created] = await Chat.findOrCreate({ where: { jid: message.key.remoteJid } });
+    await chat.update({ isActive: true });
+    await sock.sendMessage(message.key.remoteJid, { text: "✅ Le bot est maintenant activé pour ce groupe/chat." });
+});
+
+// Command: /desactiver
+commands.set('desactiver', async (sock, message) => {
+    const jid = getJid(message);
+    if (jid !== OWNER_NUMBER && !message.key.fromMe) {
+        return await sock.sendMessage(message.key.remoteJid, { text: "❌ Seul le propriétaire peut désactiver le bot." });
+    }
+    const [chat, created] = await Chat.findOrCreate({ where: { jid: message.key.remoteJid } });
+    await chat.update({ isActive: false });
+    await sock.sendMessage(message.key.remoteJid, { text: "🛑 Le bot est désormais désactivé pour ce groupe/chat." });
+});
+
 // Command: /top
 commands.set('top', async (sock, message) => {
     const topPlayers = await Player.findAll({
@@ -99,23 +123,32 @@ commands.set('top', async (sock, message) => {
     });
 
     let topText = "🏆 *CLASSEMENT GÉNÉRAL*\n\n";
+    const mentions = [];
     topPlayers.forEach((p, i) => {
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '👤';
-        topText += `${medal} *${p.name}*: ${p.points} points\n`;
+        topText += `${medal} @${p.whatsappId.split('@')[0]}: ${p.points} points\n`;
+        mentions.push(p.whatsappId);
     });
 
-    await sock.sendMessage(message.key.remoteJid, { text: topText });
+    await sock.sendMessage(message.key.remoteJid, { text: topText, mentions });
 });
 
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {
-  if (message.key.fromMe) return;
-
   const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
   if (!messageText) return;
 
   const jid = getJid(message);
   const replyJid = message.key.remoteJid;
+
+  const isOwner = jid === OWNER_NUMBER || message.key.fromMe;
+  const chat = await Chat.findOne({ where: { jid: replyJid } });
+  const isActive = chat ? chat.isActive : false;
+
+  // Activation check
+  if (!isActive && !isOwner && !messageText.startsWith('/activer')) {
+      return;
+  }
 
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (!player && !messageText.startsWith('/start')) {

@@ -80,6 +80,17 @@ const GameScore = sequelize.define('GameScore', {
     }
 });
 
+const Chat = sequelize.define('Chat', {
+    jid: {
+        type: DataTypes.STRING,
+        primaryKey: true,
+    },
+    isActive: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    }
+});
+
 async function setupDatabase() {
   try {
     await sequelize.authenticate();
@@ -95,6 +106,7 @@ module.exports = {
   sequelize,
   Player,
   GameScore,
+  Chat,
   Creds,
   setupDatabase,
 };
