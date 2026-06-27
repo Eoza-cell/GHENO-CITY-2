@@ -74,12 +74,20 @@ async function connectToWhatsApp() {
     }
   }
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
+      const statusCode = (lastDisconnect.error)?.output?.statusCode;
+      const shouldReconnect = statusCode !== 401;
       console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
-      if (shouldReconnect) {
+
+      if (statusCode === 401) {
+          console.log('[AUTH] Session expirée ou invalide (401). Nettoyage de la base de données...');
+          const { Creds } = require('./database');
+          await Creds.destroy({ where: {} });
+          console.log('[AUTH] Base de données nettoyée. Tentative de reconnexion pour nouveau code de pairage...');
+          connectToWhatsApp();
+      } else if (shouldReconnect) {
         connectToWhatsApp();
       }
     } else if (connection === 'open') {
