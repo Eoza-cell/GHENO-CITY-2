@@ -124,25 +124,32 @@ async function main() {
         }
     }
 
+    const envOk = await checkEnvFile();
+    if (!envOk) {
+        await setupEnv();
+    }
+
     if (ollamaOk) {
-        const gemmaOk = await checkGemma3Model();
-        if (!gemmaOk) {
-            const install = await question('\nVoulez-vous télécharger Gemma 3 maintenant ? [Y/n]: ');
+        // Re-lire le .env pour avoir le modèle choisi
+        const envContent = fs.readFileSync('.env', 'utf8');
+        const modelMatch = envContent.match(/OLLAMA_MODEL=([^\n]+)/);
+        const selectedModel = modelMatch ? modelMatch[1] : 'gemma3:4b';
+
+        const modelsList = execSync('ollama list', { encoding: 'utf8' });
+        if (!modelsList.includes(selectedModel.split(':')[0])) {
+            const install = await question(`\nVoulez-vous télécharger ${selectedModel} maintenant ? [Y/n]: `);
             if (install.toLowerCase() !== 'n') {
-                console.log('\n📥 Téléchargement de gemma3:4b...');
+                console.log(`\n📥 Téléchargement de ${selectedModel}...`);
                 try {
-                    execSync('ollama pull gemma3:4b', { stdio: 'inherit' });
-                    console.log('✅ Gemma 3 installé !');
+                    execSync(`ollama pull ${selectedModel}`, { stdio: 'inherit' });
+                    console.log(`✅ ${selectedModel} installé !`);
                 } catch {
                     console.log('❌ Échec du téléchargement.');
                 }
             }
+        } else {
+            console.log(`✅ Modèle ${selectedModel} déjà présent.`);
         }
-    }
-
-    const envOk = await checkEnvFile();
-    if (!envOk) {
-        await setupEnv();
     }
 
     // Vérifier les dépendances
