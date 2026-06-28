@@ -1,10 +1,10 @@
-GHENO CITY 2 - Serveur IA Locale (Gemma 4)
+GHENO CITY 2 - Serveur Gemma 4 Local
 
-ARISE : GHENO CITY 2 est un jeu RPG immersif fonctionnant sur WhatsApp, propulsé par les modèles Gemma de Google (Gemma 3 & 4) exécutés localement via Ollama. Ce projet est une version améliorée de GHENO-CITY-2 avec un serveur d'IA local autonome.
+ARISE : GHENO CITY 2 est un jeu RPG immersif fonctionnant sur WhatsApp, propulsé par l'IA Gemma 4 de Google exécutée localement via Ollama. Ce projet est une version améliorée de GHENO-CITY-2 avec un serveur d'IA local autonome.
 
 ### Caractéristiques
 
-* **IA Locale Gemma 3 & 4** - Plus besoin de clés API ! L'IA tourne entièrement sur votre machine
+* **IA Locale Gemma 4** - Plus besoin de clés API ! L'IA tourne entièrement sur votre machine
 * **Jeu RPG sur WhatsApp** - Système complet de classes, quêtes, combats, économie
 * **Monde vivant** - Royaumes, factions, PNJ, donjons, conflits dynamiques
 * **Multi-joueurs** - Synchronisation des actions, tournois PVP, échanges
@@ -20,7 +20,7 @@ ARISE : GHENO CITY 2 est un jeu RPG immersif fonctionnant sur WhatsApp, propuls�
 │   (skype-bot.js)     │   (model-server.js)                  │
 │                      │                                      │
 │  - Commandes         │  - API compatible OpenAI             │
-│  - Base de données   │  - Gemma via Ollama                 │
+│  - Base de données   │  - Gemma 4 via Ollama                │
 │  - Visuals           │  - Contexte monde enrichi            │
 │  - Actions MJ        │  - Health check endpoint             │
 └──────────┬───────────┴──────────────┬───────────────────────┘
@@ -28,7 +28,7 @@ ARISE : GHENO CITY 2 est un jeu RPG immersif fonctionnant sur WhatsApp, propuls�
            ▼                          ▼
     ┌─────────────┐           ┌──────────────┐
     │  Baileys    │           │   Ollama     │
-    │  (WhatsApp) │           │  (Gemma)     │
+    │  (WhatsApp) │           │  (Gemma 4)   │
     └─────────────┘           └──────────────┘
 ```
 
@@ -45,7 +45,7 @@ ARISE : GHENO CITY 2 est un jeu RPG immersif fonctionnant sur WhatsApp, propuls�
    ```bash
    # Installer Ollama (Linux/Mac)
    curl -fsSL https://ollama.com/install.sh | sh
-   # Ou télécharger depuis https://ollama.com pour Windows
+   # Ou télécharger depuis https://ollama.com for Windows
 
    # Télécharger Gemma 4 (31B = ~18GB, 12B = ~8GB)
    ollama pull gemma4:31b
@@ -94,7 +94,7 @@ ARISE : GHENO CITY 2 est un jeu RPG immersif fonctionnant sur WhatsApp, propuls�
 * `/competences` - Techniques et sorts
 * `/bank` - Compte en banque
 
-### Configuration IA Locale
+### Configuration Gemma 4
 
 Modifier dans `.env` :
 `OLLAMA_MODEL=gemma4:31b` # ou gemma4:12b, gemma4:e4b, gemma3:4b

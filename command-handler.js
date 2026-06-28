@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, Duel, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -1109,8 +1109,8 @@ commands.set('duel', async (sock, message, args) => {
         return await sock.sendMessage(replyJid, { text: "Ce joueur n'existe pas." });
     }
 
-    if (player.location !== targetPlayer.location) {
-        return await sock.sendMessage(replyJid, { text: "Tu dois être dans le même royaume pour défier quelqu'un." });
+    if (player.location !== targetPlayer.location || player.subLocation !== targetPlayer.subLocation) {
+        return await sock.sendMessage(replyJid, { text: "Tu dois être au même endroit (Royaume et Lieu précis) pour défier quelqu'un." });
     }
 
     const existingDuel = await Duel.findOne({
@@ -1639,6 +1639,7 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
+                   "/download_model - Télécharger Gemma 4 localement (Admin).\n" +
                    "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
@@ -1748,6 +1749,32 @@ commands.set('action', async (sock, message) => {
   } else {
       await sock.sendMessage(message.key.remoteJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
   }
+});
+
+// Command: /download_model
+commands.set('download_model', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent initier des téléchargements système." });
+        return;
+    }
+
+    const model = process.env.OLLAMA_MODEL || 'gemma4:31b';
+    await sock.sendMessage(replyJid, { text: `📥 *INITIATION DU TÉLÉCHARGEMENT*\n\nModèle : ${model}\n\nCette opération peut prendre plusieurs minutes selon votre connexion. Le bot restera disponible.` });
+
+    const { exec } = require('child_process');
+    exec(`ollama pull ${model}`, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`[OLLAMA] Pull error: ${error.message}`);
+            sock.sendMessage(replyJid, { text: `❌ *ÉCHEC DU TÉLÉCHARGEMENT*\n\nErreur : ${error.message}` });
+            return;
+        }
+        console.log(`[OLLAMA] Pull success: ${stdout}`);
+        sock.sendMessage(replyJid, { text: `✅ *TÉLÉCHARGEMENT TERMINÉ*\n\nLe modèle ${model} est prêt à l'emploi.` });
+    });
 });
 
 // Command: /checkai

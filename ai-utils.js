@@ -36,7 +36,7 @@ const PUTER_MODELS = [
 
 // Configuration Gemma
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:31b';
 const WORLD_SERVER_URL = `http://localhost:${process.env.MODEL_PORT || 3001}`;
 
 /**
@@ -374,6 +374,8 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
+        "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free",
         "google/gemma-3-4b-it:free",
         "google/gemma-3-12b-it:free",
         "google/gemma-3-27b-it:free",
@@ -384,9 +386,7 @@ async function callOpenRouter(system, prompt) {
         "deepseek/deepseek-r1:free",
         "qwen/qwen-2.5-72b-instruct:free",
         "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "google/gemma-2-9b-it:free",
-        "google/gemma-4-26b-a4b-it:free",
-        "google/gemma-4-31b-it:free"
+        "google/gemma-2-9b-it:free"
     ];
 
     for (const model of models) {
@@ -394,12 +394,13 @@ async function callOpenRouter(system, prompt) {
             console.log(`[AI] OpenRouter - Tentative avec ${model}`);
             const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
                 model: model,
-                messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
+                messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
+                transforms: ["middle-out"]
             }, {
                 headers: {
                     'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    'HTTP-Referer': 'https://github.com/skype-bot/arise',
-                    'X-Title': 'Arise RPG'
+                    'HTTP-Referer': 'https://github.com/Eoza-cell/GHENO-CITY-2',
+                    'X-Title': 'Gheno City 2'
                 },
                 timeout: 10000
             });

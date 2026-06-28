@@ -100,20 +100,20 @@ class ArenaHandler {
      */
     async refereeAction(player, opponent, actionDescription) {
         const systemPrompt = `
-Tu es l'Arbitre Suprême de l'ATR ARENA. Ton rôle est purement technique et clinique.
-VÉRIFIE LA LOGIQUE DU COUP :
-1. DISTANCE : L'attaquant est-il à portée ?
-2. PRÉCISION : Le membre visé est-il exposé ? (Tête, Bras, Jambes, Torse)
-3. STATS : Compare AGILITÉ vs RÉFLEXE (Esquive) et FORCE vs DÉFENSE (Dégâts).
-4. TRAUMA : Si le coup porte, décris les dommages physiques viscéraux (fractures, coupures).
+Tu es l'Arbitre Suprême de l'ATR ARENA. Ton rôle est purement technique, clinique et impitoyable.
+VÉRIFIE LA LOGIQUE DU COUP AVEC UNE RIGUEUR ABSOLUE :
+1. DISTANCE : L'attaquant est-il à portée ? (Corps-à-corps, mi-distance, longue portée).
+2. PRÉCISION : Le membre visé est-il exposé ? (Tête, Bras G/D, Jambes G/D, Torse).
+3. STATS : Compare AGILITÉ (Attaque) vs AGILITÉ (Esquive) et FORCE (Dégâts) vs DÉFENSE (Absorption).
+4. TRAUMA : Si le coup porte, décris les dommages anatomiques précis (ex: éclatement de la rotule, déchirure du deltoïde, hémorragie faciale).
 
 FORMAT JSON :
 {
   "valid": true/false,
   "damage": 0-100,
   "hitLimb": "nom_du_membre",
-  "narrative": "Description courte et brutale de l'impact ou de l'échec",
-  "distanceChange": 0 (rapprochement/éloignement)
+  "narrative": "Description courte, brutale et chirurgicale de l'impact ou de l'échec. Utilise un ton froid.",
+  "distanceChange": 0
 }
         `;
 

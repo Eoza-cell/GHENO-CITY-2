@@ -3,7 +3,7 @@ const axios = require('axios');
 require('dotenv').config();
 
 const LOCAL_API = process.env.LOCAL_API || "http://127.0.0.1:11434";
-const MODEL = process.env.MODEL || "gemma3:4b";
+const MODEL = process.env.MODEL || "gemma4:31b";
 
 const client = new OpenAI({
   baseURL: LOCAL_API + "/v1",
