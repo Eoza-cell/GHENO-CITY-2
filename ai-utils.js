@@ -594,7 +594,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: Locaux d'abord, puis cloud
+    // ORDRE DE PRIORITÉ: Locaux d'abord, puis cloud (OpenRouter Free en priorité cloud)
     const providers = [
         // === LOCAUX (Priorité maximale) ===
         { name: 'Local OpenAI (Ollama/vLLM)', fn: callLocalOpenAI },
@@ -604,9 +604,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: '9Router (Local)', fn: call9Router },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         // === CLOUD (Fallbacks) ===
+        { name: 'OpenRouter Free', fn: callOpenRouter }, // Priorité Cloud
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Free (Quick)', fn: callPollinationsFree },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
