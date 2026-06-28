@@ -1577,7 +1577,7 @@ commands.set('tuto_rp', async (sock, message) => {
 
     const tutoTitle = "MANUEL DU RP IMMERSIF";
     const tutoContent = "Bienvenue dans GHENO CITY, Egoïste.\n\n" +
-        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par DARK LUST 3.2.\n\n" +
+        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par GEMMA 3 (IA Locale).\n\n" +
         "2. LA PRÉCISION\nNe dis pas 'Je frappe'. Dis 'Je pivote sur ma jambe gauche pour envoyer un coup de pied circulaire au niveau des côtes'. Plus tu es précis, plus le MJ est clément.\n\n" +
         "3. LES STATS\nTout est calculé. Si ton adversaire a 80 en FORCE et toi 20, tu vas souffrir. Utilise ton intelligence ou l'environnement pour compenser.\n\n" +
         "4. LE COMMERCE\nTu peux acheter des objets directement en parlant aux marchands ou au MJ. Dis 'Je veux acheter l'Épée de Fer' et si tu as les COL, le MJ mettra à jour ton profil.\n\n" +

@@ -839,6 +839,9 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
       aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
 
+    // Append next hint
+    aiResponse.narrative += "\n\n💡 *Note:* Une seule personne peut `next`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.";
+
     // Prepend World Clock Header
     const header = getWorldHeader();
     if (aiResponse.narrative && !aiResponse.narrative.includes("An ")) {
