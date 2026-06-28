@@ -50,7 +50,7 @@ async function checkGemmaModel() {
             return true;
         } else {
             console.log('❌ Modèle Gemma non trouvé.');
-            console.log('   Exécutez: ollama pull gemma4:31b');
+            console.log('   Exécutez: ollama pull gemma3:4b');
             return false;
         }
     } catch {
@@ -89,20 +89,19 @@ async function setupEnv() {
     console.log('  1. qwen2.5:1.5b (Ultra-léger)');
     console.log('  2. qwen2.5:3b   (Recommandé - Équilibré)');
     console.log('  3. qwen2.5:7b   (Puissant)');
-    console.log('--- GEMMA 4 (Google) - Créativité & Raisonnement ---');
-    console.log('  4. gemma4:31b   (Recommandé - Frontier/Lourd)');
-    console.log('  5. gemma4:12b   (Gemma 4 - Puissant)');
-    console.log('  6. gemma4:e4b   (Gemma 4 Edge - Rapide)');
-    console.log('  7. gemma3:4b    (Gemma 3 - Équilibré)');
+    console.log('--- GEMMA 3 (Google) - Créativité & Raisonnement ---');
+    console.log('  4. gemma3:4b    (Recommandé - Rapide)');
+    console.log('  5. gemma3:12b   (Gemma 3 - Puissant)');
+    console.log('  6. gemma3:27b   (Gemma 3 - Lourd)');
 
     console.log('--- HUGGING FACE (Direct) ---');
-    console.log('  8. Qwen 2.5 3B GGUF (via HF)');
+    console.log('  7. Qwen 2.5 3B GGUF (via HF)');
 
-    const choice = await question('Votre choix (1-8, défaut: 7): ') || '7';
+    const choice = await question('Votre choix (1-7, défaut: 4): ') || '4';
     const models = {
         '1': 'qwen2.5:1.5b', '2': 'qwen2.5:3b', '3': 'qwen2.5:7b',
-        '4': 'gemma4:31b', '5': 'gemma4:12b', '6': 'gemma4:e4b', '7': 'gemma3:4b',
-        '8': 'qwen2.5-3b-gguf'
+        '4': 'gemma3:4b', '5': 'gemma3:12b', '6': 'gemma3:27b',
+        '7': 'qwen2.5-3b-gguf'
     };
     const model = models[choice] || 'gemma3:4b';
 
@@ -136,7 +135,7 @@ async function main() {
 
     const envContentFinal = fs.readFileSync('.env', 'utf8');
     const modelMatch = envContentFinal.match(/OLLAMA_MODEL=([^\n]+)/);
-    const selectedModel = modelMatch ? modelMatch[1] : 'gemma4:31b';
+    const selectedModel = modelMatch ? modelMatch[1] : 'gemma3:4b';
 
     if (selectedModel.includes('gguf')) {
         const hf = require('./hf-downloader');

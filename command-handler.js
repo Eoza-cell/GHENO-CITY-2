@@ -1639,7 +1639,7 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
-                   "/download_model - Télécharger Gemma 4 localement (Admin).\n" +
+                   "/download_model - Télécharger Gemma 3 localement (Admin).\n" +
                    "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
@@ -1762,7 +1762,7 @@ commands.set('download_model', async (sock, message) => {
         return;
     }
 
-    const model = process.env.OLLAMA_MODEL || 'gemma4:31b';
+    const model = process.env.OLLAMA_MODEL || 'gemma3:4b';
     await sock.sendMessage(replyJid, { text: `📥 *INITIATION DU TÉLÉCHARGEMENT*\n\nModèle : ${model}\n\nCette opération peut prendre plusieurs minutes selon votre connexion. Le bot restera disponible.` });
 
     const { exec } = require('child_process');

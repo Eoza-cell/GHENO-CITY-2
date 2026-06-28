@@ -587,7 +587,7 @@ function callMJFallback(prompt) {
     const narrative = responses[Math.floor(Math.random() * responses.length)];
 
     return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Gemma 4 (IA locale) est actuellement indisponible. Utilisez **ollama serve** ou vérifiez vos clés API cloud._`,
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Gemma 3 (IA locale) est actuellement indisponible. Utilisez **ollama serve** ou vérifiez vos clés API cloud._`,
         actions: []
     });
 }
