@@ -467,6 +467,8 @@ RÈGLES TECHNIQUES:
 20. NARRATION & DIALOGUES: Français riche et cinématographique. Les dialogues des PNJ doivent être percutants et refléter leur personnalité unique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 500 mots). Va droit au but, évite les fioritures inutiles.
 21. RÔLE DOUBLE (EXECUTANT LOGIQUE) : Tu es le MJ narratif ET l'interpréteur de code du bot. Tu es un moteur de jeu vivant. Chaque mot que tu écris doit se traduire par une action logique si nécessaire.
 22. SYNCHRONISATION ABSOLUE & COMMERCE : Chaque événement narratif (mort, blessure, transaction, achat, échange, mouvement) DOIT déclencher sa fonction logique.
+   - SI TU DÉCIDES QU'UN JOUEUR EST BLESSÉ : Tu DOIS inclure une action "update_stats" avec "health_change": -X.
+   - SI UN JOUEUR MEURT : Tu DOIS inclure une action "update_stats" avec "health_change": -100.
    - COMMERCE DIRECT : Si un joueur achète à un PNJ (ex: "Je t'achète cette épée"), exécute OBLIGATOIREMENT "npc_trade" : { "npc_name": "...", "itemName": "...", "quantity": 1, "action": "buy" }.
    - VENTE DIRECTE : Si un joueur vend (ex: "Prends ma vieille armure"), exécute "npc_trade" : { "npc_name": "...", "itemName": "...", "quantity": 1, "action": "sell" }.
    - ÉCHANGES : Pour donner entre joueurs, utilise "p2p_transfer" : { "recipient_name": "...", "amount": n, "itemName": "...", "quantity": 1 }.
@@ -699,13 +701,46 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
         aiResponse.narrative = "Il ne se passe rien de spécial.";
     }
 
-    // Logic Verification: Ensure narrative intent matches triggered actions
+    // Logic Verification & Automatic Synchronization
+    // Scrape narrative for status tags like [HP -10] or [PV: 95/100] to fix AI forgetfulness
+    const narrativeActions = [];
+
+    // Health detection (Relative: [HP -10], Absolute: [PV: 95/100] or PV: 95)
+    const hpRelMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*([+-]\d+)\]/i);
+    const hpAbsMatch = aiResponse.narrative.match(/(?:HP|PV)[:\s]*(\d+)(?:\/\d+)?/i);
+    if (hpRelMatch) {
+        narrativeActions.push({ type: 'update_stats', parameters: { health_change: parseInt(hpRelMatch[1]) } });
+    } else if (hpAbsMatch) {
+        narrativeActions.push({ type: 'update_stats', parameters: { health_set: parseInt(hpAbsMatch[1]) } });
+    }
+
+    // Mana detection
+    const mpRelMatch = aiResponse.narrative.match(/\[(?:MP|PM)\s*([+-]\d+)\]/i);
+    const mpAbsMatch = aiResponse.narrative.match(/(?:MP|PM)[:\s]*(\d+)(?:\/\d+)?/i);
+    if (mpRelMatch) {
+        narrativeActions.push({ type: 'update_stats', parameters: { mana_change: parseInt(mpRelMatch[1]) } });
+    } else if (mpAbsMatch) {
+        narrativeActions.push({ type: 'update_stats', parameters: { mana_set: parseInt(mpAbsMatch[1]) } });
+    }
+
+    // Col detection
+    const colMatch = aiResponse.narrative.match(/\[COL\s*([+-]\d+)\]/i);
+    if (colMatch) {
+        narrativeActions.push({ type: 'update_stats', parameters: { col_change: parseInt(colMatch[1]) } });
+    }
+
+    if (narrativeActions.length > 0) {
+        console.log(`[Logic] Auto-injected ${narrativeActions.length} actions from narrative tags.`);
+        aiResponse.actions = [...(aiResponse.actions || []), ...narrativeActions];
+    }
+
     const lowNarrative = aiResponse.narrative.toLowerCase();
     if ((lowNarrative.includes("mort") || lowNarrative.includes("tue")) && !aiResponse.actions.some(a => a.type === 'update_stats')) {
-        console.log("[Logic] Detected unhandled death/damage intent. Injecting diagnostic note.");
+        console.log("[Logic] Detected unhandled death/damage intent. Auto-applying critical damage.");
+        aiResponse.actions.push({ type: 'update_stats', parameters: { health_change: -100 } });
     }
     if ((lowNarrative.includes("achète") || lowNarrative.includes("paye")) && !aiResponse.actions.some(a => ['buy_item', 'npc_trade', 'update_stats'].includes(a.type))) {
-        console.log("[Logic] Detected unhandled purchase intent. Injecting diagnostic note.");
+        console.log("[Logic] Detected unhandled purchase intent.");
     }
 
     // Save bot response to memory (Non-blocking)

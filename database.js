@@ -525,7 +525,8 @@ async function setupDatabase() {
       Kingdoms: Kingdom.rawAttributes,
       Schools: School.rawAttributes,
       RPMessages: RPMessage.rawAttributes,
-      WorldJournals: WorldJournal.rawAttributes
+      WorldJournals: WorldJournal.rawAttributes,
+      Duels: Duel.rawAttributes
     };
 
     for (const [tableName, attributes] of Object.entries(tableDefinitions)) {

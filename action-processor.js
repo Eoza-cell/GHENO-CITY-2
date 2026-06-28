@@ -156,31 +156,49 @@ async function handleUpdateLocation(target, params, aiResponse, playersToUpdate)
 
 async function handleUpdateStats(target, params, questFeedback, playersToUpdate, sock) {
     let hasChanged = false;
+
+    // Relative changes
     if (params.col_change) { await target.increment('col', { by: params.col_change }); hasChanged = true; }
     if (params.xp_gain) { await target.increment('xp', { by: params.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
     if (params.health_change) {
         await target.increment('health', { by: params.health_change });
+        hasChanged = true;
+    }
+    if (params.mana_change) {
+        await target.increment('mana', { by: params.mana_change });
+        hasChanged = true;
+    }
+
+    // Absolute sets (Logical sync)
+    if (params.health_set !== undefined) { await target.update({ health: params.health_set }); hasChanged = true; }
+    if (params.mana_set !== undefined) { await target.update({ mana: params.mana_set }); hasChanged = true; }
+    if (params.col_set !== undefined) { await target.update({ col: params.col_set }); hasChanged = true; }
+    if (params.xp_set !== undefined) { await target.update({ xp: params.xp_set }); hasChanged = true; }
+
+    const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck', 'skillPoints'];
+    for (const s of stats) {
+        const pChange = s === 'skillPoints' ? 'sp_change' : `${s}_change`;
+        const pSet = s === 'skillPoints' ? 'sp_set' : `${s}_set`;
+
+        if (params[pChange]) { await target.increment(s, { by: params[pChange] }); hasChanged = true; }
+        if (params[pSet] !== undefined) { await target.update({ [s]: params[pSet] }); hasChanged = true; }
+    }
+
+    if (hasChanged) {
         await target.reload();
+
+        // Bounds checking
         if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
         if (target.health <= 0) {
             await target.update({ health: 0, location: 'Nécropolis', subLocation: 'Le Seuil' });
             questFeedback.push(`💀 *MORT* : ${target.name} a trépassé.`);
         }
-        hasChanged = true;
-    }
-    if (params.mana_change) {
-        await target.increment('mana', { by: params.mana_change });
-        await target.reload();
         if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
         if (target.mana < 0) await target.update({ mana: 0 });
-        hasChanged = true;
+
+        await target.reload();
+        playersToUpdate.add(target.whatsappId);
     }
-    const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck', 'skillPoints'];
-    for (const s of stats) {
-        const pName = s === 'skillPoints' ? 'sp_change' : `${s}_change`;
-        if (params[pName]) { await target.increment(s, { by: params[pName] }); hasChanged = true; }
-    }
-    if (hasChanged) { await target.reload(); playersToUpdate.add(target.whatsappId); }
 }
 
 async function handleBankTransaction(target, params, questFeedback, playersToUpdate) {

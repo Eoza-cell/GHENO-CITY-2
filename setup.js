@@ -98,13 +98,13 @@ async function setupEnv() {
     console.log('--- HUGGING FACE (Direct) ---');
     console.log('  8. Qwen 2.5 3B GGUF (via HF)');
 
-    const choice = await question('Votre choix (1-8, défaut: 4): ') || '4';
+    const choice = await question('Votre choix (1-8, défaut: 7): ') || '7';
     const models = {
         '1': 'qwen2.5:1.5b', '2': 'qwen2.5:3b', '3': 'qwen2.5:7b',
         '4': 'gemma4:31b', '5': 'gemma4:12b', '6': 'gemma4:e4b', '7': 'gemma3:4b',
         '8': 'qwen2.5-3b-gguf'
     };
-    const model = models[choice] || 'gemma4:31b';
+    const model = models[choice] || 'gemma3:4b';
 
     envContent += `\nAI_PROVIDER=local\nLOCAL_API=http://127.0.0.1:11434\nMODEL=${model}\nOLLAMA_MODEL=${model}\nOLLAMA_URL=http://localhost:11434`;
 

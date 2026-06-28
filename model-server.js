@@ -6,14 +6,14 @@ const { callAI } = require('./ai-utils');
 
 const PORT = process.env.MODEL_PORT || 3001;
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:31b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
 
 /**
  * GHENO CITY 2.0 - World Intelligence Server
  *
  * Ce serveur est le cerveau central du jeu ARISE. Il utilise des modèles locaux
- * (Gemma 4, Qwen) via Ollama pour générer des réponses immersives.
+ * (Gemma 3, Qwen) via Ollama pour générer des réponses immersives.
  *
  * Endpoint: POST /v1/chat/completions (compatible OpenAI)
  */

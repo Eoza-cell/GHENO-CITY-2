@@ -459,34 +459,35 @@ async function callBlackbox(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'unity', 'p1', 'searchgp'];
+    const models = ['openai', 'mistral', 'llama', 'unity'];
     const shuffled = models.sort(() => Math.random() - 0.5);
 
     for (const model of shuffled) {
         try {
-            console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
-            const resp = await axios.post("https://text.pollinations.ai/", {
+            console.log(`[AI] Pollinations API (Keyless) - Tentative avec ${model}...`);
+            // Use the OpenAI-compatible endpoint of Pollinations which is very stable
+            const resp = await axios.post("https://text.pollinations.ai/openai/v1/chat/completions", {
                 messages: [
-                    { role: "system", content: system + "\nTu DOIS répondre au format JSON." },
+                    { role: "system", content: system },
                     { role: "user", content: prompt }
                 ],
                 model: model,
-                jsonMode: true,
-                seed: Math.floor(Math.random() * 1000000),
-                cache: false
+                response_format: { type: "json_object" },
+                seed: Math.floor(Math.random() * 1000000)
             }, {
                 headers: {
-                    'Content-Type': 'application/json',
-                    'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
+                    'Content-Type': 'application/json'
                 },
-                timeout: 15000
+                timeout: 25000
             });
 
-            let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
-            if (isValidAIResponse(resText)) return resText;
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (isValidAIResponse(content)) {
+                console.log(`[AI] ✅ Pollinations - Succès (${model})`);
+                return content;
+            }
         } catch (e) {
-            console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
-            await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+            console.warn(`[AI] Pollinations API Error (${model}):`, e.response?.data || e.message);
             continue;
         }
     }
