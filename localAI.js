@@ -1,8 +1,9 @@
 const OpenAI = require("openai");
+const axios = require('axios');
 require('dotenv').config();
 
 const LOCAL_API = process.env.LOCAL_API || "http://127.0.0.1:11434";
-const MODEL = process.env.MODEL || "qwen2.5:3b";
+const MODEL = process.env.MODEL || "gemma3:4b";
 
 const client = new OpenAI({
   baseURL: LOCAL_API + "/v1",
@@ -16,9 +17,8 @@ const client = new OpenAI({
 
 async function checkLocalAIStatus() {
     try {
-        const response = await fetch(`${LOCAL_API}/api/tags`);
-        if (!response.ok) throw new Error("API not responding");
-        const data = await response.json();
+        const response = await axios.get(`${LOCAL_API}/api/tags`);
+        const data = response.data;
         const hasModel = data.models?.some(m => m.name.includes(MODEL.split(':')[0]));
 
         if (!hasModel) {

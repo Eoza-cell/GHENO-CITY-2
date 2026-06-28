@@ -11,6 +11,7 @@ const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage } = require('./shop-generator');
 const { handleFreeAction } = require('./ai-handler');
+const arenaHandler = require('./arena-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 
@@ -1088,6 +1089,42 @@ commands.set('tirage_tournoi', async (sock, message) => {
 
     drawText += "_Les duels peuvent commencer via /action !_";
     await sock.sendMessage(replyJid, { text: drawText });
+});
+
+// Command: /duel
+commands.set('duel', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    const mentionedJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        return await sock.sendMessage(replyJid, { text: "Mentionne un joueur pour le défier en duel (ex: /duel @joueur)." });
+    }
+
+    const targetPlayer = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!targetPlayer) {
+        return await sock.sendMessage(replyJid, { text: "Ce joueur n'existe pas." });
+    }
+
+    if (player.location !== targetPlayer.location) {
+        return await sock.sendMessage(replyJid, { text: "Tu dois être dans le même royaume pour défier quelqu'un." });
+    }
+
+    const existingDuel = await Duel.findOne({
+        where: {
+            [Op.or]: [{ playerAJid: jid }, { playerBJid: jid }],
+            status: 'active'
+        }
+    });
+
+    if (existingDuel) {
+        return await sock.sendMessage(replyJid, { text: "Tu es déjà dans un duel actif !" });
+    }
+
+    await arenaHandler.startDuel(sock, jid, mentionedJid, player.location);
 });
 
 // Command: /conflits

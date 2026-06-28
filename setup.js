@@ -98,13 +98,13 @@ async function setupEnv() {
     console.log('--- HUGGING FACE (Direct) ---');
     console.log('  8. Qwen 2.5 3B GGUF (via HF)');
 
-    const choice = await question('Votre choix (1-8, défaut: 2): ') || '2';
+    const choice = await question('Votre choix (1-8, défaut: 4): ') || '4';
     const models = {
         '1': 'qwen2.5:1.5b', '2': 'qwen2.5:3b', '3': 'qwen2.5:7b',
         '4': 'gemma3:4b', '5': 'gemma4:e4b', '6': 'gemma4:12b', '7': 'gemma4:31b',
         '8': 'qwen2.5-3b-gguf'
     };
-    const model = models[choice] || 'qwen2.5:3b';
+    const model = models[choice] || 'gemma3:4b';
 
     envContent += `\nAI_PROVIDER=local\nLOCAL_API=http://127.0.0.1:11434\nMODEL=${model}\nOLLAMA_MODEL=${model}\nOLLAMA_URL=http://localhost:11434`;
 
@@ -136,7 +136,7 @@ async function main() {
 
     const envContentFinal = fs.readFileSync('.env', 'utf8');
     const modelMatch = envContentFinal.match(/OLLAMA_MODEL=([^\n]+)/);
-    const selectedModel = modelMatch ? modelMatch[1] : 'qwen2.5:3b';
+    const selectedModel = modelMatch ? modelMatch[1] : 'gemma3:4b';
 
     if (selectedModel.includes('gguf')) {
         const hf = require('./hf-downloader');

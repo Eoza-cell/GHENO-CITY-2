@@ -36,7 +36,7 @@ const PUTER_MODELS = [
 
 // Configuration Gemma
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
 const WORLD_SERVER_URL = `http://localhost:${process.env.MODEL_PORT || 3001}`;
 
 /**
@@ -374,6 +374,9 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
+        "google/gemma-3-4b-it:free",
+        "google/gemma-3-12b-it:free",
+        "google/gemma-3-27b-it:free",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",

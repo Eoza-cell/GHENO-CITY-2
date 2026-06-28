@@ -8,6 +8,7 @@ const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
 const { processActions } = require('./action-processor');
+const arenaHandler = require('./arena-handler');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
@@ -167,6 +168,27 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
   if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
+
+  // ATR ARENA - Check for active duel
+  const activeDuel = await Duel.findOne({
+      where: {
+          [Op.or]: [
+              { playerAJid: player.whatsappId },
+              { playerBJid: player.whatsappId }
+          ],
+          status: 'active'
+      }
+  });
+
+  if (activeDuel) {
+      const opponentJid = activeDuel.playerAJid === player.whatsappId ? activeDuel.playerBJid : activeDuel.playerAJid;
+      const opponent = await Player.findByPk(opponentJid);
+
+      if (opponent) {
+          hints.push(`⚠️ COMBAT JCJ EN COURS (ATR ARENA). Tu es l'Arbitre. Opposant: ${opponent.name}.`);
+          hints.push("⚠️ UTILISE L'ANALYSE TACTIQUE : Précision du membre visé, distance, et stats pour valider le coup.");
+      }
+  }
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -543,6 +565,9 @@ RÉALITÉ PHYSIQUE:
 ### RÉSUMÉ DES ACTIONS À TRAITER ###
 ${actionSummary}
 
+### HINTS & DIRECTIVES IMMÉDIATES ###
+${hints.join('\n')}
+
 CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
 2. RÉGIS LEURS INTERACTIONS : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies dans le JSON.
@@ -739,6 +764,19 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     // Prepend World Clock Header
     aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
+
+    // ATR ARENA - Inject Fight Pad if in duel
+    if (activeDuel) {
+        const opponentJid = activeDuel.playerAJid === player.whatsappId ? activeDuel.playerBJid : activeDuel.playerAJid;
+        const opponent = await Player.findByPk(opponentJid);
+        if (opponent && !aiResponse.imagePrompt) {
+            try {
+                aiResponse.imagePrompt = await arenaHandler.generateFightPad(player, opponent);
+            } catch (e) {
+                console.error("[Arena] Error generating fight pad:", e);
+            }
+        }
+    }
 
     await sendWithImage(sock, jid, aiResponse);
 
