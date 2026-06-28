@@ -382,6 +382,7 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
+        "qwen/qwen-2.5-72b-instruct:free",
         "google/gemma-3-4b-it:free",
         "google/gemma-3-12b-it:free",
         "google/gemma-3-27b-it:free",
@@ -390,7 +391,6 @@ async function callOpenRouter(system, prompt) {
         "google/gemini-2.0-pro-exp-02-05:free",
         "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-r1:free",
-        "qwen/qwen-2.5-72b-instruct:free",
         "nvidia/llama-3.1-nemotron-70b-instruct:free",
         "google/gemma-2-9b-it:free"
     ];

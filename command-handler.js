@@ -1818,7 +1818,8 @@ commands.set('menu', async (sock, message) => {
                    "╚══════════════════════════╝\n" +
                    "_Portes d'Aetherys, archives vivantes et conflits de l'Interstice._\n\n" +
                    "🕹️ *IMMERSION*\n" +
-                   "└ `/action` - Entrer dans le RP\n\n" +
+                   "├ `/action` - Entrer dans le RP\n" +
+                   "└ `/next` - Forcer la réponse du MJ\n\n" +
                    "👤 *HÉRITIER*\n" +
                    "├ `/profil` - Statut & Stats\n" +
                    "├ `/inventory` - Sac à dos\n" +
@@ -1926,7 +1927,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   }
 
   // Handle free action mode
-  if (player?.mode === 'action' && !messageText.startsWith('/')) {
+  if (player?.mode === 'action' && !messageText.startsWith('/') && !messageText.startsWith('@')) {
     try {
         if (player.tutorialStep >= 0 && player.tutorialStep < 3) {
             const { handleTutorialAction } = require('./tutorial-handler');
@@ -1944,8 +1945,9 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   }
 
 
-  // Handle standard commands
-  if (!messageText.startsWith('/')) return;
+  // Handle standard commands (support / and @)
+  const prefix = messageText.charAt(0);
+  if (prefix !== '/' && prefix !== '@') return;
 
   const args = messageText.slice(1).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
