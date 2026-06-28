@@ -34,16 +34,20 @@ const PUTER_MODELS = [
     "meta-llama-3.1-70b-instruct"
 ];
 
-// Configuration Gemma
+// Configuration Gemma 3
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:31b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
 const WORLD_SERVER_URL = `http://localhost:${process.env.MODEL_PORT || 3001}`;
 
 /**
  * Detect responses that are not real narrative content.
  */
 function isValidAIResponse(text) {
-    if (!text || typeof text !== 'string') return false;
+    if (!text) return false;
+
+    // If it's an object, it's probably a valid JSON response already
+    if (typeof text === 'object') return true;
+    if (typeof text !== 'string') return false;
 
     const cleaned = text.trim();
     if (cleaned.length < 5) return false;
@@ -157,7 +161,7 @@ async function callWorldServer(system, prompt) {
                 { role: "user", content: prompt }
             ],
             stream: false
-        }, { timeout: 120000 });
+        }, { timeout: 8000 }); // Fast fail for local proxy
 
         const content = resp.data?.choices?.[0]?.message?.content;
         if (isValidAIResponse(content)) {
@@ -204,7 +208,7 @@ async function callOllama(system, prompt) {
 
         const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
             headers,
-            timeout: 120000
+            timeout: 10000 // Fast fail for direct local Ollama
         });
 
         const content = resp.data?.message?.content || resp.data?.response;
@@ -356,10 +360,14 @@ async function callPuterSDK(system, prompt) {
     for (const model of models) {
         try {
             console.log(`[AI] Puter SDK (Keyless) - Tentative avec ${model}...`);
-            const result = await puter.ai.chat([
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ], { model: model });
+            const result = await withTimeout(
+                puter.ai.chat([
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ], { model: model }),
+                20000,
+                `Puter SDK (${model})`
+            );
 
             const content = parsePuterResponse(result);
             if (isValidAIResponse(content)) return content;
@@ -374,8 +382,6 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
-        "google/gemma-4-31b-it:free",
-        "google/gemma-4-26b-a4b-it:free",
         "google/gemma-3-4b-it:free",
         "google/gemma-3-12b-it:free",
         "google/gemma-3-27b-it:free",
@@ -421,7 +427,7 @@ async function callBlackbox(system, prompt) {
             console.log(`[AI] Blackbox - Tentative avec ${model}...`);
             const resp = await axios.post("https://www.blackbox.ai/api/chat", {
                 messages: [
-                    { role: "user", content: `SYSTEM: ${system}\n\nUSER_ACTION: ${prompt}\n\nIMPORTANT: Réponds uniquement en JSON valide.` }
+                    { role: "user", content: `System Instruction: ${system}\n\nUser RPG Action: ${prompt}\n\nFormat your output as a valid JSON object starting with { and ending with }. Ensure all keys are quoted.` }
                 ],
                 model: model,
                 agentMode: {},
@@ -432,26 +438,37 @@ async function callBlackbox(system, prompt) {
                 codeModelMode: true
             }, {
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
                     'Referer': 'https://www.blackbox.ai/',
                     'Origin': 'https://www.blackbox.ai/',
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'x-blackbox-device-id': Math.random().toString(36).substring(2, 15)
+                    'Accept': '*/*',
+                    'x-blackbox-device-id': 'gc2-' + Math.random().toString(36).substring(2, 15)
                 },
-                timeout: 15000
+                timeout: 25000
             });
 
             let result = "";
+            // Blackbox often returns a stream or a combined text
             if (typeof resp.data === 'string') {
-                result = parseSSEResponse(resp.data);
+                result = parseSSEResponse(resp.data) || resp.data;
+            } else if (resp.data.text) {
+                result = resp.data.text;
+            } else if (Array.isArray(resp.data)) {
+                 result = resp.data.map(d => d.content || d.text || "").join("");
             } else {
-                result = resp.data.text || resp.data.content || JSON.stringify(resp.data);
+                result = JSON.stringify(resp.data);
             }
 
-            if (isValidAIResponse(result)) return result;
+            // Cleanup potential extra markers from Blackbox
+            result = result.replace(/Generated by Blackbox\.ai/gi, '').trim();
+
+            if (isValidAIResponse(result)) {
+                console.log(`[AI] ✅ Blackbox - Succès (${model})`);
+                return result;
+            }
         } catch (e) {
-            console.warn(`[AI] Blackbox error (${model}): ${e.message}`);
+            console.warn(`[AI] ❌ Blackbox error (${model}): ${e.message}`);
             continue;
         }
     }
@@ -459,35 +476,40 @@ async function callBlackbox(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'unity'];
+    const models = ['openai', 'mistral', 'llama', 'p1'];
     const shuffled = models.sort(() => Math.random() - 0.5);
 
     for (const model of shuffled) {
         try {
-            console.log(`[AI] Pollinations API (Keyless) - Tentative avec ${model}...`);
-            // Use the OpenAI-compatible endpoint of Pollinations which is very stable
-            const resp = await axios.post("https://text.pollinations.ai/openai/v1/chat/completions", {
+            console.log(`[AI] Pollinations V1 (Keyless) - Tentative avec ${model}...`);
+            const resp = await axios.post("https://text.pollinations.ai/", {
                 messages: [
                     { role: "system", content: system },
                     { role: "user", content: prompt }
                 ],
                 model: model,
-                response_format: { type: "json_object" },
-                seed: Math.floor(Math.random() * 1000000)
+                seed: Math.floor(Math.random() * 1000000),
+                jsonMode: true
             }, {
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 timeout: 25000
             });
 
-            const content = resp.data?.choices?.[0]?.message?.content;
+            let content = "";
+            if (typeof resp.data === 'string') {
+                content = resp.data;
+            } else if (resp.data && resp.data.choices && resp.data.choices[0] && resp.data.choices[0].message) {
+                content = resp.data.choices[0].message.content;
+            } else {
+                content = JSON.stringify(resp.data);
+            }
+
             if (isValidAIResponse(content)) {
-                console.log(`[AI] ✅ Pollinations - Succès (${model})`);
+                console.log(`[AI] ✅ Pollinations V1 - Succès (${model})`);
                 return content;
             }
         } catch (e) {
-            console.warn(`[AI] Pollinations API Error (${model}):`, e.response?.data || e.message);
+            console.warn(`[AI] ❌ Pollinations V1 Error (${model}):`, e.message);
             continue;
         }
     }
@@ -575,6 +597,17 @@ function callMJFallback(prompt) {
 // ============================================================================
 
 /**
+ * Helper to wrap a promise with a timeout
+ */
+function withTimeout(promise, ms, label = "Operation") {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
+/**
  * Main AI entry point.
  * Priorité: IA Locale > Ollama Direct > Autres locaux > Cloud > Fallback
  */
@@ -595,24 +628,22 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: Locaux d'abord, puis cloud (OpenRouter Free en priorité cloud)
+    // ORDRE DE PRIORITÉ: Optimisé pour la réactivité
     const providers = [
         // === LOCAUX (Priorité maximale) ===
-        { name: 'Local OpenAI (Ollama/vLLM)', fn: callLocalOpenAI },
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Gemma)', fn: callWorldServer }]),
-        { name: 'Ollama Direct (Gemma)', fn: callOllama },
-        { name: 'Llamafile (Local)', fn: callLlamafile },
-        { name: '9Router (Local)', fn: call9Router },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
-        // === CLOUD (Fallbacks) ===
-        { name: 'OpenRouter Free', fn: callOpenRouter }, // Priorité Cloud
-        { name: 'Puter API (Keyed)', fn: callPuterAPI },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Pollinations Free (Quick)', fn: callPollinationsFree },
-        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Blackbox', fn: callBlackbox }
+        { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 10000 },
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 10000 }]),
+        { name: 'Ollama Direct', fn: callOllama, timeout: 12000 },
+
+        // === CLOUD (Fallbacks robustes) ===
+        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 15000 },
+        { name: 'Blackbox', fn: callBlackbox, timeout: 20000 },
+        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 15000 },
+        { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 20000 },
+
+        // === CLOUD SECONDAIRES ===
+        { name: 'Puter SDK', fn: callPuterSDK, timeout: 15000 },
+        { name: 'Puter API', fn: callPuterAPI, timeout: 10000 }
     ];
 
     for (const provider of providers) {
@@ -628,7 +659,12 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                 activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
             }
 
-            const result = await provider.fn(activeSystem, sanitizedUser, options);
+            // Apply provider-specific timeout
+            const result = await withTimeout(
+                provider.fn(activeSystem, sanitizedUser, options),
+                provider.timeout || 30000,
+                provider.name
+            );
             const providerDuration = (Date.now() - providerStart) / 1000;
 
             if (isValidAIResponse(result)) {
@@ -669,17 +705,29 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 async function callPollinationsFree(system, prompt) {
     try {
         const seed = Math.floor(Math.random() * 1000000);
+        // Correct Pollinations endpoint for raw text/json
         const resp = await axios.post("https://text.pollinations.ai/", {
-            messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            model: "openai",
             seed: seed,
-            model: "openai", // Utilise un modèle par défaut performant
             jsonMode: true
-        }, { timeout: 15000 });
+        }, { timeout: 20000 });
 
-        const content = typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
-        if (isValidAIResponse(content)) return content;
+        let content = resp.data;
+        if (typeof content === 'object') {
+             // Handle both direct JSON and OpenAI-style wrapped response
+             content = content.choices?.[0]?.message?.content || JSON.stringify(content);
+        }
+
+        if (isValidAIResponse(content)) {
+            console.log("[AI] ✅ Pollinations Free - Succès");
+            return content;
+        }
     } catch (e) {
-        console.warn("[AI] Pollinations Free Error:", e.message);
+        console.warn("[AI] ❌ Pollinations Free Error:", e.response?.data || e.message);
     }
     return null;
 }

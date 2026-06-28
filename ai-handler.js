@@ -55,27 +55,42 @@ async function handleFreeAction(sock, message, player, actionText) {
   // AI Automation Logic:
   // Solo Scene -> Immediate Response
   // Multiplayer Scene -> Requires 'next' for sync
-  const nearbyPlayers = await Player.findAll({
-    where: {
-        location: player.location,
-        subLocation: player.subLocation
-    }
-  });
 
   const isTriggerWord = actionText.toLowerCase().trim() === 'next';
 
-  // Check if player is truly alone (ignoring themselves)
-  const otherActorsCount = nearbyPlayers.filter(p => p.whatsappId !== player.whatsappId).length;
-  const isSolo = otherActorsCount === 0;
-
-  // Only trigger AI on 'next' in multiplayer, or always in solo
+  // Find the last MJ message to define the current "turn"
   const lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
   });
 
+  // A scene is "active multiplayer" if OTHER players have sent RP actions since the last MJ message
+  const otherRecentActions = await RPMessage.findAll({
+      where: {
+          ...sceneFilter,
+          senderJid: { [Op.ne]: player.whatsappId },
+          senderName: { [Op.ne]: 'Arise MJ' },
+          id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
+          content: { [Op.notLike]: 'next' }
+      },
+      limit: 5
+  });
+
+  const isSolo = otherRecentActions.length === 0;
+
+  // Check for players in 'action' mode here (for info only)
+  const nearbyPlayers = await Player.findAll({
+    where: {
+        location: player.location,
+        subLocation: player.subLocation,
+        mode: 'action',
+        whatsappId: { [Op.ne]: player.whatsappId },
+        lastActivity: { [Op.gt]: new Date(Date.now() - 5 * 60 * 1000) }
+    }
+  });
+
+  // If not solo and no trigger, we wait
   if (!isTriggerWord && !isSolo) {
-      // Logic to remind the player of the sync mechanic if they send many messages
       const recentPlayerMsgs = await RPMessage.count({
           where: {
               senderJid: player.whatsappId,
@@ -84,15 +99,22 @@ async function handleFreeAction(sock, message, player, actionText) {
       });
 
       let reminder = "";
-      if (recentPlayerMsgs >= 3) {
-          reminder = "\n\n💡 *Note:* Tu as envoyé plusieurs messages. N'oublie pas de taper `next` quand tu as fini pour obtenir une réponse du MJ.";
+      if (recentPlayerMsgs >= 2) {
+          reminder = "\n\n💡 *Note:* Tape `next` pour forcer la réponse du MJ.";
       }
 
       await sock.sendMessage(jid, {
-          text: `⏳ *Action enregistrée.*${reminder}\nAttendez les autres joueurs pour \`next\`. S'ils ne sont pas là, ils sont immobiles devant vous et ne réagissent à rien.`
+          text: `⏳ *Action enregistrée.*${reminder}\nEn attente des autres participants actifs : ${[...new Set(otherRecentActions.map(a => a.senderName))].join(', ')}.`
       });
       return;
   }
+
+  // If we reached here, we are triggering the AI (either solo or 'next')
+  let thinkingMsg = null;
+  try {
+      await sock.sendPresenceUpdate('composing', jid);
+      thinkingMsg = await sock.sendMessage(jid, { text: "🧠 *Le MJ réfléchit...*" });
+  } catch (e) {}
 
   // Fetch all messages in the KINGDOM to detect people moving toward the scene
   const kingdomMessageQuery = {
@@ -166,19 +188,24 @@ async function handleFreeAction(sock, message, player, actionText) {
           hints.push(`⚠️ LE JOUEUR ESSAIE D'INTERAGIR AVEC QUELQU'UN À '${interactionTargetSubLocation}'. Propose-lui de se déplacer là-bas ou fais-les se rencontrer.`);
       }
   }
-  if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
+  if (!isSolo) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
 
   // ATR ARENA - Check for active duel
-  const activeDuel = await Duel.findOne({
-      where: {
-          [Op.or]: [
-              { playerAJid: player.whatsappId },
-              { playerBJid: player.whatsappId }
-          ],
-          status: 'active'
-      }
-  });
+  let activeDuel = null;
+  try {
+      activeDuel = await Duel.findOne({
+          where: {
+              [Op.or]: [
+                  { playerAJid: player.whatsappId },
+                  { playerBJid: player.whatsappId }
+              ],
+              status: 'active'
+          }
+      });
+  } catch (e) {
+      console.warn("[Arena] Duel query failed, probably table not ready.");
+  }
 
   if (activeDuel) {
       const opponentJid = activeDuel.playerAJid === player.whatsappId ? activeDuel.playerBJid : activeDuel.playerAJid;
@@ -578,9 +605,21 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.`;
 
   try {
+    console.log(`[AI] Appel callAI pour ${player.name}...`);
     let content = await callAI(systemPrompt, fullPrompt);
-    if (!content) {
-        content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...", actions: [] });
+
+    // Delete thinking message
+    if (thinkingMsg) {
+        try {
+            await sock.sendMessage(jid, { delete: thinkingMsg.key });
+        } catch (e) {}
+    }
+
+    if (!content || (typeof content === 'string' && content.includes("MJ FALLBACK"))) {
+        console.warn("[AI] callAI a échoué ou utilisé le fallback.");
+        if (!content) {
+            content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels. Réessaie dans un instant.", actions: [] });
+        }
     }
     console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : '[Object]'}`);
 
@@ -603,18 +642,23 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
         if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
     } else {
         // Robust JSON extraction: Find the largest JSON block possible
-        let start = content.indexOf('{');
-        let end = content.lastIndexOf('}');
+        // Remove markdown wrappers if present
+        let cleanedContent = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+        let start = cleanedContent.indexOf('{');
+        let end = cleanedContent.lastIndexOf('}');
 
         if (start !== -1 && end !== -1 && end > start) {
-            const potentialJson = content.substring(start, end + 1);
+            const potentialJson = cleanedContent.substring(start, end + 1);
             try {
+                // Sanitize potential JSON for common LLM errors (unquoted keys, trailing commas)
                 const parsed = JSON.parse(potentialJson);
                 aiResponse = { ...aiResponse, ...parsed };
                 if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
             } catch (e) {
+                console.warn("[AI] Big JSON block failed to parse, attempting fallback extraction...");
                 // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
-                const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
+                const matches = [...cleanedContent.matchAll(/\{[\s\S]*?\}/g)];
                 for (const match of matches) {
                     try {
                         const potential = JSON.parse(match[0]);
@@ -624,6 +668,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                         }
                         if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
                         if (potential.notifications) aiResponse.notifications = [...(aiResponse.notifications || []), ...potential.notifications];
+                        if (potential.pensee_mj) aiResponse.pensee_mj = potential.pensee_mj;
                     } catch (innerE) {}
                 }
             }
@@ -795,7 +840,10 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     }
 
     // Prepend World Clock Header
-    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
+    const header = getWorldHeader();
+    if (aiResponse.narrative && !aiResponse.narrative.includes("An ")) {
+        aiResponse.narrative = `${header}\n\n${aiResponse.narrative}`;
+    }
 
     // ATR ARENA - Inject Fight Pad if in duel
     if (activeDuel) {

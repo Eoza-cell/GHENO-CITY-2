@@ -26,18 +26,20 @@ async function checkOllamaHealth() {
         const resp = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 });
         const models = resp.data?.models || [];
         const targetModelName = OLLAMA_MODEL.split(':')[0];
-        const targetModel = models.find(m => m.name.includes(targetModelName));
+        const targetModel = models.find(m => m.name.includes(OLLAMA_MODEL) || m.name === OLLAMA_MODEL);
+        const partialMatch = models.find(m => m.name.includes(targetModelName) || m.name.includes('gemma'));
 
         if (targetModel) {
             console.log(`[MODEL-SERVER] ✅ Modèle local détecté: ${targetModel.name}`);
             console.log(`[MODEL-SERVER]    Taille: ${(targetModel.size / 1e9).toFixed(2)} GB`);
-            console.log(`[MODEL-SERVER]    Format: ${targetModel.details?.format || 'N/A'}`);
-            console.log(`[MODEL-SERVER]    Famille: ${targetModel.details?.family || 'N/A'}`);
+            return true;
+        } else if (partialMatch) {
+            console.warn(`[MODEL-SERVER] ⚠️ Modèle exact ${OLLAMA_MODEL} non trouvé, mais ${partialMatch.name} est disponible.`);
+            console.warn(`[MODEL-SERVER]    Tentative d'utilisation de ${partialMatch.name}...`);
             return true;
         } else {
             console.warn(`[MODEL-SERVER] ⚠️ Modèle ${OLLAMA_MODEL} non trouvé dans Ollama.`);
             console.warn(`[MODEL-SERVER]    Modèles disponibles: ${models.map(m => m.name).join(', ')}`);
-            console.warn(`[MODEL-SERVER]    Exécutez: ollama pull ${OLLAMA_MODEL}`);
             return false;
         }
     } catch (err) {
