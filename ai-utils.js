@@ -554,14 +554,19 @@ async function callPollinationsGen(system, prompt) {
 async function callPollinationsGET(system, prompt) {
     try {
         console.log(`[AI] Pollinations GET - Tentative...`);
-        const miniPrompt = `Action Joueur: ${prompt.substring(prompt.length - 800)}`;
+        // Pollinations has strict limits on URL length
+        const miniPrompt = prompt.substring(prompt.length - 1200);
         const fullPrompt = encodeURIComponent(miniPrompt);
-        const systemEncoded = encodeURIComponent(system.substring(0, 800));
+        const systemEncoded = encodeURIComponent(system.substring(0, 1000));
         const seed = Math.floor(Math.random() * 1000000);
-        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}`;
+        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}&json=true`;
 
         const resp = await axios.get(url, { timeout: 15000 });
-        if (isValidAIResponse(resp.data)) return resp.data;
+        let content = resp.data;
+        if (typeof content === 'object') {
+            content = content.choices?.[0]?.message?.content || JSON.stringify(content);
+        }
+        if (isValidAIResponse(content)) return content;
     } catch (e) {
         console.warn(`[AI] Pollinations GET Error:`, e.message);
         return null;
@@ -634,6 +639,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const providers = [
         // === CLOUD (Priorité suite à demande utilisateur) ===
         { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 25000 },
+        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
 
         // === LOCAUX ===
         { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 15000 },
@@ -642,7 +648,6 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
         // === CLOUD (Fallbacks robustes) ===
         { name: 'Blackbox', fn: callBlackbox, timeout: 30000 },
-        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
         { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 25000 },
 
         // === CLOUD SECONDAIRES ===

@@ -796,14 +796,19 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     }
 
     const lowNarrative = aiResponse.narrative.toLowerCase();
-    // Improved death detection: only trigger if it looks like an ACTIVE death event for a player
-    const deathMarkers = ["tu meurs", "tu succombes", "ton souffle s'arrête", "ta vie s'échappe", "est tué", "est morte", "rend l'âme"];
-    const hasDeathMarker = deathMarkers.some(m => lowNarrative.includes(m));
-    const isPlayerMentioned = scenePlayersData.some(p => lowNarrative.includes(p.nom.toLowerCase()));
+    const isFallback = aiResponse.narrative.includes("[🤖 MJ FALLBACK]");
 
-    if (hasDeathMarker && isPlayerMentioned && !aiResponse.actions.some(a => a.type === 'update_stats' && a.parameters.health_change <= -50)) {
-        console.log("[Logic] Detected unhandled active death intent in narrative. Auto-applying critical damage.");
-        aiResponse.actions.push({ type: 'update_stats', parameters: { health_change: -100 } });
+    // Improved death detection: only trigger if it looks like an ACTIVE death event for a player
+    // AND we are NOT in fallback mode (to avoid false positives from the fallback template)
+    if (!isFallback) {
+        const deathMarkers = ["tu meurs", "tu succombes", "ton souffle s'arrête", "ta vie s'échappe", "est tué", "est morte", "rend l'âme"];
+        const hasDeathMarker = deathMarkers.some(m => lowNarrative.includes(m));
+        const isPlayerMentioned = scenePlayersData.some(p => lowNarrative.includes(p.nom.toLowerCase()));
+
+        if (hasDeathMarker && isPlayerMentioned && !aiResponse.actions.some(a => a.type === 'update_stats' && a.parameters.health_change <= -50)) {
+            console.log("[Logic] Detected unhandled active death intent in narrative. Auto-applying critical damage.");
+            aiResponse.actions.push({ type: 'update_stats', parameters: { health_change: -100 } });
+        }
     }
     if ((lowNarrative.includes("achète") || lowNarrative.includes("paye")) && !aiResponse.actions.some(a => ['buy_item', 'npc_trade', 'update_stats'].includes(a.type))) {
         console.log("[Logic] Detected unhandled purchase intent.");
