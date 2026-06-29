@@ -382,10 +382,10 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
-        "qwen/qwen-2.5-72b-instruct:free",
         "google/gemma-3-4b-it:free",
         "google/gemma-3-12b-it:free",
         "google/gemma-3-27b-it:free",
+        "qwen/qwen-2.5-72b-instruct:free",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",
@@ -628,15 +628,17 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: Optimisé pour la réactivité
+    // ORDRE DE PRIORITÉ: Optimisé pour la réactivité (OpenRouter en priorité suite à demande utilisateur)
     const providers = [
-        // === LOCAUX (Priorité maximale) ===
+        // === CLOUD (Priorité suite à demande utilisateur) ===
+        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 15000 },
+
+        // === LOCAUX ===
         { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 10000 },
         ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 10000 }]),
         { name: 'Ollama Direct', fn: callOllama, timeout: 12000 },
 
         // === CLOUD (Fallbacks robustes) ===
-        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 15000 },
         { name: 'Blackbox', fn: callBlackbox, timeout: 20000 },
         { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 15000 },
         { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 20000 },
@@ -705,20 +707,14 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 async function callPollinationsFree(system, prompt) {
     try {
         const seed = Math.floor(Math.random() * 1000000);
-        // Correct Pollinations endpoint for raw text/json
-        const resp = await axios.post("https://text.pollinations.ai/", {
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            model: "openai",
-            seed: seed,
-            jsonMode: true
-        }, { timeout: 20000 });
+        // Using GET as a more reliable fallback for Pollinations Free
+        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 1000))}?model=openai&system=${encodeURIComponent(system.substring(0, 1000))}&seed=${seed}&json=true`;
+
+        console.log(`[AI] Pollinations Free - Tentative via GET...`);
+        const resp = await axios.get(url, { timeout: 15000 });
 
         let content = resp.data;
         if (typeof content === 'object') {
-             // Handle both direct JSON and OpenAI-style wrapped response
              content = content.choices?.[0]?.message?.content || JSON.stringify(content);
         }
 
@@ -727,7 +723,18 @@ async function callPollinationsFree(system, prompt) {
             return content;
         }
     } catch (e) {
-        console.warn("[AI] ❌ Pollinations Free Error:", e.response?.data || e.message);
+        console.warn("[AI] ❌ Pollinations Free Error:", e.message);
+
+        // Final fallback to POST if GET fails
+        try {
+            const resp = await axios.post("https://text.pollinations.ai/", {
+                messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
+                model: "openai",
+                jsonMode: true
+            }, { timeout: 15000 });
+            let content = resp.data?.choices?.[0]?.message?.content || (typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data));
+            if (isValidAIResponse(content)) return content;
+        } catch (innerE) {}
     }
     return null;
 }

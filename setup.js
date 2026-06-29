@@ -79,9 +79,11 @@ async function setupEnv() {
     console.log('\n📝 Configuration du fichier .env');
 
     const phoneNumber = await question('Entrez votre numéro WhatsApp (avec indicatif pays, ex: 33612345678): ');
+    const orKey = await question('Entrez votre clé API OpenRouter (Optionnel, laissez vide pour utiliser l\'IA locale uniquement): ');
 
     let envContent = fs.readFileSync('.env.example', 'utf8');
-    envContent = envContent.replace('PHONE_NUMBER=votre_numéro_de_téléphone_ici', `PHONE_NUMBER=${phoneNumber}`);
+    envContent = envContent.replace('PHONE_NUMBER=votre_numéro_ici', `PHONE_NUMBER=${phoneNumber}`);
+    envContent = envContent.replace('OPENROUTER_API_KEY=', `OPENROUTER_API_KEY=${orKey}`);
 
     // Proposer le choix du modèle
     console.log('\nChoisissez votre modèle local (via Ollama):');
