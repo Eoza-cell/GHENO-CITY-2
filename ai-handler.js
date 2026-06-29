@@ -64,19 +64,28 @@ async function handleFreeAction(sock, message, player, actionText) {
       order: [['id', 'DESC']]
   });
 
-  // A scene is "active multiplayer" if OTHER players have sent RP actions since the last MJ message
-  // and those actions are relatively recent (within 2 hours) to avoid being stuck
-  const otherRecentActions = await RPMessage.findAll({
+  // A scene is "active multiplayer" if OTHER players are currently in action mode
+  // and have sent RP actions since the last MJ message
+  const nearbyActivePlayers = await Player.findAll({
+      where: {
+          location: player.location,
+          subLocation: player.subLocation,
+          mode: 'action',
+          whatsappId: { [Op.ne]: player.whatsappId },
+          lastActivity: { [Op.gt]: new Date(Date.now() - 15 * 60 * 1000) } // Last 15 mins
+      }
+  });
+
+  const otherRecentActions = nearbyActivePlayers.length > 0 ? await RPMessage.findAll({
       where: {
           ...sceneFilter,
-          senderJid: { [Op.ne]: player.whatsappId },
+          senderJid: { [Op.in]: nearbyActivePlayers.map(p => p.whatsappId) },
           senderName: { [Op.ne]: 'Arise MJ' },
           id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
-          content: { [Op.notLike]: 'next' },
-          createdAt: { [Op.gt]: new Date(Date.now() - 2 * 60 * 60 * 1000) }
+          content: { [Op.notLike]: 'next' }
       },
       limit: 5
-  });
+  }) : [];
 
   const isSolo = otherRecentActions.length === 0;
 
@@ -801,12 +810,18 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     // Improved death detection: only trigger if it looks like an ACTIVE death event for a player
     // AND we are NOT in fallback mode (to avoid false positives from the fallback template)
     if (!isFallback) {
-        const deathMarkers = ["tu meurs", "tu succombes", "ton souffle s'arrête", "ta vie s'échappe", "est tué", "est morte", "rend l'âme"];
-        const hasDeathMarker = deathMarkers.some(m => lowNarrative.includes(m));
-        const isPlayerMentioned = scenePlayersData.some(p => lowNarrative.includes(p.nom.toLowerCase()));
+        // More specific death markers to avoid false positives from lore or NPCs
+        const deathMarkers = [
+            "tu meurs", "tu succombes", "ton souffle s'arrête", "ta vie s'échappe",
+            "rend l'âme", "s'écroule, sans vie", "corps inerte"
+        ];
 
-        if (hasDeathMarker && isPlayerMentioned && !aiResponse.actions.some(a => a.type === 'update_stats' && a.parameters.health_change <= -50)) {
-            console.log("[Logic] Detected unhandled active death intent in narrative. Auto-applying critical damage.");
+        const hasDeathMarker = deathMarkers.some(m => lowNarrative.includes(m));
+        // Check if the current acting player is explicitly targeted for death
+        const isPlayerDead = hasDeathMarker && lowNarrative.includes(player.name.toLowerCase());
+
+        if (isPlayerDead && !aiResponse.actions.some(a => a.type === 'update_stats' && (a.parameters.health_change <= -50 || a.parameters.health_set === 0))) {
+            console.log("[Logic] Detected unhandled player death intent in narrative. Auto-applying critical damage.");
             aiResponse.actions.push({ type: 'update_stats', parameters: { health_change: -100 } });
         }
     }

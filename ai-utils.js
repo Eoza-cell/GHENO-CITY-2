@@ -638,21 +638,21 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     // ORDRE DE PRIORITÉ: Optimisé pour la réactivité (OpenRouter en priorité suite à demande utilisateur)
     const providers = [
         // === CLOUD (Priorité suite à demande utilisateur) ===
-        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 25000 },
-        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
+        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
+        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 25000 },
+        { name: 'Puter SDK', fn: callPuterSDK, timeout: 20000 },
 
         // === LOCAUX ===
-        { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 15000 },
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 15000 }]),
-        { name: 'Ollama Direct', fn: callOllama, timeout: 20000 },
+        { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 60000 },
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 60000 }]),
+        { name: 'Ollama Direct', fn: callOllama, timeout: 60000 },
 
         // === CLOUD (Fallbacks robustes) ===
-        { name: 'Blackbox', fn: callBlackbox, timeout: 30000 },
-        { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 25000 },
+        { name: 'Blackbox', fn: callBlackbox, timeout: 45000 },
+        { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 30000 },
 
         // === CLOUD SECONDAIRES ===
-        { name: 'Puter SDK', fn: callPuterSDK, timeout: 15000 },
-        { name: 'Puter API', fn: callPuterAPI, timeout: 10000 }
+        { name: 'Puter API', fn: callPuterAPI, timeout: 15000 }
     ];
 
     for (const provider of providers) {

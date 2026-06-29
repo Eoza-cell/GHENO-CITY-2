@@ -38,6 +38,9 @@ async function askLocalAI(systemPrompt, userPrompt) {
     if (status === "offline") {
         throw new Error(`Ollama n'est pas lancé. Lancez-le avec "ollama serve"`);
     }
+    if (status === "model_missing") {
+        throw new Error(`Le modèle ${MODEL} n'est pas installé dans Ollama. Exécutez: ollama pull ${MODEL}`);
+    }
 
     try {
         const res = await client.chat.completions.create({
