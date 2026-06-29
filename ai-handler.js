@@ -72,7 +72,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           subLocation: player.subLocation,
           mode: 'action',
           whatsappId: { [Op.ne]: player.whatsappId },
-          lastActivity: { [Op.gt]: new Date(Date.now() - 15 * 60 * 1000) } // Last 15 mins
+          lastActivity: { [Op.gt]: new Date(Date.now() - 10 * 60 * 1000) } // Reduced to 10 mins for better responsiveness
       }
   });
 
@@ -84,10 +84,11 @@ async function handleFreeAction(sock, message, player, actionText) {
           id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
           content: { [Op.notLike]: 'next' }
       },
-      limit: 5
+      limit: 10
   }) : [];
 
-  const isSolo = otherRecentActions.length === 0;
+  // Robust Solo Detection: only true if no other RECENT actions (within 10 mins) from other ACTIVE players exist
+  const isSolo = nearbyActivePlayers.length === 0 || otherRecentActions.length === 0;
 
   // Check for players in 'action' mode here (for info only)
   const nearbyPlayers = await Player.findAll({
@@ -776,12 +777,18 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     const narrativeActions = [];
 
     // Health detection (Relative: [HP -10], Absolute: [PV: 95/100] or PV: 95)
-    const hpRelMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*([+-]\d+)\]/i);
-    const hpAbsMatch = aiResponse.narrative.match(/(?:HP|PV)[:\s]*(\d+)(?:\/\d+)?/i);
-    if (hpRelMatch) {
-        narrativeActions.push({ type: 'update_stats', parameters: { health_change: parseInt(hpRelMatch[1]) } });
-    } else if (hpAbsMatch) {
-        narrativeActions.push({ type: 'update_stats', parameters: { health_set: parseInt(hpAbsMatch[1]) } });
+    // Only scrape if the narrative explicitly mentions the acting player's name nearby
+    const playerNameLow = player.name.toLowerCase();
+    const hasPlayerContext = aiResponse.narrative.toLowerCase().includes(playerNameLow) || aiResponse.narrative.toLowerCase().includes("tu ");
+
+    if (hasPlayerContext) {
+        const hpRelMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*([+-]\d+)\]/i);
+        const hpAbsMatch = aiResponse.narrative.match(/(?:HP|PV)[:\s]*(\d+)(?:\/\d+)?/i);
+        if (hpRelMatch) {
+            narrativeActions.push({ type: 'update_stats', parameters: { health_change: parseInt(hpRelMatch[1]) } });
+        } else if (hpAbsMatch) {
+            narrativeActions.push({ type: 'update_stats', parameters: { health_set: parseInt(hpAbsMatch[1]) } });
+        }
     }
 
     // Mana detection
@@ -811,14 +818,14 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     // AND we are NOT in fallback mode (to avoid false positives from the fallback template)
     if (!isFallback) {
         // More specific death markers to avoid false positives from lore or NPCs
+        const playerNameLow = player.name.toLowerCase();
         const deathMarkers = [
-            "tu meurs", "tu succombes", "ton souffle s'arrête", "ta vie s'échappe",
-            "rend l'âme", "s'écroule, sans vie", "corps inerte"
+            `tu meurs`, `tu succombes`, `ton souffle s'arrête`, `ta vie s'échappe`,
+            `${playerNameLow} meurt`, `${playerNameLow} succombe`, `${playerNameLow} rend l'âme`,
+            `${playerNameLow} s'écroule, sans vie`, `${playerNameLow} est inerte`
         ];
 
-        const hasDeathMarker = deathMarkers.some(m => lowNarrative.includes(m));
-        // Check if the current acting player is explicitly targeted for death
-        const isPlayerDead = hasDeathMarker && lowNarrative.includes(player.name.toLowerCase());
+        const isPlayerDead = deathMarkers.some(m => lowNarrative.includes(m));
 
         if (isPlayerDead && !aiResponse.actions.some(a => a.type === 'update_stats' && (a.parameters.health_change <= -50 || a.parameters.health_set === 0))) {
             console.log("[Logic] Detected unhandled player death intent in narrative. Auto-applying critical damage.");

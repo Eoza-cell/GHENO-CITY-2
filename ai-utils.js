@@ -635,23 +635,21 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: Optimisé pour la réactivité (OpenRouter en priorité suite à demande utilisateur)
+    // ORDRE DE PRIORITÉ: Optimisé pour la réactivité et la fiabilité
     const providers = [
-        // === CLOUD (Priorité suite à demande utilisateur) ===
-        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
-        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 25000 },
-        { name: 'Puter SDK', fn: callPuterSDK, timeout: 20000 },
-
-        // === LOCAUX ===
+        // === LOCAUX (Priorité absolue pour le RP privé) ===
         { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 60000 },
         ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 60000 }]),
         { name: 'Ollama Direct', fn: callOllama, timeout: 60000 },
 
-        // === CLOUD (Fallbacks robustes) ===
+        // === CLOUD RAPIDES (Fallbacks prioritaires) ===
+        { name: 'Puter SDK', fn: callPuterSDK, timeout: 25000 },
+        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
+        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
+
+        // === CLOUD ROBUSTES (Fallbacks de secours) ===
         { name: 'Blackbox', fn: callBlackbox, timeout: 45000 },
         { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 30000 },
-
-        // === CLOUD SECONDAIRES ===
         { name: 'Puter API', fn: callPuterAPI, timeout: 15000 }
     ];
 
