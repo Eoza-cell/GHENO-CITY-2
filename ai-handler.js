@@ -65,13 +65,15 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
 
   // A scene is "active multiplayer" if OTHER players have sent RP actions since the last MJ message
+  // and those actions are relatively recent (within 2 hours) to avoid being stuck
   const otherRecentActions = await RPMessage.findAll({
       where: {
           ...sceneFilter,
           senderJid: { [Op.ne]: player.whatsappId },
           senderName: { [Op.ne]: 'Arise MJ' },
           id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
-          content: { [Op.notLike]: 'next' }
+          content: { [Op.notLike]: 'next' },
+          createdAt: { [Op.gt]: new Date(Date.now() - 2 * 60 * 60 * 1000) }
       },
       limit: 5
   });
@@ -645,33 +647,47 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
         // Remove markdown wrappers if present
         let cleanedContent = content.replace(/```json/gi, '').replace(/```/g, '').trim();
 
+        // Attempt to fix common LLM JSON errors before parsing
+        const sanitizeJsonStr = (str) => {
+            return str.replace(/,\s*([\]}])/g, '$1') // Trailing commas
+                      .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":') // Unquoted keys
+                      .replace(/: \s*'(.*?)'\s*([,}])/g, ': "$1"$2'); // Single quotes for values
+        };
+
         let start = cleanedContent.indexOf('{');
         let end = cleanedContent.lastIndexOf('}');
 
         if (start !== -1 && end !== -1 && end > start) {
             const potentialJson = cleanedContent.substring(start, end + 1);
             try {
-                // Sanitize potential JSON for common LLM errors (unquoted keys, trailing commas)
                 const parsed = JSON.parse(potentialJson);
                 aiResponse = { ...aiResponse, ...parsed };
-                if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
             } catch (e) {
-                console.warn("[AI] Big JSON block failed to parse, attempting fallback extraction...");
-                // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
-                const matches = [...cleanedContent.matchAll(/\{[\s\S]*?\}/g)];
-                for (const match of matches) {
-                    try {
-                        const potential = JSON.parse(match[0]);
-                        if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
-                        if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
-                            aiResponse.narrative = potential.narrative;
+                try {
+                    const sanitized = sanitizeJsonStr(potentialJson);
+                    aiResponse = { ...aiResponse, ...JSON.parse(sanitized) };
+                } catch (e2) {
+                    console.warn("[AI] Big JSON block failed to parse even after sanitization, attempting block extraction...");
+                    const matches = [...cleanedContent.matchAll(/\{[\s\S]*?\}/g)];
+                    for (const match of matches) {
+                        try {
+                            const part = JSON.parse(match[0]);
+                            if (part.actions) aiResponse.actions = [...(aiResponse.actions || []), ...part.actions];
+                            if (part.narrative && (!aiResponse.narrative || part.narrative.length > aiResponse.narrative.length)) aiResponse.narrative = part.narrative;
+                            if (part.imagePrompt) aiResponse.imagePrompt = part.imagePrompt;
+                            if (part.pensee_mj) aiResponse.pensee_mj = part.pensee_mj;
+                        } catch (innerE) {
+                             try {
+                                 const part = JSON.parse(sanitizeJsonStr(match[0]));
+                                 if (part.actions) aiResponse.actions = [...(aiResponse.actions || []), ...part.actions];
+                                 if (part.narrative && (!aiResponse.narrative || part.narrative.length > aiResponse.narrative.length)) aiResponse.narrative = part.narrative;
+                                 if (part.pensee_mj) aiResponse.pensee_mj = part.pensee_mj;
+                             } catch(innerE2) {}
                         }
-                        if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
-                        if (potential.notifications) aiResponse.notifications = [...(aiResponse.notifications || []), ...potential.notifications];
-                        if (potential.pensee_mj) aiResponse.pensee_mj = potential.pensee_mj;
-                    } catch (innerE) {}
+                    }
                 }
             }
+            if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
         }
 
         // If narrative is STILL empty, it might be outside the JSON block
@@ -780,8 +796,13 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     }
 
     const lowNarrative = aiResponse.narrative.toLowerCase();
-    if ((lowNarrative.includes("mort") || lowNarrative.includes("tue")) && !aiResponse.actions.some(a => a.type === 'update_stats')) {
-        console.log("[Logic] Detected unhandled death/damage intent. Auto-applying critical damage.");
+    // Improved death detection: only trigger if it looks like an ACTIVE death event for a player
+    const deathMarkers = ["tu meurs", "tu succombes", "ton souffle s'arrête", "ta vie s'échappe", "est tué", "est morte", "rend l'âme"];
+    const hasDeathMarker = deathMarkers.some(m => lowNarrative.includes(m));
+    const isPlayerMentioned = scenePlayersData.some(p => lowNarrative.includes(p.nom.toLowerCase()));
+
+    if (hasDeathMarker && isPlayerMentioned && !aiResponse.actions.some(a => a.type === 'update_stats' && a.parameters.health_change <= -50)) {
+        console.log("[Logic] Detected unhandled active death intent in narrative. Auto-applying critical damage.");
         aiResponse.actions.push({ type: 'update_stats', parameters: { health_change: -100 } });
     }
     if ((lowNarrative.includes("achète") || lowNarrative.includes("paye")) && !aiResponse.actions.some(a => ['buy_item', 'npc_trade', 'update_stats'].includes(a.type))) {

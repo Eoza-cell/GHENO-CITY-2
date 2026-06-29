@@ -392,7 +392,10 @@ async function callOpenRouter(system, prompt) {
         "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-r1:free",
         "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "google/gemma-2-9b-it:free"
+        "google/gemma-2-9b-it:free",
+        "mistralai/mistral-7b-instruct:free",
+        "microsoft/phi-3-mini-128k-instruct:free",
+        "openchat/openchat-7b:free"
     ];
 
     for (const model of models) {
@@ -631,17 +634,17 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     // ORDRE DE PRIORITÉ: Optimisé pour la réactivité (OpenRouter en priorité suite à demande utilisateur)
     const providers = [
         // === CLOUD (Priorité suite à demande utilisateur) ===
-        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 15000 },
+        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 25000 },
 
         // === LOCAUX ===
-        { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 10000 },
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 10000 }]),
-        { name: 'Ollama Direct', fn: callOllama, timeout: 12000 },
+        { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 15000 },
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 15000 }]),
+        { name: 'Ollama Direct', fn: callOllama, timeout: 20000 },
 
         // === CLOUD (Fallbacks robustes) ===
-        { name: 'Blackbox', fn: callBlackbox, timeout: 20000 },
-        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 15000 },
-        { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 20000 },
+        { name: 'Blackbox', fn: callBlackbox, timeout: 30000 },
+        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
+        { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 25000 },
 
         // === CLOUD SECONDAIRES ===
         { name: 'Puter SDK', fn: callPuterSDK, timeout: 15000 },
