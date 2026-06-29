@@ -643,6 +643,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Ollama Direct', fn: callOllama, timeout: 60000 },
 
         // === CLOUD RAPIDES (Fallbacks prioritaires) ===
+        { name: '9Router', fn: call9Router, timeout: 15000 },
         { name: 'Puter SDK', fn: callPuterSDK, timeout: 25000 },
         { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
         { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
