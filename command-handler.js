@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, Duel, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -11,6 +11,7 @@ const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage } = require('./shop-generator');
 const { handleFreeAction } = require('./ai-handler');
+const arenaHandler = require('./arena-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 
@@ -1090,6 +1091,42 @@ commands.set('tirage_tournoi', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: drawText });
 });
 
+// Command: /duel
+commands.set('duel', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    const mentionedJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+    if (!mentionedJid) {
+        return await sock.sendMessage(replyJid, { text: "Mentionne un joueur pour le défier en duel (ex: /duel @joueur)." });
+    }
+
+    const targetPlayer = await Player.findOne({ where: { whatsappId: mentionedJid } });
+    if (!targetPlayer) {
+        return await sock.sendMessage(replyJid, { text: "Ce joueur n'existe pas." });
+    }
+
+    if (player.location !== targetPlayer.location || player.subLocation !== targetPlayer.subLocation) {
+        return await sock.sendMessage(replyJid, { text: "Tu dois être au même endroit (Royaume et Lieu précis) pour défier quelqu'un." });
+    }
+
+    const existingDuel = await Duel.findOne({
+        where: {
+            [Op.or]: [{ playerAJid: jid }, { playerBJid: jid }],
+            status: 'active'
+        }
+    });
+
+    if (existingDuel) {
+        return await sock.sendMessage(replyJid, { text: "Tu es déjà dans un duel actif !" });
+    }
+
+    await arenaHandler.startDuel(sock, jid, mentionedJid, player.location);
+});
+
 // Command: /conflits
 commands.set('conflits', async (sock, message) => {
     const replyJid = message.key.remoteJid;
@@ -1540,7 +1577,7 @@ commands.set('tuto_rp', async (sock, message) => {
 
     const tutoTitle = "MANUEL DU RP IMMERSIF";
     const tutoContent = "Bienvenue dans GHENO CITY, Egoïste.\n\n" +
-        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par DARK LUST 3.2.\n\n" +
+        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par GEMMA 3 (IA Locale).\n\n" +
         "2. LA PRÉCISION\nNe dis pas 'Je frappe'. Dis 'Je pivote sur ma jambe gauche pour envoyer un coup de pied circulaire au niveau des côtes'. Plus tu es précis, plus le MJ est clément.\n\n" +
         "3. LES STATS\nTout est calculé. Si ton adversaire a 80 en FORCE et toi 20, tu vas souffrir. Utilise ton intelligence ou l'environnement pour compenser.\n\n" +
         "4. LE COMMERCE\nTu peux acheter des objets directement en parlant aux marchands ou au MJ. Dis 'Je veux acheter l'Épée de Fer' et si tu as les COL, le MJ mettra à jour ton profil.\n\n" +
@@ -1602,6 +1639,7 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
+                   "/download_model - Télécharger Gemma 3 localement (Admin).\n" +
                    "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
@@ -1713,6 +1751,32 @@ commands.set('action', async (sock, message) => {
   }
 });
 
+// Command: /download_model
+commands.set('download_model', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent initier des téléchargements système." });
+        return;
+    }
+
+    const model = process.env.OLLAMA_MODEL || 'gemma3:4b';
+    await sock.sendMessage(replyJid, { text: `📥 *INITIATION DU TÉLÉCHARGEMENT*\n\nModèle : ${model}\n\nCette opération peut prendre plusieurs minutes selon votre connexion. Le bot restera disponible.` });
+
+    const { exec } = require('child_process');
+    exec(`ollama pull ${model}`, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`[OLLAMA] Pull error: ${error.message}`);
+            sock.sendMessage(replyJid, { text: `❌ *ÉCHEC DU TÉLÉCHARGEMENT*\n\nErreur : ${error.message}` });
+            return;
+        }
+        console.log(`[OLLAMA] Pull success: ${stdout}`);
+        sock.sendMessage(replyJid, { text: `✅ *TÉLÉCHARGEMENT TERMINÉ*\n\nLe modèle ${model} est prêt à l'emploi.` });
+    });
+});
+
 // Command: /checkai
 commands.set('checkai', async (sock, message) => {
     const replyJid = message.key.remoteJid;
@@ -1754,7 +1818,8 @@ commands.set('menu', async (sock, message) => {
                    "╚══════════════════════════╝\n" +
                    "_Portes d'Aetherys, archives vivantes et conflits de l'Interstice._\n\n" +
                    "🕹️ *IMMERSION*\n" +
-                   "└ `/action` - Entrer dans le RP\n\n" +
+                   "├ `/action` - Entrer dans le RP\n" +
+                   "└ `/next` - Forcer la réponse du MJ\n\n" +
                    "👤 *HÉRITIER*\n" +
                    "├ `/profil` - Statut & Stats\n" +
                    "├ `/inventory` - Sac à dos\n" +
@@ -1862,7 +1927,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   }
 
   // Handle free action mode
-  if (player?.mode === 'action' && !messageText.startsWith('/')) {
+  if (player?.mode === 'action' && !messageText.startsWith('/') && !messageText.startsWith('@')) {
     try {
         if (player.tutorialStep >= 0 && player.tutorialStep < 3) {
             const { handleTutorialAction } = require('./tutorial-handler');
@@ -1880,8 +1945,9 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   }
 
 
-  // Handle standard commands
-  if (!messageText.startsWith('/')) return;
+  // Handle standard commands (support / and @)
+  const prefix = messageText.charAt(0);
+  if (prefix !== '/' && prefix !== '@') return;
 
   const args = messageText.slice(1).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();

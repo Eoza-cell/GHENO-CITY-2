@@ -52,7 +52,7 @@ async function connectToWhatsApp() {
 
   // Handle pairing code logic
   if (!sock.authState.creds.registered) {
-    const phoneNumber = process.env.PHONE_NUMBER;
+    const phoneNumber = (process.env.PHONE_NUMBER || "").replace(/\+/g, "").trim();
     if (!phoneNumber) {
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
@@ -159,6 +159,9 @@ async function connectToWhatsApp() {
                 await handleCommand(sock, message, downloadMediaMessage);
             } catch (globalError) {
                 console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
+                try {
+                    await sock.sendMessage(message.key.remoteJid, { text: "⚠️ *ERREUR DE LA MATRICE*\nLe système a rencontré une anomalie critique lors du traitement de ton action. Si le problème persiste, contacte l'administrateur." });
+                } catch (e) {}
             }
         });
     }
@@ -169,7 +172,7 @@ setupDatabase()
   .then(() => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
 
-    // Démarre le 2ème serveur pour le modèle DARK LUST
+    // Démarre le 2ème serveur pour le modèle GEMMA 3
     startModelServer();
 
     connectToWhatsApp();

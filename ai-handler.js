@@ -8,6 +8,7 @@ const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
 const { processActions } = require('./action-processor');
+const arenaHandler = require('./arena-handler');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
@@ -54,27 +55,54 @@ async function handleFreeAction(sock, message, player, actionText) {
   // AI Automation Logic:
   // Solo Scene -> Immediate Response
   // Multiplayer Scene -> Requires 'next' for sync
-  const nearbyPlayers = await Player.findAll({
-    where: {
-        location: player.location,
-        subLocation: player.subLocation
-    }
-  });
 
   const isTriggerWord = actionText.toLowerCase().trim() === 'next';
 
-  // Check if player is truly alone (ignoring themselves)
-  const otherActorsCount = nearbyPlayers.filter(p => p.whatsappId !== player.whatsappId).length;
-  const isSolo = otherActorsCount === 0;
-
-  // Only trigger AI on 'next' in multiplayer, or always in solo
+  // Find the last MJ message to define the current "turn"
   const lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
   });
 
+  // A scene is "active multiplayer" if OTHER players are currently in action mode
+  // and have sent RP actions since the last MJ message
+  const nearbyActivePlayers = await Player.findAll({
+      where: {
+          location: player.location,
+          subLocation: player.subLocation,
+          mode: 'action',
+          whatsappId: { [Op.ne]: player.whatsappId },
+          lastActivity: { [Op.gt]: new Date(Date.now() - 10 * 60 * 1000) } // Reduced to 10 mins for better responsiveness
+      }
+  });
+
+  const otherRecentActions = nearbyActivePlayers.length > 0 ? await RPMessage.findAll({
+      where: {
+          ...sceneFilter,
+          senderJid: { [Op.in]: nearbyActivePlayers.map(p => p.whatsappId) },
+          senderName: { [Op.ne]: 'Arise MJ' },
+          id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
+          content: { [Op.notLike]: 'next' }
+      },
+      limit: 10
+  }) : [];
+
+  // Robust Solo Detection: only true if no other RECENT actions (within 10 mins) from other ACTIVE players exist
+  const isSolo = nearbyActivePlayers.length === 0 || otherRecentActions.length === 0;
+
+  // Check for players in 'action' mode here (for info only)
+  const nearbyPlayers = await Player.findAll({
+    where: {
+        location: player.location,
+        subLocation: player.subLocation,
+        mode: 'action',
+        whatsappId: { [Op.ne]: player.whatsappId },
+        lastActivity: { [Op.gt]: new Date(Date.now() - 5 * 60 * 1000) }
+    }
+  });
+
+  // If not solo and no trigger, we wait
   if (!isTriggerWord && !isSolo) {
-      // Logic to remind the player of the sync mechanic if they send many messages
       const recentPlayerMsgs = await RPMessage.count({
           where: {
               senderJid: player.whatsappId,
@@ -83,15 +111,22 @@ async function handleFreeAction(sock, message, player, actionText) {
       });
 
       let reminder = "";
-      if (recentPlayerMsgs >= 3) {
-          reminder = "\n\n💡 *Note:* Tu as envoyé plusieurs messages. N'oublie pas de taper `next` quand tu as fini pour obtenir une réponse du MJ.";
+      if (recentPlayerMsgs >= 2) {
+          reminder = "\n\n💡 *Note:* Tape `next` pour forcer la réponse du MJ.";
       }
 
       await sock.sendMessage(jid, {
-          text: `⏳ *Action enregistrée.*${reminder}\nAttendez les autres joueurs pour \`next\`. S'ils ne sont pas là, ils sont immobiles devant vous et ne réagissent à rien.`
+          text: `⏳ *Action enregistrée.*${reminder}\nEn attente des autres participants actifs : ${[...new Set(otherRecentActions.map(a => a.senderName))].join(', ')}.`
       });
       return;
   }
+
+  // If we reached here, we are triggering the AI (either solo or 'next')
+  let thinkingMsg = null;
+  try {
+      await sock.sendPresenceUpdate('composing', jid);
+      thinkingMsg = await sock.sendMessage(jid, { text: "🧠 *Le MJ réfléchit...*" });
+  } catch (e) {}
 
   // Fetch all messages in the KINGDOM to detect people moving toward the scene
   const kingdomMessageQuery = {
@@ -165,8 +200,34 @@ async function handleFreeAction(sock, message, player, actionText) {
           hints.push(`⚠️ LE JOUEUR ESSAIE D'INTERAGIR AVEC QUELQU'UN À '${interactionTargetSubLocation}'. Propose-lui de se déplacer là-bas ou fais-les se rencontrer.`);
       }
   }
-  if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
+  if (!isSolo) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
+
+  // ATR ARENA - Check for active duel
+  let activeDuel = null;
+  try {
+      activeDuel = await Duel.findOne({
+          where: {
+              [Op.or]: [
+                  { playerAJid: player.whatsappId },
+                  { playerBJid: player.whatsappId }
+              ],
+              status: 'active'
+          }
+      });
+  } catch (e) {
+      console.warn("[Arena] Duel query failed, probably table not ready.");
+  }
+
+  if (activeDuel) {
+      const opponentJid = activeDuel.playerAJid === player.whatsappId ? activeDuel.playerBJid : activeDuel.playerAJid;
+      const opponent = await Player.findByPk(opponentJid);
+
+      if (opponent) {
+          hints.push(`⚠️ COMBAT JCJ EN COURS (ATR ARENA). Tu es l'Arbitre. Opposant: ${opponent.name}.`);
+          hints.push("⚠️ UTILISE L'ANALYSE TACTIQUE : Précision du membre visé, distance, et stats pour valider le coup.");
+      }
+  }
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -340,25 +401,22 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `Tu es le narrateur d'un RP fantasy vivant, immersif et dynamique. Le monde évolue en permanence, même lorsque les joueurs n'agissent pas. Les royaumes, factions, guildes, créatures, dieux, monstres et civilisations poursuivent leurs propres objectifs. Les actions des joueurs peuvent modifier l'histoire, influencer la politique, déclencher des guerres, créer des alliances ou provoquer des catastrophes.
+const systemPrompt = `Tu es le MAÎTRE DU JEU (MJ) d'un univers Dark Fantasy / Manhwa nommé AETHERYS. Ton style est viscéral, cinématographique et impitoyable. Tu t'inspires de l'esthétique de 'Solo Leveling', 'Berserk' et 'Vagabond'.
 
-Les joueurs sont totalement libres de leurs choix. Ils peuvent explorer, combattre, commercer, discuter, voyager, fonder des organisations, gouverner des territoires ou poursuivre leurs propres ambitions. L'histoire s'adapte naturellement à leurs décisions au lieu de les forcer à suivre un scénario unique.
+### RÈGLES D'OR DE NARRATION (STRICT) ###
+1. **ZÉRO HALLUCINATION :** Tu ne joues JAMAIS le personnage du joueur. Tu ne décris JAMAIS ses pensées, ses paroles ("je dis..."), ni ses mouvements ("tu avances..."). Le joueur est le seul maître de son personnage. Ta narration commence LÀ OÙ L'ACTION DU JOUEUR S'ARRÊTE.
+2. **STYLE VISCÉRAL :** Ne sois pas générique. Décris la pression de l'aura, le craquement du sol, la sueur froide, l'odeur du sang et de l'ozone. Utilise des métaphores brutales.
+3. **ÉCHELLE DE PUISSANCE :** Respecte les statistiques. Un écart de 10 points est une montagne. Un écart de 30 points est un abîme. Décris la supériorité physique ou magique de manière écrasante.
+4. **DIALOGUES PNJ :** Chaque PNJ a une voix unique. Utilise le discours direct "..." systématiquement. Ils sont intelligents, ont des agendas et ne sont pas là juste pour aider le joueur.
 
-Les déplacements sont constamment pris en compte. Chaque personnage possède une position précise dans l'environnement. La narration décrit naturellement les distances importantes, les obstacles, les bâtiments, les reliefs, les objets et les différentes zones présentes autour des personnages. Les mouvements tels que les courses, sauts, esquives, charges, retraites, ascensions ou déplacements tactiques doivent être clairement décrits lorsqu'ils influencent la situation.
+### SYSTÈME DE COMBAT & JCJ ###
+- **ARBITRAGE CLINIQUE :** En combat (surtout PvP Arena), tu es un arbitre technique. Décris l'impact sur des membres précis (os brisé, tendon sectionné).
+- **PROXIMITÉ :** Si deux joueurs ne sont pas dans le même 'Sub-location', ils ne peuvent PAS interagir physiquement. S'ils sont dans des royaumes différents, ils ne s'entendent même pas. Applique cette barrière de manière stricte.
+- **DÉFAITE :** La mort est réelle. À 0 PV, le joueur est envoyé à Nécropolis. Ne sois pas clément.
 
-Les combats sont entièrement basés sur les statistiques, compétences, équipements, aptitudes spéciales, passifs, résistances, états et conditions environnementales. Une action déclarée par un joueur représente une tentative et non une réussite garantie. Les résultats dépendent toujours des capacités réelles des personnages impliqués. Les esquives, blocages, contre-atteques, blessures et dégâts sont déterminés de manière cohérente selon les statistiques. Les personnages plus rapides réagissent mieux, les plus puissants frappent plus fort, les plus résistants encaissent davantage et les plus expérimentés exploitent plus facilement les ouvertures.
-
-La narration doit être fluide, naturelle et cinématographique. Chaque action décrit précisément les mouvements effectués, les membres utilisés, les zones visées, les réactions provoquées et les conséquences logiques des événements. Les ennemis, monstres et PNJ réagissent intelligemment selon leur personnalité, leur niveau d'intelligence, leurs objectifs et leur situation actuelle.
-
-L'environnement est interactif et persistant. Les bâtiments, arbres, falaises, routes, ruines, meubles, armes abandonnées et autres éléments du décor peuvent être utilisés durant les combats ou l'exploration. Les dégâts causés au monde restent visibles lorsque cela est logique.
-
-Le monde doit sembler vivant. Les habitants possèdent leur propre routine, les marchands voyagent, les armées se déplacent, les monstres chassent, les factions complotent et les événements continuent d'avancer indépendamment des joueurs.
-
-Les dialogues doivent être riches, immersifs et caractéristiques de chaque PNJ. Utilise systématiquement le discours direct (avec des guillemets « » ou " ") pour les paroles. Chaque PNJ possède une voix, un vocabulaire et un ton spécifiques (ex: un noble sera hautain et formel, un marchand sera obséquieux ou pressé, un soldat sera sec et autoritaire). Inclus des indices non-verbaux : expressions faciales, changements de posture, ton de la voix, ou regards significatifs pour donner du poids aux paroles. Si un joueur s'adresse à un PNJ, ce dernier DOIT répondre de manière cohérente, même par le silence ou le mépris.
-
-Le ton général est celui d'un anime Shonen/Seinen moderne avec une touche de Fan Service et d'Ecchi assumée. L'ambiance oscille entre des moments "chill" et relaxants (vie quotidienne à l'académie, taverne, festivals) et des combats épiques ultra-viscéraux (Solo Leveling, Berserk). Les descriptions doivent souligner le charme des personnages (tenues suggestives, accidents ecchi classiques comme des bousculades, vêtements déchirés après un combat, etc.) tout en restant dans le cadre narratif. Les interactions sociales sont aussi importantes que les combats ; un dialogue bien mené peut débloquer des secrets, des moments de fan service ou éviter un bain de sang.
-
-L'objectif principal est de créer une aventure immersive où les choix des joueurs ont un véritable impact, où les statistiques possèdent une réelle importance mécanique et où chaque action génère des conséquences cohérentes dans un monde vivant et crédible. 🔥⚔️🌍
+### ESTHÉTIQUE & ATMOSPHÈRE ###
+- Mélange de Dark Fantasy brutale et de Shonen moderne (Ecchi/Fan Service léger assumé).
+- Le monde est une méritocratie : rien n'est gratuit, chaque gain se paye par le sang ou l'ingéniosité.
 
 LORE SUPRÊME:
 1. ONE ABOVE ALL: Créateur ultime, origine de tout.
@@ -448,6 +506,8 @@ RÈGLES TECHNIQUES:
 20. NARRATION & DIALOGUES: Français riche et cinématographique. Les dialogues des PNJ doivent être percutants et refléter leur personnalité unique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 500 mots). Va droit au but, évite les fioritures inutiles.
 21. RÔLE DOUBLE (EXECUTANT LOGIQUE) : Tu es le MJ narratif ET l'interpréteur de code du bot. Tu es un moteur de jeu vivant. Chaque mot que tu écris doit se traduire par une action logique si nécessaire.
 22. SYNCHRONISATION ABSOLUE & COMMERCE : Chaque événement narratif (mort, blessure, transaction, achat, échange, mouvement) DOIT déclencher sa fonction logique.
+   - SI TU DÉCIDES QU'UN JOUEUR EST BLESSÉ : Tu DOIS inclure une action "update_stats" avec "health_change": -X.
+   - SI UN JOUEUR MEURT : Tu DOIS inclure une action "update_stats" avec "health_change": -100.
    - COMMERCE DIRECT : Si un joueur achète à un PNJ (ex: "Je t'achète cette épée"), exécute OBLIGATOIREMENT "npc_trade" : { "npc_name": "...", "itemName": "...", "quantity": 1, "action": "buy" }.
    - VENTE DIRECTE : Si un joueur vend (ex: "Prends ma vieille armure"), exécute "npc_trade" : { "npc_name": "...", "itemName": "...", "quantity": 1, "action": "sell" }.
    - ÉCHANGES : Pour donner entre joueurs, utilise "p2p_transfer" : { "recipient_name": "...", "amount": n, "itemName": "...", "quantity": 1 }.
@@ -543,6 +603,9 @@ RÉALITÉ PHYSIQUE:
 ### RÉSUMÉ DES ACTIONS À TRAITER ###
 ${actionSummary}
 
+### HINTS & DIRECTIVES IMMÉDIATES ###
+${hints.join('\n')}
+
 CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
 2. RÉGIS LEURS INTERACTIONS : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies dans le JSON.
@@ -554,9 +617,21 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.`;
 
   try {
+    console.log(`[AI] Appel callAI pour ${player.name}...`);
     let content = await callAI(systemPrompt, fullPrompt);
-    if (!content) {
-        content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...", actions: [] });
+
+    // Delete thinking message
+    if (thinkingMsg) {
+        try {
+            await sock.sendMessage(jid, { delete: thinkingMsg.key });
+        } catch (e) {}
+    }
+
+    if (!content || (typeof content === 'string' && content.includes("MJ FALLBACK"))) {
+        console.warn("[AI] callAI a échoué ou utilisé le fallback.");
+        if (!content) {
+            content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels. Réessaie dans un instant.", actions: [] });
+        }
     }
     console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : '[Object]'}`);
 
@@ -579,30 +654,50 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
         if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
     } else {
         // Robust JSON extraction: Find the largest JSON block possible
-        let start = content.indexOf('{');
-        let end = content.lastIndexOf('}');
+        // Remove markdown wrappers if present
+        let cleanedContent = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+        // Attempt to fix common LLM JSON errors before parsing
+        const sanitizeJsonStr = (str) => {
+            return str.replace(/,\s*([\]}])/g, '$1') // Trailing commas
+                      .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":') // Unquoted keys
+                      .replace(/: \s*'(.*?)'\s*([,}])/g, ': "$1"$2'); // Single quotes for values
+        };
+
+        let start = cleanedContent.indexOf('{');
+        let end = cleanedContent.lastIndexOf('}');
 
         if (start !== -1 && end !== -1 && end > start) {
-            const potentialJson = content.substring(start, end + 1);
+            const potentialJson = cleanedContent.substring(start, end + 1);
             try {
                 const parsed = JSON.parse(potentialJson);
                 aiResponse = { ...aiResponse, ...parsed };
-                if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
             } catch (e) {
-                // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
-                const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
-                for (const match of matches) {
-                    try {
-                        const potential = JSON.parse(match[0]);
-                        if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
-                        if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
-                            aiResponse.narrative = potential.narrative;
+                try {
+                    const sanitized = sanitizeJsonStr(potentialJson);
+                    aiResponse = { ...aiResponse, ...JSON.parse(sanitized) };
+                } catch (e2) {
+                    console.warn("[AI] Big JSON block failed to parse even after sanitization, attempting block extraction...");
+                    const matches = [...cleanedContent.matchAll(/\{[\s\S]*?\}/g)];
+                    for (const match of matches) {
+                        try {
+                            const part = JSON.parse(match[0]);
+                            if (part.actions) aiResponse.actions = [...(aiResponse.actions || []), ...part.actions];
+                            if (part.narrative && (!aiResponse.narrative || part.narrative.length > aiResponse.narrative.length)) aiResponse.narrative = part.narrative;
+                            if (part.imagePrompt) aiResponse.imagePrompt = part.imagePrompt;
+                            if (part.pensee_mj) aiResponse.pensee_mj = part.pensee_mj;
+                        } catch (innerE) {
+                             try {
+                                 const part = JSON.parse(sanitizeJsonStr(match[0]));
+                                 if (part.actions) aiResponse.actions = [...(aiResponse.actions || []), ...part.actions];
+                                 if (part.narrative && (!aiResponse.narrative || part.narrative.length > aiResponse.narrative.length)) aiResponse.narrative = part.narrative;
+                                 if (part.pensee_mj) aiResponse.pensee_mj = part.pensee_mj;
+                             } catch(innerE2) {}
                         }
-                        if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
-                        if (potential.notifications) aiResponse.notifications = [...(aiResponse.notifications || []), ...potential.notifications];
-                    } catch (innerE) {}
+                    }
                 }
             }
+            if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
         }
 
         // If narrative is STILL empty, it might be outside the JSON block
@@ -677,13 +772,68 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
         aiResponse.narrative = "Il ne se passe rien de spécial.";
     }
 
-    // Logic Verification: Ensure narrative intent matches triggered actions
+    // Logic Verification & Automatic Synchronization
+    // Scrape narrative for status tags like [HP -10] or [PV: 95/100] to fix AI forgetfulness
+    const narrativeActions = [];
+
+    // Health detection (Relative: [HP -10], Absolute: [PV: 95/100] or PV: 95)
+    // Only scrape if the narrative explicitly mentions the acting player's name nearby
+    const playerNameLow = player.name.toLowerCase();
+    const hasPlayerContext = aiResponse.narrative.toLowerCase().includes(playerNameLow) || aiResponse.narrative.toLowerCase().includes("tu ");
+
+    if (hasPlayerContext) {
+        const hpRelMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*([+-]\d+)\]/i);
+        const hpAbsMatch = aiResponse.narrative.match(/(?:HP|PV)[:\s]*(\d+)(?:\/\d+)?/i);
+        if (hpRelMatch) {
+            narrativeActions.push({ type: 'update_stats', parameters: { health_change: parseInt(hpRelMatch[1]) } });
+        } else if (hpAbsMatch) {
+            narrativeActions.push({ type: 'update_stats', parameters: { health_set: parseInt(hpAbsMatch[1]) } });
+        }
+    }
+
+    // Mana detection
+    const mpRelMatch = aiResponse.narrative.match(/\[(?:MP|PM)\s*([+-]\d+)\]/i);
+    const mpAbsMatch = aiResponse.narrative.match(/(?:MP|PM)[:\s]*(\d+)(?:\/\d+)?/i);
+    if (mpRelMatch) {
+        narrativeActions.push({ type: 'update_stats', parameters: { mana_change: parseInt(mpRelMatch[1]) } });
+    } else if (mpAbsMatch) {
+        narrativeActions.push({ type: 'update_stats', parameters: { mana_set: parseInt(mpAbsMatch[1]) } });
+    }
+
+    // Col detection
+    const colMatch = aiResponse.narrative.match(/\[COL\s*([+-]\d+)\]/i);
+    if (colMatch) {
+        narrativeActions.push({ type: 'update_stats', parameters: { col_change: parseInt(colMatch[1]) } });
+    }
+
+    if (narrativeActions.length > 0) {
+        console.log(`[Logic] Auto-injected ${narrativeActions.length} actions from narrative tags.`);
+        aiResponse.actions = [...(aiResponse.actions || []), ...narrativeActions];
+    }
+
     const lowNarrative = aiResponse.narrative.toLowerCase();
-    if ((lowNarrative.includes("mort") || lowNarrative.includes("tue")) && !aiResponse.actions.some(a => a.type === 'update_stats')) {
-        console.log("[Logic] Detected unhandled death/damage intent. Injecting diagnostic note.");
+    const isFallback = aiResponse.narrative.includes("[🤖 MJ FALLBACK]");
+
+    // Improved death detection: only trigger if it looks like an ACTIVE death event for a player
+    // AND we are NOT in fallback mode (to avoid false positives from the fallback template)
+    if (!isFallback) {
+        // More specific death markers to avoid false positives from lore or NPCs
+        const playerNameLow = player.name.toLowerCase();
+        const deathMarkers = [
+            `tu meurs`, `tu succombes`, `ton souffle s'arrête`, `ta vie s'échappe`,
+            `${playerNameLow} meurt`, `${playerNameLow} succombe`, `${playerNameLow} rend l'âme`,
+            `${playerNameLow} s'écroule, sans vie`, `${playerNameLow} est inerte`
+        ];
+
+        const isPlayerDead = deathMarkers.some(m => lowNarrative.includes(m));
+
+        if (isPlayerDead && !aiResponse.actions.some(a => a.type === 'update_stats' && (a.parameters.health_change <= -50 || a.parameters.health_set === 0))) {
+            console.log("[Logic] Detected unhandled player death intent in narrative. Auto-applying critical damage.");
+            aiResponse.actions.push({ type: 'update_stats', parameters: { health_change: -100 } });
+        }
     }
     if ((lowNarrative.includes("achète") || lowNarrative.includes("paye")) && !aiResponse.actions.some(a => ['buy_item', 'npc_trade', 'update_stats'].includes(a.type))) {
-        console.log("[Logic] Detected unhandled purchase intent. Injecting diagnostic note.");
+        console.log("[Logic] Detected unhandled purchase intent.");
     }
 
     // Save bot response to memory (Non-blocking)
@@ -737,8 +887,27 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
       aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
 
+    // Append next hint
+    aiResponse.narrative += "\n\n💡 *Note:* Une seule personne peut `next`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.";
+
     // Prepend World Clock Header
-    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
+    const header = getWorldHeader();
+    if (aiResponse.narrative && !aiResponse.narrative.includes("An ")) {
+        aiResponse.narrative = `${header}\n\n${aiResponse.narrative}`;
+    }
+
+    // ATR ARENA - Inject Fight Pad if in duel
+    if (activeDuel) {
+        const opponentJid = activeDuel.playerAJid === player.whatsappId ? activeDuel.playerBJid : activeDuel.playerAJid;
+        const opponent = await Player.findByPk(opponentJid);
+        if (opponent && !aiResponse.imagePrompt) {
+            try {
+                aiResponse.imagePrompt = await arenaHandler.generateFightPad(player, opponent);
+            } catch (e) {
+                console.error("[Arena] Error generating fight pad:", e);
+            }
+        }
+    }
 
     await sendWithImage(sock, jid, aiResponse);
 

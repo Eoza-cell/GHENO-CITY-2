@@ -52,6 +52,7 @@ async function resolveMentions(text) {
  * @param {object} aiResponse The JSON response from the AI handler.
  */
 async function sendWithImage(sock, jid, aiResponse) {
+    console.log(`[MSG] Envoi de la réponse à ${jid}...`);
     let narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
     const imagePrompt = aiResponse.imagePrompt;
 
@@ -92,7 +93,19 @@ async function sendWithImage(sock, jid, aiResponse) {
     }
 
     if (text) {
-        await sock.sendMessage(jid, { text: text, mentions });
+        try {
+            await sock.sendMessage(jid, { text: text, mentions });
+            console.log(`[MSG] Texte envoyé avec succès à ${jid}.`);
+        } catch (e) {
+            console.error(`[MSG] ❌ Échec envoi texte à ${jid}:`, e.message);
+            // One retry for critical narrative
+            try {
+                await delay(1000);
+                await sock.sendMessage(jid, { text: text, mentions });
+            } catch (retryErr) {
+                console.error(`[MSG] ❌ Échec second essai:`, retryErr.message);
+            }
+        }
     }
 }
 
