@@ -392,7 +392,6 @@ async function callOpenRouter(system, prompt) {
         "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-r1:free",
         "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "google/gemma-2-9b-it:free",
         "mistralai/mistral-7b-instruct:free",
         "microsoft/phi-3-mini-128k-instruct:free",
         "openchat/openchat-7b:free"
