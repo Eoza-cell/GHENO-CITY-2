@@ -1,7 +1,7 @@
 {
   "name": "gheno-city-2",
   "version": "2.0.0",
-  "description": "GHENO CITY 2 - Serveur IA Locale - Jeu RPG Aetherys sur WhatsApp avec IA locale",
+  "description": "GHENO CITY 2 - Serveur IA Cloud - Jeu RPG Aetherys sur WhatsApp avec IA",
   "main": "skype-bot.js",
   "scripts": {
     "start": "node skype-bot.js",

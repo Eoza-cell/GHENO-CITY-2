@@ -216,7 +216,7 @@ async function callOpenRouter(system, prompt) {
                     'HTTP-Referer': 'https://github.com/Eoza-cell/GHENO-CITY-2',
                     'X-Title': 'Gheno City 2'
                 },
-                timeout: 10000
+                timeout: 25000
             });
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
@@ -443,11 +443,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: Pollinations et OpenRouter en premier
+    // ORDRE DE PRIORITÉ: OpenRouter en premier
     const providers = [
         // === CLOUD PRIORITAIRE ===
+        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 45000 },
         { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
-        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
 
         // === CLOUD RAPIDES (Fallbacks prioritaires) ===
         { name: 'Puter SDK', fn: callPuterSDK, timeout: 25000 },
@@ -482,7 +482,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             if (isValidAIResponse(result)) {
                 console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration.toFixed(2)}s`);
                 // Verify the result is not just a technical JSON dump without narrative
-                if (result.trim().startsWith('{')) {
+                if (typeof result === 'string' && result.trim().startsWith('{')) {
                     try {
                         const parsed = JSON.parse(result);
                         if (!parsed.narrative && !parsed.message && !parsed.text) {
@@ -515,37 +515,45 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
  * [FREE] Pollinations (Direct link) - Ultre-rapide et gratuit, pas besoin de clé.
  */
 async function callPollinationsFree(system, prompt) {
-    try {
-        const seed = Math.floor(Math.random() * 1000000);
-        // Using GET as a more reliable fallback for Pollinations Free
-        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 1000))}?model=openai&system=${encodeURIComponent(system.substring(0, 1000))}&seed=${seed}&json=true`;
+    const models = ['openai', 'mistral', 'llama'];
 
-        console.log(`[AI] Pollinations Free - Tentative via GET...`);
-        const resp = await axios.get(url, { timeout: 15000 });
-
-        let content = resp.data;
-        if (typeof content === 'object') {
-             content = content.choices?.[0]?.message?.content || JSON.stringify(content);
-        }
-
-        if (isValidAIResponse(content)) {
-            console.log("[AI] ✅ Pollinations Free - Succès");
-            return content;
-        }
-    } catch (e) {
-        console.warn("[AI] ❌ Pollinations Free Error:", e.message);
-
-        // Final fallback to POST if GET fails
+    for (const model of models) {
         try {
-            const resp = await axios.post("https://text.pollinations.ai/", {
-                messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
-                model: "openai",
-                jsonMode: true
-            }, { timeout: 15000 });
-            let content = resp.data?.choices?.[0]?.message?.content || (typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data));
-            if (isValidAIResponse(content)) return content;
-        } catch (innerE) {}
+            const seed = Math.floor(Math.random() * 1000000);
+            // Using GET as a more reliable fallback for Pollinations Free
+            const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 1000))}?model=${model}&system=${encodeURIComponent(system.substring(0, 1000))}&seed=${seed}&json=true`;
+
+            console.log(`[AI] Pollinations Free - Tentative via GET (${model})...`);
+            const resp = await axios.get(url, { timeout: 20000 });
+
+            let content = resp.data;
+            if (typeof content === 'object') {
+                 content = content.choices?.[0]?.message?.content || JSON.stringify(content);
+            }
+
+            if (isValidAIResponse(content)) {
+                console.log(`[AI] ✅ Pollinations Free - Succès (${model})`);
+                return content;
+            }
+        } catch (e) {
+            console.warn(`[AI] ❌ Pollinations Free Error (${model}):`, e.message);
+        }
     }
+
+    // Final fallback to POST if GET fails for all models
+    try {
+        console.log("[AI] Pollinations Free - Tentative finale via POST...");
+        const resp = await axios.post("https://text.pollinations.ai/", {
+            messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
+            model: "openai",
+            jsonMode: true
+        }, { timeout: 20000 });
+        let content = resp.data?.choices?.[0]?.message?.content || (typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data));
+        if (isValidAIResponse(content)) return content;
+    } catch (innerE) {
+        console.warn("[AI] ❌ Pollinations Free POST Error:", innerE.message);
+    }
+
     return null;
 }
 
