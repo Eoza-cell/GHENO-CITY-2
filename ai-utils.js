@@ -635,9 +635,12 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: Optimisé pour la réactivité et la fiabilité
+    // ORDRE DE PRIORITÉ: OpenRouter en premier comme demandé par l'utilisateur
     const providers = [
-        // === LOCAUX (Priorité absolue pour le RP privé) ===
+        // === CLOUD PRIORITAIRE ===
+        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
+
+        // === LOCAUX (Backup) ===
         { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 60000 },
         ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 60000 }]),
         { name: 'Ollama Direct', fn: callOllama, timeout: 60000 },
@@ -645,7 +648,6 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         // === CLOUD RAPIDES (Fallbacks prioritaires) ===
         { name: '9Router', fn: call9Router, timeout: 15000 },
         { name: 'Puter SDK', fn: callPuterSDK, timeout: 25000 },
-        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
         { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
 
         // === CLOUD ROBUSTES (Fallbacks de secours) ===
