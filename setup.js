@@ -99,8 +99,7 @@ async function main() {
     console.log('║  ✅ Configuration terminée !                      ║');
     console.log('╠═══════════════════════════════════════════════════╣');
     console.log('║  Pour démarrer:                                   ║');
-    console.log('║    npm start    (Bot + Serveur IA Locale)         ║');
-    console.log('║    npm run dev  (Mode développement)              ║');
+    console.log('║    npm start    (Lancement du Bot)                ║');
     console.log('╚═══════════════════════════════════════════════════╝');
 
     rl.close();

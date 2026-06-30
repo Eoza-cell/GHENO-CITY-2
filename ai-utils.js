@@ -187,6 +187,7 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
+        "google/gemma-4-31b-it:free",
         "google/gemma-3-4b-it:free",
         "google/gemma-3-12b-it:free",
         "google/gemma-3-27b-it:free",
