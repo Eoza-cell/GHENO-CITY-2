@@ -166,10 +166,13 @@ const server = http.createServer(async (req, res) => {
     // Health check endpoint
     if (req.method === 'GET' && req.url === '/health') {
         const ollamaHealthy = await checkOllamaHealth();
+        const isPulling = ollamaManager.isPulling(OLLAMA_MODEL);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
-            status: ollamaHealthy ? 'healthy' : 'degraded',
+            status: ollamaHealthy ? 'healthy' : (isPulling ? 'pulling' : 'degraded'),
             model: OLLAMA_MODEL,
+            is_pulling: isPulling,
             ollama_url: OLLAMA_URL,
             timestamp: new Date().toISOString()
         }));
@@ -292,34 +295,25 @@ ${userMessage}`;
  * Démarre le serveur de modèle
  */
 async function startModelServer() {
-    // Assure que Ollama est démarré
-    await ollamaManager.ensureStarted();
+    // Assure que Ollama est démarré en arrière-plan
+    ollamaManager.ensureStarted().then(async () => {
+        // Une fois démarré, vérifie le modèle
+        try {
+            const resp = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 });
+            const models = resp.data?.models || [];
+            const hasModel = models.some(m => m.name.includes(OLLAMA_MODEL) || m.name === OLLAMA_MODEL);
 
-    // Vérifie si le modèle est présent, sinon le pull
-    try {
-        const resp = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 });
-        const models = resp.data?.models || [];
-        const hasModel = models.some(m => m.name.includes(OLLAMA_MODEL) || m.name === OLLAMA_MODEL);
-
-        if (!hasModel) {
-            console.log(`[MODEL-SERVER] ⚠️ Modèle ${OLLAMA_MODEL} manquant.`);
-            await ollamaManager.pullModel(OLLAMA_MODEL);
+            if (!hasModel) {
+                console.log(`[MODEL-SERVER] ⚠️ Modèle ${OLLAMA_MODEL} manquant.`);
+                // Pull en arrière-plan pour ne pas bloquer le démarrage du serveur
+                ollamaManager.pullModel(OLLAMA_MODEL);
+            }
+        } catch (err) {
+            console.error(`[MODEL-SERVER] ❌ Impossible de vérifier les modèles: ${err.message}`);
         }
-    } catch (err) {
-        console.error(`[MODEL-SERVER] ❌ Impossible de vérifier les modèles: ${err.message}`);
-    }
-
-    // Vérifie Ollama au démarrage
-    console.log('[MODEL-SERVER] 🔍 Vérification de la connexion à Ollama...');
-    const healthy = await checkOllamaHealth();
-
-    if (!healthy) {
-        console.warn('[MODEL-SERVER] ⚠️ Ollama n\'est pas prêt. Le serveur démarre quand même.');
-        console.warn('[MODEL-SERVER]    Les requêtes retourneront des réponses de fallback.');
-        console.warn('[MODEL-SERVER]    Vérifiez que votre modèle est installé:');
-        console.log(`[MODEL-SERVER]      1. ollama pull ${OLLAMA_MODEL}`);
-        console.warn('[MODEL-SERVER]      2. ollama serve');
-    }
+    }).catch(err => {
+        console.error(`[MODEL-SERVER] ❌ Erreur lors du démarrage d'Ollama: ${err.message}`);
+    });
 
     server.listen(PORT, () => {
         console.log('');

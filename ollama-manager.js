@@ -10,6 +10,7 @@ class OllamaManager {
     constructor() {
         this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
         this.process = null;
+        this.pullingModels = new Set();
     }
 
     /**
@@ -28,20 +29,26 @@ class OllamaManager {
      * Pulls the specified model.
      */
     async pullModel(modelName) {
+        if (this.pullingModels.has(modelName)) return;
+        this.pullingModels.add(modelName);
+
         console.log(`[OLLAMA] 📥 Téléchargement du modèle ${modelName}...`);
         try {
             await new Promise((resolve, reject) => {
                 const pull = spawn('ollama', ['pull', modelName]);
 
                 pull.stdout.on('data', (data) => {
-                    process.stdout.write(`[OLLAMA PULL] ${data}`);
+                    // Extract percentage if possible
+                    const str = data.toString();
+                    process.stdout.write(`[OLLAMA PULL] ${str}`);
                 });
 
                 pull.stderr.on('data', (data) => {
-                    process.stderr.write(`[OLLAMA PULL ERR] ${data}`);
+                    process.stderr.write(`[OLLAMA PULL ERR] ${data.toString()}`);
                 });
 
                 pull.on('close', (code) => {
+                    this.pullingModels.delete(modelName);
                     if (code === 0) resolve();
                     else reject(new Error(`Ollama pull failed with code ${code}`));
                 });
@@ -49,9 +56,17 @@ class OllamaManager {
             console.log(`[OLLAMA] ✅ Modèle ${modelName} prêt.`);
             return true;
         } catch (err) {
+            this.pullingModels.delete(modelName);
             console.error(`[OLLAMA] ❌ Échec du téléchargement du modèle: ${err.message}`);
             return false;
         }
+    }
+
+    /**
+     * Checks if a model is currently being pulled.
+     */
+    isPulling(modelName) {
+        return this.pullingModels.has(modelName);
     }
 
     /**

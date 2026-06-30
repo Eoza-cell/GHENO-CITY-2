@@ -382,9 +382,10 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
-        "google/gemma-4-4b-it:free",
-        "google/gemma-4-12b-it:free",
-        "google/gemma-4-27b-it:free",
+        "google/gemma-3-4b-it:free",
+        "google/gemma-3-12b-it:free",
+        "google/gemma-3-27b-it:free",
+        "google/gemma-2-9b-it:free",
         "qwen/qwen-2.5-72b-instruct:free",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
@@ -577,7 +578,7 @@ async function callPollinationsGET(system, prompt) {
 /**
  * Local MJ Fallback in case all AI providers fail.
  */
-function callMJFallback(prompt) {
+async function callMJFallback(prompt) {
     console.log("[AI] Utilisation du MJ Fallback Local.");
 
     let action = "ton action";
@@ -593,8 +594,18 @@ function callMJFallback(prompt) {
 
     const narrative = responses[Math.floor(Math.random() * responses.length)];
 
+    let note = "Gemma 4 (IA locale) est actuellement indisponible. Utilisez **ollama serve** ou vérifiez vos clés API cloud.";
+
+    try {
+        const ollamaManager = require('./ollama-manager');
+        const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:4b';
+        if (ollamaManager.isPulling(OLLAMA_MODEL)) {
+            note = `Gemma 4 est en cours de téléchargement (pull) sur le serveur... Patientez quelques minutes.`;
+        }
+    } catch (e) {}
+
     return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Gemma 4 (IA locale) est actuellement indisponible. Utilisez **ollama serve** ou vérifiez vos clés API cloud._\n\n💡 *Note:* Une seule personne peut \`next\`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.`,
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: ${note}_\n\n💡 *Note:* Une seule personne peut \`next\`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.`,
         actions: []
     });
 }
@@ -706,7 +717,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     // Ultimate fallback
-    return callMJFallback(userPrompt);
+    return await callMJFallback(userPrompt);
 }
 
 /**

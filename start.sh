@@ -1,14 +1,12 @@
 #!/bin/bash
 
 # Démarrer Ollama en arrière-plan
-ollama serve &
+# On redirige la sortie pour éviter de polluer les logs de Render inutilement,
+# mais on garde le processus en vie.
+ollama serve > /dev/null 2>&1 &
 
-# Attendre que le service soit prêt
-sleep 10
+# Le bot et le model-server s'occupent maintenant de vérifier et de pull
+# les modèles automatiquement en arrière-plan de manière non-bloquante.
 
-# Télécharger le modèle (Gemma 4)
-# On ajoute un fallback vers gemma2:2b au cas où gemma4 n'est pas encore disponible sur le registry public
-ollama pull gemma4:4b || ollama pull gemma2:2b
-
-# Lancer le bot WhatsApp
+# Lancer le bot WhatsApp (qui lancera aussi le model-server)
 node skype-bot.js
