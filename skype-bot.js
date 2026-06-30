@@ -15,7 +15,6 @@ const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
-const { startModelServer } = require('./model-server');
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -171,9 +170,6 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(() => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
-
-    // Démarre le 2ème serveur pour le modèle GEMMA 4
-    startModelServer();
 
     connectToWhatsApp();
   })

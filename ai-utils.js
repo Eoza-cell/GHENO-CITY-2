@@ -1,7 +1,5 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
-const { askLocalAI, checkLocalAIStatus } = require('./localAI');
-
 // Setup JSDOM for Puter SDK if needed
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
     url: "https://localhost",
@@ -33,11 +31,6 @@ const PUTER_MODELS = [
     "gemini-1.5-flash",
     "meta-llama-3.1-70b-instruct"
 ];
-
-// Configuration Gemma 4
-const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:4b';
-const WORLD_SERVER_URL = `http://localhost:${process.env.MODEL_PORT || 3001}`;
 
 /**
  * Detect responses that are not real narrative content.
@@ -128,195 +121,7 @@ function extractMessageContent(content) {
 }
 
 // ============================================================================
-// PROVIDERS AI - ORDRE DE PRIORITÉ (IA Locale en premier)
-// ============================================================================
-
-/**
- * [1] Local AI Service (Ollama / vLLM) - PRIORITÉ MAXIMALE
- */
-async function callLocalOpenAI(system, prompt) {
-    try {
-        console.log(`[AI] 🧠 Local AI Service (${process.env.MODEL || OLLAMA_MODEL}) - Tentative...`);
-        const content = await askLocalAI(system, prompt);
-        if (isValidAIResponse(content)) {
-            console.log(`[AI] ✅ Local AI - Succès`);
-            return content;
-        }
-    } catch (e) {
-        console.warn(`[AI] ❌ Local AI indisponible ou erreur: ${e.message}`);
-    }
-    return null;
-}
-
-/**
- * [2] World Server Local - Proxy enrichi (PRIORITÉ SECONDAIRE)
- */
-async function callWorldServer(system, prompt) {
-    try {
-        console.log(`[AI] 🧠 World Server (Proxy) - Tentative sur ${WORLD_SERVER_URL}...`);
-        const resp = await axios.post(`${WORLD_SERVER_URL}/v1/chat/completions`, {
-            model: OLLAMA_MODEL,
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            stream: false
-        }, { timeout: 8000 }); // Fast fail for local proxy
-
-        const content = resp.data?.choices?.[0]?.message?.content;
-        if (isValidAIResponse(content)) {
-            console.log(`[AI] ✅ World Server - Succès`);
-            return content;
-        }
-    } catch (e) {
-        console.warn(`[AI] ❌ World Server indisponible: ${e.message}`);
-    }
-    return null;
-}
-
-/**
- * [2] Ollama Direct - Connexion directe à Ollama (BYPASS World Server)
- */
-async function callOllama(system, prompt) {
-    const apiBaseUrl = OLLAMA_URL + (OLLAMA_URL.includes('/api') ? '' : '/api');
-    const isCloud = OLLAMA_URL.includes('ollama.com');
-
-    try {
-        console.log(`[AI] 🧠 Ollama Direct (${OLLAMA_MODEL}) - Tentative sur ${apiBaseUrl}...`);
-
-        const payload = {
-            model: OLLAMA_MODEL,
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
-            ],
-            stream: false,
-            format: 'json',
-            options: {
-                temperature: 0.85,
-                num_predict: 2048,
-                num_ctx: 16384,
-                top_p: 0.9,
-                repeat_penalty: 1.1
-            }
-        };
-
-        const headers = { 'Content-Type': 'application/json' };
-        if (isCloud && process.env.OLLAMA_API_KEY) {
-            headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
-        }
-
-        const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
-            headers,
-            timeout: 10000 // Fast fail for direct local Ollama
-        });
-
-        const content = resp.data?.message?.content || resp.data?.response;
-        if (isValidAIResponse(content)) {
-            console.log(`[AI] ✅ Ollama Direct (${OLLAMA_MODEL}) - Succès`);
-            return content;
-        }
-    } catch (e) {
-        console.warn(`[AI] ❌ Ollama Direct error: ${e.response?.data?.error || e.message}`);
-    }
-    return null;
-}
-
-/**
- * [3] Llamafile (Local) - Alternative locale
- */
-async function callLlamafile(system, prompt) {
-    const url = process.env.LLAMAFILE_URL || "http://localhost:8080/v1/chat/completions";
-    try {
-        console.log(`[AI] Llamafile - Tentative sur ${url}`);
-        const resp = await axios.post(url, {
-            model: "LLaMA_CPP",
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            temperature: 0.1,
-            stream: false
-        }, { timeout: 45000 });
-
-        const content = resp.data?.choices?.[0]?.message?.content;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] Llamafile indisponible: ${e.message}`);
-    }
-    return null;
-}
-
-/**
- * [4] 9Router (Local)
- */
-async function call9Router(system, prompt) {
-    const baseUrl = process.env.NINEROUTER_URL || "http://localhost:20128/v1";
-    const key = process.env.NINEROUTER_API_KEY || "9router";
-
-    const models = [
-        "qw/qwen-2.5-72b-instruct",
-        "mi/mistral-large",
-        "gg/gemini-2.0-flash",
-        "ll/llama-3.3-70b",
-        "ds/deepseek-r1"
-    ];
-
-    for (const model of models) {
-        try {
-            console.log(`[AI] 9Router - Tentative avec ${model}...`);
-            const resp = await axios.post(`${baseUrl}/chat/completions`, {
-                model: model,
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                stream: false
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${key}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
-            });
-
-            const content = resp.data?.choices?.[0]?.message?.content;
-            if (isValidAIResponse(content)) return content;
-        } catch (e) {
-            console.warn(`[AI] 9Router error (${model}): ${e.message}`);
-            continue;
-        }
-    }
-    return null;
-}
-
-/**
- * [5] LM Studio (Local)
- */
-async function callLMStudio(system, prompt) {
-    const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
-    try {
-        console.log(`[AI] LM Studio - Tentative sur ${url}`);
-        const resp = await axios.post(url, {
-            messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ],
-            temperature: 0.7,
-            max_tokens: -1,
-            stream: false
-        }, { timeout: 15000 });
-
-        const content = resp.data?.choices?.[0]?.message?.content;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] LM Studio inaccessible: ${e.message}`);
-    }
-    return null;
-}
-
-// ============================================================================
-// PROVIDERS CLOUD (FALLBACKS)
+// PROVIDERS CLOUD
 // ============================================================================
 
 async function callPuterAPI(system, prompt) {
@@ -594,15 +399,7 @@ async function callMJFallback(prompt) {
 
     const narrative = responses[Math.floor(Math.random() * responses.length)];
 
-    let note = "Gemma 4 (IA locale) est actuellement indisponible. Utilisez **ollama serve** ou vérifiez vos clés API cloud.";
-
-    try {
-        const ollamaManager = require('./ollama-manager');
-        const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:4b';
-        if (ollamaManager.isPulling(OLLAMA_MODEL)) {
-            note = `Gemma 4 est en cours de téléchargement (pull) sur le serveur... Patientez quelques minutes.`;
-        }
-    } catch (e) {}
+    let note = "Le flux d'Ether est instable. Vérifiez vos clés API cloud.";
 
     return JSON.stringify({
         narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: ${note}_\n\n💡 *Note:* Une seule personne peut \`next\`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.`,
@@ -627,7 +424,7 @@ function withTimeout(promise, ms, label = "Operation") {
 
 /**
  * Main AI entry point.
- * Priorité: IA Locale > Ollama Direct > Autres locaux > Cloud > Fallback
+ * Priorité: Pollinations > OpenRouter > Autres Cloud > Fallback
  */
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
@@ -646,20 +443,14 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: OpenRouter en premier comme demandé par l'utilisateur
+    // ORDRE DE PRIORITÉ: Pollinations et OpenRouter en premier
     const providers = [
         // === CLOUD PRIORITAIRE ===
+        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
         { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
 
-        // === LOCAUX (Backup) ===
-        { name: 'Local OpenAI', fn: callLocalOpenAI, timeout: 60000 },
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server', fn: callWorldServer, timeout: 60000 }]),
-        { name: 'Ollama Direct', fn: callOllama, timeout: 60000 },
-
         // === CLOUD RAPIDES (Fallbacks prioritaires) ===
-        { name: '9Router', fn: call9Router, timeout: 15000 },
         { name: 'Puter SDK', fn: callPuterSDK, timeout: 25000 },
-        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
 
         // === CLOUD ROBUSTES (Fallbacks de secours) ===
         { name: 'Blackbox', fn: callBlackbox, timeout: 45000 },
