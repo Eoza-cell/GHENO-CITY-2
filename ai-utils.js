@@ -67,9 +67,20 @@ function isValidAIResponse(text) {
         'service unavailable'
     ];
 
-    if (cleaned.length < 150 && errorMarkers.some(m => lower.includes(m))) return false;
+    if (errorMarkers.some(m => lower.includes(m))) return false;
     if (cleaned.startsWith('data: [DONE]') || cleaned === '[DONE]') return false;
     if (lower.includes('<!doctype html>') || lower.includes('<html>')) return false;
+
+    // Additional check: if it looks like a JSON but narrative is too short/empty
+    if (cleaned.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(cleaned);
+            const narrative = parsed.narrative || parsed.message || parsed.text || "";
+            if (narrative.length < 10) return false;
+        } catch(e) {}
+    } else {
+        if (cleaned.length < 20) return false;
+    }
 
     return true;
 }
@@ -186,23 +197,15 @@ async function callPuterSDK(system, prompt) {
 
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
-    const models = [
-        "google/gemma-4-31b-it:free",
-        "google/gemma-3-4b-it:free",
-        "google/gemma-3-12b-it:free",
+
+    // Select 3 best free models and shuffle them to avoid sequential failures
+    const allModels = [
         "google/gemma-3-27b-it:free",
-        "google/gemma-2-9b-it:free",
-        "qwen/qwen-2.5-72b-instruct:free",
-        "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
-        "google/gemini-2.0-pro-exp-02-05:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "deepseek/deepseek-r1:free",
-        "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "mistralai/mistral-7b-instruct:free",
-        "microsoft/phi-3-mini-128k-instruct:free",
-        "openchat/openchat-7b:free"
+        "qwen/qwen-2.5-72b-instruct:free",
+        "meta-llama/llama-3.3-70b-instruct:free"
     ];
+    const models = allModels.sort(() => Math.random() - 0.5).slice(0, 3);
 
     for (const model of models) {
         try {
@@ -217,7 +220,7 @@ async function callOpenRouter(system, prompt) {
                     'HTTP-Referer': 'https://github.com/Eoza-cell/GHENO-CITY-2',
                     'X-Title': 'Gheno City 2'
                 },
-                timeout: 25000
+                timeout: 20000
             });
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
@@ -481,22 +484,15 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: OpenRouter en premier
+    // ORDRE DE PRIORITÉ: Stratégie aggressive pour maximiser le taux de réponse
+    // On commence par les plus rapides, puis les plus robustes, puis le local.
     const providers = [
-        // === CLOUD PRIORITAIRE ===
-        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 45000 },
         { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
-
-        // === CLOUD RAPIDES (Fallbacks prioritaires) ===
-        { name: 'Puter SDK', fn: callPuterSDK, timeout: 25000 },
-
-        // === OLLAMA LOCAL (Dernier recours cloud avant le fallback total) ===
-        { name: 'Ollama Local', fn: callOllama, timeout: 35000 },
-
-        // === CLOUD ROBUSTES (Fallbacks de secours) ===
-        { name: 'Blackbox', fn: callBlackbox, timeout: 45000 },
-        { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 30000 },
-        { name: 'Puter API', fn: callPuterAPI, timeout: 15000 }
+        { name: 'Puter SDK', fn: callPuterSDK, timeout: 20000 },
+        { name: 'Blackbox', fn: callBlackbox, timeout: 30000 },
+        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
+        { name: 'Ollama Local', fn: callOllama, timeout: 40000 },
+        { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 25000 }
     ];
 
     for (const provider of providers) {
@@ -541,10 +537,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         }
     }
 
-    console.warn("[AI] Tous les providers ont échoué.");
-    if (depth < 1) {
-        console.log("[AI] Nouvelle tentative dans 1s avec jitter...");
-        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
+    console.warn(`[AI] Tous les providers ont échoué (depth: ${depth}).`);
+    if (depth < 2) {
+        const delay = (depth + 1) * 2000;
+        console.log(`[AI] Nouvelle tentative dans ${delay/1000}s...`);
+        await new Promise(r => setTimeout(r, delay + Math.random() * 1000));
         return callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 });
     }
 
@@ -556,7 +553,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
  * [FREE] Pollinations (Direct link) - Ultre-rapide et gratuit, pas besoin de clé.
  */
 async function callPollinationsFree(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'p1', 'qwen-2.5-72b'];
+    const allModels = ['openai', 'mistral', 'llama', 'p1', 'qwen-2.5-72b'];
+    const models = allModels.sort(() => Math.random() - 0.5).slice(0, 2);
 
     // Attempt POST first as it supports longer prompts
     for (const model of models) {
@@ -570,7 +568,7 @@ async function callPollinationsFree(system, prompt) {
                 model: model,
                 jsonMode: true,
                 seed: Math.floor(Math.random() * 1000000)
-            }, { timeout: 25000 });
+            }, { timeout: 15000 });
 
             let content = resp.data;
             if (resp.data?.choices?.[0]?.message?.content) {
@@ -587,16 +585,6 @@ async function callPollinationsFree(system, prompt) {
             console.warn(`[AI] ❌ Pollinations Free POST Error (${model}):`, e.message);
         }
     }
-
-    // Fallback to GET for shorter/urgent requests if POST failed
-    try {
-        console.log("[AI] Pollinations Free - Tentative de secours via GET...");
-        const seed = Math.floor(Math.random() * 1000000);
-        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 500))}?model=openai&system=${encodeURIComponent(system.substring(0, 500))}&seed=${seed}&json=true`;
-        const resp = await axios.get(url, { timeout: 15000 });
-        let content = resp.data;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {}
 
     return null;
 }
