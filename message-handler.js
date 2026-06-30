@@ -46,7 +46,7 @@ async function resolveMentions(text) {
 
 /**
  * Sends a message with an optional image from a local asset or direct URL.
- * AI Image generation is DISABLED.
+ * Supports AI generation via Pollinations for text prompts.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
@@ -54,27 +54,27 @@ async function resolveMentions(text) {
 async function sendWithImage(sock, jid, aiResponse) {
     console.log(`[MSG] Envoi de la réponse à ${jid}...`);
     let narrative = aiResponse.narrative || (aiResponse.parameters ? aiResponse.parameters.reason : null) || "Il ne se passe rien.";
-    const imagePrompt = aiResponse.imagePrompt;
+    let imagePrompt = aiResponse.imagePrompt;
 
     const { text, mentions } = await resolveMentions(narrative);
 
     if (imagePrompt) {
         try {
-            // Direct Buffer
+            // Case 1: Direct Buffer (e.g. from local generators)
             if (Buffer.isBuffer(imagePrompt)) {
                 await sock.sendMessage(jid, { image: imagePrompt, caption: text, mentions, mimetype: 'image/png' });
                 return;
             }
 
-            // Local file path
+            // Case 2: Local file path
             if (typeof imagePrompt === 'string' && !imagePrompt.startsWith('http') && fs.existsSync(imagePrompt)) {
                 const imageBuffer = fs.readFileSync(imagePrompt);
                 await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
                 return;
             }
 
-            // Direct URL (must be a valid image URL)
-            if (imagePrompt.startsWith('http')) {
+            // Case 3: Direct URL (must be a valid image URL)
+            if (typeof imagePrompt === 'string' && imagePrompt.startsWith('http')) {
                 const response = await axios.get(imagePrompt, {
                     responseType: 'arraybuffer',
                     headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -85,8 +85,22 @@ async function sendWithImage(sock, jid, aiResponse) {
                 return;
             }
 
-            // If it's a text prompt, we no longer generate. We just log it for debug.
-            console.log(`[IMG] AI requested generation for: "${imagePrompt}" but generation is DISABLED.`);
+            // Case 4: Text Prompt -> Generate via Pollinations
+            if (typeof imagePrompt === 'string' && imagePrompt.length > 5) {
+                console.log(`[IMG] Génération d'image pour: "${imagePrompt}" via Pollinations...`);
+                const seed = Math.floor(Math.random() * 1000000);
+                // Manhwa/Anime style forced for consistency
+                const finalPrompt = encodeURIComponent(`${imagePrompt}, manhwa style, high quality, cinematic, solo leveling aesthetic`);
+                const url = `https://pollinations.ai/p/${finalPrompt}?width=1024&height=1024&seed=${seed}&model=flux`;
+
+                const response = await axios.get(url, {
+                    responseType: 'arraybuffer',
+                    timeout: 25000
+                });
+                const imageBuffer = Buffer.from(response.data, 'binary');
+                await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
+                return;
+            }
         } catch (error) {
             console.error(`[IMG] Erreur d'affichage d'image (${imagePrompt}):`, error.message);
         }

@@ -465,34 +465,32 @@ function withTimeout(promise, ms, label = "Operation") {
 
 /**
  * Main AI entry point.
- * Priorité: Pollinations > OpenRouter > Autres Cloud > Fallback
+ * Priority: Pollinations (The core provider) > Other Cloud > Local Fallback
  */
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
-    if (depth > 2) return null;
+    if (depth > 3) return null; // Increased depth for better recovery
 
     // Preserve context: the RP engine relies on scene isolation and detailed stats.
-    const maxSystemLength = 12000;
-    const maxUserLength = 16000;
+    const maxSystemLength = 15000;
+    const maxUserLength = 20000;
     const sanitizedSystem = systemPrompt.length > maxSystemLength
         ? systemPrompt.substring(0, maxSystemLength)
         : systemPrompt;
     let sanitizedUser = userPrompt;
     if (userPrompt.length > maxUserLength) {
-        const headLength = 6000;
-        const tailLength = 9000;
+        const headLength = 8000;
+        const tailLength = 10000;
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // ORDRE DE PRIORITÉ: Stratégie aggressive pour maximiser le taux de réponse
-    // On commence par les plus rapides, puis les plus robustes, puis le local.
+    // STRATÉGIE POLLINATIONS FIRST: On insiste sur Pollinations avec différents modèles
     const providers = [
-        { name: 'Pollinations Free', fn: callPollinationsFree, timeout: 20000 },
-        { name: 'Puter SDK', fn: callPuterSDK, timeout: 20000 },
+        { name: 'Pollinations Primary', fn: callPollinationsFree, timeout: 25000 },
         { name: 'Blackbox', fn: callBlackbox, timeout: 30000 },
-        { name: 'OpenRouter Free', fn: callOpenRouter, timeout: 35000 },
-        { name: 'Ollama Local', fn: callOllama, timeout: 40000 },
-        { name: 'Pollinations POST', fn: callPollinationsPOST, timeout: 25000 }
+        { name: 'OpenRouter High-End', fn: callOpenRouter, timeout: 35000 },
+        { name: 'Pollinations Secondary', fn: callPollinationsFree, timeout: 20000 },
+        { name: 'Ollama Local', fn: callOllama, timeout: 40000 }
     ];
 
     for (const provider of providers) {
@@ -553,10 +551,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
  * [FREE] Pollinations (Direct link) - Ultre-rapide et gratuit, pas besoin de clé.
  */
 async function callPollinationsFree(system, prompt) {
-    const allModels = ['openai', 'mistral', 'llama', 'p1', 'qwen-2.5-72b'];
-    const models = allModels.sort(() => Math.random() - 0.5).slice(0, 2);
+    const allModels = ['openai', 'mistral', 'llama', 'p1', 'qwen-2.5-72b', 'sur-v1', 'rtist'];
+    // We try many models for Pollinations to maximize success rate
+    const models = allModels.sort(() => Math.random() - 0.5);
 
-    // Attempt POST first as it supports longer prompts
     for (const model of models) {
         try {
             console.log(`[AI] Pollinations Free - Tentative via POST (${model})...`);
@@ -568,11 +566,14 @@ async function callPollinationsFree(system, prompt) {
                 model: model,
                 jsonMode: true,
                 seed: Math.floor(Math.random() * 1000000)
-            }, { timeout: 15000 });
+            }, { timeout: 15000 }); // Fast attempts
 
             let content = resp.data;
+            // Handle different possible response formats from Pollinations
             if (resp.data?.choices?.[0]?.message?.content) {
                 content = resp.data.choices[0].message.content;
+            } else if (resp.data?.content) {
+                content = resp.data.content;
             } else if (typeof resp.data === 'object') {
                 content = JSON.stringify(resp.data);
             }
@@ -584,6 +585,25 @@ async function callPollinationsFree(system, prompt) {
         } catch (e) {
             console.warn(`[AI] ❌ Pollinations Free POST Error (${model}):`, e.message);
         }
+    }
+
+    // Ultimate fallback for Pollinations: GET with a very minimal prompt
+    try {
+        console.log("[AI] Pollinations Free - Tentative de secours ultime via GET...");
+        const seed = Math.floor(Math.random() * 1000000);
+        // GET has very strict URL length limits
+        const miniPrompt = encodeURIComponent(prompt.substring(0, 300));
+        const miniSystem = encodeURIComponent(system.substring(0, 300));
+        const url = `https://text.pollinations.ai/${miniPrompt}?model=openai&system=${miniSystem}&seed=${seed}&json=true`;
+
+        const resp = await axios.get(url, { timeout: 10000 });
+        let content = resp.data;
+        if (typeof content === 'object') {
+            content = content.choices?.[0]?.message?.content || content.content || content.text || JSON.stringify(content);
+        }
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn("[AI] Pollinations GET fallback failed.");
     }
 
     return null;
