@@ -246,6 +246,52 @@ commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
 commands.set('techniques', commands.get('competences'));
 
+// Command: /age
+commands.set('age', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const newAge = parseInt(args[0]);
+    if (isNaN(newAge) || newAge <= 0 || newAge >= 150) {
+        return await sock.sendMessage(replyJid, { text: "❌ Âge invalide. Entre un nombre entre 1 et 150 (ex: /age 18)." });
+    }
+
+    await player.update({ age: newAge });
+    await sock.sendMessage(replyJid, { text: `✅ Ton âge a été mis à jour : ${newAge} ans.` });
+});
+
+// Command: /sexe
+commands.set('sexe', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const newSexe = args.join(' ').trim();
+    if (!newSexe || newSexe.length > 20) {
+        return await sock.sendMessage(replyJid, { text: "❌ Sexe invalide (max 20 caractères, ex: /sexe Homme)." });
+    }
+
+    await player.update({ gender: newSexe });
+    await sock.sendMessage(replyJid, { text: `✅ Ton sexe a été mis à jour : ${newSexe}.` });
+});
+
+// Command: /photo
+commands.set('photo', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    await player.update({ awaitingProfilePic: true });
+    await sock.sendMessage(replyJid, { text: "📸 *MISE À JOUR PHOTO* \n\nEnvoie maintenant l'image que tu souhaites utiliser comme nouvelle photo de profil. Elle sera gravée dans la matrice d'Aetherys." });
+});
+
 // Command: /creer_tenue
 commands.set('creer_tenue', async (sock, message, args) => {
     const jid = getJid(message);
@@ -1619,6 +1665,9 @@ commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
                    "/start - Commencer l'aventure.\n" +
                    "/profile - Voir ton profil de joueur.\n" +
+                   "/age <valeur> - Changer ton âge.\n" +
+                   "/sexe <valeur> - Changer ton sexe.\n" +
+                   "/photo - Changer ta photo de profil.\n" +
                    "/statut - Voir l'état de ton équipement.\n" +
                    "/inventory - Consulter ton inventaire.\n" +
                    "/quests - Voir tes quêtes actives.\n" +
