@@ -320,37 +320,30 @@ async function callPollinationModel(system, prompt, model) {
     }
 }
 
-async function callPollinationsGen(system, prompt) {
+async function callPollinationKeyedModel(system, prompt, model) {
     const key = process.env.POLLINATIONS_API_KEY;
     if (!key) return null;
 
-    const models = ['openai', 'mistral', 'llama', 'unity'];
-    for (const model of models) {
-        try {
-            console.log(`[AI] Pollinations Gen (Keyed) - Tentative avec ${model}...`);
-            const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
-                model: model,
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                response_format: { type: "json_object" }
-            }, {
-                headers: {
-                    'Authorization': `Bearer ${key}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 12000
-            });
+    try {
+        const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
+            model: model,
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" }
+        }, {
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000
+        });
 
-            const content = resp.data?.choices?.[0]?.message?.content;
-            if (isValidAIResponse(content)) return content;
-        } catch (e) {
-            console.warn(`[AI] Pollinations Gen Error (${model}):`, e.response?.data || e.message);
-            continue;
-        }
+        return resp.data?.choices?.[0]?.message?.content;
+    } catch (e) {
+        return null;
     }
-    return null;
 }
 
 async function callPollinationsGET(system, prompt) {
@@ -484,13 +477,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     console.log(`[AI] Lancement de la Course Parallèle (depth: ${depth})...`);
 
-    // We race specific models for maximum efficiency
+    // Priority race including keyed Pollinations
     const raceModels = [
+        { name: 'Pollinations-Keyed', fn: (s, p) => callPollinationKeyedModel(s, p, 'openai'), timeout: 25000 },
         { name: 'Pollinations-OpenAI', fn: (s, p) => callPollinationModel(s, p, 'openai'), timeout: 20000 },
         { name: 'Pollinations-Mistral', fn: (s, p) => callPollinationModel(s, p, 'mistral'), timeout: 20000 },
         { name: 'Pollinations-Llama', fn: (s, p) => callPollinationModel(s, p, 'llama'), timeout: 20000 },
         { name: 'Pollinations-P1', fn: (s, p) => callPollinationModel(s, p, 'p1'), timeout: 20000 },
-        { name: 'Pollinations-Qwen', fn: (s, p) => callPollinationModel(s, p, 'qwen-2.5-72b'), timeout: 25000 },
         { name: 'Puter-SDK', fn: callPuterSDK, timeout: 25000 },
         { name: 'Blackbox', fn: callBlackbox, timeout: 30000 }
     ];

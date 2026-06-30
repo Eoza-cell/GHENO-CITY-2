@@ -64,32 +64,6 @@ async function handleFreeAction(sock, message, player, actionText) {
       order: [['id', 'DESC']]
   });
 
-  // A scene is "active multiplayer" if OTHER players are currently in action mode
-  // and have sent RP actions since the last MJ message
-  const nearbyActivePlayers = await Player.findAll({
-      where: {
-          location: player.location,
-          subLocation: player.subLocation,
-          mode: 'action',
-          whatsappId: { [Op.ne]: player.whatsappId },
-          lastActivity: { [Op.gt]: new Date(Date.now() - 10 * 60 * 1000) } // Reduced to 10 mins for better responsiveness
-      }
-  });
-
-  const otherRecentActions = nearbyActivePlayers.length > 0 ? await RPMessage.findAll({
-      where: {
-          ...sceneFilter,
-          senderJid: { [Op.in]: nearbyActivePlayers.map(p => p.whatsappId) },
-          senderName: { [Op.ne]: 'Arise MJ' },
-          id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
-          content: { [Op.notLike]: 'next' }
-      },
-      limit: 10
-  }) : [];
-
-  // Robust Solo Detection: only true if no other RECENT actions (within 10 mins) from other ACTIVE players exist
-  const isSolo = nearbyActivePlayers.length === 0 || otherRecentActions.length === 0;
-
   // Check for players in 'action' mode here (for info only)
   const nearbyPlayers = await Player.findAll({
     where: {
@@ -101,23 +75,26 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
   });
 
-  // If not solo and no trigger, we wait
-  if (!isTriggerWord && !isSolo) {
-      const recentPlayerMsgs = await RPMessage.count({
+  // CONSTANT MULTIPLAYER LOGIC: Always require 'next' to trigger MJ
+  if (!isTriggerWord) {
+      const otherRecentActions = await RPMessage.findAll({
           where: {
-              senderJid: player.whatsappId,
-              id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 }
-          }
+              ...sceneFilter,
+              senderJid: { [Op.ne]: player.whatsappId },
+              senderName: { [Op.ne]: 'Arise MJ' },
+              id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
+              content: { [Op.notLike]: 'next' }
+          },
+          limit: 10
       });
 
-      let reminder = "";
-      if (recentPlayerMsgs >= 2) {
-          reminder = "\n\n💡 *Note:* Tape `next` pour forcer la réponse du MJ.";
+      let statusText = "⏳ *Action enregistrée.*";
+      if (otherRecentActions.length > 0) {
+          statusText += `\nEn attente des autres participants : ${[...new Set(otherRecentActions.map(a => a.senderName))].join(', ')}.`;
       }
+      statusText += "\n\nTape `next` pour déclencher la réponse du MJ.";
 
-      await sock.sendMessage(jid, {
-          text: `⏳ *Action enregistrée.*${reminder}\nEn attente des autres participants actifs : ${[...new Set(otherRecentActions.map(a => a.senderName))].join(', ')}.`
-      });
+      await sock.sendMessage(jid, { text: statusText });
       return;
   }
 
