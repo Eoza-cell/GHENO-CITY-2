@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.git
+.env
+assets/profiles/*
+assets/locations/*
+assets/monsters/*
+*.jpg
+*.png
+*.webm
+test-ollama*
