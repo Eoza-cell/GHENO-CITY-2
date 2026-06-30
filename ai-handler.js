@@ -88,11 +88,11 @@ async function handleFreeAction(sock, message, player, actionText) {
           limit: 10
       });
 
-      let statusText = "⏳ *Action enregistrée.*";
+      let statusText = `⏳ *Action enregistrée pour ${player.name}.*`;
       if (otherRecentActions.length > 0) {
-          statusText += `\nEn attente des autres participants : ${[...new Set(otherRecentActions.map(a => a.senderName))].join(', ')}.`;
+          statusText += `\nActions en attente : ${[...new Set(otherRecentActions.map(a => a.senderName))].join(', ')}.`;
       }
-      statusText += "\n\nTape `next` pour déclencher la réponse du MJ.";
+      statusText += "\n\nTapez `next` pour déclencher la narration du MJ.";
 
       await sock.sendMessage(jid, { text: statusText });
       return;

@@ -325,11 +325,19 @@ async function callPollinationKeyedModel(system, prompt, model) {
     if (!key) return null;
 
     try {
+        // Context compression for keyed calls
+        const maxLen = 6000;
+        let activeSystem = system;
+        if (system.length > maxLen) {
+            activeSystem = system.substring(0, 2500) + "\n[...]\n" + system.substring(system.length - 3500);
+        }
+        const activePrompt = prompt.length > 6000 ? prompt.substring(prompt.length - 6000) : prompt;
+
         const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
             model: model,
             messages: [
-                { role: "system", content: system },
-                { role: "user", content: prompt }
+                { role: "system", content: activeSystem },
+                { role: "user", content: activePrompt }
             ],
             response_format: { type: "json_object" }
         }, {
@@ -337,10 +345,12 @@ async function callPollinationKeyedModel(system, prompt, model) {
                 'Authorization': `Bearer ${key}`,
                 'Content-Type': 'application/json'
             },
-            timeout: 15000
+            timeout: 20000
         });
 
-        return resp.data?.choices?.[0]?.message?.content;
+        let content = resp.data?.choices?.[0]?.message?.content;
+        if (!content && resp.data?.content) content = resp.data.content;
+        return content;
     } catch (e) {
         return null;
     }
@@ -479,7 +489,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     // Priority race including keyed Pollinations
     const raceModels = [
-        { name: 'Pollinations-Keyed', fn: (s, p) => callPollinationKeyedModel(s, p, 'openai'), timeout: 25000 },
+        { name: 'Pollinations-Keyed-GPT', fn: (s, p) => callPollinationKeyedModel(s, p, 'openai'), timeout: 25000 },
+        { name: 'Pollinations-Keyed-Mistral', fn: (s, p) => callPollinationKeyedModel(s, p, 'mistral'), timeout: 25000 },
         { name: 'Pollinations-OpenAI', fn: (s, p) => callPollinationModel(s, p, 'openai'), timeout: 20000 },
         { name: 'Pollinations-Mistral', fn: (s, p) => callPollinationModel(s, p, 'mistral'), timeout: 20000 },
         { name: 'Pollinations-Llama', fn: (s, p) => callPollinationModel(s, p, 'llama'), timeout: 20000 },
