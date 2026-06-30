@@ -295,6 +295,20 @@ async function startModelServer() {
     // Assure que Ollama est démarré
     await ollamaManager.ensureStarted();
 
+    // Vérifie si le modèle est présent, sinon le pull
+    try {
+        const resp = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 5000 });
+        const models = resp.data?.models || [];
+        const hasModel = models.some(m => m.name.includes(OLLAMA_MODEL) || m.name === OLLAMA_MODEL);
+
+        if (!hasModel) {
+            console.log(`[MODEL-SERVER] ⚠️ Modèle ${OLLAMA_MODEL} manquant.`);
+            await ollamaManager.pullModel(OLLAMA_MODEL);
+        }
+    } catch (err) {
+        console.error(`[MODEL-SERVER] ❌ Impossible de vérifier les modèles: ${err.message}`);
+    }
+
     // Vérifie Ollama au démarrage
     console.log('[MODEL-SERVER] 🔍 Vérification de la connexion à Ollama...');
     const healthy = await checkOllamaHealth();

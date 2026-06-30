@@ -25,6 +25,63 @@ class OllamaManager {
     }
 
     /**
+     * Pulls the specified model.
+     */
+    async pullModel(modelName) {
+        console.log(`[OLLAMA] 📥 Téléchargement du modèle ${modelName}...`);
+        try {
+            await new Promise((resolve, reject) => {
+                const pull = spawn('ollama', ['pull', modelName]);
+
+                pull.stdout.on('data', (data) => {
+                    process.stdout.write(`[OLLAMA PULL] ${data}`);
+                });
+
+                pull.stderr.on('data', (data) => {
+                    process.stderr.write(`[OLLAMA PULL ERR] ${data}`);
+                });
+
+                pull.on('close', (code) => {
+                    if (code === 0) resolve();
+                    else reject(new Error(`Ollama pull failed with code ${code}`));
+                });
+            });
+            console.log(`[OLLAMA] ✅ Modèle ${modelName} prêt.`);
+            return true;
+        } catch (err) {
+            console.error(`[OLLAMA] ❌ Échec du téléchargement du modèle: ${err.message}`);
+            return false;
+        }
+    }
+
+    /**
+     * Attempts to install Ollama if on Linux.
+     */
+    async tryInstall() {
+        if (process.platform !== 'linux') {
+            return false;
+        }
+
+        console.log('[OLLAMA] 🛠️ Tentative d\'installation automatique sur Linux...');
+        try {
+            await new Promise((resolve, reject) => {
+                exec('curl -fsSL https://ollama.com/install.sh | sh', (error, stdout, stderr) => {
+                    if (error) {
+                        console.error(`[OLLAMA] ❌ Échec de l'installation: ${stderr || error.message}`);
+                        reject(error);
+                    } else {
+                        console.log('[OLLAMA] ✅ Installation terminée.');
+                        resolve(stdout);
+                    }
+                });
+            });
+            return true;
+        } catch (err) {
+            return false;
+        }
+    }
+
+    /**
      * Starts Ollama serve automatically.
      */
     async ensureStarted() {
@@ -39,12 +96,18 @@ class OllamaManager {
 
         try {
             // Check if ollama is installed
-            await new Promise((resolve, reject) => {
+            let installed = await new Promise((resolve) => {
                 exec('ollama --version', (error) => {
-                    if (error) reject(new Error('Ollama n\'est pas installé.'));
-                    else resolve();
+                    resolve(!error);
                 });
             });
+
+            if (!installed) {
+                const success = await this.tryInstall();
+                if (!success) {
+                    throw new Error('Ollama n\'est pas installé et l\'installation automatique a échoué.');
+                }
+            }
 
             // Start ollama serve in the background
             const ollamaProcess = spawn('ollama', ['serve'], {
