@@ -1,15 +1,17 @@
-FROM ubuntu:24.04
+FROM node:22-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Installer les dépendances système
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
     git \
     ca-certificates \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
+
+# Installer Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
 WORKDIR /app
 

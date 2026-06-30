@@ -4,7 +4,7 @@
   "description": "GHENO CITY 2 - Serveur IA Cloud - Jeu RPG Aetherys sur WhatsApp avec IA",
   "main": "skype-bot.js",
   "scripts": {
-    "start": "node skype-bot.js",
+    "start": "bash start.sh",
     "test": "echo \"No tests specified\" && exit 0",
     "setup": "node setup.js"
   },

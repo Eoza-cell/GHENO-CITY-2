@@ -408,8 +408,24 @@ async function callMJFallback(prompt) {
     console.log("[AI] Utilisation du MJ Fallback Local.");
 
     let action = "ton action";
-    const actionMatch = prompt.match(/ACTION: (.*)$/);
-    if (actionMatch) action = actionMatch[1].trim();
+    // Improved extraction logic for the complex RPG prompt
+    const actionBlockMatch = prompt.match(/### RÉSUMÉ DES ACTIONS À TRAITER ###\n([\s\S]*?)\n\n###/);
+    if (actionBlockMatch) {
+        const lines = actionBlockMatch[1].trim().split('\n');
+        if (lines.length > 0) {
+            // Take the last action line if multiple players, or just the first one
+            const lastLine = lines[lines.length - 1];
+            const contentMatch = lastLine.match(/ACTIONS: (.*)$/);
+            if (contentMatch) action = contentMatch[1].trim();
+        }
+    } else {
+        // Fallback to simpler search
+        const simpleMatch = prompt.match(/ACTION: (.*)$/i);
+        if (simpleMatch) action = simpleMatch[1].trim();
+    }
+
+    // Truncate action if too long
+    if (action.length > 100) action = action.substring(0, 97) + "...";
 
     const responses = [
         `Tu t'efforces de réaliser "${action}", mais une étrange brume semble ralentir tes mouvements. Tu réussis l'essentiel, bien que les conséquences précises restent floues.`,
@@ -422,8 +438,9 @@ async function callMJFallback(prompt) {
 
     let note = "Le flux d'Ether est instable. Vérifiez vos clés API cloud.";
 
+    // REMOVED redundant next trigger hint as it is appended by ai-handler.js
     return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: ${note}_\n\n💡 *Note:* Une seule personne peut \`next\`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.`,
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: ${note}_`,
         actions: []
     });
 }
@@ -539,20 +556,27 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
  * [FREE] Pollinations (Direct link) - Ultre-rapide et gratuit, pas besoin de clé.
  */
 async function callPollinationsFree(system, prompt) {
-    const models = ['openai', 'mistral', 'llama'];
+    const models = ['openai', 'mistral', 'llama', 'p1', 'qwen-2.5-72b'];
 
+    // Attempt POST first as it supports longer prompts
     for (const model of models) {
         try {
-            const seed = Math.floor(Math.random() * 1000000);
-            // Using GET as a more reliable fallback for Pollinations Free
-            const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 1000))}?model=${model}&system=${encodeURIComponent(system.substring(0, 1000))}&seed=${seed}&json=true`;
-
-            console.log(`[AI] Pollinations Free - Tentative via GET (${model})...`);
-            const resp = await axios.get(url, { timeout: 20000 });
+            console.log(`[AI] Pollinations Free - Tentative via POST (${model})...`);
+            const resp = await axios.post("https://text.pollinations.ai/", {
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ],
+                model: model,
+                jsonMode: true,
+                seed: Math.floor(Math.random() * 1000000)
+            }, { timeout: 25000 });
 
             let content = resp.data;
-            if (typeof content === 'object') {
-                 content = content.choices?.[0]?.message?.content || JSON.stringify(content);
+            if (resp.data?.choices?.[0]?.message?.content) {
+                content = resp.data.choices[0].message.content;
+            } else if (typeof resp.data === 'object') {
+                content = JSON.stringify(resp.data);
             }
 
             if (isValidAIResponse(content)) {
@@ -560,23 +584,19 @@ async function callPollinationsFree(system, prompt) {
                 return content;
             }
         } catch (e) {
-            console.warn(`[AI] ❌ Pollinations Free Error (${model}):`, e.message);
+            console.warn(`[AI] ❌ Pollinations Free POST Error (${model}):`, e.message);
         }
     }
 
-    // Final fallback to POST if GET fails for all models
+    // Fallback to GET for shorter/urgent requests if POST failed
     try {
-        console.log("[AI] Pollinations Free - Tentative finale via POST...");
-        const resp = await axios.post("https://text.pollinations.ai/", {
-            messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
-            model: "openai",
-            jsonMode: true
-        }, { timeout: 20000 });
-        let content = resp.data?.choices?.[0]?.message?.content || (typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data));
+        console.log("[AI] Pollinations Free - Tentative de secours via GET...");
+        const seed = Math.floor(Math.random() * 1000000);
+        const url = `https://text.pollinations.ai/${encodeURIComponent(prompt.substring(0, 500))}?model=openai&system=${encodeURIComponent(system.substring(0, 500))}&seed=${seed}&json=true`;
+        const resp = await axios.get(url, { timeout: 15000 });
+        let content = resp.data;
         if (isValidAIResponse(content)) return content;
-    } catch (innerE) {
-        console.warn("[AI] ❌ Pollinations Free POST Error:", innerE.message);
-    }
+    } catch (e) {}
 
     return null;
 }
