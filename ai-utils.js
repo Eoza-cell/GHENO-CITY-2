@@ -381,6 +381,26 @@ async function callPollinationsGET(system, prompt) {
     return null;
 }
 
+async function callOllama(system, prompt) {
+    try {
+        console.log(`[AI] Ollama Local - Tentative avec gemma3:4b...`);
+        const resp = await axios.post("http://localhost:11434/api/generate", {
+            model: "gemma3:4b",
+            prompt: `System: ${system}\n\nUser: ${prompt}`,
+            stream: false,
+            format: "json"
+        }, {
+            timeout: 35000
+        });
+
+        const content = resp.data?.response;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Ollama Error:`, e.message);
+    }
+    return null;
+}
+
 /**
  * Local MJ Fallback in case all AI providers fail.
  */
@@ -452,6 +472,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
         // === CLOUD RAPIDES (Fallbacks prioritaires) ===
         { name: 'Puter SDK', fn: callPuterSDK, timeout: 25000 },
+
+        // === OLLAMA LOCAL (Dernier recours cloud avant le fallback total) ===
+        { name: 'Ollama Local', fn: callOllama, timeout: 35000 },
 
         // === CLOUD ROBUSTES (Fallbacks de secours) ===
         { name: 'Blackbox', fn: callBlackbox, timeout: 45000 },
