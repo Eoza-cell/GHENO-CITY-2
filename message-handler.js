@@ -46,7 +46,7 @@ async function resolveMentions(text) {
 
 /**
  * Sends a message with an optional image from a local asset or direct URL.
- * Supports AI generation via Pollinations for text prompts.
+ * AI Image generation is DISABLED.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
@@ -85,21 +85,9 @@ async function sendWithImage(sock, jid, aiResponse) {
                 return;
             }
 
-            // Case 4: Text Prompt -> Generate via Pollinations
+            // Case 4: Text Prompt -> LOG ONLY (Generation is DISABLED per user request)
             if (typeof imagePrompt === 'string' && imagePrompt.length > 5) {
-                console.log(`[IMG] Génération d'image pour: "${imagePrompt}" via Pollinations...`);
-                const seed = Math.floor(Math.random() * 1000000);
-                // Manhwa/Anime style forced for consistency
-                const finalPrompt = encodeURIComponent(`${imagePrompt}, manhwa style, high quality, cinematic, solo leveling aesthetic`);
-                const url = `https://pollinations.ai/p/${finalPrompt}?width=1024&height=1024&seed=${seed}&model=flux`;
-
-                const response = await axios.get(url, {
-                    responseType: 'arraybuffer',
-                    timeout: 25000
-                });
-                const imageBuffer = Buffer.from(response.data, 'binary');
-                await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
-                return;
+                console.log(`[IMG] AI requested generation for: "${imagePrompt}" but generation is DISABLED.`);
             }
         } catch (error) {
             console.error(`[IMG] Erreur d'affichage d'image (${imagePrompt}):`, error.message);

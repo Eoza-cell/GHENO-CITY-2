@@ -321,7 +321,7 @@ async function callPollinationModel(system, prompt, model) {
 }
 
 async function callPollinationKeyedModel(system, prompt, model) {
-    const key = process.env.POLLINATIONS_API_KEY;
+    const key = process.env.POLLINATIONS_API_KEY || process.env.POLLINATIONS_KEY;
     if (!key) return null;
 
     try {
@@ -489,7 +489,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     // Priority race including keyed Pollinations
     const raceModels = [
-        { name: 'Pollinations-Keyed-GPT', fn: (s, p) => callPollinationKeyedModel(s, p, 'openai'), timeout: 25000 },
+        { name: 'Pollinations-Keyed-GPT4o', fn: (s, p) => callPollinationKeyedModel(s, p, 'gpt-4o'), timeout: 25000 },
+        { name: 'Pollinations-Keyed-Claude', fn: (s, p) => callPollinationKeyedModel(s, p, 'claude-3.5-sonnet'), timeout: 25000 },
+        { name: 'Pollinations-Keyed-OpenAI', fn: (s, p) => callPollinationKeyedModel(s, p, 'openai'), timeout: 25000 },
         { name: 'Pollinations-Keyed-Mistral', fn: (s, p) => callPollinationKeyedModel(s, p, 'mistral'), timeout: 25000 },
         { name: 'Pollinations-OpenAI', fn: (s, p) => callPollinationModel(s, p, 'openai'), timeout: 20000 },
         { name: 'Pollinations-Mistral', fn: (s, p) => callPollinationModel(s, p, 'mistral'), timeout: 20000 },
