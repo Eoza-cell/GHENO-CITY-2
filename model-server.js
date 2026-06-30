@@ -3,17 +3,18 @@ const axios = require('axios');
 const { Player, NPC, Kingdom, WorldJournal, RPMessage, Conflict } = require('./database');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
+const ollamaManager = require('./ollama-manager');
 
 const PORT = process.env.MODEL_PORT || 3001;
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:4b';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
 
 /**
  * GHENO CITY 2.0 - World Intelligence Server
  *
  * Ce serveur est le cerveau central du jeu ARISE. Il utilise des modèles locaux
- * (Gemma 3, Qwen) via Ollama pour générer des réponses immersives.
+ * (Gemma 4, Qwen) via Ollama pour générer des réponses immersives.
  *
  * Endpoint: POST /v1/chat/completions (compatible OpenAI)
  */
@@ -291,6 +292,9 @@ ${userMessage}`;
  * Démarre le serveur de modèle
  */
 async function startModelServer() {
+    // Assure que Ollama est démarré
+    await ollamaManager.ensureStarted();
+
     // Vérifie Ollama au démarrage
     console.log('[MODEL-SERVER] 🔍 Vérification de la connexion à Ollama...');
     const healthy = await checkOllamaHealth();

@@ -172,7 +172,7 @@ setupDatabase()
   .then(() => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
 
-    // Démarre le 2ème serveur pour le modèle GEMMA 3
+    // Démarre le 2ème serveur pour le modèle GEMMA 4
     startModelServer();
 
     connectToWhatsApp();

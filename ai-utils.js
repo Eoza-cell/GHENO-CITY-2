@@ -34,9 +34,9 @@ const PUTER_MODELS = [
     "meta-llama-3.1-70b-instruct"
 ];
 
-// Configuration Gemma 3
+// Configuration Gemma 4
 const OLLAMA_URL = (process.env.OLLAMA_URL || 'http://localhost:11434').replace(/\/$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma4:4b';
 const WORLD_SERVER_URL = `http://localhost:${process.env.MODEL_PORT || 3001}`;
 
 /**
@@ -382,9 +382,9 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
-        "google/gemma-3-4b-it:free",
-        "google/gemma-3-12b-it:free",
-        "google/gemma-3-27b-it:free",
+        "google/gemma-4-4b-it:free",
+        "google/gemma-4-12b-it:free",
+        "google/gemma-4-27b-it:free",
         "qwen/qwen-2.5-72b-instruct:free",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
@@ -594,7 +594,7 @@ function callMJFallback(prompt) {
     const narrative = responses[Math.floor(Math.random() * responses.length)];
 
     return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Gemma 3 (IA locale) est actuellement indisponible. Utilisez **ollama serve** ou vérifiez vos clés API cloud._\n\n💡 *Note:* Une seule personne peut \`next\`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.`,
+        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Gemma 4 (IA locale) est actuellement indisponible. Utilisez **ollama serve** ou vérifiez vos clés API cloud._\n\n💡 *Note:* Une seule personne peut \`next\`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.`,
         actions: []
     });
 }

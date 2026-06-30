@@ -1577,7 +1577,7 @@ commands.set('tuto_rp', async (sock, message) => {
 
     const tutoTitle = "MANUEL DU RP IMMERSIF";
     const tutoContent = "Bienvenue dans GHENO CITY, Egoïste.\n\n" +
-        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par GEMMA 3 (IA Locale).\n\n" +
+        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par GEMMA 4 (IA Locale).\n\n" +
         "2. LA PRÉCISION\nNe dis pas 'Je frappe'. Dis 'Je pivote sur ma jambe gauche pour envoyer un coup de pied circulaire au niveau des côtes'. Plus tu es précis, plus le MJ est clément.\n\n" +
         "3. LES STATS\nTout est calculé. Si ton adversaire a 80 en FORCE et toi 20, tu vas souffrir. Utilise ton intelligence ou l'environnement pour compenser.\n\n" +
         "4. LE COMMERCE\nTu peux acheter des objets directement en parlant aux marchands ou au MJ. Dis 'Je veux acheter l'Épée de Fer' et si tu as les COL, le MJ mettra à jour ton profil.\n\n" +
@@ -1639,7 +1639,7 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
-                   "/download_model - Télécharger Gemma 3 localement (Admin).\n" +
+                   "/download_model - Télécharger Gemma 4 localement (Admin).\n" +
                    "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
@@ -1762,7 +1762,7 @@ commands.set('download_model', async (sock, message) => {
         return;
     }
 
-    const model = process.env.OLLAMA_MODEL || 'gemma3:4b';
+    const model = process.env.OLLAMA_MODEL || 'gemma4:4b';
     await sock.sendMessage(replyJid, { text: `📥 *INITIATION DU TÉLÉCHARGEMENT*\n\nModèle : ${model}\n\nCette opération peut prendre plusieurs minutes selon votre connexion. Le bot restera disponible.` });
 
     const { exec } = require('child_process');
