@@ -72,12 +72,21 @@ function isValidAIResponse(text) {
     if (lower.includes('<!doctype html>') || lower.includes('<html>')) return false;
 
     // Additional check: if it looks like a JSON but narrative is too short/empty
-    if (cleaned.startsWith('{')) {
+    if (cleaned.includes('{') && cleaned.includes('}')) {
         try {
-            const parsed = JSON.parse(cleaned);
+            // Find the JSON block if it's wrapped in text
+            const start = cleaned.indexOf('{');
+            const end = cleaned.lastIndexOf('}');
+            const jsonPart = cleaned.substring(start, end + 1);
+
+            const parsed = JSON.parse(jsonPart);
             const narrative = parsed.narrative || parsed.message || parsed.text || "";
-            if (narrative.length < 10) return false;
-        } catch(e) {}
+            // We want at least some narrative or at least some logical actions
+            if (narrative.length < 5 && (!parsed.actions || parsed.actions.length === 0)) return false;
+        } catch(e) {
+            // If it's not valid JSON and doesn't look like plain text, reject
+            if (cleaned.length < 20) return false;
+        }
     } else {
         if (cleaned.length < 20) return false;
     }
@@ -171,28 +180,27 @@ async function callPuterAPI(system, prompt) {
 
 async function callPuterSDK(system, prompt) {
     if (!puter || !puter.ai) return null;
+
+    // Check for advanced auth token if available (as requested via link)
+    const token = process.env.PUTER_AUTH_TOKEN;
+
+    // Pick one model randomly to participate in the race
     const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+    const model = models[Math.floor(Math.random() * models.length)];
 
-    for (const model of models) {
-        try {
-            console.log(`[AI] Puter SDK (Keyless) - Tentative avec ${model}...`);
-            const result = await withTimeout(
-                puter.ai.chat([
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ], { model: model }),
-                20000,
-                `Puter SDK (${model})`
-            );
+    try {
+        const options = { model: model };
+        if (token) options.token = token;
 
-            const content = parsePuterResponse(result);
-            if (isValidAIResponse(content)) return content;
-        } catch (e) {
-            console.warn(`[AI] Puter SDK Error (${model}):`, e.message);
-            continue;
-        }
+        const result = await puter.ai.chat([
+            { role: "system", content: system },
+            { role: "user", content: prompt }
+        ], options);
+
+        return parsePuterResponse(result);
+    } catch (e) {
+        return null;
     }
-    return null;
 }
 
 async function callOpenRouter(system, prompt) {
@@ -233,99 +241,83 @@ async function callOpenRouter(system, prompt) {
 }
 
 async function callBlackbox(system, prompt) {
-    const models = ["deepseek-v3", "llama-3.1-70b", "gpt-4o"];
-    for (const model of models) {
-        try {
-            console.log(`[AI] Blackbox - Tentative avec ${model}...`);
-            const resp = await axios.post("https://www.blackbox.ai/api/chat", {
-                messages: [
-                    { role: "user", content: `System Instruction: ${system}\n\nUser RPG Action: ${prompt}\n\nFormat your output as a valid JSON object starting with { and ending with }. Ensure all keys are quoted.` }
-                ],
-                model: model,
-                agentMode: {},
-                trendingAgentMode: {},
-                userSelectedModel: model,
-                clickedContinue: false,
-                previewToken: null,
-                codeModelMode: true
-            }, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                    'Referer': 'https://www.blackbox.ai/',
-                    'Origin': 'https://www.blackbox.ai/',
-                    'Content-Type': 'application/json',
-                    'Accept': '*/*',
-                    'x-blackbox-device-id': 'gc2-' + Math.random().toString(36).substring(2, 15)
-                },
-                timeout: 25000
-            });
+    const models = ["deepseek-v3", "llama-3.1-70b"];
+    // Shuffle to avoid sticking to a failing model
+    const model = models[Math.floor(Math.random() * models.length)];
 
-            let result = "";
-            // Blackbox often returns a stream or a combined text
-            if (typeof resp.data === 'string') {
-                result = parseSSEResponse(resp.data) || resp.data;
-            } else if (resp.data.text) {
-                result = resp.data.text;
-            } else if (Array.isArray(resp.data)) {
-                 result = resp.data.map(d => d.content || d.text || "").join("");
-            } else {
-                result = JSON.stringify(resp.data);
-            }
+    try {
+        const resp = await axios.post("https://www.blackbox.ai/api/chat", {
+            messages: [
+                { role: "user", content: `System Instruction: ${system}\n\nUser RPG Action: ${prompt}\n\nFormat your output as a valid JSON object starting with { and ending with }. Ensure all keys are quoted.` }
+            ],
+            model: model,
+            agentMode: {},
+            trendingAgentMode: {},
+            userSelectedModel: model,
+            clickedContinue: false,
+            previewToken: null,
+            codeModelMode: true
+        }, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Referer': 'https://www.blackbox.ai/',
+                'Origin': 'https://www.blackbox.ai/',
+                'Content-Type': 'application/json',
+                'Accept': '*/*',
+                'x-blackbox-device-id': 'gc2-' + Math.random().toString(36).substring(2, 15)
+            },
+            timeout: 25000
+        });
 
-            // Cleanup potential extra markers from Blackbox
-            result = result.replace(/Generated by Blackbox\.ai/gi, '').trim();
-
-            if (isValidAIResponse(result)) {
-                console.log(`[AI] ✅ Blackbox - Succès (${model})`);
-                return result;
-            }
-        } catch (e) {
-            console.warn(`[AI] ❌ Blackbox error (${model}): ${e.message}`);
-            continue;
+        let result = "";
+        if (typeof resp.data === 'string') {
+            result = parseSSEResponse(resp.data) || resp.data;
+        } else if (resp.data.text) {
+            result = resp.data.text;
+        } else if (Array.isArray(resp.data)) {
+                result = resp.data.map(d => d.content || d.text || "").join("");
+        } else {
+            result = JSON.stringify(resp.data);
         }
+
+        result = result.replace(/Generated by Blackbox\.ai/gi, '').trim();
+        return result;
+    } catch (e) {
+        return null;
     }
-    return null;
 }
 
-async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'p1'];
-    const shuffled = models.sort(() => Math.random() - 0.5);
-
-    for (const model of shuffled) {
-        try {
-            console.log(`[AI] Pollinations V1 (Keyless) - Tentative avec ${model}...`);
-            const resp = await axios.post("https://text.pollinations.ai/", {
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                model: model,
-                seed: Math.floor(Math.random() * 1000000),
-                jsonMode: true
-            }, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 25000
-            });
-
-            let content = "";
-            if (typeof resp.data === 'string') {
-                content = resp.data;
-            } else if (resp.data && resp.data.choices && resp.data.choices[0] && resp.data.choices[0].message) {
-                content = resp.data.choices[0].message.content;
-            } else {
-                content = JSON.stringify(resp.data);
-            }
-
-            if (isValidAIResponse(content)) {
-                console.log(`[AI] ✅ Pollinations V1 - Succès (${model})`);
-                return content;
-            }
-        } catch (e) {
-            console.warn(`[AI] ❌ Pollinations V1 Error (${model}):`, e.message);
-            continue;
+async function callPollinationModel(system, prompt, model) {
+    try {
+        // We keep the head and tail of the system prompt to ensure instructions (tail) are kept
+        const maxLen = 5000;
+        let activeSystem = system;
+        if (system.length > maxLen) {
+            activeSystem = system.substring(0, 2000) + "\n[...]\n" + system.substring(system.length - 3000);
         }
+
+        // Keep the end of user prompt (most recent actions)
+        const activePrompt = prompt.length > 5000 ? prompt.substring(prompt.length - 5000) : prompt;
+
+        const resp = await axios.post("https://text.pollinations.ai/", {
+            messages: [
+                { role: "system", content: activeSystem },
+                { role: "user", content: activePrompt }
+            ],
+            model: model,
+            seed: Math.floor(Math.random() * 1000000),
+            jsonMode: true
+        }, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 20000
+        });
+
+        let content = resp.data?.choices?.[0]?.message?.content || resp.data?.content;
+        if (!content && typeof resp.data === 'object') content = JSON.stringify(resp.data);
+        return content;
+    } catch (e) {
+        return null;
     }
-    return null;
 }
 
 async function callPollinationsGen(system, prompt) {
@@ -465,18 +457,24 @@ function withTimeout(promise, ms, label = "Operation") {
 
 /**
  * Main AI entry point.
- * Priority: Pollinations (The core provider) > Other Cloud > Local Fallback
+ * Strategy: Parallel Race (First-to-Respond) to maximize reliability and speed.
  */
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
-    if (depth > 3) return null; // Increased depth for better recovery
+    if (depth > 2) return null;
 
-    // Preserve context: the RP engine relies on scene isolation and detailed stats.
+    // Smart Prompt Adaptation for Retries
+    let activeSystem = systemPrompt;
+    if (depth === 1) {
+        activeSystem = "Tu es le MJ du RPG Aetherys. Style Manhwa. Réponds au format JSON: {\"narrative\": \"...\", \"actions\": [], \"imagePrompt\": \"...\"}";
+    } else if (depth >= 2) {
+        activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
+    }
+
+    // Context Compression
     const maxSystemLength = 15000;
     const maxUserLength = 20000;
-    const sanitizedSystem = systemPrompt.length > maxSystemLength
-        ? systemPrompt.substring(0, maxSystemLength)
-        : systemPrompt;
+    const sanitizedSystem = activeSystem.length > maxSystemLength ? activeSystem.substring(0, maxSystemLength) : activeSystem;
     let sanitizedUser = userPrompt;
     if (userPrompt.length > maxUserLength) {
         const headLength = 8000;
@@ -484,66 +482,89 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
     }
 
-    // STRATÉGIE POLLINATIONS FIRST: On insiste sur Pollinations avec différents modèles
-    const providers = [
-        { name: 'Pollinations Primary', fn: callPollinationsFree, timeout: 25000 },
-        { name: 'Blackbox', fn: callBlackbox, timeout: 30000 },
-        { name: 'OpenRouter High-End', fn: callOpenRouter, timeout: 35000 },
-        { name: 'Pollinations Secondary', fn: callPollinationsFree, timeout: 20000 },
-        { name: 'Ollama Local', fn: callOllama, timeout: 40000 }
+    console.log(`[AI] Lancement de la Course Parallèle (depth: ${depth})...`);
+
+    // We race specific models for maximum efficiency
+    const raceModels = [
+        { name: 'Pollinations-OpenAI', fn: (s, p) => callPollinationModel(s, p, 'openai'), timeout: 20000 },
+        { name: 'Pollinations-Mistral', fn: (s, p) => callPollinationModel(s, p, 'mistral'), timeout: 20000 },
+        { name: 'Pollinations-Llama', fn: (s, p) => callPollinationModel(s, p, 'llama'), timeout: 20000 },
+        { name: 'Pollinations-P1', fn: (s, p) => callPollinationModel(s, p, 'p1'), timeout: 20000 },
+        { name: 'Pollinations-Qwen', fn: (s, p) => callPollinationModel(s, p, 'qwen-2.5-72b'), timeout: 25000 },
+        { name: 'Puter-SDK', fn: callPuterSDK, timeout: 25000 },
+        { name: 'Blackbox', fn: callBlackbox, timeout: 30000 }
     ];
 
-    for (const provider of providers) {
-        try {
-            const providerStart = Date.now();
-            console.log(`[AI] Tentative: ${provider.name}... (depth: ${depth})`);
-
-            // Smart Fallback: if it's a retry, use a simplified prompt
-            let activeSystem = sanitizedSystem;
-            if (depth === 1) {
-                activeSystem = "Tu es le MJ du RPG Aetherys. Style Manhwa. Réponds au format JSON: {\"narrative\": \"...\", \"actions\": [], \"imagePrompt\": \"...\"}";
-            } else if (depth >= 2) {
-                activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
-            }
-
-            // Apply provider-specific timeout
-            const result = await withTimeout(
-                provider.fn(activeSystem, sanitizedUser, options),
-                provider.timeout || 30000,
-                provider.name
-            );
-            const providerDuration = (Date.now() - providerStart) / 1000;
-
-            if (isValidAIResponse(result)) {
-                console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration.toFixed(2)}s`);
-                // Verify the result is not just a technical JSON dump without narrative
-                if (typeof result === 'string' && result.trim().startsWith('{')) {
-                    try {
-                        const parsed = JSON.parse(result);
-                        if (!parsed.narrative && !parsed.message && !parsed.text) {
-                             console.warn(`[AI] ⚠️ ${provider.name} JSON sans narration. Fallback.`);
-                             continue;
-                        }
-                    } catch(e) {}
+    // Create a promise for each model that resolves only on valid response
+    const racePromises = raceModels.map(m => {
+        return (async () => {
+            try {
+                const start = Date.now();
+                const result = await withTimeout(m.fn(sanitizedSystem, sanitizedUser), m.timeout, m.name);
+                if (isValidAIResponse(result)) {
+                    const duration = (Date.now() - start) / 1000;
+                    console.log(`[AI] 🏁 GAGNANT: ${m.name} en ${duration.toFixed(2)}s`);
+                    return { source: m.name, content: result };
                 }
-                return result;
-            } else {
-                console.warn(`[AI] ⚠️ ${provider.name} réponse invalide ou erreur.`);
+                throw new Error("Invalid response");
+            } catch (e) {
+                return null;
+            }
+        })();
+    });
+
+    // Wait for the first non-null result
+    const firstResult = await new Promise(async (resolve) => {
+        let finished = 0;
+        let resolved = false;
+
+        for (const p of racePromises) {
+            p.then(res => {
+                if (resolved) return;
+                if (res) {
+                    resolved = true;
+                    resolve(res.content);
+                } else {
+                    finished++;
+                    if (finished === racePromises.length) resolve(null);
+                }
+            });
+        }
+
+        // Safety global timeout for the whole race
+        setTimeout(() => { if (!resolved) resolve(null); }, 35000);
+    });
+
+    if (firstResult) return firstResult;
+
+    // FALLBACK CHAIN: If the race failed, try robust cloud then local
+    console.warn(`[AI] La course a échoué. Tentative de secours séquentielle...`);
+    const fallbacks = [
+        { name: 'OpenRouter-Robust', fn: callOpenRouter, timeout: 35000 },
+        { name: 'Ollama-Local', fn: callOllama, timeout: 40000 }
+    ];
+
+    for (const f of fallbacks) {
+        try {
+            console.log(`[AI] Secours: ${f.name}...`);
+            const res = await withTimeout(f.fn(sanitizedSystem, sanitizedUser), f.timeout, f.name);
+            if (isValidAIResponse(res)) {
+                console.log(`[AI] ✅ Secours réussi avec ${f.name}`);
+                return res;
             }
         } catch (e) {
-            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
+            console.warn(`[AI] ❌ Secours échoué (${f.name}):`, e.message);
         }
     }
 
-    console.warn(`[AI] Tous les providers ont échoué (depth: ${depth}).`);
-    if (depth < 2) {
-        const delay = (depth + 1) * 2000;
-        console.log(`[AI] Nouvelle tentative dans ${delay/1000}s...`);
-        await new Promise(r => setTimeout(r, delay + Math.random() * 1000));
+    // RETRY WITH BACKOFF
+    if (depth < 1) {
+        console.log("[AI] Échec global. Nouvelle tentative dans 3s...");
+        await new Promise(r => setTimeout(r, 3000));
         return callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 });
     }
 
-    // Ultimate fallback
+    // ULTIMATE FALLBACK
     return await callMJFallback(userPrompt);
 }
 
