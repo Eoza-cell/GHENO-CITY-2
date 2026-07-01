@@ -778,6 +778,39 @@ async function setupDatabase() {
         ]);
     }
 
+    // Seed 1000 Varied Skills
+    const currentSkillCount = await Skill.count();
+    if (currentSkillCount < 1000) {
+        console.log(`[SEED] Generating ${1000 - currentSkillCount} additional skills...`);
+        const prefixes = ["Frappe", "Souffle", "Cri", "Danse", "Sceau", "Aura", "Éclair", "Onde", "Pacte", "Lame", "Bouclier", "Météore", "Explosion", "Murmure", "Appel", "Chant", "Rupture", "Vortex", "Sillon", "Éveil"];
+        const types = ["GUERRIER", "MAGE", "ASSASSIN", "ARCHER", "PRÊTRE", "MOINE", "PALADIN", "INVOCATEUR", "NÉCROMANCIEN", "SAMOURAÏ", "CH.-DRAGON", "ALCHIMISTE", "BARDE"];
+        const suffixes = ["de Feu", "de Glace", "de Foudre", "des Ombres", "de Lumière", "du Néant", "des Anciens", "Céleste", "Bestial", "du Destin", "de Sang", "d'Argent", "d'Émeraude", "de Platine", "de Mana", "de l'Interstice"];
+
+        const batchSize = 100;
+        for (let i = 0; i < 1000 - currentSkillCount; i += batchSize) {
+            const batch = [];
+            for (let j = 0; j < batchSize && (i + j) < (1000 - currentSkillCount); j++) {
+                const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+                const type = types[Math.floor(Math.random() * types.length)];
+                const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+                const name = `${prefix} ${suffix} #${Math.floor(Math.random() * 10000)}`;
+                const manaCost = Math.floor(Math.random() * 50) + 10;
+
+                batch.push({
+                    name,
+                    description: `Une technique secrète de type ${type.toLowerCase()} utilisant l'énergie ${suffix.toLowerCase()}.`,
+                    type,
+                    manaCost,
+                    statBonuses: {
+                        [ ['strength', 'agility', 'intelligence', 'luck', 'defense'][Math.floor(Math.random()*5)] ]: Math.floor(Math.random() * 10) + 1
+                    }
+                });
+            }
+            await Skill.bulkCreate(batch, { ignoreDuplicates: true });
+        }
+        console.log("[SEED] 1000 skills ready.");
+    }
+
     const houseCount = await House.count();
     if (houseCount === 0) {
         await House.bulkCreate([

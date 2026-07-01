@@ -1716,6 +1716,8 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
+                   "/skills - Voir les compétences disponibles.\n" +
+                   "/examen - Passer un examen pour apprendre un skill.\n" +
                    "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +

@@ -245,7 +245,10 @@ async function handleFreeAction(sock, message, player, actionText) {
   const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%, Récompenses:${q.reward_col}Col/${q.reward_xp}XP)`).join(',') : "Pas de quête";
 
   const availableQuests = await Quest.findAll({ where: { rank_required: player.rank }, limit: 2 });
-  const availableQuestState = "Dispo: " + availableQuests.map(q => q.title).join(',');
+  const availableQuestState = "Quêtes Dispo: " + availableQuests.map(q => q.title).join(',');
+
+  const skillsToLearn = await Skill.findAll({ order: sequelize.random(), limit: 5 });
+  const skillsState = "Skills Apprenables: " + skillsToLearn.map(s => `${s.name}(${s.type})`).join(', ');
 
   const dungeons = await Dungeon.findAll({ limit: 1 });
   const dungeonState = "Donjon: " + dungeons.map(d => `${d.name}(${d.rank})`).join(',');
@@ -535,6 +538,7 @@ RÈGLES TECHNIQUES:
         },
         objectifs_generaux: {
             quetes_dispo: availableQuests.map(q => q.title),
+            skills_disponibles: skillsToLearn.map(s => ({ nom: s.name, type: s.type, desc: s.description })),
             donjon_local: dungeons.map(d => `${d.name}(${d.rank})`)
         },
         memoire_long_terme: journalState,
