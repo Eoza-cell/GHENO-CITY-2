@@ -14,12 +14,17 @@ for i in {1..30}; do
     sleep 2
 done
 
-# Pré-charger le modèle gemma3:4b (Fallback local)
-echo "[SYSTEM] Vérification du modèle gemma3:4b..."
-if ! ollama list | grep -q "gemma3:4b"; then
-    echo "[SYSTEM] Téléchargement de gemma3:4b (cela peut prendre du temps au premier déploiement)..."
-    ollama pull gemma3:4b
-fi
+# Pré-charger le modèle gemma3:4b (Fallback local) en arrière-plan pour ne pas bloquer le démarrage du bot
+(
+    echo "[SYSTEM] Vérification du modèle gemma3:4b..."
+    if ! ollama list | grep -q "gemma3:4b"; then
+        echo "[SYSTEM] Téléchargement de gemma3:4b (en arrière-plan)..."
+        ollama pull gemma3:4b
+        echo "✅ Modèle gemma3:4b prêt."
+    else
+        echo "✅ Modèle gemma3:4b déjà présent."
+    fi
+) &
 
 # Lancer le bot WhatsApp
 echo "[SYSTEM] Lancement de GHENO CITY 2..."

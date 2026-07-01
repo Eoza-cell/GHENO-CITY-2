@@ -1806,23 +1806,35 @@ commands.set('checkai', async (sock, message) => {
 
     await sock.sendMessage(replyJid, { text: "🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*...\nVeuillez patienter." });
 
+    // Check Local Ollama Status
+    let ollamaStatus = "🔴 Injoignable";
+    try {
+        const ollamaTags = await axios.get("http://localhost:11434/api/tags", { timeout: 2000 });
+        const models = ollamaTags.data?.models || [];
+        const hasGemma = models.some(m => m.name.includes("gemma3:4b"));
+        ollamaStatus = hasGemma ? "🟢 Opérationnel (gemma3:4b)" : "🟡 Connecté (Modèle manquant)";
+    } catch (e) {
+        ollamaStatus = "🔴 Inaccessible (Local)";
+    }
+
     const startTime = Date.now();
     try {
         const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
         const duration = (Date.now() - startTime) / 1000;
 
         let status = "🟢 *OPÉRATIONNEL*";
-        if (result.includes("Le flux magique est instable")) status = "🔴 *LIMITE ATTEINTE*";
+        if (result.includes("Le flux magique est instable")) status = "🔴 *LIMITE ATTEINTE (Fallback)*";
 
         await sock.sendMessage(replyJid, {
             text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
-                  `Statut: ${status}\n` +
+                  `Flux Global: ${status}\n` +
+                  `Ollama Local: ${ollamaStatus}\n` +
                   `Latence: ${duration}s\n` +
                   `Réponse: ${result.substring(0, 100)}...\n\n` +
-                  `_Si le statut est dégradé, vérifiez vos clés API._`
+                  `_Si le statut est dégradé, vérifiez vos clés API Cloud._`
         });
     } catch (e) {
-        await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
+        await sock.sendMessage(replyJid, { text: `🔴 *ERREUR CRITIQUE*\n\nOllama Local: ${ollamaStatus}\nAucun flux magique n'a pu être établi. Contactez l'administrateur.` });
     }
 });
 

@@ -75,6 +75,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
   });
 
+  const isSolo = nearbyPlayers.length === 0;
+
   // CONSTANT MULTIPLAYER LOGIC: Always require 'next' to trigger MJ
   if (!isTriggerWord) {
       const otherRecentActions = await RPMessage.findAll({
