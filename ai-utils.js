@@ -71,6 +71,18 @@ function isValidAIResponse(text) {
     if (cleaned.startsWith('data: [DONE]') || cleaned === '[DONE]') return false;
     if (lower.includes('<!doctype html>') || lower.includes('<html>')) return false;
 
+    // Reject repetitive garbage (like in the screenshot)
+    if (/([\[\]{}])\1{5,}/.test(cleaned)) return false; // More than 5 consecutive brackets
+
+    // Reject if too few alphanumeric characters compared to length
+    const alphaNumericMatch = cleaned.match(/[a-zA-Z0-9]/g);
+    if (!alphaNumericMatch || alphaNumericMatch.length < cleaned.length * 0.1) {
+        // Unless it's a very short but valid JSON
+        if (!(cleaned.startsWith('{') && cleaned.endsWith('}') && cleaned.length > 10)) {
+            return false;
+        }
+    }
+
     // Additional check: if it looks like a JSON but narrative is too short/empty
     if (cleaned.includes('{') && cleaned.includes('}')) {
         try {
@@ -380,10 +392,11 @@ async function callPollinationsGET(system, prompt) {
 }
 
 async function callOllama(system, prompt) {
+    const model = process.env.OLLAMA_MODEL || "gemma3:4b";
     try {
-        console.log(`[AI] Ollama Local - Tentative avec gemma3:4b...`);
+        console.log(`[AI] Ollama Local - Tentative avec ${model}...`);
         const resp = await axios.post("http://localhost:11434/api/generate", {
-            model: "gemma3:4b",
+            model: model,
             prompt: `System: ${system}\n\nUser: ${prompt}`,
             stream: false,
             format: "json"
@@ -572,68 +585,6 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     // ULTIMATE FALLBACK
     return await callMJFallback(userPrompt);
-}
-
-/**
- * [FREE] Pollinations (Direct link) - Ultre-rapide et gratuit, pas besoin de clé.
- */
-async function callPollinationsFree(system, prompt) {
-    const allModels = ['openai', 'mistral', 'llama', 'p1', 'qwen-2.5-72b', 'sur-v1', 'rtist'];
-    // We try many models for Pollinations to maximize success rate
-    const models = allModels.sort(() => Math.random() - 0.5);
-
-    for (const model of models) {
-        try {
-            console.log(`[AI] Pollinations Free - Tentative via POST (${model})...`);
-            const resp = await axios.post("https://text.pollinations.ai/", {
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                model: model,
-                jsonMode: true,
-                seed: Math.floor(Math.random() * 1000000)
-            }, { timeout: 15000 }); // Fast attempts
-
-            let content = resp.data;
-            // Handle different possible response formats from Pollinations
-            if (resp.data?.choices?.[0]?.message?.content) {
-                content = resp.data.choices[0].message.content;
-            } else if (resp.data?.content) {
-                content = resp.data.content;
-            } else if (typeof resp.data === 'object') {
-                content = JSON.stringify(resp.data);
-            }
-
-            if (isValidAIResponse(content)) {
-                console.log(`[AI] ✅ Pollinations Free - Succès (${model})`);
-                return content;
-            }
-        } catch (e) {
-            console.warn(`[AI] ❌ Pollinations Free POST Error (${model}):`, e.message);
-        }
-    }
-
-    // Ultimate fallback for Pollinations: GET with a very minimal prompt
-    try {
-        console.log("[AI] Pollinations Free - Tentative de secours ultime via GET...");
-        const seed = Math.floor(Math.random() * 1000000);
-        // GET has very strict URL length limits
-        const miniPrompt = encodeURIComponent(prompt.substring(0, 300));
-        const miniSystem = encodeURIComponent(system.substring(0, 300));
-        const url = `https://text.pollinations.ai/${miniPrompt}?model=openai&system=${miniSystem}&seed=${seed}&json=true`;
-
-        const resp = await axios.get(url, { timeout: 10000 });
-        let content = resp.data;
-        if (typeof content === 'object') {
-            content = content.choices?.[0]?.message?.content || content.content || content.text || JSON.stringify(content);
-        }
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn("[AI] Pollinations GET fallback failed.");
-    }
-
-    return null;
 }
 
 function parsePuterResponse(resp) {

@@ -1807,12 +1807,13 @@ commands.set('checkai', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: "🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*...\nVeuillez patienter." });
 
     // Check Local Ollama Status
+    const model = process.env.OLLAMA_MODEL || "gemma3:4b";
     let ollamaStatus = "🔴 Injoignable";
     try {
         const ollamaTags = await axios.get("http://localhost:11434/api/tags", { timeout: 2000 });
         const models = ollamaTags.data?.models || [];
-        const hasGemma = models.some(m => m.name.includes("gemma3:4b"));
-        ollamaStatus = hasGemma ? "🟢 Opérationnel (gemma3:4b)" : "🟡 Connecté (Modèle manquant)";
+        const hasModel = models.some(m => m.name.includes(model));
+        ollamaStatus = hasModel ? `🟢 Opérationnel (${model})` : `🟡 Connecté (Modèle ${model} manquant)`;
     } catch (e) {
         ollamaStatus = "🔴 Inaccessible (Local)";
     }
@@ -1836,6 +1837,31 @@ commands.set('checkai', async (sock, message) => {
     } catch (e) {
         await sock.sendMessage(replyJid, { text: `🔴 *ERREUR CRITIQUE*\n\nOllama Local: ${ollamaStatus}\nAucun flux magique n'a pu être établi. Contactez l'administrateur.` });
     }
+});
+
+// Command: /download_model
+commands.set('download_model', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        return await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent commander de nouveaux modèles." });
+    }
+
+    const modelName = args[0] || "gemma3:4b";
+    await sock.sendMessage(replyJid, { text: `📥 *OLLAMA* : Lancement du téléchargement de \`${modelName}\`...\nCeci peut prendre quelques minutes en fonction de la connexion du serveur.` });
+
+    const { exec } = require('child_process');
+    exec(`ollama pull ${modelName}`, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`[Ollama] Pull error: ${error.message}`);
+            sock.sendMessage(replyJid, { text: `❌ *OLLAMA* : Échec du téléchargement de \`${modelName}\`.\nErreur: ${error.message}` });
+            return;
+        }
+        console.log(`[Ollama] Model ${modelName} pulled successfully.`);
+        sock.sendMessage(replyJid, { text: `✅ *OLLAMA* : Le modèle \`${modelName}\` est maintenant prêt à l'emploi.` });
+    });
 });
 
 // Command: /menu

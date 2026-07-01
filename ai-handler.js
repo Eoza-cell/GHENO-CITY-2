@@ -96,6 +96,11 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
       statusText += "\n\nTapez `next` pour déclencher la narration du MJ.";
 
+        // Solo bypass: if the player is alone in the scene, they don't have to wait for others,
+        // but for consistency we still require 'next' OR we can auto-trigger if solo.
+        // User said "Configure ollama serve automatiquement", let's keep it strictly 'next' based for sync unless they prefer otherwise.
+        // Given the screenshot showed "Note: Une seule personne peut next", it implies they ARE using next.
+
       await sock.sendMessage(jid, { text: statusText });
       return;
   }
@@ -384,7 +389,7 @@ const systemPrompt = `Tu es le MAÎTRE DU JEU (MJ) d'un univers Dark Fantasy / M
 
 ### RÈGLES D'OR DE NARRATION (STRICT) ###
 1. **ZÉRO HALLUCINATION :** Tu ne joues JAMAIS le personnage du joueur. Tu ne décris JAMAIS ses pensées, ses paroles ("je dis..."), ni ses mouvements ("tu avances..."). Le joueur est le seul maître de son personnage. Ta narration commence LÀ OÙ L'ACTION DU JOUEUR S'ARRÊTE.
-2. **MÉMOIRE PERSONNELLE & CONSISTANCE :** Identifie le joueur par son nom, sa signature magique et son style unique. Utilise les descriptions fournies dans 'competences' et 'pactes' pour colorer ta narration. Si un joueur a décrit une préparation ou un état mental, respecte-le et laisse-le influencer l'ambiance.
+2. **MÉMOIRE PERSONNELLE & CONSISTANCE :** Identifie le joueur par son nom, son **ÂGE**, son **SEXE**, sa signature magique et son style unique. Utilise les descriptions fournies dans 'competences' et 'pactes' pour colorer ta narration. Si un joueur a décrit une préparation ou un état mental, respecte-le et laisse-le influencer l'ambiance. Le sexe et l'âge doivent influencer la manière dont les PNJ s'adressent au joueur (respect, mépris, séduction, autorité).
 3. **STYLE VISCÉRAL & CINÉMATOGRAPHIQUE :** Ne sois pas générique. Décris la pression de l'aura, le craquement du sol, la sueur froide, l'odeur du sang et de l'ozone. Utilise des métaphores brutales inspirées des Manhwas de haut niveau.
 3. **ÉCHELLE DE PUISSANCE :** Respecte les statistiques. Un écart de 10 points est une montagne. Un écart de 30 points est un abîme. Décris la supériorité physique ou magique de manière écrasante.
 4. **DIALOGUES PNJ :** Chaque PNJ a une voix unique. Utilise le discours direct "..." systématiquement. Ils sont intelligents, ont des agendas et ne sont pas là juste pour aider le joueur.
@@ -693,6 +698,11 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
             aiResponse.narrative = cleanupNarrative(plainText);
         }
+
+    // FINAL VALIDATION: If narrative is STILL empty but we have actions, create a default narrative
+    if ((!aiResponse.narrative || aiResponse.narrative.length < 5) && aiResponse.actions && aiResponse.actions.length > 0) {
+        aiResponse.narrative = "Le monde réagit à tes impulsions. Les changements ont été appliqués à la trame de la réalité.";
+    }
     }
 
     // Ensure narrative is clean

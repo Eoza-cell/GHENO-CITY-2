@@ -14,15 +14,16 @@ for i in {1..30}; do
     sleep 2
 done
 
-# Pré-charger le modèle gemma3:4b (Fallback local) en arrière-plan pour ne pas bloquer le démarrage du bot
+# Pré-charger le modèle configuré (Fallback local) en arrière-plan pour ne pas bloquer le démarrage du bot
+MODEL_NAME=${OLLAMA_MODEL:-"gemma3:4b"}
 (
-    echo "[SYSTEM] Vérification du modèle gemma3:4b..."
-    if ! ollama list | grep -q "gemma3:4b"; then
-        echo "[SYSTEM] Téléchargement de gemma3:4b (en arrière-plan)..."
-        ollama pull gemma3:4b
-        echo "✅ Modèle gemma3:4b prêt."
+    echo "[SYSTEM] Vérification du modèle ${MODEL_NAME}..."
+    if ! ollama list | grep -q "${MODEL_NAME}"; then
+        echo "[SYSTEM] Téléchargement de ${MODEL_NAME} (en arrière-plan)..."
+        ollama pull ${MODEL_NAME}
+        echo "✅ Modèle ${MODEL_NAME} prêt."
     else
-        echo "✅ Modèle gemma3:4b déjà présent."
+        echo "✅ Modèle ${MODEL_NAME} déjà présent."
     fi
 ) &
 
