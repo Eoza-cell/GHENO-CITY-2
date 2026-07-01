@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     wget \
     git \
     ca-certificates \
+    lsof \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Installer Ollama

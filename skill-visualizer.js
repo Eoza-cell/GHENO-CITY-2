@@ -34,11 +34,15 @@ const ELEMENT_SYMBOLS = {
     'COMMUN': '📜'
 };
 
-async function generateSkillTable(skills) {
+async function generateSkillTable(skills, options = {}) {
     const width = 1000;
     const itemHeight = 120;
     const padding = 40;
-    const height = Math.max(400, (skills.length * itemHeight) + (padding * 2) + 100);
+    const page = options.page || 1;
+    const totalPages = options.totalPages || 1;
+    const title = options.title || "GRIMOIRE DES COMPÉTENCES";
+
+    const height = Math.max(400, (skills.length * itemHeight) + (padding * 2) + 120);
 
     let skillsSvg = '';
     skills.forEach((skill, i) => {
@@ -83,10 +87,14 @@ async function generateSkillTable(skills) {
         <rect width="100%" height="100%" fill="url(#bgGrad)" />
 
         <!-- Title -->
-        <text x="50%" y="60" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="50" fill="white">GRIMOIRE DES COMPÉTENCES</text>
-        <line x1="100" y1="95" x2="900" y2="95" stroke="white" stroke-width="2" opacity="0.3" />
+        <text x="50%" y="50" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="40" fill="white">${title}</text>
+        <text x="50%" y="85" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="20" fill="#aaaaaa">Page ${page} sur ${totalPages}</text>
+        <line x1="100" y1="105" x2="900" y2="105" stroke="white" stroke-width="2" opacity="0.3" />
 
         ${skillsSvg}
+
+        <!-- Footer hint -->
+        <text x="50%" y="${height - 20}" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#666666">Aetheris - Système de Compétences</text>
     </svg>
     `;
 

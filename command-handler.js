@@ -67,29 +67,53 @@ commands.set('start', async (sock, message) => {
 });
 
 // Command: /quests
-// Command: /competences
-commands.set('competences', async (sock, message) => {
+// Command: /competences (Show PLAYER'S skills with pagination)
+commands.set('competences', async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid }, include: Skill });
+    const player = await Player.findOne({ where: { whatsappId: jid } });
 
     if (!player) {
         await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
         return;
     }
 
-    const skills = player.Skills;
-
-    if (!skills || skills.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !" });
-        return;
-    }
+    const page = args[0] && !isNaN(parseInt(args[0])) ? parseInt(args[0]) : 1;
+    const pageSize = 10;
+    const offset = (page - 1) * pageSize;
 
     try {
-        const skillBuffer = await generateSkillTable(skills);
+        const { count, rows: skills } = await Skill.findAndCountAll({
+            include: [{
+                model: Player,
+                where: { whatsappId: jid },
+                through: { attributes: [] }
+            }],
+            limit: pageSize,
+            offset,
+            order: [['type', 'ASC'], ['name', 'ASC']]
+        });
+
+        if (count === 0) {
+            await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !" });
+            return;
+        }
+
+        if (skills.length === 0) {
+            return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas autant de compétences. Essaye une page plus petite.` });
+        }
+
+        const totalPages = Math.ceil(count / pageSize);
+
+        const skillBuffer = await generateSkillTable(skills, {
+            page,
+            totalPages,
+            title: `GRIMOIRE DE ${player.name.toUpperCase()}`
+        });
+
         await sock.sendMessage(replyJid, {
             image: skillBuffer,
-            caption: `*Grimoire de ${player.name}*\n\n_Tu possèdes ${skills.length} techniques. Utilise /action pour les invoquer en combat._`
+            caption: `*Grimoire de ${player.name}*\nPage ${page}/${totalPages} (${count} techniques possédées)\n\n_Utilise /action pour invoquer tes sorts._\n_Utilise /competences [page] pour naviguer._`
         });
     } catch (e) {
         console.error("[Skills] Error generating visual:", e);
@@ -103,16 +127,57 @@ commands.set('competences', async (sock, message) => {
     }
 });
 
-// Command: /skills (Show ALL available skills to learn)
-commands.set('skills', async (sock, message) => {
+// Command: /skills (Show available skills to learn with categories and pagination)
+commands.set('skills', async (sock, message, args) => {
     const replyJid = message.key.remoteJid;
-    const allSkills = await Skill.findAll({ limit: 15 });
+
+    // Category or Page
+    let category = null;
+    let page = 1;
+
+    if (args[0]) {
+        if (!isNaN(parseInt(args[0]))) {
+            page = parseInt(args[0]);
+        } else {
+            category = args[0].toUpperCase();
+            if (args[1] && !isNaN(parseInt(args[1]))) {
+                page = parseInt(args[1]);
+            }
+        }
+    }
+
+    const pageSize = 10;
+    const offset = (page - 1) * pageSize;
+
+    const where = {};
+    if (category) {
+        where.type = category;
+    }
 
     try {
-        const skillBuffer = await generateSkillTable(allSkills);
+        const { count, rows: skills } = await Skill.findAndCountAll({
+            where,
+            limit: pageSize,
+            offset,
+            order: [['type', 'ASC'], ['name', 'ASC']]
+        });
+
+        if (skills.length === 0) {
+            return await sock.sendMessage(replyJid, { text: `❌ Aucune compétence trouvée ${category ? `pour la catégorie ${category}` : ''} à cette page.` });
+        }
+
+        const totalPages = Math.ceil(count / pageSize);
+        const title = category ? `COMPÉTENCES : ${category}` : "BIBLIOTHÈQUE DES COMPÉTENCES";
+
+        const skillBuffer = await generateSkillTable(skills, {
+            page,
+            totalPages,
+            title
+        });
+
         await sock.sendMessage(replyJid, {
             image: skillBuffer,
-            caption: `📜 *TABLEAU DES COMPÉTENCES D'AETHERYS*\n\nCes techniques peuvent être apprises à l'Académie via un /examen.`
+            caption: `📜 *${title}*\nPage ${page}/${totalPages} (${count} au total)\n\n_Utilise /skills [catégorie] [page] pour naviguer._\n_Ex: /skills mage 2_`
         });
     } catch (e) {
         console.error("[Skills] Error generating visual:", e);

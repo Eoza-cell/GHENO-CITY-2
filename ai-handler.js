@@ -77,8 +77,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const isSolo = nearbyPlayers.length === 0;
 
-  // CONSTANT MULTIPLAYER LOGIC: Always require 'next' to trigger MJ
-  if (!isTriggerWord) {
+  // Multiplayer Logic: Wait for 'next' to sync actions
+  if (!isSolo && !isTriggerWord) {
       const otherRecentActions = await RPMessage.findAll({
           where: {
               ...sceneFilter,
@@ -94,13 +94,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       if (otherRecentActions.length > 0) {
           statusText += `\nActions en attente : ${[...new Set(otherRecentActions.map(a => a.senderName))].join(', ')}.`;
       }
-      statusText += "\n\nTapez `next` pour déclencher la narration du MJ.";
-
-        // Solo bypass: if the player is alone in the scene, they don't have to wait for others,
-        // but for consistency we still require 'next' OR we can auto-trigger if solo.
-        // User said "Configure ollama serve automatiquement", let's keep it strictly 'next' based for sync unless they prefer otherwise.
-        // Given the screenshot showed "Note: Une seule personne peut next", it implies they ARE using next.
-
+      statusText += "\n\nTapez `next` pour déclencher la narration collective du MJ.";
       await sock.sendMessage(jid, { text: statusText });
       return;
   }
@@ -209,11 +203,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   if (activeDuel) {
-      const opponentJid = activeDuel.playerAJid === player.whatsappId ? activeDuel.playerBJid : activeDuel.playerAJid;
-      const opponent = await Player.findByPk(opponentJid);
+      const duelOpponentJid = activeDuel.playerAJid === player.whatsappId ? activeDuel.playerBJid : activeDuel.playerAJid;
+      const duelOpponent = await Player.findByPk(duelOpponentJid);
 
-      if (opponent) {
-          hints.push(`⚠️ COMBAT JCJ EN COURS (ATR ARENA). Tu es l'Arbitre. Opposant: ${opponent.name}.`);
+      if (duelOpponent) {
+          hints.push(`⚠️ COMBAT JCJ EN COURS (ATR ARENA). Tu es l'Arbitre. Opposant: ${duelOpponent.name}.`);
           hints.push("⚠️ UTILISE L'ANALYSE TACTIQUE : Précision du membre visé, distance, et stats pour valider le coup.");
       }
   }
@@ -772,8 +766,8 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     // Health detection (Relative: [HP -10], Absolute: [PV: 95/100] or PV: 95)
     // Only scrape if the narrative explicitly mentions the acting player's name nearby
-    const playerNameLow = player.name.toLowerCase();
-    const hasPlayerContext = aiResponse.narrative.toLowerCase().includes(playerNameLow) || aiResponse.narrative.toLowerCase().includes("tu ");
+    const currentPlayerNameLow = player.name.toLowerCase();
+    const hasPlayerContext = aiResponse.narrative.toLowerCase().includes(currentPlayerNameLow) || aiResponse.narrative.toLowerCase().includes("tu ");
 
     if (hasPlayerContext) {
         const hpRelMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*([+-]\d+)\]/i) || aiResponse.narrative.match(/(?:HP|PV)\s*:\s*([+-]\d+)/i);
@@ -814,11 +808,11 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     // AND we are NOT in fallback mode (to avoid false positives from the fallback template)
     if (!isFallback) {
         // More specific death markers to avoid false positives from lore or NPCs
-        const playerNameLow = player.name.toLowerCase();
+        const currentPNameLow = player.name.toLowerCase();
         const deathMarkers = [
             `tu meurs`, `tu succombes`, `ton souffle s'arrête`, `ta vie s'échappe`,
-            `${playerNameLow} meurt`, `${playerNameLow} succombe`, `${playerNameLow} rend l'âme`,
-            `${playerNameLow} s'écroule, sans vie`, `${playerNameLow} est inerte`
+            `${currentPNameLow} meurt`, `${currentPNameLow} succombe`, `${currentPNameLow} rend l'âme`,
+            `${currentPNameLow} s'écroule, sans vie`, `${currentPNameLow} est inerte`
         ];
 
         const isPlayerDead = deathMarkers.some(m => lowNarrative.includes(m));
@@ -846,8 +840,8 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     // Batch notifications to targets to avoid spam
     for (const targetJid of notifiedTargets) {
-        const targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
-        if (targetPlayer && shouldNotifyPlayer(targetPlayer)) {
+        const tPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
+        if (tPlayer && shouldNotifyPlayer(tPlayer)) {
             await sock.sendMessage(targetJid, {
                 text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
             });
@@ -858,10 +852,10 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     if (Array.isArray(aiResponse.notifications)) {
       for (const notice of aiResponse.notifications) {
         if (!notice || !notice.target_name || !notice.message) continue;
-        const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: `%${notice.target_name}%` }, location: player.location } });
-        if (targetPlayer && targetPlayer.subLocation !== player.subLocation) continue;
-        if (targetPlayer && shouldNotifyPlayer(targetPlayer)) {
-          await sock.sendMessage(targetPlayer.whatsappId, {
+        const nTargetPlayer = await Player.findOne({ where: { name: { [Op.like]: `%${notice.target_name}%` }, location: player.location } });
+        if (nTargetPlayer && nTargetPlayer.subLocation !== player.subLocation) continue;
+        if (nTargetPlayer && shouldNotifyPlayer(nTargetPlayer)) {
+          await sock.sendMessage(nTargetPlayer.whatsappId, {
             text: `🔔 *Message de RP*\n\n${notice.message}`
           });
         }

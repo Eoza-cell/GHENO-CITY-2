@@ -121,11 +121,11 @@ const Player = sequelize.define('Player', {
     defaultValue: 100,
   },
   hunger: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 100,
   },
   sleep: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 100,
   },
   inventory: {
