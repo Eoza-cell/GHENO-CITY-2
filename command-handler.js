@@ -10,6 +10,7 @@ const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage } = require('./shop-generator');
+const { generateSkillTable } = require('./skill-visualizer');
 const { handleFreeAction } = require('./ai-handler');
 const arenaHandler = require('./arena-handler');
 const { startTutorial } = require('./tutorial-handler');
@@ -84,31 +85,39 @@ commands.set('competences', async (sock, message) => {
         return;
     }
 
-    let skillText = `*Compétences de ${player.name}:*\n\n`;
-
-    const activeSkills = skills.filter(s => s.type !== 'passive');
-    const passiveSkills = skills.filter(s => s.type === 'passive');
-
-    if (activeSkills.length > 0) {
-        skillText += "⚔️ *TECHNIQUES ET SORTS ACTIFS:*\n";
-        activeSkills.forEach(s => {
-            skillText += `├ *${s.name.toUpperCase()}*\n`;
-            skillText += `│ 💠 Coût: ${s.manaCost} PM\n`;
+    try {
+        const skillBuffer = await generateSkillTable(skills);
+        await sock.sendMessage(replyJid, {
+            image: skillBuffer,
+            caption: `*Grimoire de ${player.name}*\n\n_Tu possèdes ${skills.length} techniques. Utilise /action pour les invoquer en combat._`
+        });
+    } catch (e) {
+        console.error("[Skills] Error generating visual:", e);
+        // Fallback text
+        let skillText = `*Compétences de ${player.name}:*\n\n`;
+        skills.forEach(s => {
+            skillText += `├ *${s.name.toUpperCase()}* (${s.type})\n`;
             skillText += `└ 📜 ${s.description}\n\n`;
         });
+        await sock.sendMessage(replyJid, { text: skillText });
     }
+});
 
-    if (passiveSkills.length > 0) {
-        skillText += "✨ *COMPÉTENCES PASSIVES:*\n";
-        passiveSkills.forEach(s => {
-            skillText += `├ *${s.name}*\n`;
-            skillText += `└ 📜 ${s.description}\n\n`;
+// Command: /skills (Show ALL available skills to learn)
+commands.set('skills', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const allSkills = await Skill.findAll({ limit: 15 });
+
+    try {
+        const skillBuffer = await generateSkillTable(allSkills);
+        await sock.sendMessage(replyJid, {
+            image: skillBuffer,
+            caption: `📜 *TABLEAU DES COMPÉTENCES D'AETHERYS*\n\nCes techniques peuvent être apprises à l'Académie via un /examen.`
         });
+    } catch (e) {
+        console.error("[Skills] Error generating visual:", e);
+        await sock.sendMessage(replyJid, { text: "Impossible d'afficher le tableau des compétences." });
     }
-
-    skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pacts._";
-
-    await sock.sendMessage(replyJid, { text: skillText });
 });
 
 commands.set('quests', async (sock, message) => {
@@ -918,9 +927,28 @@ commands.set('examens', async (sock, message) => {
     text += `🎓 *Année:* ${player.academicYear}${academicSuffix} Année\n`;
     text += `🏫 *École:* ${player.schoolName}\n`;
     text += `📊 *Moyenne Générale:* ${player.academicGrade}/100\n\n`;
-    text += `_Les examens de ${player.academicYear}${academicSuffix} année se passent via /action (écriture sur copie)._`;
+    text += `_Les examens de ${player.academicYear}${academicSuffix} année se passent via /examen._`;
 
     await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /examen
+commands.set('examen', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    if (player.location !== "Empire Impérial d'Elion" && player.location !== "Royaume de Valkyrr") {
+        return await sock.sendMessage(replyJid, { text: "❌ Tu dois être dans une Académie pour passer un examen." });
+    }
+
+    await player.update({ mode: 'action' }); // Switch to RP mode for the exam
+
+    const examPrompt = `📝 *DÉBUT DE L'EXAMEN ACADÉMIQUE*\n\nTu es devant ton pupitre. L'examinateur s'approche et te tend une feuille.\n\n*MJ:* "Aujourd'hui, nous allons tester tes connaissances et ton contrôle du mana. Quel skill souhaites-tu apprendre ?"`;
+
+    await sock.sendMessage(replyJid, { text: examPrompt });
 });
 
 // Command: /god

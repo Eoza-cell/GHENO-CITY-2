@@ -391,6 +391,11 @@ const WorldJournal = sequelize.define('WorldJournal', {
     timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
 
+const GlobalState = sequelize.define('GlobalState', {
+    key: { type: DataTypes.STRING, primaryKey: true },
+    value: { type: DataTypes.TEXT }
+});
+
 const NPC = sequelize.define('NPC', {
     name: { type: DataTypes.STRING, unique: true },
     role: { type: DataTypes.STRING },
@@ -526,6 +531,7 @@ async function setupDatabase() {
       Schools: School.rawAttributes,
       RPMessages: RPMessage.rawAttributes,
       WorldJournals: WorldJournal.rawAttributes,
+      GlobalStates: GlobalState.rawAttributes,
       Duels: Duel.rawAttributes
     };
 
@@ -1038,6 +1044,6 @@ async function setupDatabase() {
 
 module.exports = {
   sequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, GlobalState, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
   setupDatabase,
 };

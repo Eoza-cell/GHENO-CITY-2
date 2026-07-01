@@ -187,6 +187,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   if (!isSolo) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
 
+  // EXAM LOGIC HINT
+  if (player.subLocation.toLowerCase().includes('académie') || player.subLocation.toLowerCase().includes('école')) {
+      hints.push("⚠️ EXAMEN EN COURS : Si le joueur répond aux questions de l'examinateur, utilise 'add_skill' pour lui donner le skill souhaité s'il a réussi le test narratif.");
+  }
+
   // ATR ARENA - Check for active duel
   let activeDuel = null;
   try {
@@ -213,28 +218,21 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
-  // Survival Depletion Logic
-  const lastActivity = new Date(player.lastActivity).getTime();
-  const nowMs = Date.now();
-  const realElapsedMs = nowMs - lastActivity;
-  const rpElapsedHours = (realElapsedMs * 9) / (1000 * 60 * 60);
+    // Survival Depletion Logic (Action-based: 1 action = 10 mins RP)
+    // -3 hunger per RP hour -> -0.5 per action
+    // -2 sleep per RP hour -> -0.33 per action
+    const hungerLoss = 0.5;
+    const sleepLoss = 0.33;
 
-  if (rpElapsedHours > 0.05) {
-      const hungerLoss = Math.floor(rpElapsedHours * 3); // -3 per RP hour
-      const sleepLoss = Math.floor(rpElapsedHours * 2);  // -2 per RP hour
+    // We apply these changes only when 'next' is triggered (meaning the world moves)
+    await player.update({
+        hunger: Math.max(0, player.hunger - hungerLoss),
+        sleep: Math.max(0, player.sleep - sleepLoss),
+        lastActivity: new Date()
+    });
 
-      if (hungerLoss > 0) await player.decrement('hunger', { by: hungerLoss });
-      if (sleepLoss > 0) await player.decrement('sleep', { by: sleepLoss });
-
-      await player.reload();
-      if (player.hunger < 0) await player.update({ hunger: 0 });
-      if (player.sleep < 0) await player.update({ sleep: 0 });
-
-      // Starvation damage
-      if (player.hunger === 0 && rpElapsedHours > 0.5) {
-          await player.decrement('health', { by: 5 });
-      }
-      await player.update({ lastActivity: new Date() });
+    if (player.hunger === 0) {
+        await player.decrement('health', { by: 1 }); // Starvation
   }
 
   const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
@@ -373,8 +371,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const houses = await player.getHouses();
   const playerHouses = houses.map(h => `${h.name}(${h.location})`).join(', ');
 
-  // Updated Time Logic: 1:9 scale
-  const rpTime = getRPTime();
+    // Updated Time Logic: Action-based
+    const rpTime = await getRPTime();
   const rpYearString = rpTime.formatted;
   const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
@@ -431,9 +429,10 @@ RÈGLES TECHNIQUES:
    - MINIMISATION DES GARDES : Ne fais intervenir des gardes ou la police QUE si le joueur commet un crime flagrant et public, ou si cela sert un arc narratif majeur. Évite les "contrôles d'identité" ou les "procédures" ennuyeuses qui cassent le rythme.
    - SUBTILITÉ DES LOIS : Ne liste JAMAIS les lois ou "le Code" d'un royaume de manière systématique. Les lois sont des détails du monde, pas des règles de jeu à afficher. Elles doivent transparaître naturellement à travers le comportement des PNJ ou des conséquences immédiates, sans être citées comme un règlement.
    - ADVERSAIRES ACTIFS (STRICT): Les PNJ et monstres ne sont JAMAIS passifs. Ils utilisent l'environnement, feintent, et emploient leurs techniques.
-   - RIPOSTE ADAPTATIVE (STRICT): Les monstres et PNJ ne se contentent pas de frapper au hasard. Leurs ripostes s'adaptent SPÉCIFIQUEMENT à la trajectoire, à l'intensité et à la nature de l'attaque du joueur. Si un joueur utilise des lasers multiples (ex: Exodus Heis), l'adversaire doit réagir à chaque rayon (esquive latérale, protection des yeux contre l'éblouissement, utilisation d'un obstacle). Chaque mouvement ennemi est une réponse tactique miroir : si le joueur attaque à distance, l'ennemi cherche la couverture ou réduit la distance avec une feinte.
+    - RIPOSTE SYSTÉMATIQUE (STRICT): À chaque action offensive du joueur, l'adversaire (Monstre ou PNJ) DOIT riposter violemment. Ne laisse jamais un joueur frapper gratuitement sans conséquence immédiate.
+    - RIPOSTE ADAPTATIVE (STRICT): Les monstres et PNJ ne se contentent pas de frapper au hasard. Leurs ripostes s'adaptent SPÉCIFIQUEMENT à la trajectoire, à l'intensité et à la nature de l'attaque du joueur. Si un joueur utilise des lasers multiples (ex: Exodus Heis), l'adversaire doit réagir à chaque rayon (esquive latérale, protection des yeux contre l'éblouissement, utilisation d'un obstacle). Chaque mouvement ennemi est une réponse tactique miroir.
    - MÉMOIRE DE COMBAT : L'IA doit se souvenir de l'état physique exact de chaque membre. Si un bras est engourdi par une brûlure laser, il reste moins efficace pour le reste du combat.
-   - RIPOSTE DES MONSTRES: Ils esquivent/parent et contre-attaquent dans le même tour. Inflige des dégâts via update_stats.
+    - RIPOSTE DES MONSTRES: Ils esquivent/parent et contre-attaquent dans le même tour. Tu DOIS infliger des dégâts au joueur via l'action "update_stats" ({ "health_change": -X }) si la riposte touche.
    - CONSISTANCE GÉOGRAPHIQUE: Les monstres et BOSS ne peuvent apparaître que dans leur lieu (Location) assigné.
 3. PRÉCISION CHIRURGICALE & SENSORIELLE: Mentionne les membres visés, les distances en mètres, mais aussi les odeurs (fer, poussière, parfum), les sons (craquement d'os, sifflement d'air, brouhaha lointain) et les textures (froid du métal, rugosité de la pierre).
 4. PHYSIQUE & POIDS: Décris l'inertie, le poids des armes, la résistance de l'air, et l'impact brutal des chocs. Chaque mouvement doit avoir une consistance physique réelle.
@@ -773,8 +772,9 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     const hasPlayerContext = aiResponse.narrative.toLowerCase().includes(playerNameLow) || aiResponse.narrative.toLowerCase().includes("tu ");
 
     if (hasPlayerContext) {
-        const hpRelMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*([+-]\d+)\]/i);
-        const hpAbsMatch = aiResponse.narrative.match(/(?:HP|PV)[:\s]*(\d+)(?:\/\d+)?/i);
+        const hpRelMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*([+-]\d+)\]/i) || aiResponse.narrative.match(/(?:HP|PV)\s*:\s*([+-]\d+)/i);
+        const hpAbsMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*(\d+)\]/i) || aiResponse.narrative.match(/(?:HP|PV)\s*:\s*(\d+)/i);
+
         if (hpRelMatch) {
             narrativeActions.push({ type: 'update_stats', parameters: { health_change: parseInt(hpRelMatch[1]) } });
         } else if (hpAbsMatch) {
@@ -783,8 +783,9 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     }
 
     // Mana detection
-    const mpRelMatch = aiResponse.narrative.match(/\[(?:MP|PM)\s*([+-]\d+)\]/i);
-    const mpAbsMatch = aiResponse.narrative.match(/(?:MP|PM)[:\s]*(\d+)(?:\/\d+)?/i);
+    const mpRelMatch = aiResponse.narrative.match(/\[(?:MP|PM)\s*([+-]\d+)\]/i) || aiResponse.narrative.match(/(?:MP|PM)\s*:\s*([+-]\d+)/i);
+    const mpAbsMatch = aiResponse.narrative.match(/\[(?:MP|PM)\s*(\d+)\]/i) || aiResponse.narrative.match(/(?:MP|PM)\s*:\s*(\d+)/i);
+
     if (mpRelMatch) {
         narrativeActions.push({ type: 'update_stats', parameters: { mana_change: parseInt(mpRelMatch[1]) } });
     } else if (mpAbsMatch) {
@@ -792,7 +793,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     }
 
     // Col detection
-    const colMatch = aiResponse.narrative.match(/\[COL\s*([+-]\d+)\]/i);
+    const colMatch = aiResponse.narrative.match(/\[COL\s*([+-]\d+)\]/i) || aiResponse.narrative.match(/COL\s*:\s*([+-]\d+)/i);
     if (colMatch) {
         narrativeActions.push({ type: 'update_stats', parameters: { col_change: parseInt(colMatch[1]) } });
     }
@@ -882,10 +883,14 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     aiResponse.narrative += "\n\n💡 *Note:* Une seule personne peut `next`, mais elle doit attendre que tous les autres aient fini leurs actions pour que tout soit pris en compte.";
 
     // Prepend World Clock Header
-    const header = getWorldHeader();
+    const header = await getWorldHeader();
     if (aiResponse.narrative && !aiResponse.narrative.includes("An ")) {
         aiResponse.narrative = `${header}\n\n${aiResponse.narrative}`;
     }
+
+    // Increment Global Action Count
+    const { incrementActionCount } = require('./world-clock');
+    await incrementActionCount();
 
     // ATR ARENA - Inject Fight Pad if in duel
     if (activeDuel) {

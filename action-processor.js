@@ -126,6 +126,10 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     const docBuffer = await generatePaperImage(parameters.content, parameters.title || "DOCUMENT");
                     await sock.sendMessage(jid, { image: docBuffer, caption: `📄 ${parameters.title}` });
                     break;
+                case 'query_database':
+                    // This is mainly for AI internal logic, but we can log it or provide feedback
+                    console.log(`[AI Query] ${parameters.model} searching for "${parameters.search}"`);
+                    break;
                 // Add other cases as needed...
             }
         } catch (err) {
@@ -310,10 +314,22 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
 }
 
 async function handleAddSkill(target, params, playersToUpdate) {
-    const skill = await Skill.findOne({ where: { name: { [Op.like]: `%${params.skillName}%` } } });
-    if (skill && !(await target.hasSkill(skill))) {
-        await target.addSkill(skill);
-        playersToUpdate.add(target.whatsappId);
+    const skill = await Skill.findOne({
+        where: {
+            [Op.or]: [
+                { name: { [Op.like]: `%${params.skillName}%` } },
+                { name: params.skillName }
+            ]
+        }
+    });
+    if (skill) {
+        const hasSkill = await target.hasSkill(skill);
+        if (!hasSkill) {
+            await target.addSkill(skill);
+            playersToUpdate.add(target.whatsappId);
+        }
+    } else {
+        console.warn(`[Skills] Skill not found: ${params.skillName}`);
     }
 }
 
