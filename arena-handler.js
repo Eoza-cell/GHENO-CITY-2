@@ -1,5 +1,5 @@
 const { Player, Duel, RPMessage } = require('./database');
-const { callAI } = require('./ai-utils');
+const aether = require('./aether-core');
 const sharp = require('sharp');
 
 /**
@@ -124,7 +124,7 @@ ACTION: ${actionDescription}
         `;
 
         try {
-            const response = await callAI(systemPrompt, userPrompt);
+            const response = await aether.generateNarration(systemPrompt, userPrompt, actionDescription, player.location);
             return JSON.parse(response);
         } catch (e) {
             return { valid: true, damage: 10, narrative: "Le combat fait rage." };

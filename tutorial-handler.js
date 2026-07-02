@@ -4,7 +4,7 @@ const { generateClassSelectionImage } = require('./class-visualizer');
 const { generateLinkStartImage } = require('./start-image-generator');
 const { generateProfileCard } = require('./profile-generator');
 const { sendWithImage } = require('./message-handler');
-const { callAI } = require('./ai-utils');
+const aether = require('./aether-core');
 const { Skill, Op } = require('./database');
 
 async function startTutorial(sock, jid, player) {
@@ -347,7 +347,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
         await player.reload();
 
         try {
-            let contentRaw = await callAI(systemPrompt, fullPrompt);
+            let contentRaw = await aether.generateNarration(systemPrompt, fullPrompt, actionText, "Salle de Simulation");
             if (!contentRaw) {
                 contentRaw = JSON.stringify({ narrative: "Instructeur : 'Debout ! Ne t'endors pas pendant l'entraînement !'", tutorial_complete: false });
             }

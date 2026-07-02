@@ -5,7 +5,7 @@ const { generate3DVisual } = require('./three-renderer');
 const { generateActionVisual } = require('./action-visual-generator');
 const { generateProfileCard } = require('./profile-generator');
 const { Op } = require('sequelize');
-const { callAI } = require('./ai-utils');
+const aether = require('./aether-core');
 const questUtils = require('./quest-utils');
 const { processActions } = require('./action-processor');
 const arenaHandler = require('./arena-handler');
@@ -600,8 +600,8 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.`;
 
   try {
-    console.log(`[AI] Appel callAI pour ${player.name}...`);
-    let content = await callAI(systemPrompt, fullPrompt);
+    console.log(`[AI] Appel AetherCore pour ${player.name}...`);
+    let content = await aether.generateNarration(systemPrompt, fullPrompt, actionText, player.location);
 
     // Delete thinking message
     if (thinkingMsg) {

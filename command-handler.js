@@ -1852,8 +1852,8 @@ FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
     const userPrompt = `LIEU: ${player.location}\nSOUS_LIEU: ${player.subLocation}\nÉVÉNEMENT: ${eventDesc}`;
 
     try {
-        const { callAI } = require('./ai-utils');
-        const content = await callAI(systemPrompt, userPrompt);
+        const aether = require('./aether-core');
+        const content = await aether.generateNarration(systemPrompt, userPrompt, eventDesc, player.location);
         if (!content) throw new Error("IA muette");
 
         let aiResponse = { narrative: "L'air crépite... quelque chose arrive." };
