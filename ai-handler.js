@@ -380,7 +380,12 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-const systemPrompt = `Tu es le MAÎTRE DU JEU (MJ) d'AETHERYS. Ton but est de faire vivre une aventure libre mais difficile aux joueurs.
+const systemPrompt = `Tu es le MAÎTRE DU JEU (MJ) d'AETHERYS. Ton but est de faire vivre une aventure réaliste et difficile aux joueurs.
+
+### RÈGLES DE RÉALISME & RANGS (CRITIQUE) ###
+1. **RANGS STRICTS :** Un joueur de Rang F est une personne ordinaire. Il ne peut PAS contrôler des entités puissantes (Apôtres), vaincre des monstres géants seul ou survivre à des chutes mortelles.
+2. **ÉCHEC LOGIQUE :** Si un joueur tente une action impossible pour son rang ou ses stats, l'action ÉCHOUE brutalement. Ne sois pas indulgent. La progression se mérite.
+3. **MÉRITOCRATIE :** Rien n'est gratuit. Un gain de pouvoir doit suivre un entraînement long ou une épreuve extrême.
 
 ### RÈGLES DE NARRATION (STRICT) ###
 1. **FRANÇAIS FACILE :** Utilise des mots simples. Pas de phrases trop longues ou compliquées. Le style doit être clair et direct.
@@ -842,6 +847,21 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     // Process actions via unified logic engine
     const { questFeedback, playersToUpdate, notifiedTargets } = await processActions(sock, jid, player, actions, aiResponse, nearbyPlayers);
+
+    // Append Player Status Footer (Live bars)
+    let statusFooter = "\n\n--- 📊 ÉTAT DES HÉRITIERS ---\n";
+    const allActorsJids = [player.whatsappId, ...nearbyPlayers.map(p => p.whatsappId)];
+    for (const actorJid of allActorsJids) {
+        const p = await Player.findByPk(actorJid);
+        if (p) {
+            const hPercent = Math.max(0, Math.min(1, p.health / p.maxHealth));
+            const mPercent = Math.max(0, Math.min(1, p.mana / p.maxMana));
+            const hBar = "▰".repeat(Math.ceil(hPercent * 10)) + "▱".repeat(10 - Math.ceil(hPercent * 10));
+            const mBar = "▰".repeat(Math.ceil(mPercent * 10)) + "▱".repeat(10 - Math.ceil(mPercent * 10));
+            statusFooter += `👤 *${p.name}* (Rang ${p.rank})\n❤️ PV: [${hBar}] ${p.health}/${p.maxHealth}\n🔷 PM: [${mBar}] ${p.mana}/${p.maxMana}\n`;
+        }
+    }
+    aiResponse.narrative += statusFooter;
 
     // Batch notifications to targets to avoid spam
     for (const targetJid of notifiedTargets) {
