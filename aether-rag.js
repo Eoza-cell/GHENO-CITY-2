@@ -1,4 +1,4 @@
-const { NPC, Skill, Kingdom, sequelize } = require('./database');
+const { NPC, Skill, Kingdom, Item, Quest, sequelize } = require('./database');
 const { Op } = require('sequelize');
 
 /**
@@ -13,7 +13,9 @@ class AetherRAG {
         this.index = {
             npcs: [],
             skills: [],
-            kingdoms: []
+            kingdoms: [],
+            items: [],
+            quests: []
         };
         this.lastUpdate = 0;
         this.updateInterval = 1000 * 60 * 30; // 30 minutes
@@ -28,10 +30,12 @@ class AetherRAG {
         console.log("[RAG] Refreshing Lore Index...");
 
         // Fetch key data for indexing
-        const [npcs, skills, kingdoms] = await Promise.all([
+        const [npcs, skills, kingdoms, items, quests] = await Promise.all([
             NPC.findAll({ attributes: ['name', 'role', 'description', 'specialty', 'location'] }),
             Skill.findAll({ attributes: ['name', 'description', 'type'] }),
-            Kingdom.findAll({ attributes: ['name', 'description', 'leader'] })
+            Kingdom.findAll({ attributes: ['name', 'description', 'leader'] }),
+            Item.findAll({ attributes: ['name', 'description', 'type', 'price'] }),
+            Quest.findAll({ attributes: ['title', 'description', 'objective'] })
         ]);
 
         this.index.npcs = npcs.map(n => ({
@@ -49,8 +53,18 @@ class AetherRAG {
             ref: k
         }));
 
+        this.index.items = items.map(i => ({
+            text: `${i.name} ${i.description} ${i.type}`.toLowerCase(),
+            ref: i
+        }));
+
+        this.index.quests = quests.map(q => ({
+            text: `${q.title} ${q.description} ${q.objective}`.toLowerCase(),
+            ref: q
+        }));
+
         this.lastUpdate = Date.now();
-        console.log(`[RAG] Indexed ${npcs.length} NPCs, ${skills.length} Skills, ${kingdoms.length} Kingdoms.`);
+        console.log(`[RAG] Indexed ${npcs.length} NPCs, ${skills.length} Skills, ${kingdoms.length} Kingdoms, ${items.length} Items, ${quests.length} Quests.`);
     }
 
     /**
@@ -106,6 +120,18 @@ class AetherRAG {
             if (score > 0) results.push({ type: 'KINGDOM', data: item.ref, score });
         }
 
+        // 4. Search Items
+        for (const item of this.index.items) {
+            let score = this.calculateScore(lowQuery, item.text);
+            if (score > 0) results.push({ type: 'ITEM', data: item.ref, score });
+        }
+
+        // 5. Search Quests
+        for (const item of this.index.quests) {
+            let score = this.calculateScore(lowQuery, item.text);
+            if (score > 0) results.push({ type: 'QUEST', data: item.ref, score });
+        }
+
         // Sort by score and return top results
         return results
             .sort((a, b) => b.score - a.score)
@@ -128,6 +154,10 @@ class AetherRAG {
                 context += `[TECHNIQUE: ${res.data.name}] Type: ${res.data.type}. ${res.data.description}\n`;
             } else if (res.type === 'KINGDOM') {
                 context += `[ROYAUME: ${res.data.name}] Dirigeant: ${res.data.leader}. ${res.data.description}\n`;
+            } else if (res.type === 'ITEM') {
+                context += `[OBJET: ${res.data.name}] Type: ${res.data.type}. ${res.data.description} (Prix: ${res.data.price} COL)\n`;
+            } else if (res.type === 'QUEST') {
+                context += `[QUÊTE: ${res.data.title}] Objectif: ${res.data.objective}. ${res.data.description}\n`;
             }
         }
 

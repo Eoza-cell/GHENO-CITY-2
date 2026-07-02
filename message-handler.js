@@ -44,9 +44,11 @@ async function resolveMentions(text) {
     return { text: updatedText, mentions };
 }
 
+const sdxl = require('./sdxl-generator');
+
 /**
  * Sends a message with an optional image from a local asset or direct URL.
- * AI Image generation is DISABLED.
+ * Re-enabled image generation using SDXL (Flux).
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
@@ -85,9 +87,17 @@ async function sendWithImage(sock, jid, aiResponse) {
                 return;
             }
 
-            // Case 4: Text Prompt -> LOG ONLY (Generation is DISABLED per user request)
+            // Case 4: Text Prompt -> Generate via SDXL
             if (typeof imagePrompt === 'string' && imagePrompt.length > 5) {
-                console.log(`[IMG] AI requested generation for: "${imagePrompt}" but generation is DISABLED.`);
+                const generatedUrl = sdxl.generateImageUrl(imagePrompt);
+                const response = await axios.get(generatedUrl, {
+                    responseType: 'arraybuffer',
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                    timeout: 20000
+                });
+                const imageBuffer = Buffer.from(response.data, 'binary');
+                await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
+                return;
             }
         } catch (error) {
             console.error(`[IMG] Erreur d'affichage d'image (${imagePrompt}):`, error.message);

@@ -127,8 +127,25 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     await sock.sendMessage(jid, { image: docBuffer, caption: `📄 ${parameters.title}` });
                     break;
                 case 'query_database':
-                    // This is mainly for AI internal logic, but we can log it or provide feedback
-                    console.log(`[AI Query] ${parameters.model} searching for "${parameters.search}"`);
+                    // AI Database Research Logic: Appends findings to WorldJournal so AI sees it in next turns
+                    const researchResult = await handleAIDatabaseQuery(parameters);
+                    if (researchResult) {
+                        await WorldJournal.create({
+                            entry: `[RECHERCHE_IA] ${researchResult}`,
+                            category: 'plot',
+                            importance: 1
+                        });
+                    }
+                    break;
+                case 'get_player_details':
+                    const pDetails = await handleGetPlayerDetails(parameters.target_name);
+                    if (pDetails) {
+                        await WorldJournal.create({
+                            entry: `[INFO_JOUEUR] ${pDetails}`,
+                            category: 'character',
+                            importance: 1
+                        });
+                    }
                     break;
                 // Add other cases as needed...
             }
@@ -161,9 +178,23 @@ async function handleUpdateLocation(target, params, aiResponse, playersToUpdate)
 async function handleUpdateStats(target, params, questFeedback, playersToUpdate, sock) {
     let hasChanged = false;
 
+    // Progression Safeguards: Hard caps per action to prevent accidental "God-mode" leaps
+    const MAX_XP_PER_ACTION = 150;
+    const MAX_COL_PER_ACTION = 500;
+    const MAX_STAT_PER_ACTION = 5;
+
     // Relative changes
-    if (params.col_change) { await target.increment('col', { by: params.col_change }); hasChanged = true; }
-    if (params.xp_gain) { await target.increment('xp', { by: params.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
+    if (params.col_change) {
+        const change = Math.min(params.col_change, MAX_COL_PER_ACTION);
+        await target.increment('col', { by: change });
+        hasChanged = true;
+    }
+    if (params.xp_gain) {
+        const gain = Math.min(params.xp_gain, MAX_XP_PER_ACTION);
+        await target.increment('xp', { by: gain });
+        await checkLevelUp(target, sock);
+        hasChanged = true;
+    }
     if (params.health_change) {
         await target.increment('health', { by: params.health_change });
         hasChanged = true;
@@ -184,8 +215,19 @@ async function handleUpdateStats(target, params, questFeedback, playersToUpdate,
         const pChange = s === 'skillPoints' ? 'sp_change' : `${s}_change`;
         const pSet = s === 'skillPoints' ? 'sp_set' : `${s}_set`;
 
-        if (params[pChange]) { await target.increment(s, { by: params[pChange] }); hasChanged = true; }
-        if (params[pSet] !== undefined) { await target.update({ [s]: params[pSet] }); hasChanged = true; }
+        if (params[pChange]) {
+            const change = Math.min(params[pChange], MAX_STAT_PER_ACTION);
+            await target.increment(s, { by: change });
+            hasChanged = true;
+        }
+        if (params[pSet] !== undefined) {
+            // We allow absolute sets (sync) but log if they are suspiciously high
+            if (params[pSet] > 500 && !target.isGod) {
+                console.warn(`[Safeguard] Suspicious absolute set for ${s}: ${params[pSet]} on player ${target.name}`);
+            }
+            await target.update({ [s]: params[pSet] });
+            hasChanged = true;
+        }
     }
 
     if (hasChanged) {
@@ -322,12 +364,25 @@ async function handleAddSkill(target, params, playersToUpdate) {
             ]
         }
     });
+
     if (skill) {
         const hasSkill = await target.hasSkill(skill);
-        if (!hasSkill) {
-            await target.addSkill(skill);
-            playersToUpdate.add(target.whatsappId);
+        if (hasSkill) return;
+
+        // Progression Safeguard: Skill acquisition requires SP or "Exam" context
+        const isExam = target.subLocation.toLowerCase().includes('académie') || target.subLocation.toLowerCase().includes('école') || params.is_exam;
+        const spCost = params.sp_cost || 1;
+
+        if (!isExam && !target.isGod) {
+            if (target.skillPoints < spCost) {
+                console.log(`[Safeguard] ${target.name} tried to learn ${skill.name} without enough SP.`);
+                return;
+            }
+            await target.decrement('skillPoints', { by: spCost });
         }
+
+        await target.addSkill(skill);
+        playersToUpdate.add(target.whatsappId);
     } else {
         console.warn(`[Skills] Skill not found: ${params.skillName}`);
     }
@@ -410,6 +465,47 @@ async function handleNPCTrade(player, params, questFeedback, playersToUpdate) {
         }
     }
     playersToUpdate.add(player.whatsappId);
+}
+
+async function handleAIDatabaseQuery(params) {
+    const { model, search } = params;
+    if (!model || !search) return null;
+
+    try {
+        const { NPC, Item, Skill, Kingdom } = require('./database');
+        let result = null;
+
+        switch(model.toLowerCase()) {
+            case 'npc':
+                const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${search}%` } } });
+                if (npc) result = `PNJ ${npc.name}: ${npc.role}, Force ${npc.powerLevel}, Spécialité ${npc.specialty}. Bio: ${npc.description}`;
+                break;
+            case 'item':
+                const item = await Item.findOne({ where: { name: { [Op.like]: `%${search}%` } } });
+                if (item) result = `OBJET ${item.name}: Type ${item.type}, Prix ${item.price} COL. Desc: ${item.description}`;
+                break;
+            case 'skill':
+                const skill = await Skill.findOne({ where: { name: { [Op.like]: `%${search}%` } } });
+                if (skill) result = `COMPÉTENCE ${skill.name}: Type ${skill.type}, Coût ${skill.manaCost} PM. Desc: ${skill.description}`;
+                break;
+            case 'kingdom':
+                const kingdom = await Kingdom.findOne({ where: { name: { [Op.like]: `%${search}%` } } });
+                if (kingdom) result = `ROYAUME ${kingdom.name}: Leader ${kingdom.leader}, Militaire ${kingdom.militaryPower}. Lore: ${kingdom.description}`;
+                break;
+        }
+        return result;
+    } catch (e) {
+        return `Erreur de recherche pour ${model}:${search}`;
+    }
+}
+
+async function handleGetPlayerDetails(name) {
+    if (!name) return null;
+    const { Player } = require('./database');
+    const p = await Player.findOne({ where: { name: { [Op.like]: `%${name}%` } } });
+    if (!p) return `Joueur "${name}" introuvable.`;
+
+    return `STATUT_JOUEUR ${p.name}: Niv ${p.level}, Classe ${p.class}, PV ${p.health}/${p.maxHealth}, PM ${p.mana}/${p.maxMana}, Lieu ${p.location}(${p.subLocation}), Argent ${p.col} COL.`;
 }
 
 module.exports = { processActions };
