@@ -1844,10 +1844,10 @@ commands.set('evenement', async (sock, message, args) => {
 
     await sock.sendMessage(replyJid, { text: "🌍 *Manipulation de la réalité en cours...*" });
 
-    const systemPrompt = `Tu es le MJ d'Arise. Un administrateur déclenche un événement spécial.
-LORE: Convergence, Éveil, Monstres, Entités.
-RÈGLES: Décris l'apparition brutale d'un monstre, d'une entité ou d'un événement environnemental.
-FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
+    const systemPrompt = `Tu es le MJ d'AETHERYS. Un administrateur déclenche un événement.
+STYLE: Français facile. Un seul paragraphe court.
+RÈGLES: Décris un événement lié au LORE (Monstres, Entités, Magie). Laisse les joueurs libres de réagir.
+FORMAT: JSON STRICT {"narrative":"...", "actions":[], "imagePrompt":"..."}`;
 
     const userPrompt = `LIEU: ${player.location}\nSOUS_LIEU: ${player.subLocation}\nÉVÉNEMENT: ${eventDesc}`;
 
