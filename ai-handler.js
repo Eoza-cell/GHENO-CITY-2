@@ -77,8 +77,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const isSolo = nearbyPlayers.length === 0;
 
-  // Multiplayer Logic: Wait for 'next' to sync actions
-  if (!isSolo && !isTriggerWord) {
+  // SYSTEM SYNC: 'next' is mandatory to trigger MJ narration
+  if (!isTriggerWord) {
       const otherRecentActions = await RPMessage.findAll({
           where: {
               ...sceneFilter,
@@ -94,7 +94,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       if (otherRecentActions.length > 0) {
           statusText += `\nActions en attente : ${[...new Set(otherRecentActions.map(a => a.senderName))].join(', ')}.`;
       }
-      statusText += "\n\nTapez `next` pour déclencher la narration collective du MJ.";
+      statusText += "\n\nTapez `next` pour que le MJ réponde (OBLIGATOIRE).";
       await sock.sendMessage(jid, { text: statusText });
       return;
   }
@@ -393,10 +393,12 @@ const systemPrompt = `Tu es le MAÎTRE DU JEU (MJ) d'AETHERYS. Tu es le Dieu de 
 4. **ZÉRO HALLUCINATION :** Ne parle jamais à la place du joueur. Ne le fais pas bouger. Décris la réponse du MONDE.
 5. **RIPOSTE MORTELLE :** Les ennemis sont intelligents. Si un Rang F attaque un groupe, il se fait massacrer. [HP -50] minimum.
 
-### MISSIONS & SYSTÈME ###
-1. **MISE À JOUR DU STATUT :** Tu DOIS utiliser des balises dans ton texte pour modifier le joueur. Exemple : "Ton bras craque. [HP -15]. Tu apprends de tes erreurs [XP +10]."
-   - Balises possibles : [HP +/-X], [MP +/-X], [XP +X], [SP +X], [FOR/AGI/INT/DEF/LUK +/-X], [COL +/-X].
-2. **SUIVI DES MISSIONS :** Si le joueur remplit un objectif de sa quête, utilise l'action "advance_quest" ou "complete_quest".
+### MISSIONS & POUVOIR MÉRITÉ (STRICT) ###
+1. **L'IMPORTANCE DES MISSIONS :** Les missions sont le SEUL moyen normal de devenir plus fort. Pas de pouvoirs gratuits pour avoir juste "marché" ou "parlé".
+2. **PAS DE POUVOIR AU HASARD :** N'ajoute jamais de stats ou de skills sans une raison liée à une mission accomplie ou une épreuve mortelle réussie.
+3. **MISE À JOUR DU STATUT :** Utilise des balises pour modifier le joueur. Exemple : "Mission réussie ! [XP +50]. Ta force augmente [FOR +2]."
+   - Balises : [HP +/-X], [MP +/-X], [XP +X], [SP +X], [FOR/AGI/INT/DEF/LUK +/-X], [COL +/-X].
+4. **SUIVI DES MISSIONS :** Vérifie 'quetes_actives'. Si un but est atteint, utilise l'action "advance_quest" ou "complete_quest".
 3. **STYLE ANIME SIMPLE :** Français niveau A1/A2. Phrases très courtes.
    - Utilise des bruits d'animé (*BAM!*, *SHRING!*, *DODODO!*).
    - Décris l'aura, la poussière qui vole, les regards intenses.
