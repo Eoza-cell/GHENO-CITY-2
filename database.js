@@ -659,6 +659,36 @@ async function setupDatabase() {
                 slot: 'chest',
                 statBonuses: { defense: 20, strength: 5 },
                 imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_210.jpg'
+            },
+            {
+                name: 'Brise-Sceau',
+                description: 'Une dague capable de perturber le flux de mana. Requiert 30 AGI.',
+                price: 2800,
+                type: 'weapon',
+                rarity: 'rare',
+                slot: 'weapon',
+                statBonuses: { agility: 10, intelligence: 5 },
+                imageUrl: 'https://images.pollinations.ai/prompt/techno-fantasy%20dagger%20glow%20blue?model=flux'
+            },
+            {
+                name: 'Canon à Éther Portatif',
+                description: 'Une arme technomagique dévastatrice. Requiert 60 INT.',
+                price: 8500,
+                type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { intelligence: 30, defense: -5 },
+                imageUrl: 'https://images.pollinations.ai/prompt/techno-fantasy%20cannon%20weapon?model=flux'
+            },
+            {
+                name: 'Lame du Néant',
+                description: 'Une épée qui semble absorber la lumière. Requiert 80 STR.',
+                price: 12000,
+                type: 'weapon',
+                rarity: 'legendary',
+                slot: 'weapon',
+                statBonuses: { strength: 60, agility: 15 },
+                imageUrl: 'https://images.pollinations.ai/prompt/dark%20void%20sword%20techno%20fantasy?model=flux'
             }
         ];
 
@@ -774,7 +804,10 @@ async function setupDatabase() {
             { name: 'Pluie de Météores', description: 'Déluge de feu s\'abattant du ciel.', type: 'spell', manaCost: 150, statBonuses: { intelligence: 60 } },
 
             { name: 'Régénération Accélérée', description: 'Soigne les blessures au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
-            { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } }
+            { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } },
+            { name: 'Exode Heis', description: 'Canon laser technomagique tirant 12 rayons. Requiert 75 INT.', type: 'Mage', manaCost: 80, statBonuses: { intelligence: 20 } },
+            { name: 'Jugement de Gaia', description: 'Soulèvement tectonique massif. Requiert 65 STR.', type: 'Guerrier', manaCost: 50, statBonuses: { strength: 15 } },
+            { name: 'Valse des Lames', description: 'Enchaînement de 10 frappes rapides. Requiert 50 AGI.', type: 'Assassin', manaCost: 40, statBonuses: { agility: 12 } }
         ]);
     }
 
@@ -988,7 +1021,10 @@ async function setupDatabase() {
             { name: 'Dragon d\'Azur', rank: 'A', health: 2000, strength: 150, defense: 120, agility: 80, intelligence: 60, location: 'Volcan d\'Ignis', xp_reward: 5000, col_reward: 3000 },
             { name: 'Le Roi Gobelin (BOSS)', rank: 'D', health: 400, strength: 40, defense: 30, agility: 20, intelligence: 35, location: 'Forêt des Gobelins', xp_reward: 500, col_reward: 1000 },
             { name: 'Vharos le Seigneur Liche (BOSS)', rank: 'A', health: 3000, strength: 200, defense: 150, agility: 100, intelligence: 95, location: 'Vharos le Maudit', xp_reward: 10000, col_reward: 5000 },
-            { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, intelligence: 150, location: 'Origine de l\'Existence', xp_reward: 100000, col_reward: 50000 }
+            { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, intelligence: 150, location: 'Origine de l\'Existence', xp_reward: 100000, col_reward: 50000 },
+            { name: 'Soldat d\'Élite d\'Elion', rank: 'C', health: 250, strength: 35, defense: 30, agility: 25, intelligence: 15, location: 'Empire Impérial d\'Elion', xp_reward: 150, col_reward: 100 },
+            { name: 'Golem de Mana Instable', rank: 'B', health: 800, strength: 50, defense: 70, agility: 10, intelligence: 40, location: 'Royaume de Valkyrr', xp_reward: 500, col_reward: 300 },
+            { name: 'Traqueur de l\'Interstice', rank: 'A', health: 1200, strength: 90, defense: 60, agility: 110, intelligence: 50, location: 'L\'Interstice', xp_reward: 2000, col_reward: 1500 }
         ]);
     } else {
         // Update existing monsters to ensure intelligence and location are set
@@ -1066,6 +1102,24 @@ async function setupDatabase() {
                 objective: "Protège les prêtres célestes pendant le rituel de scellage contre les Entités Bestiales.",
                 type: 'historic', chain: 'Chroniques du Passé', step: 3,
                 nextQuestTitle: null, rank_required: 'B', reward_col: 10000, reward_xp: 8000
+            },
+            {
+                title: 'Infiltration à Valkyrr', description: "Le Grand Laboratoire cache un secret technomagique.",
+                objective: "Pénètre dans le Grand Laboratoire sans déclencher l'alarme et récupère les plans du Canon à Éther.",
+                type: 'side', chain: 'Espionnage Industriel', step: 1,
+                nextQuestTitle: 'Le Sabotage du Réacteur', rank_required: 'D', reward_col: 1500, reward_xp: 1000
+            },
+            {
+                title: 'Le Sabotage du Réacteur', description: "Ralentissez la production d'armes de Valkyrr.",
+                objective: "Surchargez le réacteur principal du Grand Laboratoire.",
+                type: 'side', chain: 'Espionnage Industriel', step: 2,
+                nextQuestTitle: null, rank_required: 'C', reward_col: 3000, reward_xp: 2500
+            },
+            {
+                title: 'Menace Bestiale à Oakhaven', description: "Des créatures attaquent le village des chasseurs.",
+                objective: "Élimine 10 bêtes sauvages autour d'Oakhaven.",
+                type: 'side', chain: 'Défense des Frontières', step: 1,
+                nextQuestTitle: null, rank_required: 'E', reward_col: 600, reward_xp: 400
             }
         ]);
     }
