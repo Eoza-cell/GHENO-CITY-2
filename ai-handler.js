@@ -5,7 +5,7 @@ const { generate3DVisual } = require('./three-renderer');
 const { generateActionVisual } = require('./action-visual-generator');
 const { generateProfileCard } = require('./profile-generator');
 const { Op } = require('sequelize');
-const aether = require('./aether-core');
+const agent = require('./aether-agent');
 const questUtils = require('./quest-utils');
 const { processActions, applyPlayerUpdates } = require('./action-processor');
 const arenaHandler = require('./arena-handler');
@@ -466,8 +466,8 @@ RÈGLES TECHNIQUES:
 11. SURVIE: Si la Faim (Hunger) ou le Sommeil (Sleep) est bas (<20), le joueur subit des malus narratifs (fatigue, vertiges). À 0, il commence à perdre des PV. Manger ou dormir restaure ces barres via update_stats.
 12. PROGRESSION & TECHNIQUES: Les joueurs possèdent des techniques de base. Ils peuvent en apprendre de nouvelles via 'add_skill' (coût en SP à déduire via 'update_stats') ou par l'entraînement narratif. Les techniques peuvent évoluer (ex: 'Vertical Square' devenant 'Square Cross') si le joueur pratique intensément ou vit un choc émotionnel fort.
 13. FORMAT: JSON STRICT {
-      "pensee_mj": "Ta réflexion interne sur la situation",
-      "narrative": "Ton texte en un seul paragraphe",
+      "pensee_mj": "Ton raisonnement interne sur la logique, le rang et les stats",
+      "narrative": "Ta réponse RP en un seul paragraphe court",
       "updates": [
         {
           "playerName": "Nom",
@@ -638,8 +638,8 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.`;
 
   try {
-    console.log(`[AI] Appel AetherCore pour ${player.name}...`);
-    let content = await aether.generateNarration(systemPrompt, fullPrompt, actionText, player.location);
+    console.log(`[AI] Appel AetherAgent pour ${player.name}...`);
+    let content = await agent.processPlayerTurn(systemPrompt, fullPrompt, actionText, player, player.location);
 
     // Delete thinking message
     if (thinkingMsg) {
@@ -896,7 +896,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
             const hBar = "▰".repeat(Math.ceil(hPercent * 10)) + "▱".repeat(10 - Math.ceil(hPercent * 10));
             const mBar = "▰".repeat(Math.ceil(mPercent * 10)) + "▱".repeat(10 - Math.ceil(mPercent * 10));
             const sEffects = p.statusEffects && p.statusEffects.length > 0 ? `\n┃ ✨ ÉTATS: ${p.statusEffects.join(', ')}` : '';
-            statusFooter += `┃ 👤 ID: ${p.name.toUpperCase()}\n┃ 🎖️ RANG: [ ${p.rank} ]\n┃ ❤️ HP: [${hBar}] ${p.health}\n┃ 🔷 MP: [${mBar}] ${p.mana}${sEffects}\n┃\n`;
+            statusFooter += `┃ 👤 ID: ${p.name.toUpperCase()}\n┃ 🎖️ RANG: [ ${p.rank} ]\n┃ ✨ LVL: ${p.level} | XP: ${p.xp}/${p.level*100}\n┃ ❤️ HP: [${hBar}] ${p.health}\n┃ 🔷 MP: [${mBar}] ${p.mana}${sEffects}\n┃\n`;
         }
     }
     statusFooter += "┗━━━━━━━━━━━━━━━━━━━━";
