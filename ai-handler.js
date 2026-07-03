@@ -382,14 +382,19 @@ async function handleFreeAction(sock, message, player, actionText) {
 
 const systemPrompt = `Tu es le MAÎTRE DU JEU (MJ) d'AETHERYS. Tu es le Dieu de ce monde. Les joueurs ne sont rien face à la réalité du système.
 
-### RÈGLES DE RÉALISME & AMBIANCE ANIME (CRITIQUE) ###
-1. **LE JOUEUR N'EST RIEN :** Un joueur ne peut JAMAIS modifier le scénario ou contrôler un PNJ. S'il dit "je trouve une épée d'or", il ne trouve rien. S'il dit "le garde me laisse passer", le garde le frappe. Tu es le SEUL maître de la narration.
-2. **ZÉRO HALLUCINATION (JOUEUR) :** Tu ne décris JAMAIS les actions, paroles ou pensées du joueur. Tu décris uniquement les CONSÉQUENCES et le MONDE autour de lui.
-3. **RIPOSTE SYSTÉMATIQUE & MORTELLE :** Chaque ennemi riposte immédiatement. 5 gobelins contre un Rang F = le joueur finit au sol, ensanglanté. Sois impitoyable.
-4. **LOGIQUE DES STATS :** Vérifie les stats (FOR, INT, AGI). Si elles sont trop basses, l'action du joueur échoue misérablement.
+### LOGIQUE DE PUISSANCE & RÉALISME (STRICT) ###
+1. **LE JOUEUR N'EST RIEN :** Un joueur de Rang F est un humain normal. Il ne peut PAS contrôler des PNJ puissants (Ducs, Apôtres, Monstres de Rang D+). S'il essaie, il échoue immédiatement.
+2. **ÉCHELLE DE POUVOIR :**
+   - Rang F: Humain normal. 1 coup de poing d'un monstre = blessure grave.
+   - Rang E/D: Soldat entraîné.
+   - Rang C/B: Maître du mana.
+   - Rang A/S: Être divin.
+3. **PAS DE MODIFICATION DE SCÉNARIO :** Le joueur ne peut pas décider qu'il gagne ou que le monde change. Il "tente", tu décides selon sa force (Stats).
+4. **ZÉRO HALLUCINATION :** Ne parle jamais à la place du joueur. Ne le fais pas bouger. Décris la réponse du MONDE.
+5. **RIPOSTE MORTELLE :** Les ennemis sont intelligents. Si un Rang F attaque un groupe, il se fait massacrer. [HP -50] minimum.
 
-### MISSIONS & NARRATION ###
-1. **MISE À JOUR DU STATUT :** Utilise des balises dans ton texte pour modifier le joueur. Exemple : "Tu as mal. [HP -10]. Tu gagnes de l'expérience [XP +20]."
+### MISSIONS & SYSTÈME ###
+1. **MISE À JOUR DU STATUT :** Tu DOIS utiliser des balises dans ton texte pour modifier le joueur. Exemple : "Ton bras craque. [HP -15]. Tu apprends de tes erreurs [XP +10]."
    - Balises possibles : [HP +/-X], [MP +/-X], [XP +X], [SP +X], [FOR/AGI/INT/DEF/LUK +/-X], [COL +/-X].
 2. **SUIVI DES MISSIONS :** Si le joueur remplit un objectif de sa quête, utilise l'action "advance_quest" ou "complete_quest".
 3. **STYLE ANIME SIMPLE :** Français niveau A1/A2. Phrases très courtes.
@@ -857,8 +862,8 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     // Process actions via unified logic engine
     const { questFeedback, playersToUpdate, notifiedTargets } = await processActions(sock, jid, player, actions, aiResponse, nearbyPlayers);
 
-    // Append Player Status Footer (Live bars)
-    let statusFooter = "\n\n--- 📊 ÉTAT DES HÉRITIERS ---\n";
+    // Append Player Status Footer (Anime System UI Style)
+    let statusFooter = "\n\n┏━━━━━ [ 💠 SYSTEM UI ] ━━━━━\n";
     const allActorsJids = [player.whatsappId, ...nearbyPlayers.map(p => p.whatsappId)];
     for (const actorJid of allActorsJids) {
         const p = await Player.findByPk(actorJid);
@@ -867,9 +872,10 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
             const mPercent = Math.max(0, Math.min(1, p.mana / p.maxMana));
             const hBar = "▰".repeat(Math.ceil(hPercent * 10)) + "▱".repeat(10 - Math.ceil(hPercent * 10));
             const mBar = "▰".repeat(Math.ceil(mPercent * 10)) + "▱".repeat(10 - Math.ceil(mPercent * 10));
-            statusFooter += `👤 *${p.name}* (Rang ${p.rank})\n❤️ PV: [${hBar}] ${p.health}/${p.maxHealth}\n🔷 PM: [${mBar}] ${p.mana}/${p.maxMana}\n`;
+            statusFooter += `┃ 👤 ID: ${p.name.toUpperCase()}\n┃ 🎖️ RANG: [ ${p.rank} ]\n┃ ❤️ HP: [${hBar}] ${p.health}\n┃ 🔷 MP: [${mBar}] ${p.mana}\n┃\n`;
         }
     }
+    statusFooter += "┗━━━━━━━━━━━━━━━━━━━━";
     aiResponse.narrative += statusFooter;
 
     // Batch notifications to targets to avoid spam

@@ -225,6 +225,12 @@ async function handleUpdateStats(target, params, questFeedback, playersToUpdate,
             if (params[pSet] > 500 && !target.isGod) {
                 console.warn(`[Safeguard] Suspicious absolute set for ${s}: ${params[pSet]} on player ${target.name}`);
             }
+
+            // Power logic: Rank F cannot have stats > 50
+            if (target.rank === 'F' && params[pSet] > 50 && s !== 'skillPoints' && !target.isGod) {
+                console.warn(`[Logic] Rank F player ${target.name} tried to exceed 50 in ${s}. Capping.`);
+                params[pSet] = 50;
+            }
             await target.update({ [s]: params[pSet] });
             hasChanged = true;
         }
