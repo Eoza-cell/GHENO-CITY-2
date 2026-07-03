@@ -726,18 +726,18 @@ async function setupDatabase() {
     }
 
     // Seed 1000 Varied Clothing Items
-    const currentItemCount = await Item.count({ where: { type: 'clothing' } });
-    if (currentItemCount < 1000) {
-        console.log(`[SEED] Generating ${1000 - currentItemCount} additional clothing items...`);
+    let currentClothingCount = await Item.count({ where: { type: 'clothing' } });
+    if (currentClothingCount < 1000) {
+        console.log(`[SEED] Generating ${1000 - currentClothingCount} additional clothing items...`);
         const adjectives = ["Élégant", "Sombre", "Guerrier", "Mystique", "Ancien", "Royal", "Oublié", "Céleste", "Bestial", "Vaporeux", "Renforcé", "Léger", "Lourd", "Scintillant", "Maudit", "Sacré", "Interdit", "Nomade", "Urbain", "Techno-magique"];
         const baseNames = ["Manteau", "Tunique", "Armure", "Robe", "Veste", "Costume", "Plastron", "Cape", "Haut", "Gilet", "Tabard", "Kimonos", "Yukata", "Uniforme", "Tenue"];
         const materials = ["de Soie", "de Fer", "de Mana", "en Cuir", "de Velours", "de Lin", "d'Éther", "en Écailles", "de Cristal", "de Dragon", "d'Ombre", "de Lumière"];
         const colors = ["#ffffff", "#000000", "#ff0000", "#0000ff", "#ffff00", "#00ff00", "#8a2be2", "#ffd700", "#c0c0c0", "#ff4500", "#2f4f4f", "#4b0082"];
 
         const batchSize = 100;
-        for (let i = 0; i < 1000 - currentItemCount; i += batchSize) {
+        for (let i = 0; i < 1000 - currentClothingCount; i += batchSize) {
             const batch = [];
-            for (let j = 0; j < batchSize && (i + j) < (1000 - currentItemCount); j++) {
+            for (let j = 0; j < batchSize && (i + j) < (1000 - currentClothingCount); j++) {
                 const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
                 const base = baseNames[Math.floor(Math.random() * baseNames.length)];
                 const mat = materials[Math.floor(Math.random() * materials.length)];
@@ -770,6 +770,48 @@ async function setupDatabase() {
             await Item.bulkCreate(batch, { ignoreDuplicates: true });
         }
         console.log("[SEED] 1000 clothing items ready.");
+    }
+
+    // Seed 1000 Varied Weapon Items
+    const currentWeaponCount = await Item.count({ where: { type: 'weapon' } });
+    if (currentWeaponCount < 1000) {
+        console.log(`[SEED] Generating ${1000 - currentWeaponCount} additional weapon items...`);
+        const adjectives = ["Tranchant", "Lourd", "Léger", "Divin", "Maudit", "Empoisonné", "Éclatant", "Antique", "Techno", "Vibrant", "Brut", "Élégant"];
+        const baseNames = ["Épée", "Dague", "Hache", "Lance", "Arc", "Marteau", "Katana", "Sabre", "Bâton", "Faux", "Rapière", "Masse"];
+        const materials = ["en Acier", "en Mana", "en Éther", "en Os", "en Cristal", "en Fer", "d'Argent", "d'Or", "d'Ombre", "de Lumière", "en Obsidienne"];
+
+        const batchSize = 100;
+        for (let i = 0; i < 1000 - currentWeaponCount; i += batchSize) {
+            const batch = [];
+            for (let j = 0; j < batchSize && (i + j) < (1000 - currentWeaponCount); j++) {
+                const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+                const base = baseNames[Math.floor(Math.random() * baseNames.length)];
+                const mat = materials[Math.floor(Math.random() * materials.length)];
+                const rarityRoll = Math.random();
+                let rarity = 'common';
+                let priceMult = 1;
+                if (rarityRoll < 0.05) { rarity = 'legendary'; priceMult = 10; }
+                else if (rarityRoll < 0.15) { rarity = 'epic'; priceMult = 5; }
+                else if (rarityRoll < 0.35) { rarity = 'rare'; priceMult = 2; }
+
+                const name = `${adj} ${base} ${mat} #${Math.floor(Math.random() * 10000)}`;
+                batch.push({
+                    name,
+                    description: `Une arme redoutable forgée dans les flammes d'Aetherys. Style: ${adj}.`,
+                    price: Math.floor((Math.random() * 1000 + 200) * priceMult),
+                    type: 'weapon',
+                    rarity,
+                    slot: 'weapon',
+                    durability: 100,
+                    statBonuses: {
+                        strength: rarity === 'common' ? 2 : Math.floor(Math.random() * 15 * priceMult),
+                        agility: Math.floor(Math.random() * 10 * priceMult)
+                    }
+                });
+            }
+            await Item.bulkCreate(batch, { ignoreDuplicates: true });
+        }
+        console.log("[SEED] 1000 weapon items ready.");
     }
 
     const skillCount = await Skill.count();
@@ -838,7 +880,16 @@ async function setupDatabase() {
             { name: 'Jugement de Gaia', description: 'Soulèvement tectonique massif. Requiert 65 STR.', type: 'Guerrier', manaCost: 50, statBonuses: { strength: 15 } },
             { name: 'Valse des Lames', description: 'Enchaînement de 10 frappes rapides. Requiert 50 AGI.', type: 'Assassin', manaCost: 40, statBonuses: { agility: 12 } },
             { name: 'God Speed', description: 'Déplacement instantané et frappe foudroyante. Requiert 70 AGI.', type: 'Assassin', manaCost: 60, statBonuses: { agility: 30 } },
-            { name: 'Aura du Monarque', description: 'Une pression écrasante qui paralyse les faibles. Requiert 60 INT.', type: 'Mage', manaCost: 50, statBonuses: { intelligence: 25, luck: 10 } }
+            { name: 'Aura du Monarque', description: 'Une pression écrasante qui paralyse les faibles. Requiert 60 INT.', type: 'Mage', manaCost: 50, statBonuses: { intelligence: 25, luck: 10 } },
+
+            // Compétences de Cuisine
+            { name: 'Préparation de Base', description: 'Permet de préparer des repas simples.', type: 'Cuisine', manaCost: 0, statBonuses: { luck: 1 } },
+            { name: 'Maîtrise du Feu de Camp', description: 'Cuisiner efficacement en plein air.', type: 'Cuisine', manaCost: 0, statBonuses: { defense: 2 } },
+            { name: 'Soupe Régénératrice', description: 'Un repas qui redonne un peu de PV.', type: 'Cuisine', manaCost: 10, statBonuses: { health: 10 } },
+            { name: 'Festin de Chasseur', description: 'Augmente temporairement la force.', type: 'Cuisine', manaCost: 20, statBonuses: { strength: 5 } },
+            { name: 'Art Culinaire Sacré', description: 'Repas béni aux propriétés curatives.', type: 'Cuisine', manaCost: 30, statBonuses: { luck: 5, intelligence: 5 } },
+            { name: 'Cuisine de l\'Ombre', description: 'Utilise des ingrédients sombres pour des buffs d\'agilité.', type: 'Cuisine', manaCost: 25, statBonuses: { agility: 8 } },
+            { name: 'Alchimie Gastronomique', description: 'Fusion entre cuisine et potions.', type: 'Cuisine', manaCost: 40, statBonuses: { intelligence: 10 } }
         ]);
     }
 

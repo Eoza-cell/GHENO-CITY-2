@@ -32,18 +32,24 @@ class AetherBrain {
         successChance = Math.max(5, Math.min(95, successChance));
 
         const roll = Math.random() * 100;
-        const isSuccess = roll <= successChance;
-        const isCritical = roll <= (successChance * 0.1);
-
-        // Detect if action is too high for rank
         const isRankValid = this.checkRankValidity(player.rank, actionText);
+
+        // Ruthless success logic: if rank is invalid, success is impossible
+        const isSuccess = isRankValid && (roll <= successChance);
+        const isCritical = isSuccess && (roll <= (successChance * 0.1));
+
+        // Danger calculation: high difficulty + low rank = high mortality
+        const dangerLevel = Math.max(0, worldDifficulty - rankPower);
+        const isLethalThreat = dangerLevel > 50 && !isSuccess;
 
         return {
             chance: Math.round(successChance),
-            isSuccess: isSuccess && isRankValid,
+            isSuccess,
             isCritical,
             rankValid: isRankValid,
-            roll: Math.round(roll)
+            roll: Math.round(roll),
+            dangerLevel,
+            isLethalThreat
         };
     }
 

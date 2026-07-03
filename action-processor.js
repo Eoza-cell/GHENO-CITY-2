@@ -16,7 +16,8 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
         'arrest_player', 'set_wanted_level', 'release_player', 'manage_house',
         'set_academic_status', 'get_player_details', 'modify_reputation',
         'resurrect_player', 'forge_pact', 'join_club', 'start_quest',
-        'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade'
+        'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade',
+        'submit_player'
     ];
 
     for (const actionObj of actions) {
@@ -146,6 +147,9 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                             importance: 1
                         });
                     }
+                    break;
+                case 'submit_player':
+                    await handleSubmitPlayer(player, target, parameters, questFeedback, playersToUpdate);
                     break;
                 // Add other cases as needed...
             }
@@ -512,6 +516,34 @@ async function handleGetPlayerDetails(name) {
     if (!p) return `Joueur "${name}" introuvable.`;
 
     return `STATUT_JOUEUR ${p.name}: Niv ${p.level}, Classe ${p.class}, PV ${p.health}/${p.maxHealth}, PM ${p.mana}/${p.maxMana}, Lieu ${p.location}(${p.subLocation}), Argent ${p.col} COL.`;
+}
+
+async function handleSubmitPlayer(master, target, params, questFeedback, playersToUpdate) {
+    if (!master || !target || master.whatsappId === target.whatsappId) return;
+
+    // Power Check: Master must be significantly stronger or have high rank
+    const masterPower = (master.level * 10) + master.strength + master.intelligence;
+    const targetPower = (target.level * 10) + target.strength + target.intelligence;
+
+    if (masterPower < targetPower * 1.5 && !master.isGod) {
+        console.log(`[Submission] ${master.name} failed to submit ${target.name}: not strong enough.`);
+        return;
+    }
+
+    // Level adjustment: Target rises to a fraction of Master's level
+    const newLevel = Math.max(target.level, master.level - 5);
+    const oldName = target.name;
+    const newName = params.new_name || target.name;
+
+    await target.update({
+        name: newName,
+        level: newLevel,
+        organization: `Serviteur de ${master.name}`,
+        characterDescription: (target.characterDescription || "") + `\n(A été soumis par ${master.name})`
+    });
+
+    questFeedback.push(`⛓️ *SOUMISSION* : ${oldName} est maintenant ${newName}, serviteur de ${master.name}. (Niveau synchronisé au Niv ${newLevel})`);
+    playersToUpdate.add(target.whatsappId);
 }
 
 /**

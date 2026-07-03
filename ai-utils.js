@@ -501,16 +501,15 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     console.log(`[AI] Lancement de la Course Parallèle (depth: ${depth})...`);
 
     // Priority race including keyed Pollinations
+    // Note: Puter and Keyed models are prioritized for better instruction following
     const raceModels = [
-        { name: 'Pollinations-Keyed-GPT4o', fn: (s, p) => callPollinationKeyedModel(s, p, 'gpt-4o'), timeout: 25000 },
+        { name: 'Puter-API-V1', fn: callPuterAPI, timeout: 15000 },
+        { name: 'Puter-SDK', fn: callPuterSDK, timeout: 25000 },
         { name: 'Pollinations-Keyed-Claude', fn: (s, p) => callPollinationKeyedModel(s, p, 'claude-3.5-sonnet'), timeout: 25000 },
+        { name: 'Pollinations-Keyed-GPT4o', fn: (s, p) => callPollinationKeyedModel(s, p, 'gpt-4o'), timeout: 25000 },
         { name: 'Pollinations-Keyed-OpenAI', fn: (s, p) => callPollinationKeyedModel(s, p, 'openai'), timeout: 25000 },
-        { name: 'Pollinations-Keyed-Mistral', fn: (s, p) => callPollinationKeyedModel(s, p, 'mistral'), timeout: 25000 },
         { name: 'Pollinations-OpenAI', fn: (s, p) => callPollinationModel(s, p, 'openai'), timeout: 20000 },
         { name: 'Pollinations-Mistral', fn: (s, p) => callPollinationModel(s, p, 'mistral'), timeout: 20000 },
-        { name: 'Pollinations-Llama', fn: (s, p) => callPollinationModel(s, p, 'llama'), timeout: 20000 },
-        { name: 'Pollinations-P1', fn: (s, p) => callPollinationModel(s, p, 'p1'), timeout: 20000 },
-        { name: 'Puter-SDK', fn: callPuterSDK, timeout: 25000 },
         { name: 'Blackbox', fn: callBlackbox, timeout: 30000 }
     ];
 
