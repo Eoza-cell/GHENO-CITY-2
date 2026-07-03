@@ -143,21 +143,21 @@ class AetherRAG {
      */
     async getLoreContext(query, location = null) {
         const searchResults = await this.searchLore(query, location);
-        if (searchResults.length === 0) return "Aucun détail historique spécifique trouvé dans les archives pour cette action.";
+        if (searchResults.length === 0) return "Pas d'infos spéciales.";
 
-        let context = "--- ARCHIVES D'AETHERYS (LORE PERTINENT) ---\n";
+        let context = "--- INFOS IMPORTANTES ---\n";
 
         for (const res of searchResults) {
             if (res.type === 'NPC') {
-                context += `[PNJ: ${res.data.name}] (${res.data.role}) - ${res.data.description} (Localisation habituelle: ${res.data.location})\n`;
+                context += `[Personne: ${res.data.name}] (${res.data.role}) - ${res.data.description}\n`;
             } else if (res.type === 'SKILL') {
-                context += `[TECHNIQUE: ${res.data.name}] Type: ${res.data.type}. ${res.data.description}\n`;
+                context += `[Magie: ${res.data.name}] ${res.data.description}\n`;
             } else if (res.type === 'KINGDOM') {
-                context += `[ROYAUME: ${res.data.name}] Dirigeant: ${res.data.leader}. ${res.data.description}\n`;
+                context += `[Lieu: ${res.data.name}] ${res.data.description}\n`;
             } else if (res.type === 'ITEM') {
-                context += `[OBJET: ${res.data.name}] Type: ${res.data.type}. ${res.data.description} (Prix: ${res.data.price} COL)\n`;
+                context += `[Objet: ${res.data.name}] ${res.data.description} (Prix: ${res.data.price} COL)\n`;
             } else if (res.type === 'QUEST') {
-                context += `[QUÊTE: ${res.data.title}] Objectif: ${res.data.objective}. ${res.data.description}\n`;
+                context += `[Mission: ${res.data.title}] Faire: ${res.data.objective}\n`;
             }
         }
 

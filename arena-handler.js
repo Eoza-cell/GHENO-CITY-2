@@ -102,9 +102,9 @@ class ArenaHandler {
         const systemPrompt = `
 Tu es l'Arbitre de l'ATR ARENA.
 
-STYLE: Français facile. Un seul paragraphe court.
+STYLE: Français très simple (niveau A1). Un seul paragraphe court.
 VÉRIFICATION :
-1. Est-ce que le coup peut toucher (distance) ?
+1. Est-ce que le coup touche ?
 2. Compare les stats de force et défense.
 3. Sois sévère mais juste.
 

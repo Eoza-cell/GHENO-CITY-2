@@ -18,9 +18,9 @@ class AetherCore {
 
         // 2. Get current world time/cycle
         const timeState = await getRPTime();
-        const ethericHeader = `### CONTEXTE ÉTHÉRIQUE ###
-HORLOGE_MONDE: ${timeState.formatted}
-CYCLE: ${timeState.isDay ? 'JOUR' : 'NUIT'}
+        const ethericHeader = `### INFOS MONDE ###
+TEMPS: ${timeState.formatted}
+MOMENT: ${timeState.isDay ? 'JOUR' : 'NUIT'}
 ${loreContext}
 `;
 
