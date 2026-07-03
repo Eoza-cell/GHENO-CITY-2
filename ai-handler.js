@@ -380,17 +380,19 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-const systemPrompt = `Tu es le MAÎTRE DU JEU (MJ) d'AETHERYS. Ton but est de faire vivre une aventure réaliste et difficile aux joueurs.
+const systemPrompt = `Tu es le MAÎTRE DU JEU (MJ) d'AETHERYS. Tu es le Dieu de ce monde. Les joueurs ne sont rien face à la réalité du système.
 
 ### RÈGLES DE RÉALISME & AMBIANCE ANIME (CRITIQUE) ###
-1. **ZÉRO HALLUCINATION (JOUEUR) :** Tu ne joues JAMAIS le joueur. Tu ne décris JAMAIS son mouvement, ses paroles ou sa pensée. Tu es LE MONDE. Ta réponse commence après l'action du joueur.
-2. **RIPOSTE SYSTÉMATIQUE :** Chaque ennemi (monstre ou PNJ) DOIT répondre à l'action du joueur. Si un joueur de rang F attaque 5 gobelins, ils ripostent tous. Il est impossible de tous les parer avec des stats faibles. Sois impitoyable.
-3. **CONTRÔLE DU MJ :** Tu décides si l'action réussit ou échoue. Si un joueur tente de modifier le scénario ou de contrôler un PNJ, fais-le échouer bruyamment.
-4. **LOGIQUE DES STATS :** Pas de magie puissante sans stats d'intelligence élevées. Pas de force surhumaine sans stats de force. Si un joueur est faible, il subit le monde.
+1. **LE JOUEUR N'EST RIEN :** Un joueur ne peut JAMAIS modifier le scénario ou contrôler un PNJ. S'il dit "je trouve une épée d'or", il ne trouve rien. S'il dit "le garde me laisse passer", le garde le frappe. Tu es le SEUL maître de la narration.
+2. **ZÉRO HALLUCINATION (JOUEUR) :** Tu ne décris JAMAIS les actions, paroles ou pensées du joueur. Tu décris uniquement les CONSÉQUENCES et le MONDE autour de lui.
+3. **RIPOSTE SYSTÉMATIQUE & MORTELLE :** Chaque ennemi riposte immédiatement. 5 gobelins contre un Rang F = le joueur finit au sol, ensanglanté. Sois impitoyable.
+4. **LOGIQUE DES STATS :** Vérifie les stats (FOR, INT, AGI). Si elles sont trop basses, l'action du joueur échoue misérablement.
 
 ### MISSIONS & NARRATION ###
-1. **SUIVI DES MISSIONS :** Vérifie 'quetes_actives'. Si un but est atteint, utilise "advance_quest" ou "complete_quest".
-2. **STYLE ANIME SIMPLE :** Français niveau A1/A2. Phrases très courtes.
+1. **MISE À JOUR DU STATUT :** Utilise des balises dans ton texte pour modifier le joueur. Exemple : "Tu as mal. [HP -10]. Tu gagnes de l'expérience [XP +20]."
+   - Balises possibles : [HP +/-X], [MP +/-X], [XP +X], [SP +X], [FOR/AGI/INT/DEF/LUK +/-X], [COL +/-X].
+2. **SUIVI DES MISSIONS :** Si le joueur remplit un objectif de sa quête, utilise l'action "advance_quest" ou "complete_quest".
+3. **STYLE ANIME SIMPLE :** Français niveau A1/A2. Phrases très courtes.
    - Utilise des bruits d'animé (*BAM!*, *SHRING!*, *DODODO!*).
    - Décris l'aura, la poussière qui vole, les regards intenses.
    - EXEMPLE : "Le gobelin saute. *BAM!* Ton épée tremble. Il y a du sang par terre."
@@ -774,39 +776,43 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     }
 
     // Logic Verification & Automatic Synchronization
-    // Scrape narrative for status tags like [HP -10] or [PV: 95/100] to fix AI forgetfulness
+    // Scrape narrative for status tags like [HP -10] to fix AI forgetfulness
     const narrativeActions = [];
 
-    // Health detection (Relative: [HP -10], Absolute: [PV: 95/100] or PV: 95)
-    // Only scrape if the narrative explicitly mentions the acting player's name nearby
-    const currentPlayerNameLow = player.name.toLowerCase();
-    const hasPlayerContext = aiResponse.narrative.toLowerCase().includes(currentPlayerNameLow) || aiResponse.narrative.toLowerCase().includes("tu ");
-
-    if (hasPlayerContext) {
-        const hpRelMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*([+-]\d+)\]/i) || aiResponse.narrative.match(/(?:HP|PV)\s*:\s*([+-]\d+)/i);
-        const hpAbsMatch = aiResponse.narrative.match(/\[(?:HP|PV)\s*(\d+)\]/i) || aiResponse.narrative.match(/(?:HP|PV)\s*:\s*(\d+)/i);
-
-        if (hpRelMatch) {
-            narrativeActions.push({ type: 'update_stats', parameters: { health_change: parseInt(hpRelMatch[1]) } });
-        } else if (hpAbsMatch) {
-            narrativeActions.push({ type: 'update_stats', parameters: { health_set: parseInt(hpAbsMatch[1]) } });
+    // Global Tag Scraper (Detects [TAG +/-X] or TAG: +/-X)
+    const scrapeTag = (tagName, patterns) => {
+        for (const p of patterns) {
+            const match = aiResponse.narrative.match(p);
+            if (match) return match[1];
         }
-    }
+        return null;
+    };
 
-    // Mana detection
-    const mpRelMatch = aiResponse.narrative.match(/\[(?:MP|PM)\s*([+-]\d+)\]/i) || aiResponse.narrative.match(/(?:MP|PM)\s*:\s*([+-]\d+)/i);
-    const mpAbsMatch = aiResponse.narrative.match(/\[(?:MP|PM)\s*(\d+)\]/i) || aiResponse.narrative.match(/(?:MP|PM)\s*:\s*(\d+)/i);
+    // Health
+    const hpVal = scrapeTag('HP', [/\[(?:HP|PV)\s*([+-]\d+)\]/i, /(?:HP|PV)\s*:\s*([+-]\d+)/i]);
+    const hpAbs = scrapeTag('HP_ABS', [/\[(?:HP|PV)\s*(\d+)\]/i, /(?:HP|PV)\s*:\s*(\d+)/i]);
+    if (hpVal) narrativeActions.push({ type: 'update_stats', parameters: { health_change: parseInt(hpVal) } });
+    else if (hpAbs) narrativeActions.push({ type: 'update_stats', parameters: { health_set: parseInt(hpAbs) } });
 
-    if (mpRelMatch) {
-        narrativeActions.push({ type: 'update_stats', parameters: { mana_change: parseInt(mpRelMatch[1]) } });
-    } else if (mpAbsMatch) {
-        narrativeActions.push({ type: 'update_stats', parameters: { mana_set: parseInt(mpAbsMatch[1]) } });
-    }
+    // Mana
+    const mpVal = scrapeTag('MP', [/\[(?:MP|PM|MANA)\s*([+-]\d+)\]/i, /(?:MP|PM|MANA)\s*:\s*([+-]\d+)/i]);
+    if (mpVal) narrativeActions.push({ type: 'update_stats', parameters: { mana_change: parseInt(mpVal) } });
 
-    // Col detection
-    const colMatch = aiResponse.narrative.match(/\[COL\s*([+-]\d+)\]/i) || aiResponse.narrative.match(/COL\s*:\s*([+-]\d+)/i);
-    if (colMatch) {
-        narrativeActions.push({ type: 'update_stats', parameters: { col_change: parseInt(colMatch[1]) } });
+    // Col
+    const colVal = scrapeTag('COL', [/\[(?:COL|OR|ARGENT)\s*([+-]\d+)\]/i, /(?:COL|OR|ARGENT)\s*:\s*([+-]\d+)/i]);
+    if (colVal) narrativeActions.push({ type: 'update_stats', parameters: { col_change: parseInt(colVal) } });
+
+    // XP & SP
+    const xpVal = scrapeTag('XP', [/\[XP\s*([+-]\d+)\]/i, /XP\s*:\s*([+-]\d+)/i]);
+    if (xpVal) narrativeActions.push({ type: 'update_stats', parameters: { xp_gain: parseInt(xpVal) } });
+    const spVal = scrapeTag('SP', [/\[SP\s*([+-]\d+)\]/i, /SP\s*:\s*([+-]\d+)/i]);
+    if (spVal) narrativeActions.push({ type: 'update_stats', parameters: { sp_change: parseInt(spVal) } });
+
+    // Stats
+    const statsToScrape = { strength: 'FOR', agility: 'AGI', intelligence: 'INT', defense: 'DEF', luck: 'LUK' };
+    for (const [key, tag] of Object.entries(statsToScrape)) {
+        const sVal = scrapeTag(key, [new RegExp(`\\[${tag}\\s*([+-]\\d+)\\]`, 'i'), new RegExp(`${tag}\\s*:\\s*([+-]\\d+)`, 'i')]);
+        if (sVal) narrativeActions.push({ type: 'update_stats', parameters: { [`${key}_change`]: parseInt(sVal) } });
     }
 
     if (narrativeActions.length > 0) {
