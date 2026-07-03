@@ -7,7 +7,7 @@ const { generateProfileCard } = require('./profile-generator');
 const { Op } = require('sequelize');
 const aether = require('./aether-core');
 const questUtils = require('./quest-utils');
-const { processActions } = require('./action-processor');
+const { processActions, applyPlayerUpdates } = require('./action-processor');
 const arenaHandler = require('./arena-handler');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
@@ -463,8 +463,24 @@ RÈGLES TECHNIQUES:
 10. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX], [Hunger -X], [Sleep -X] et les PV des ennemis [Cible: PV/MAX].
 11. SURVIE: Si la Faim (Hunger) ou le Sommeil (Sleep) est bas (<20), le joueur subit des malus narratifs (fatigue, vertiges). À 0, il commence à perdre des PV. Manger ou dormir restaure ces barres via update_stats.
 12. PROGRESSION & TECHNIQUES: Les joueurs possèdent des techniques de base. Ils peuvent en apprendre de nouvelles via 'add_skill' (coût en SP à déduire via 'update_stats') ou par l'entraînement narratif. Les techniques peuvent évoluer (ex: 'Vertical Square' devenant 'Square Cross') si le joueur pratique intensément ou vit un choc émotionnel fort.
-13. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"", "actionVisual":{"type":"attack|defend|magic|combat","assetName":"Eldoria|Gobelin|...","title":"...","description":"..."}}
-14. ACTIONS AUTORISÉES: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, add_skill, spawn_npc, spawn_monster, create_custom_item, change_weather, trigger_conflict, royal_visit, manage_house, set_academic_status, get_player_details, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, release_player, forge_pact, join_club, resurrect_player, write_journal, p2p_transfer, npc_trade.
+13. FORMAT: JSON STRICT {
+      "pensee_mj": "Ta réflexion interne sur la situation",
+      "narrative": "Ton texte en un seul paragraphe",
+      "updates": [
+        {
+          "playerName": "Nom",
+          "hp": -10,
+          "mp": -5,
+          "xp": 20,
+          "col": 50,
+          "sp": 0,
+          "status": ["blessé"]
+        }
+      ],
+      "actions": [],
+      "imagePrompt": ""
+    }
+14. ACTIONS AUTORISÉES (SYSTÈME): update_location, buy_item, add_item, add_skill, spawn_npc, spawn_monster, write_journal, advance_quest, complete_quest, query_database.
     - update_location : { "new_location": "Royaume", "new_sub_location": "Lieu" }. (OBLIGATOIRE dès que le lieu change).
     - update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n, "hunger_change": n, "sleep_change": n }. (OBLIGATOIRE dès qu'une stat, XP ou monnaie (Col) change).
     - bank_transaction : { "type": "deposit|withdraw", "amount": n }. (OBLIGATOIRE pour gérer l'argent en banque).
@@ -862,6 +878,11 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     // Process actions via unified logic engine
     const { questFeedback, playersToUpdate, notifiedTargets } = await processActions(sock, jid, player, actions, aiResponse, nearbyPlayers);
 
+    // Apply JSON-schema updates (Arbitrator pattern)
+    if (aiResponse.updates) {
+        await applyPlayerUpdates(aiResponse.updates, playersToUpdate);
+    }
+
     // Append Player Status Footer (Anime System UI Style)
     let statusFooter = "\n\n┏━━━━━ [ 💠 SYSTEM UI ] ━━━━━\n";
     const allActorsJids = [player.whatsappId, ...nearbyPlayers.map(p => p.whatsappId)];
@@ -872,7 +893,8 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
             const mPercent = Math.max(0, Math.min(1, p.mana / p.maxMana));
             const hBar = "▰".repeat(Math.ceil(hPercent * 10)) + "▱".repeat(10 - Math.ceil(hPercent * 10));
             const mBar = "▰".repeat(Math.ceil(mPercent * 10)) + "▱".repeat(10 - Math.ceil(mPercent * 10));
-            statusFooter += `┃ 👤 ID: ${p.name.toUpperCase()}\n┃ 🎖️ RANG: [ ${p.rank} ]\n┃ ❤️ HP: [${hBar}] ${p.health}\n┃ 🔷 MP: [${mBar}] ${p.mana}\n┃\n`;
+            const sEffects = p.statusEffects && p.statusEffects.length > 0 ? `\n┃ ✨ ÉTATS: ${p.statusEffects.join(', ')}` : '';
+            statusFooter += `┃ 👤 ID: ${p.name.toUpperCase()}\n┃ 🎖️ RANG: [ ${p.rank} ]\n┃ ❤️ HP: [${hBar}] ${p.health}\n┃ 🔷 MP: [${mBar}] ${p.mana}${sEffects}\n┃\n`;
         }
     }
     statusFooter += "┗━━━━━━━━━━━━━━━━━━━━";

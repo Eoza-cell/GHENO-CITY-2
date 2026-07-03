@@ -514,4 +514,59 @@ async function handleGetPlayerDetails(name) {
     return `STATUT_JOUEUR ${p.name}: Niv ${p.level}, Classe ${p.class}, PV ${p.health}/${p.maxHealth}, PM ${p.mana}/${p.maxMana}, Lieu ${p.location}(${p.subLocation}), Argent ${p.col} COL.`;
 }
 
-module.exports = { processActions };
+/**
+ * Applies AI-suggested stat updates with validation and safeguards.
+ * @param {Array} updates Array of update objects from AI JSON.
+ * @param {Set} playersToUpdate Set of player IDs to notify.
+ */
+async function applyPlayerUpdates(updates, playersToUpdate) {
+    if (!Array.isArray(updates)) return;
+
+    for (const update of updates) {
+        try {
+            const { playerName, hp, mp, xp, col, sp, status } = update;
+            if (!playerName) continue;
+
+            const player = await Player.findOne({ where: { name: { [Op.like]: `%${playerName}%` } } });
+            if (!player) continue;
+
+            // Apply validated changes
+            const hChange = parseInt(hp) || 0;
+            const mChange = parseInt(mp) || 0;
+            const xGain = Math.min(parseInt(xp) || 0, 150); // Hard cap 150 XP
+            const cGain = Math.min(parseInt(col) || 0, 500); // Hard cap 500 Col
+            const sGain = Math.min(parseInt(sp) || 0, 5);   // Hard cap 5 SP
+
+            // Update stats with bounds checking
+            let newHp = Math.max(0, Math.min(player.maxHealth, player.health + hChange));
+            let newMp = Math.max(0, Math.min(player.maxMana, player.mana + mChange));
+
+            // Handle Status Effects
+            let currentStatus = player.statusEffects || [];
+            if (Array.isArray(status)) {
+                currentStatus = [...new Set([...currentStatus, ...status])];
+            }
+
+            await player.update({
+                health: newHp,
+                mana: newMp,
+                xp: player.xp + xGain,
+                col: player.col + cGain,
+                skillPoints: player.skillPoints + sGain,
+                statusEffects: currentStatus
+            });
+
+            // Handle death state
+            if (newHp === 0 && player.location !== 'Nécropolis') {
+                await player.update({ location: 'Nécropolis', subLocation: 'Le Seuil' });
+            }
+
+            playersToUpdate.add(player.whatsappId);
+            console.log(`[Arbitrator] Applied updates to ${player.name}: HP:${hChange}, XP:${xGain}`);
+        } catch (e) {
+            console.error("[Arbitrator] Error applying update:", e.message);
+        }
+    }
+}
+
+module.exports = { processActions, applyPlayerUpdates };

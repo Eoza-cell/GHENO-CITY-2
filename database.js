@@ -247,6 +247,15 @@ const Player = sequelize.define('Player', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  statusEffects: {
+    type: DataTypes.TEXT,
+    defaultValue: '[]',
+    get() {
+      const raw = this.getDataValue('statusEffects');
+      try { return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+    },
+    set(val) { this.setDataValue('statusEffects', JSON.stringify(val)); }
+  },
 });
 
 const Item = sequelize.define('Item', {
