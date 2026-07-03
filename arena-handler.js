@@ -100,7 +100,7 @@ class ArenaHandler {
      */
     async refereeAction(player, opponent, actionDescription) {
         const systemPrompt = `
-Tu es l'Arbitre de l'ATR ARENA.
+Tu es l'Arbitre de l'ATR ARENA. Ambiance Animé Japonais.
 
 STYLE: Français très simple (niveau A1). Un seul paragraphe court.
 VÉRIFICATION :

@@ -9,8 +9,8 @@ class SDXLGenerator {
         this.baseUrl = "https://image.pollinations.ai/prompt/";
         this.defaultParams = "?model=flux&width=1024&height=1024&nologo=true";
 
-        // The "Techno-Fantasy 3D" master style
-        this.styleSuffix = ", techno-fantasy style, high-end 3D game world graphics, Unreal Engine 5 render, cinematic lighting, glowing mana circuits, cybernetic armor, hyper-detailed environments, 8k resolution, volumetric fog, intricate magic circles";
+        // The "Pure Anime" master style
+        this.styleSuffix = ", high-end anime style, Studio MAPPA aesthetic, vibrant colors, cinematic anime lighting, detailed manga art, cel shaded, glowing auras, epic fantasy background, hyper-detailed anime character design";
     }
 
     /**

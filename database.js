@@ -689,6 +689,26 @@ async function setupDatabase() {
                 slot: 'weapon',
                 statBonuses: { strength: 60, agility: 15 },
                 imageUrl: 'https://images.pollinations.ai/prompt/dark%20void%20sword%20techno%20fantasy?model=flux'
+            },
+            {
+                name: 'Béhérit Rouge',
+                description: 'Un œuf mystérieux avec des traits humains. Objet de destin.',
+                price: 50000,
+                type: 'item',
+                rarity: 'legendary',
+                slot: 'none',
+                statBonuses: { luck: 100, strength: -10 },
+                imageUrl: 'https://images.pollinations.ai/prompt/red%20beherit%20berserk%20anime%20style?model=flux'
+            },
+            {
+                name: 'Katana Maudit de Muramasa',
+                description: 'Une lame assoiffée de sang. Requiert 45 AGI.',
+                price: 9500,
+                type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { agility: 40, defense: -10 },
+                imageUrl: 'https://images.pollinations.ai/prompt/cursed%20katana%20anime%20style%20purple%20aura?model=flux'
             }
         ];
 
@@ -807,7 +827,9 @@ async function setupDatabase() {
             { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } },
             { name: 'Exode Heis', description: 'Canon laser technomagique tirant 12 rayons. Requiert 75 INT.', type: 'Mage', manaCost: 80, statBonuses: { intelligence: 20 } },
             { name: 'Jugement de Gaia', description: 'Soulèvement tectonique massif. Requiert 65 STR.', type: 'Guerrier', manaCost: 50, statBonuses: { strength: 15 } },
-            { name: 'Valse des Lames', description: 'Enchaînement de 10 frappes rapides. Requiert 50 AGI.', type: 'Assassin', manaCost: 40, statBonuses: { agility: 12 } }
+            { name: 'Valse des Lames', description: 'Enchaînement de 10 frappes rapides. Requiert 50 AGI.', type: 'Assassin', manaCost: 40, statBonuses: { agility: 12 } },
+            { name: 'God Speed', description: 'Déplacement instantané et frappe foudroyante. Requiert 70 AGI.', type: 'Assassin', manaCost: 60, statBonuses: { agility: 30 } },
+            { name: 'Aura du Monarque', description: 'Une pression écrasante qui paralyse les faibles. Requiert 60 INT.', type: 'Mage', manaCost: 50, statBonuses: { intelligence: 25, luck: 10 } }
         ]);
     }
 
