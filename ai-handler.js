@@ -77,8 +77,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const isSolo = nearbyPlayers.length === 0;
 
-  // SYSTEM SYNC: 'next' is strictly mandatory to trigger MJ narration for EVERYONE.
-  if (!isTriggerWord) {
+  // SYSTEM SYNC: 'next' is mandatory for multiplayer scenes. Solo players get immediate response.
+  if (!isSolo && !isTriggerWord) {
       // Find all players who have acted since the last MJ message
       const pendingActions = await RPMessage.findAll({
           where: {

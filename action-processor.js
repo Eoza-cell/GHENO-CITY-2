@@ -567,7 +567,7 @@ async function applyPlayerUpdates(updates, playersToUpdate) {
 
     for (const update of updates) {
         try {
-            const { playerName, hp, mp, xp, col, sp, status } = update;
+            const { playerName, hp, mp, xp, col, sp, status, hunger, sleep } = update;
             if (!playerName) continue;
 
             const { Player } = require('./database');
@@ -580,6 +580,8 @@ async function applyPlayerUpdates(updates, playersToUpdate) {
             const xGain = Math.min(parseInt(xp) || 0, 150); // Hard cap 150 XP
             const cGain = Math.min(parseInt(col) || 0, 500); // Hard cap 500 Col
             const sGain = Math.min(parseInt(sp) || 0, 5);   // Hard cap 5 SP
+            const hungChange = parseFloat(hunger) || 0;
+            const sleepChange = parseFloat(sleep) || 0;
 
             // Update stats with bounds checking
             let newHp = Math.max(0, Math.min(player.maxHealth, player.health + hChange));
@@ -597,7 +599,9 @@ async function applyPlayerUpdates(updates, playersToUpdate) {
                 xp: player.xp + xGain,
                 col: player.col + cGain,
                 skillPoints: player.skillPoints + sGain,
-                statusEffects: currentStatus
+                statusEffects: currentStatus,
+                hunger: Math.max(0, Math.min(100, player.hunger + hungChange)),
+                sleep: Math.max(0, Math.min(100, player.sleep + sleepChange))
             });
 
             // Handle death state

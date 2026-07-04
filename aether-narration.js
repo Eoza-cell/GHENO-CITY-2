@@ -123,7 +123,17 @@ class AetherNarration {
                 "On chuchote que l'examen de demain sera le plus difficile de la décennie.",
                 "Lukas essaie d'impressionner un groupe de filles avec une technique de flammes un peu trop voyante.",
                 "Le tableau des scores affiche des résultats surprenants pour les nouveaux arrivants.",
-                "Une élève court avec un morceau de pain dans la bouche, en retard pour son premier cours."
+                "Une élève court avec un morceau de pain dans la bouche, en retard pour son premier cours.",
+                "Une scène comique se déroule sur le toit : un chat a volé le déjeuner d'un élève d'élite.",
+                "Le professeur de combat physique hurle des instructions passionnées qui font trembler les fenêtres.",
+                "Une élève trébuche maladroitement, provoquant une cascade de papiers et un rougissement général.",
+                "Les casiers sont le théâtre de confessions amoureuses précipitées et de rires étouffés.",
+                "Une aura de mana rose s'échappe du club d'occultisme, signe d'une expérience un peu trop... émotionnelle.",
+                "Un groupe d'étudiants discute passionnément du dernier classement de puissance.",
+                "Une rivalité amicale se transforme en concours de mangement de ramens.",
+                "Le soleil couchant baigne la cour de l'académie d'une lueur nostalgique.",
+                "Un prof remplaçant se perd dans les couloirs labyrinthesques de l'école.",
+                "On entend les bruits de l'orchestre de mana répétant pour la fête du festival."
             ],
             ecchi: [
                 "Une proximité troublante s'installe. Tu sens le souffle de l'autre contre ta peau.",
@@ -140,7 +150,17 @@ class AetherNarration {
                 "Le contact de ses mains, bien qu'accidentel, laisse une trace brûlante sur ta peau.",
                 "Les yeux s'égarent malgré eux vers des détails anatomiques particulièrement troublants.",
                 "La chaleur de la pièce devient soudainement insupportable alors que vos corps se rapprochent.",
-                "Un murmure à l'oreille, trop proche pour être innocent, te fait frissonner."
+                "Un murmure à l'oreille, trop proche pour être innocent, te fait frissonner.",
+                "Ton regard s'attarde sur les gouttes d'eau glissant sur sa peau ambrée. *Gulp.*",
+                "Le tissu mouillé devient transparent, laissant deviner des détails que la pudeur devrait cacher.",
+                "Dans l'étroitesse du placard, vos corps sont pressés l'un contre l'autre, chaque battement de cœur se répercutant chez l'autre.",
+                "Une main posée par inadvertance sur une cuisse galbée déclenche une décharge de mana incontrôlée.",
+                "Les vêtements déchirés par le combat révèlent une silhouette athlétique et provocante sous la lumière de la lune.",
+                "Une serviette tombe 'accidentellement', laissant place à une vision que ton cerveau peine à traiter.",
+                "La courbure de son dos nu scintille sous les perles d'eau, captant toute ton attention.",
+                "Un souffle chaud chatouille ton cou, tandis qu'une main s'égare là où elle ne devrait pas.",
+                "Les battements de son cœur, tout contre ton torse, trahissent une excitation réciproque.",
+                "Ses lèvres s'entrouvrent, invitant à une proximité que la morale réprouve mais que ton sang réclame."
             ],
             social: [
                 "Le dialogue s'installe naturellement. Les mots pèsent leur poids de mana.",

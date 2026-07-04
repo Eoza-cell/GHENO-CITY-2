@@ -152,6 +152,27 @@ function extractMessageContent(content) {
     return null;
 }
 
+async function callLocalAI(system, prompt, isRaw = false) {
+    const baseUrl = process.env.LOCALAI_URL || "http://localhost:8080/v1";
+    const model = process.env.LOCALAI_MODEL || "gpt-4";
+    try {
+        console.log(`[AI] LocalAI - Tentative avec ${model}...`);
+        const resp = await axios.post(`${baseUrl}/chat/completions`, {
+            model: model,
+            messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
+            temperature: 0.7
+        }, {
+            timeout: 30000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isRaw || isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] LocalAI Error:`, e.message);
+    }
+    return null;
+}
+
 // ============================================================================
 // PROVIDERS CLOUD
 // ============================================================================
@@ -465,6 +486,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     console.warn(`[AI] La course a échoué. Tentative de secours séquentielle...`);
     const fallbacks = [
         { name: 'OpenRouter-Robust', fn: callOpenRouter, timeout: 35000 },
+        { name: 'LocalAI', fn: callLocalAI, timeout: 35000 },
         { name: 'Ollama-Local', fn: callOllama, timeout: 40000 }
     ];
 

@@ -36,8 +36,10 @@ class AetherAgent {
             // Power-based Logic: Easy massacre for powerful players
             if (intent.primaryIntent === 'COMBAT') {
                 if (intent.isPowerful) {
-                    updates.push({ playerName: player.name, xp: 50, col: 20 });
+                    // Power scaling: No difficulty for high-level players
+                    updates.push({ playerName: player.name, xp: 50, col: 25, status: ["dominant"] });
                     if (evaluation.isCritical) updates[0].xp += 50;
+                    narrativeText += "\n\n*Ta puissance écrase toute velléité de résistance. Un massacre unilatéral.*";
                 } else if (evaluation.isSuccess) {
                     const xpGain = evaluation.isCritical ? 50 : 20;
                     updates.push({ playerName: player.name, xp: xpGain, col: 10 });
@@ -51,8 +53,15 @@ class AetherAgent {
                     actions.push({ type: 'update_location', parameters: { new_sub_location: targetLoc[1] } });
                 }
             } else if (intent.primaryIntent === 'UTILITY') {
-                updates.push({ playerName: player.name, hp: 5 });
+                updates.push({ playerName: player.name, hp: 5, status: ["reposé"] });
             }
+
+            // Global Consumption Logic (Hunger/Sleep)
+            updates.push({
+                playerName: player.name,
+                hunger: -0.5,
+                sleep: -0.3
+            });
 
             // Real-time status sync (Academy & Ecchi vibes)
             if (intent.atmosphere === 'ecchi') {
