@@ -29,23 +29,27 @@ class AetherAgent {
             // 4. Procedural Generation (Billiards of possibilities Engine)
             let narrativeText = narrationEngine.generate(intent, player, actionText, lore);
 
-            // 5. Logic-to-Data Synchronizer (Real-time updates)
-            const updates = [];
+            // 5. Logic-to-Data Synchronizer (Merged Real-time updates)
+            const playerUpdate = {
+                playerName: player.name,
+                hunger: -0.5,
+                sleep: -0.3
+            };
+            const updates = [playerUpdate];
             const actions = [];
 
             // Power-based Logic: Easy massacre for powerful players
             if (intent.primaryIntent === 'COMBAT') {
                 if (intent.isPowerful) {
-                    // Power scaling: No difficulty for high-level players
-                    updates.push({ playerName: player.name, xp: 50, col: 25, status: ["dominant"] });
-                    if (evaluation.isCritical) updates[0].xp += 50;
+                    Object.assign(playerUpdate, { xp: 50, col: 25, status: ["dominant"] });
+                    if (evaluation.isCritical) playerUpdate.xp += 50;
                     narrativeText += "\n\n*Ta puissance écrase toute velléité de résistance. Un massacre unilatéral.*";
                 } else if (evaluation.isSuccess) {
                     const xpGain = evaluation.isCritical ? 50 : 20;
-                    updates.push({ playerName: player.name, xp: xpGain, col: 10 });
+                    Object.assign(playerUpdate, { xp: xpGain, col: 10 });
                 } else {
                     const hpLoss = evaluation.isLethalThreat ? 50 : 10;
-                    updates.push({ playerName: player.name, hp: -hpLoss, status: ["blessé"] });
+                    Object.assign(playerUpdate, { hp: -hpLoss, status: ["blessé"] });
                 }
             } else if (intent.primaryIntent === 'MOVEMENT') {
                 const targetLoc = actionText.match(/(?:vers|à|au|la|le)\s+([A-Z][a-z]+)/);
@@ -53,15 +57,8 @@ class AetherAgent {
                     actions.push({ type: 'update_location', parameters: { new_sub_location: targetLoc[1] } });
                 }
             } else if (intent.primaryIntent === 'UTILITY') {
-                updates.push({ playerName: player.name, hp: 5, status: ["reposé"] });
+                Object.assign(playerUpdate, { hp: 5, status: ["reposé"] });
             }
-
-            // Global Consumption Logic (Hunger/Sleep)
-            updates.push({
-                playerName: player.name,
-                hunger: -0.5,
-                sleep: -0.3
-            });
 
             // Real-time status sync (Academy & Ecchi vibes)
             if (intent.atmosphere === 'ecchi') {
@@ -73,23 +70,19 @@ class AetherAgent {
             // This ensures the bot "understands" and references the player's text.
             try {
                 const { callOllama } = require('./ai-utils');
-                const understandingPrompt = `Tu es le MOTEUR ARISE.
-LORE: ${lore}
-INTENTION: ${intent.primaryIntent} (Mots-clés: ${intent.detectedKeywords.join(', ')})
-PUISSANCE_JOUEUR: ${intent.isPowerful ? 'Élevée (Massacre facile)' : 'Normale'}
-ATMOSPHÈRE: ${intent.atmosphere}
+                const understandingPrompt = `Tu es le NARRATEUR d'AETHERYS.
+CONTEXTE LORE: ${lore}
+ACTION: "${actionText}"
+RÉSULTAT: ${evaluation.isSuccess ? 'SUCCÈS' : 'ÉCHEC'}
 
-ACTION_JOUEUR: "${actionText}"
-
-RÈGLES D'OR:
-- Français simple (A1).
-- Un seul paragraphe court.
-- NE CONTRÔLE PAS le joueur.
-- Intègre logiquement les éléments du Lore.
-- Si combat et puissant: le joueur gagne avec style et sans effort.
-- Base-toi sur ce canevas stylistique: "${narrativeText}"
-
-RÉSULTAT LOGIQUE: ${evaluation.isSuccess ? 'SUCCÈS' : 'ÉCHEC'} (Roll: ${evaluation.roll}/${evaluation.chance})`;
+CONSIGNE: Rédige une narration ULTRA-CONCISE (max 3 phrases).
+RÈGLES:
+- Français très simple (A1).
+- ZÉRO Hallucination (ne joue pas à la place du joueur).
+- Style percutant et immersif.
+- Inclus une onomatopée (*BAM*, *SHRING*...).
+- Si le joueur est puissant et combat: il massacre ses ennemis sans effort.
+- Base-toi sur ce style: "${narrativeText}"`;
 
                 const refinement = await callOllama("Arbitre Lore", understandingPrompt, true);
                 if (refinement && refinement.length > 20) {

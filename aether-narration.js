@@ -271,9 +271,9 @@ class AetherNarration {
                    .replace(/une action/gi, actionVerb)
                    .replace(/frappe/gi, actionVerb);
 
-        // 3. Narrative Assembly (The 9-Layer Recombination)
-        // Exponential scale: 20 * 15 * 10 * 10 * 15 * 10 * 25 * 8 = 5.4 Billion combinations.
-        let narrative = `${intro} ${detail} ${background} ${metaphysical} ${core} ${outcome} ${ono}\n\n${outro}`;
+        // 3. Narrative Assembly (Concise Recombination)
+        // Highly concise: One punchy paragraph.
+        let narrative = `${ono} ${core} ${outcome}`;
 
         // 4. Brain Polish
         if (comprehension.isPowerful && intent === 'COMBAT') {
