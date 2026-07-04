@@ -835,6 +835,23 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
         aiResponse.narrative = `${header}\n\n${aiResponse.narrative}`;
     }
 
+    // BROADCAST MJ RESPONSE TO ALL ACTORS (Multiplayer DM Support)
+    // Ensures everyone in the scene sees the MJ narration even if they didn't send 'next'
+    if (jid.endsWith('@s.whatsapp.net')) {
+        const allActorsJids = [player.whatsappId, ...nearbyPlayers.map(p => p.whatsappId)];
+        for (const actorJid of allActorsJids) {
+            if (actorJid !== jid && shouldNotifyPlayer({ whatsappId: actorJid })) {
+                try {
+                    await sendWithImage(sock, actorJid, aiResponse);
+                    // Remove from notifiedTargets to avoid double sending
+                    notifiedTargets.delete(actorJid);
+                } catch (e) {
+                    console.error(`[Multiplayer] Failed to broadcast to ${actorJid}:`, e.message);
+                }
+            }
+        }
+    }
+
     // Increment Global Action Count
     const { incrementActionCount } = require('./world-clock');
     await incrementActionCount();

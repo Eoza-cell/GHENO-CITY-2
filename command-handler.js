@@ -874,6 +874,35 @@ commands.set('joueurs', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: playersText });
 });
 
+// Command: /monde (See all active players)
+commands.set('monde', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const activeThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24h
+
+    const activePlayers = await Player.findAll({
+        where: {
+            lastActivity: { [Op.gt]: activeThreshold }
+        },
+        order: [['lastActivity', 'DESC']]
+    });
+
+    if (activePlayers.length === 0) {
+        return await sock.sendMessage(replyJid, { text: "Le monde semble désert pour le moment..." });
+    }
+
+    let text = "--- 🌍 HÉRITIERS ACTIFS DANS AETHERYS --- \n\n";
+    activePlayers.forEach(p => {
+        const timeDiff = Math.floor((Date.now() - p.lastActivity.getTime()) / (60 * 1000));
+        const timeStr = timeDiff < 60 ? `${timeDiff}m` : `${Math.floor(timeDiff/60)}h`;
+        text += `• *${p.name}* (Niv ${p.level})\n`;
+        text += `  📍 ${p.location} (${p.subLocation})\n`;
+        text += `  ⏱️ Actif il y a ${timeStr}\n\n`;
+    });
+
+    text += `_Total: ${activePlayers.length} joueurs actifs ces dernières 24h._`;
+    await sock.sendMessage(replyJid, { text });
+});
+
 // Command: /royaumes
 commands.set('royaumes', async (sock, message) => {
     const replyJid = message.key.remoteJid;
@@ -1749,6 +1778,7 @@ commands.set('help', async (sock, message) => {
                    "/skills - Voir les compétences disponibles.\n" +
                    "/examen - Passer un examen pour apprendre un skill.\n" +
                    "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
+                   "/monde - Voir les joueurs actifs dans le monde.\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
                    "/action - Mode immersif (RP).\n" +
@@ -1946,6 +1976,7 @@ commands.set('menu', async (sock, message) => {
                    "📍 *NAVIGATION*\n" +
                    "├ `/map` - Monde & Donjons\n" +
                    "├ `/quests` - Journal d'objectifs\n" +
+                   "├ `/monde` - Qui est actif ?\n" +
                    "├ `/joueurs` - Qui est ici ?\n" +
                    "└ `/lieux` - Ta position actuelle\n\n" +
                    "💰 *ÉCONOMIE*\n" +

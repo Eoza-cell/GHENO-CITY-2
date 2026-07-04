@@ -301,15 +301,15 @@ async function callBlackbox(system, prompt) {
 
 async function callPollinationModel(system, prompt, model) {
     try {
-        // We keep the head and tail of the system prompt to ensure instructions (tail) are kept
-        const maxLen = 5000;
+        // Stop aggressive truncation to keep RPG rules intact
+        const maxLen = 12000;
         let activeSystem = system;
         if (system.length > maxLen) {
-            activeSystem = system.substring(0, 2000) + "\n[...]\n" + system.substring(system.length - 3000);
+            activeSystem = system.substring(0, 4000) + "\n[...]\n" + system.substring(system.length - 6000);
         }
 
-        // Keep the end of user prompt (most recent actions)
-        const activePrompt = prompt.length > 5000 ? prompt.substring(prompt.length - 5000) : prompt;
+        // Keep more of the user prompt (actions history)
+        const activePrompt = prompt.length > 10000 ? prompt.substring(prompt.length - 10000) : prompt;
 
         const resp = await axios.post("https://text.pollinations.ai/", {
             messages: [
@@ -318,10 +318,11 @@ async function callPollinationModel(system, prompt, model) {
             ],
             model: model,
             seed: Math.floor(Math.random() * 1000000),
+            temperature: 0.7,
             jsonMode: true
         }, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 20000
+            timeout: 25000
         });
 
         let content = resp.data?.choices?.[0]?.message?.content || resp.data?.content;
@@ -337,13 +338,13 @@ async function callPollinationKeyedModel(system, prompt, model) {
     if (!key) return null;
 
     try {
-        // Context compression for keyed calls
-        const maxLen = 6000;
+        // Increased context for keyed calls (Professional tier)
+        const maxLen = 15000;
         let activeSystem = system;
         if (system.length > maxLen) {
-            activeSystem = system.substring(0, 2500) + "\n[...]\n" + system.substring(system.length - 3500);
+            activeSystem = system.substring(0, 5000) + "\n[...]\n" + system.substring(system.length - 8000);
         }
-        const activePrompt = prompt.length > 6000 ? prompt.substring(prompt.length - 6000) : prompt;
+        const activePrompt = prompt.length > 12000 ? prompt.substring(prompt.length - 12000) : prompt;
 
         const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
             model: model,
@@ -351,13 +352,14 @@ async function callPollinationKeyedModel(system, prompt, model) {
                 { role: "system", content: activeSystem },
                 { role: "user", content: activePrompt }
             ],
+            temperature: 0.8,
             response_format: { type: "json_object" }
         }, {
             headers: {
                 'Authorization': `Bearer ${key}`,
                 'Content-Type': 'application/json'
             },
-            timeout: 20000
+            timeout: 25000
         });
 
         let content = resp.data?.choices?.[0]?.message?.content;

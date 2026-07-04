@@ -90,6 +90,17 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     const sLine = await questUtils.startQuest(target, parameters.questTitle);
                     if (sLine) questFeedback.push(sLine);
                     break;
+                case 'start_multiplayer_quest':
+                    const mResult = await questUtils.startMultiplayerQuest(target, parameters.questTitle);
+                    if (mResult) {
+                        questFeedback.push(mResult.narrative);
+                        for (const n of mResult.notified) {
+                            if (shouldNotifyPlayer(n.player)) {
+                                await sock.sendMessage(n.player.whatsappId, { text: n.line });
+                            }
+                        }
+                    }
+                    break;
                 case 'advance_quest':
                     const aLine = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
                     if (aLine) questFeedback.push(aLine);

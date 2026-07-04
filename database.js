@@ -897,9 +897,9 @@ async function setupDatabase() {
     const currentSkillCount = await Skill.count();
     if (currentSkillCount < 1000) {
         console.log(`[SEED] Generating ${1000 - currentSkillCount} additional skills...`);
-        const prefixes = ["Frappe", "Souffle", "Cri", "Danse", "Sceau", "Aura", "Éclair", "Onde", "Pacte", "Lame", "Bouclier", "Météore", "Explosion", "Murmure", "Appel", "Chant", "Rupture", "Vortex", "Sillon", "Éveil"];
-        const types = ["GUERRIER", "MAGE", "ASSASSIN", "ARCHER", "PRÊTRE", "MOINE", "PALADIN", "INVOCATEUR", "NÉCROMANCIEN", "SAMOURAÏ", "CH.-DRAGON", "ALCHIMISTE", "BARDE"];
-        const suffixes = ["de Feu", "de Glace", "de Foudre", "des Ombres", "de Lumière", "du Néant", "des Anciens", "Céleste", "Bestial", "du Destin", "de Sang", "d'Argent", "d'Émeraude", "de Platine", "de Mana", "de l'Interstice"];
+        const prefixes = ["Frappe", "Souffle", "Cri", "Danse", "Sceau", "Aura", "Éclair", "Onde", "Pacte", "Lame", "Bouclier", "Météore", "Explosion", "Murmure", "Appel", "Chant", "Rupture", "Vortex", "Sillon", "Éveil", "Recette", "Plat", "Goût"];
+        const types = ["GUERRIER", "MAGE", "ASSASSIN", "ARCHER", "PRÊTRE", "MOINE", "PALADIN", "INVOCATEUR", "NÉCROMANCIEN", "SAMOURAÏ", "CH.-DRAGON", "ALCHIMISTE", "BARDE", "CUISINE"];
+        const suffixes = ["de Feu", "de Glace", "de Foudre", "des Ombres", "de Lumière", "du Néant", "des Anciens", "Céleste", "Bestial", "du Destin", "de Sang", "d'Argent", "d'Émeraude", "de Platine", "de Mana", "de l'Interstice", "Savoureux", "Épicé", "Régénérant"];
 
         const batchSize = 100;
         for (let i = 0; i < 1000 - currentSkillCount; i += batchSize) {
