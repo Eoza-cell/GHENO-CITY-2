@@ -638,7 +638,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     }
 
     // 3D Trigger Logic: If AI mentions "3D", "scan", or "hologramme"
-    if (aiResponse.narrative.match(/3D|scan|hologramme/i) && !aiResponse.imagePrompt) {
+    if (typeof aiResponse.narrative === 'string' && aiResponse.narrative.match(/3D|scan|hologramme/i) && !aiResponse.imagePrompt) {
         const types = ['cube', 'sphere', 'pyramid'];
         const type = types.find(t => aiResponse.narrative.toLowerCase().includes(t)) || 'cube';
         try {

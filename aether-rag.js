@@ -68,30 +68,63 @@ class AetherRAG {
     }
 
     /**
-     * Advanced TF-IDF / BM25-lite scoring
+     * Normalizes text by removing stop words and filler
      */
-    calculateScore(query, docText) {
-        const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-        let score = 0;
+    normalize(text) {
+        const stopWords = new Set(['le', 'la', 'les', 'de', 'du', 'un', 'une', 'et', 'en', 'à', 'pour', 'dans', 'sur', 'est', 'ai', 'tu', 'je', 'vous', 'nous', 'ce', 'cette', 'mon', 'ma', 'ton', 'ta']);
+        return text.toLowerCase()
+            .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
+            .split(/\s+/)
+            .filter(w => w.length > 1 && !stopWords.has(w));
+    }
 
-        const docWords = docText.split(/\s+/);
-        const docLen = docWords.length;
+    /**
+     * Creates a term frequency vector for cosine similarity
+     */
+    getVector(words) {
+        const vec = {};
+        words.forEach(w => vec[w] = (vec[w] || 0) + 1);
+        return vec;
+    }
 
-        for (const word of words) {
-            // Term frequency
-            const count = (docText.match(new RegExp(`\\b${word}\\b`, 'gi')) || []).length;
+    /**
+     * Calculates Cosine Similarity between two word vectors (The "A+Z" way)
+     */
+    calculateSimilarity(vec1, vec2) {
+        let dotProduct = 0;
+        let mag1 = 0;
+        let mag2 = 0;
 
-            if (count > 0) {
-                // BM25-lite: weighting count and normalizing by length
-                // Higher count = higher score, but with diminishing returns
-                const tf = (count * 2.5) / (count + 1.5);
-                score += tf * 10;
-            } else if (docText.includes(word)) {
-                // Fuzzy/Partial match
-                score += 2;
-            }
+        for (const [word, count] of Object.entries(vec1)) {
+            if (vec2[word]) dotProduct += count * vec2[word];
+            mag1 += count * count;
         }
-        return score;
+
+        for (const count of Object.values(vec2)) {
+            mag2 += count * count;
+        }
+
+        if (mag1 === 0 || mag2 === 0) return 0;
+        return dotProduct / (Math.sqrt(mag1) * Math.sqrt(mag2));
+    }
+
+    /**
+     * Advanced Score: Combines Vector Similarity and BM25-lite logic
+     */
+    calculateScore(queryWords, docText) {
+        const docWords = this.normalize(docText);
+        const queryVec = this.getVector(queryWords);
+        const docVec = this.getVector(docWords);
+
+        const similarity = this.calculateSimilarity(queryVec, docVec);
+        let bm25 = 0;
+
+        for (const word of queryWords) {
+             const count = (docText.match(new RegExp(`\\b${word}\\b`, 'gi')) || []).length;
+             if (count > 0) bm25 += (count * 2.5) / (count + 1.5);
+        }
+
+        return (similarity * 50) + (bm25 * 5);
     }
 
     /**
@@ -99,19 +132,20 @@ class AetherRAG {
      */
     expandQuery(query) {
         const concepts = {
-            'combat': ['épée', 'sang', 'tue', 'attaque', 'mort', 'frappe', 'arme'],
-            'magie': ['mana', 'sort', 'incantation', 'éther', 'aura', 'rituel'],
-            'académie': ['professeur', 'étudiant', 'classe', 'examen', 'école', 'leçon'],
-            'argent': ['col', 'boutique', 'achat', 'vendre', 'prix', 'banque']
+            'combat': ['épée', 'sang', 'tue', 'attaque', 'mort', 'frappe', 'arme', 'fer'],
+            'magie': ['mana', 'sort', 'incantation', 'éther', 'aura', 'rituel', 'flux'],
+            'académie': ['professeur', 'étudiant', 'classe', 'examen', 'école', 'leçon', 'livre'],
+            'argent': ['col', 'boutique', 'achat', 'vendre', 'prix', 'banque', 'commerce']
         };
 
-        let expanded = query.toLowerCase();
+        const words = this.normalize(query);
+        const expanded = [...words];
         for (const [key, aliases] of Object.entries(concepts)) {
-            if (expanded.includes(key)) {
-                expanded += ' ' + aliases.join(' ');
+            if (words.includes(key)) {
+                expanded.push(...aliases);
             }
         }
-        return expanded;
+        return [...new Set(expanded)];
     }
 
     /**
@@ -121,11 +155,11 @@ class AetherRAG {
         await this.refreshIndex();
 
         const results = [];
-        const expandedQuery = this.expandQuery(query);
+        const queryWords = this.expandQuery(query);
 
         // 1. Search NPCs
         for (const item of this.index.npcs) {
-            let score = this.calculateScore(expandedQuery, item.text);
+            let score = this.calculateScore(queryWords, item.text);
             // Boost score if NPC is in the current location
             if (location && item.ref.location && item.ref.location.toLowerCase().includes(location.toLowerCase())) {
                 score += 15;
@@ -135,13 +169,13 @@ class AetherRAG {
 
         // 2. Search Skills
         for (const item of this.index.skills) {
-            let score = this.calculateScore(expandedQuery, item.text);
+            let score = this.calculateScore(queryWords, item.text);
             if (score > 0) results.push({ type: 'SKILL', data: item.ref, score });
         }
 
         // 3. Search Kingdoms
         for (const item of this.index.kingdoms) {
-            let score = this.calculateScore(expandedQuery, item.text);
+            let score = this.calculateScore(queryWords, item.text);
             if (location && item.ref.name.toLowerCase().includes(location.toLowerCase())) {
                 score += 20; // Massive boost for current kingdom lore
             }
@@ -150,13 +184,13 @@ class AetherRAG {
 
         // 4. Search Items
         for (const item of this.index.items) {
-            let score = this.calculateScore(expandedQuery, item.text);
+            let score = this.calculateScore(queryWords, item.text);
             if (score > 0) results.push({ type: 'ITEM', data: item.ref, score });
         }
 
         // 5. Search Quests
         for (const item of this.index.quests) {
-            let score = this.calculateScore(expandedQuery, item.text);
+            let score = this.calculateScore(queryWords, item.text);
             if (score > 0) results.push({ type: 'QUEST', data: item.ref, score });
         }
 

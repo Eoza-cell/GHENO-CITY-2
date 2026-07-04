@@ -41,7 +41,36 @@ class AetherNarration {
                 "alors que les lois de la physique semblent vaciller,",
                 "avec une précision qui défie toute logique humaine,",
                 "pendant que le flux de l'Ether chante à tes oreilles,",
-                "sous une pluie de particules magiques scintillantes,"
+                "sous une pluie de particules magiques scintillantes,",
+                "alors que ton aura s'intensifie jusqu'à devenir visible,",
+                "tandis que le temps lui-même semble s'étirer à l'infini,",
+                "au milieu d'un sifflement d'énergie pure et dévastatrice,",
+                "pendant que les débris lévitent autour de toi,",
+                "dans un silence pesant qui précède la tempête,"
+            ],
+            background: [
+                "un corbeau s'envole d'un toit voisin,",
+                "une cloche sonne tristement au loin,",
+                "le vent souffle une mélodie mélancolique,",
+                "les badauds s'écartent avec une crainte respectueuse,",
+                "une lueur écarlate traverse les nuages d'Aetherys,",
+                "le sol résonne d'une vibration profonde,",
+                "des étincelles de mana s'éteignent dans l'ombre,",
+                "une odeur de jasmin se mêle à celle de la bataille,",
+                "un enfant pointe du doigt ton exploit,",
+                "les murs de pierre semblent absorber l'énergie,"
+            ],
+            metaphysical: [
+                "la Causalité valide cet instant unique,",
+                "les fils du destin s'entremêlent brutalement,",
+                "l'Ether réagit à la pureté de ton intention,",
+                "une trace indélébile est gravée dans la matrice,",
+                "le système ajuste les variables de ton existence,",
+                "l'interstice s'agite sous cette poussée de puissance,",
+                "ton âme résonne en harmonie avec le monde,",
+                "les lois anciennes se courbent devant ton acte,",
+                "un écho de tes ancêtres vibre en toi,",
+                "la réalité elle-même reconnaît ta souveraineté,"
             ],
             combat: {
                 easy: [
@@ -181,13 +210,15 @@ class AetherNarration {
 
     /**
      * Generates a unique narration based on parsed intent and context.
-     * With randomized fragments, this provides millions of potential combinations.
+     * With randomized fragments, this provides billions of potential combinations.
      */
     generate(comprehension, player, actionText, loreContext) {
         const rand = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
         const intro = rand(this.fragments.intro);
         const detail = rand(this.fragments.detail);
+        const background = rand(this.fragments.background);
+        const metaphysical = rand(this.fragments.metaphysical);
         const outcome = rand(this.fragments.outcome);
         const outro = rand(this.fragments.outro);
         const ono = rand(this.onomatopoeias);
@@ -215,10 +246,9 @@ class AetherNarration {
         // 2. Fragment Expansion
         core = core.replace(/ton adversaire/gi, comprehension.targets[0]?.name || "l'adversaire");
 
-        // 3. Narrative Assembly (The 7-Layer Recombination)
-        // Millions of combinations: 20 * 10 * 15 * 10 * 20 * 8 = 4.8 million base
-        // With expanded lists: 20 (intro) * 10 (detail) * 15 (core) * 10 (outcome) * 15 (outro) * 8 (ono) = 36 million combinations.
-        let narrative = `${intro} ${detail} ${core} ${outcome} ${ono}\n\n${outro}`;
+        // 3. Narrative Assembly (The 9-Layer Recombination)
+        // Exponential scale: 20 * 15 * 10 * 10 * 15 * 10 * 25 * 8 = 5.4 Billion combinations.
+        let narrative = `${intro} ${detail} ${background} ${metaphysical} ${core} ${outcome} ${ono}\n\n${outro}`;
 
         // 4. Brain Polish
         if (comprehension.isPowerful && intent === 'COMBAT') {

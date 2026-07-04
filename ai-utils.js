@@ -300,21 +300,23 @@ async function callBlackbox(system, prompt) {
 }
 
 
-async function callOllama(system, prompt) {
+async function callOllama(system, prompt, isRaw = false) {
     const model = process.env.OLLAMA_MODEL || "gemma3:4b";
     try {
         console.log(`[AI] Ollama Local - Tentative avec ${model}...`);
-        const resp = await axios.post("http://localhost:11434/api/generate", {
+        const body = {
             model: model,
             prompt: `System: ${system}\n\nUser: ${prompt}`,
-            stream: false,
-            format: "json"
-        }, {
+            stream: false
+        };
+        if (!isRaw) body.format = "json";
+
+        const resp = await axios.post("http://localhost:11434/api/generate", body, {
             timeout: 35000
         });
 
         const content = resp.data?.response;
-        if (isValidAIResponse(content)) return content;
+        if (isRaw || isValidAIResponse(content)) return content;
     } catch (e) {
         console.warn(`[AI] Ollama Error:`, e.message);
     }
