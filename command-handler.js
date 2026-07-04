@@ -2076,9 +2076,10 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     return;
   }
 
-  // Handle free action mode
-  if (player?.mode === 'action' && !messageText.startsWith('/') && !messageText.startsWith('@')) {
+  // Handle AI-first mode: everything is interpreted by the MJ
+  if ((player?.mode === 'action' || !messageText.startsWith('/')) && !messageText.startsWith('@')) {
     try {
+        // Redirige vers le MJ pour traitement naturel
         if (player.tutorialStep >= 0 && player.tutorialStep < 3) {
             const { handleTutorialAction } = require('./tutorial-handler');
             await handleTutorialAction(sock, message, player, messageText);

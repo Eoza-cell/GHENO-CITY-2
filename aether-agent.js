@@ -29,7 +29,8 @@ class AetherAgent {
             // 4. Procedural Generation (Billiards of possibilities Engine)
             let narrativeText = narrationEngine.generate(intent, player, actionText, lore);
 
-            // 5. Logic-to-Data Synchronizer (Merged Real-time updates)
+            // 5. Logic-to-Data Synchronizer (SYSTEM OVERRIDE - AI IS THE BOT)
+            // AI controls ALL player fields in real-time.
             const playerUpdate = {
                 playerName: player.name,
                 hunger: -0.5,
@@ -38,10 +39,26 @@ class AetherAgent {
             const updates = [playerUpdate];
             const actions = [];
 
-            // Power-based Logic: Easy massacre for powerful players
+            // Command Bridge: Detect command-like intent in natural language
+            if (actionText.match(/profil|stat|fiche|qui suis-je/i)) {
+                actions.push({ type: 'execute_command', parameters: { command: 'profile' } });
+            }
+            if (actionText.match(/inventaire|sac|objets/i)) {
+                actions.push({ type: 'execute_command', parameters: { command: 'inventory' } });
+            }
+            if (actionText.match(/carte|map|monde|où suis-je/i)) {
+                actions.push({ type: 'execute_command', parameters: { command: 'map' } });
+            }
+
+            // Power-based Logic: AI-driven world response
             if (intent.primaryIntent === 'COMBAT') {
                 if (intent.isPowerful) {
-                    Object.assign(playerUpdate, { xp: 50, col: 25, status: ["dominant"] });
+                    Object.assign(playerUpdate, {
+                        xp: 50,
+                        col: 25,
+                        status: ["dominant", "intouchable"],
+                        strength: 0.1 // Slight organic growth
+                    });
                     if (evaluation.isCritical) playerUpdate.xp += 50;
                     narrativeText += "\n\n*Ta puissance écrase toute velléité de résistance. Un massacre unilatéral.*";
                 } else if (evaluation.isSuccess) {
@@ -57,12 +74,18 @@ class AetherAgent {
                     actions.push({ type: 'update_location', parameters: { new_sub_location: targetLoc[1] } });
                 }
             } else if (intent.primaryIntent === 'UTILITY') {
-                Object.assign(playerUpdate, { hp: 5, status: ["reposé"] });
+                // Handling commerce or items directly in AI
+                if (actionText.match(/achète|prends|paye/i)) {
+                    Object.assign(playerUpdate, { col: -20 });
+                    actions.push({ type: 'add_item', parameters: { itemName: "Objet de quête", quantity: 1 } });
+                } else {
+                    Object.assign(playerUpdate, { hp: 5, status: ["reposé"] });
+                }
             }
 
             // Real-time status sync (Academy & Ecchi vibes)
             if (intent.atmosphere === 'ecchi') {
-                updates.push({ playerName: player.name, status: ["excité"] });
+                playerUpdate.status = [...(playerUpdate.status || []), "excité"];
             }
 
             // 6. Final Logic Refinement (Local LLM Hybrid - Core Understanding)

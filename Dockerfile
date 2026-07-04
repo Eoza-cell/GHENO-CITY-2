@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y \
     procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
+# Installer les outils de build pour node-llama-cpp
+RUN apt-get update && apt-get install -y build-essential python3 cmake
 
 WORKDIR /app
 

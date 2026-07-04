@@ -30,6 +30,7 @@
     "concurrently": "^8.2.2",
     "dotenv": "^16.4.5",
     "jsdom": "^29.1.1",
+    "node-llama-cpp": "^3.19.0",
     "openai": "^4.85.0",
     "p-queue": "^6.6.2",
     "p-retry": "^4.6.2",

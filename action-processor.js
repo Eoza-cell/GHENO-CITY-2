@@ -162,7 +162,16 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                 case 'submit_player':
                     await handleSubmitPlayer(player, target, parameters, questFeedback, playersToUpdate);
                     break;
-                // Add other cases as needed...
+                case 'execute_command':
+                    const { handleCommand } = require('./command-handler');
+                    // Create a fake message object to trigger command
+                    const fakeMsg = {
+                        key: { remoteJid: jid, participant: player.whatsappId },
+                        message: { conversation: `/${parameters.command}` },
+                        pushName: player.name
+                    };
+                    await handleCommand(sock, fakeMsg, null);
+                    break;
             }
         } catch (err) {
             console.error(`[Processor] Error in ${actionObj.type}:`, err.message);
@@ -567,7 +576,7 @@ async function applyPlayerUpdates(updates, playersToUpdate) {
 
     for (const update of updates) {
         try {
-            const { playerName, hp, mp, xp, col, sp, status, hunger, sleep } = update;
+            const { playerName, hp, mp, xp, col, sp, status, hunger, sleep, strength, agility, intelligence, defense, luck } = update;
             if (!playerName) continue;
 
             const { Player } = require('./database');
@@ -582,6 +591,13 @@ async function applyPlayerUpdates(updates, playersToUpdate) {
             const sGain = Math.min(parseInt(sp) || 0, 5);   // Hard cap 5 SP
             const hungChange = parseFloat(hunger) || 0;
             const sleepChange = parseFloat(sleep) || 0;
+
+            // AI-driven Stat Growth
+            const strGain = parseFloat(strength) || 0;
+            const agiGain = parseFloat(agility) || 0;
+            const intGain = parseFloat(intelligence) || 0;
+            const defGain = parseFloat(defense) || 0;
+            const lukGain = parseFloat(luck) || 0;
 
             // Update stats with bounds checking
             let newHp = Math.max(0, Math.min(player.maxHealth, player.health + hChange));
@@ -601,7 +617,12 @@ async function applyPlayerUpdates(updates, playersToUpdate) {
                 skillPoints: player.skillPoints + sGain,
                 statusEffects: currentStatus,
                 hunger: Math.max(0, Math.min(100, player.hunger + hungChange)),
-                sleep: Math.max(0, Math.min(100, player.sleep + sleepChange))
+                sleep: Math.max(0, Math.min(100, player.sleep + sleepChange)),
+                strength: player.strength + strGain,
+                agility: player.agility + agiGain,
+                intelligence: player.intelligence + intGain,
+                defense: player.defense + defGain,
+                luck: player.luck + lukGain
             });
 
             // Handle death state
