@@ -7,18 +7,31 @@
 class AetherComprehension {
     constructor() {
         this.intents = {
-            COMBAT: ["attaque", "frappe", "tue", "combat", "épée", "magie", "sort", "lance", "dague", "coupe", "sang", "détruit", "brise"],
-            MOVEMENT: ["va", "vers", "entre", "sort", "marche", "court", "dirige", "déplace", "quitte", "arrive", "explore"],
-            SOCIAL: ["parle", "dis", "demande", "salue", "regarde", "observe", "aide", "donne", "échange"],
-            ACADEMY: ["académie", "école", "étudie", "cours", "examen", "professeur", "élève", "classe", "bibliothèque", "lycée"],
-            NSFW: ["sexy", "nu", "poitrine", "regard", "rougit", "ecchi", "sexy", "sous-vêtement", "douche", "bain", "proche", "peau"],
-            UTILITY: ["inventaire", "sac", "banque", "argent", "stat", "profil", "objet", "utilise", "mange", "dort"]
+            COMBAT: ["attaque", "frappe", "tue", "combat", "épée", "magie", "sort", "lance", "dague", "coupe", "sang", "détruit", "brise", "fend", "tranche", "abat", "pulvérise", "explose", "charge", "assaut"],
+            MOVEMENT: ["va", "vers", "entre", "sort", "marche", "court", "dirige", "déplace", "quitte", "arrive", "explore", "traverse", "monte", "descend", "rejoint", "fuit", "suit"],
+            SOCIAL: ["parle", "dis", "demande", "salue", "regarde", "observe", "aide", "donne", "échange", "répond", "écoute", "sourit", "interroge", "raconte", "explique", "négocie"],
+            ACADEMY: ["académie", "école", "étudie", "cours", "examen", "professeur", "élève", "classe", "bibliothèque", "lycée", "leçon", "pupitre", "tableau", "cafétéria", "club", "devoir"],
+            NSFW: ["sexy", "nu", "poitrine", "regard", "rougit", "ecchi", "sexy", "sous-vêtement", "douche", "bain", "proche", "peau", "courbe", "souffle", "murmure", "attirance", "chaleur", "serviette", "nu"],
+            UTILITY: ["inventaire", "sac", "banque", "argent", "stat", "profil", "objet", "utilise", "mange", "dort", "boit", "achète", "vend", "col", "pièce", "coffre", "tenue", "vêtement"]
         };
 
         this.entities = {
-            MONSTERS: ["gobelin", "loup", "orque", "spectre", "chimère", "dragon", "roi", "liche", "golem"],
-            NPCS: ["griffith", "void", "orpheon", "magnus", "valerius", "seraphina", "lucian", "erius", "lukas", "maya", "sora", "lila", "kaelith", "vrax", "uriel"]
+            MONSTERS: ["gobelin", "loup", "orque", "spectre", "chimère", "dragon", "roi", "liche", "golem", "araignée", "slime", "mort-vivant", "démon", "bestiau"],
+            NPCS: ["griffith", "void", "orpheon", "magnus", "valerius", "seraphina", "lucian", "erius", "lukas", "maya", "sora", "lila", "kaelith", "vrax", "uriel", "professeur", "marchand", "garde"]
         };
+    }
+
+    /**
+     * Simple fuzzy matching using substring checks and common stem variations
+     */
+    isMatch(word, keyword) {
+        if (word.includes(keyword)) return true;
+        // Basic stemming (FR)
+        const stems = ["er", "é", "ez", "ait", "ant", "ent"];
+        for (const s of stems) {
+            if (keyword.endsWith("er") && word === keyword.slice(0, -2) + s) return true;
+        }
+        return false;
     }
 
     /**
@@ -35,14 +48,23 @@ class AetherComprehension {
             atmosphere: 'normal'
         };
 
-        // 1. Keyword detection and intent scoring
+        // 1. Keyword detection and intent scoring with fuzzy-lite
         const scores = {};
+        const words = lowText.split(/\s+/);
+
         for (const [intent, keywords] of Object.entries(this.intents)) {
             scores[intent] = 0;
             for (const kw of keywords) {
                 if (lowText.includes(kw)) {
-                    scores[intent] += 1;
+                    scores[intent] += 2; // Direct string inclusion
                     results.detectedKeywords.push(kw);
+                } else {
+                    for (const word of words) {
+                        if (this.isMatch(word, kw)) {
+                            scores[intent] += 1;
+                            results.detectedKeywords.push(kw);
+                        }
+                    }
                 }
             }
         }

@@ -68,16 +68,35 @@ class AetherAgent {
                 updates.push({ playerName: player.name, status: ["excité"] });
             }
 
-            // 6. Final Logic Refinement (The "IA de A+Z" Comprehension)
-            // If the procedural engine needs a lore-heavy boost, use Ollama as a local-only node
-            if (intent.isQuestion || evaluation.dangerLevel > 70) {
-                 try {
-                     const { callOllama } = require('./ai-utils');
-                     const localRefinement = await callOllama("Arbitre Lore", `Réponds à l'action RP en suivant strictement le lore: ${lore}\nAction: ${actionText}`, true);
-                     if (localRefinement) narrativeText = localRefinement;
-                 } catch (e) {
-                     console.warn("[Aether] Local Ollama node busy, sticking to procedural engine.");
-                 }
+            // 6. Final Logic Refinement (Local LLM Hybrid - Core Understanding)
+            // ALWAYS use Ollama to glue the procedural narrative with the player's specific intent.
+            // This ensures the bot "understands" and references the player's text.
+            try {
+                const { callOllama } = require('./ai-utils');
+                const understandingPrompt = `Tu es le MOTEUR ARISE.
+LORE: ${lore}
+INTENTION: ${intent.primaryIntent} (Mots-clés: ${intent.detectedKeywords.join(', ')})
+PUISSANCE_JOUEUR: ${intent.isPowerful ? 'Élevée (Massacre facile)' : 'Normale'}
+ATMOSPHÈRE: ${intent.atmosphere}
+
+ACTION_JOUEUR: "${actionText}"
+
+RÈGLES D'OR:
+- Français simple (A1).
+- Un seul paragraphe court.
+- NE CONTRÔLE PAS le joueur.
+- Intègre logiquement les éléments du Lore.
+- Si combat et puissant: le joueur gagne avec style et sans effort.
+- Base-toi sur ce canevas stylistique: "${narrativeText}"
+
+RÉSULTAT LOGIQUE: ${evaluation.isSuccess ? 'SUCCÈS' : 'ÉCHEC'} (Roll: ${evaluation.roll}/${evaluation.chance})`;
+
+                const refinement = await callOllama("Arbitre Lore", understandingPrompt, true);
+                if (refinement && refinement.length > 20) {
+                    narrativeText = refinement;
+                }
+            } catch (e) {
+                console.warn("[Aether] Local node failed, using procedural base.");
             }
 
             return JSON.stringify({

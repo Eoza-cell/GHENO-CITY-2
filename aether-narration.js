@@ -263,8 +263,13 @@ class AetherNarration {
             else core = "Tu agis avec détermination, sentant le flux de l'Ether t'accompagner.";
         }
 
-        // 2. Fragment Expansion
-        core = core.replace(/ton adversaire/gi, comprehension.targets[0]?.name || "l'adversaire");
+        // 2. Fragment Expansion (Dynamic Slots)
+        const targetName = comprehension.targets[0]?.name || "l'adversaire";
+        const actionVerb = actionText.split(/\s+/).find(w => w.length > 5) || "agir";
+
+        core = core.replace(/ton adversaire/gi, targetName)
+                   .replace(/une action/gi, actionVerb)
+                   .replace(/frappe/gi, actionVerb);
 
         // 3. Narrative Assembly (The 9-Layer Recombination)
         // Exponential scale: 20 * 15 * 10 * 10 * 15 * 10 * 25 * 8 = 5.4 Billion combinations.

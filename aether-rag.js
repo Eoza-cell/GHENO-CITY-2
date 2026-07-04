@@ -205,9 +205,18 @@ class AetherRAG {
      */
     async getLoreContext(query, location = null) {
         const searchResults = await this.searchLore(query, location);
-        if (searchResults.length === 0) return "Pas d'infos spéciales.";
 
+        // Always include current location context if possible
         let context = "--- INFOS IMPORTANTES ---\n";
+
+        if (location) {
+            const locLore = this.index.kingdoms.find(k => k.ref.name.toLowerCase().includes(location.toLowerCase()));
+            if (locLore) {
+                context += `[Rappel Lieu: ${locLore.ref.name}] ${locLore.ref.description}\n`;
+            }
+        }
+
+        if (searchResults.length === 0 && !location) return "Aetherys est un monde vaste et mystérieux.";
 
         for (const res of searchResults) {
             if (res.type === 'NPC') {
