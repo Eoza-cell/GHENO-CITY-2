@@ -505,21 +505,16 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.`;
 
   try {
-    console.log(`[AI] Appel AetherAgent pour ${player.name}...`);
-    let content = await agent.processPlayerTurn(systemPrompt, fullPrompt, actionText, player, player.location);
+    console.log(`[AI] Interne (AetherEngine) pour ${player.name}...`);
+    // Local-first deterministic processing - Use aggregated actions for context
+    const effectiveAction = isSolo ? actionText : aggregatedActions;
+    let content = await agent.processPlayerTurn(systemPrompt, fullPrompt, effectiveAction, player, player.location);
 
     // Delete thinking message
     if (thinkingMsg) {
         try {
             await sock.sendMessage(jid, { delete: thinkingMsg.key });
         } catch (e) {}
-    }
-
-    if (!content || (typeof content === 'string' && content.includes("MJ FALLBACK"))) {
-        console.warn("[AI] callAI a échoué ou utilisé le fallback.");
-        if (!content) {
-            content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels. Réessaie dans un instant.", actions: [] });
-        }
     }
     console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : '[Object]'}`);
 

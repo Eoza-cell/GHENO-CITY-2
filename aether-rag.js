@@ -68,22 +68,50 @@ class AetherRAG {
     }
 
     /**
-     * Simple TF-IDF inspired keyword scoring
+     * Advanced TF-IDF / BM25-lite scoring
      */
     calculateScore(query, docText) {
         const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
         let score = 0;
 
+        const docWords = docText.split(/\s+/);
+        const docLen = docWords.length;
+
         for (const word of words) {
-            // Exact match (high weight)
-            if (docText.includes(` ${word} `) || docText.startsWith(`${word} `) || docText.endsWith(` ${word}`)) {
-                score += 10;
+            // Term frequency
+            const count = (docText.match(new RegExp(`\\b${word}\\b`, 'gi')) || []).length;
+
+            if (count > 0) {
+                // BM25-lite: weighting count and normalizing by length
+                // Higher count = higher score, but with diminishing returns
+                const tf = (count * 2.5) / (count + 1.5);
+                score += tf * 10;
             } else if (docText.includes(word)) {
-                // Partial match
+                // Fuzzy/Partial match
                 score += 2;
             }
         }
         return score;
+    }
+
+    /**
+     * Extracts "concepts" from a query to expand search
+     */
+    expandQuery(query) {
+        const concepts = {
+            'combat': ['épée', 'sang', 'tue', 'attaque', 'mort', 'frappe', 'arme'],
+            'magie': ['mana', 'sort', 'incantation', 'éther', 'aura', 'rituel'],
+            'académie': ['professeur', 'étudiant', 'classe', 'examen', 'école', 'leçon'],
+            'argent': ['col', 'boutique', 'achat', 'vendre', 'prix', 'banque']
+        };
+
+        let expanded = query.toLowerCase();
+        for (const [key, aliases] of Object.entries(concepts)) {
+            if (expanded.includes(key)) {
+                expanded += ' ' + aliases.join(' ');
+            }
+        }
+        return expanded;
     }
 
     /**
@@ -93,11 +121,11 @@ class AetherRAG {
         await this.refreshIndex();
 
         const results = [];
-        const lowQuery = query.toLowerCase();
+        const expandedQuery = this.expandQuery(query);
 
         // 1. Search NPCs
         for (const item of this.index.npcs) {
-            let score = this.calculateScore(lowQuery, item.text);
+            let score = this.calculateScore(expandedQuery, item.text);
             // Boost score if NPC is in the current location
             if (location && item.ref.location && item.ref.location.toLowerCase().includes(location.toLowerCase())) {
                 score += 15;
@@ -107,13 +135,13 @@ class AetherRAG {
 
         // 2. Search Skills
         for (const item of this.index.skills) {
-            let score = this.calculateScore(lowQuery, item.text);
+            let score = this.calculateScore(expandedQuery, item.text);
             if (score > 0) results.push({ type: 'SKILL', data: item.ref, score });
         }
 
         // 3. Search Kingdoms
         for (const item of this.index.kingdoms) {
-            let score = this.calculateScore(lowQuery, item.text);
+            let score = this.calculateScore(expandedQuery, item.text);
             if (location && item.ref.name.toLowerCase().includes(location.toLowerCase())) {
                 score += 20; // Massive boost for current kingdom lore
             }
@@ -122,13 +150,13 @@ class AetherRAG {
 
         // 4. Search Items
         for (const item of this.index.items) {
-            let score = this.calculateScore(lowQuery, item.text);
+            let score = this.calculateScore(expandedQuery, item.text);
             if (score > 0) results.push({ type: 'ITEM', data: item.ref, score });
         }
 
         // 5. Search Quests
         for (const item of this.index.quests) {
-            let score = this.calculateScore(lowQuery, item.text);
+            let score = this.calculateScore(expandedQuery, item.text);
             if (score > 0) results.push({ type: 'QUEST', data: item.ref, score });
         }
 

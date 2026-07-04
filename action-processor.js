@@ -570,6 +570,7 @@ async function applyPlayerUpdates(updates, playersToUpdate) {
             const { playerName, hp, mp, xp, col, sp, status } = update;
             if (!playerName) continue;
 
+            const { Player } = require('./database');
             const player = await Player.findOne({ where: { name: { [Op.like]: `%${playerName}%` } } });
             if (!player) continue;
 
