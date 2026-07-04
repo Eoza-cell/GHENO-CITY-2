@@ -22,7 +22,9 @@ const server = http.createServer((req, res) => {
     res.end('Bot is running');
 });
 const PORT = process.env.PORT || 3000;
-let serverStarted = false;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[CORE] Server listening on port ${PORT} for Render health checks.`);
+});
 
 // Initialisation de la queue pour gérer la charge
 const messageQueue = new PQueue({ concurrency: 5 });
@@ -87,14 +89,6 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       startDayNightCycle();
-
-      // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
-      if (!serverStarted) {
-          server.listen(PORT, () => {
-              console.log(`Server listening on port ${PORT} for Render health checks.`);
-              serverStarted = true;
-          });
-      }
     }
   });
 

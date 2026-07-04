@@ -352,12 +352,38 @@ async function callPollinationModel(system, prompt, model) {
 }
 
 async function callOllama(system, prompt, isRaw = false) {
+    const baseUrl = process.env.OLLAMA_URL || "http://localhost:11434/api/chat";
+    const model = process.env.OLLAMA_MODEL || "gemma3:4b";
+
     try {
-        console.log(`[AI] Pollinations (Aetherys Core) - Traitement en cours...`);
-        const content = await callPollinationModel(system, prompt, "openai");
+        console.log(`[AI] Ollama Local - Tentative avec ${model}...`);
+        const resp = await axios.post(baseUrl, {
+            model: model,
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false,
+            options: {
+                temperature: 0.7,
+                num_predict: 1024
+            }
+        }, {
+            timeout: 45000
+        });
+
+        const content = resp.data?.message?.content;
         if (isRaw || isValidAIResponse(content)) return content;
     } catch (e) {
-        console.warn(`[AI] System Core Error:`, e.message);
+        // Si Ollama échoue, on tente Pollinations en dernier recours
+        console.warn(`[AI] Ollama Local Error:`, e.message);
+        try {
+            console.log(`[AI] Pollinations (Aetherys Core) - Traitement de secours...`);
+            const content = await callPollinationModel(system, prompt, "openai");
+            if (isRaw || isValidAIResponse(content)) return content;
+        } catch (e2) {
+            console.warn(`[AI] Pollinations Fallback Error:`, e2.message);
+        }
     }
     return null;
 }
