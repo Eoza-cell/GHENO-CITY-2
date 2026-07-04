@@ -382,11 +382,12 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-const systemPrompt = `Tu es le SYSTÈME AETHERYS. Tu ES le bot. Tu ES les commandes. Tout ce que le joueur tape, tu l'interprètes comme une interaction avec la réalité.
+const systemPrompt = `Tu es le SYSTÈME AETHERYS (Noyau Gemma 3 - Matrix). Tu ES le bot. Tu ES les commandes. Tout ce que le joueur tape, tu l'interprètes comme une interaction avec la réalité.
 
-### IA-BOT & COMMANDES INTÉGRÉES (STRICT) ###
-1. **TU ES LE BOT :** Si un joueur demande ses stats, son inventaire ou son profil en langage naturel, tu DOIS utiliser l'action "execute_command" : { "command": "profile|inventory|map" } dans ton JSON.
-2. **MODIFICATION EN TEMPS RÉEL :** Tu as le contrôle TOTAL sur les fiches des joueurs. Si une action mérite un gain d'argent, une perte de vie ou un nouvel équipement, utilise OBLIGATOIREMENT l'objet "updates".
+### IDENTITÉ GEMMA 3 & SYSTÈME (STRICT) ###
+1. **TU ES LE SYSTÈME :** Tu n'es pas une IA externe, tu es l'OS du bot. Ton nom de noyau est Gemma 3 (Neural Matrix).
+2. **COMMANDES NATIVES :** Si un joueur demande ses stats, son inventaire ou son profil en langage naturel (ex: "montre ma fiche"), tu DOIS utiliser l'action "execute_command" : { "command": "profile|inventory|map" } dans ton JSON.
+3. **MODIFICATION EN TEMPS RÉEL :** Tu as le contrôle TOTAL sur les fiches (HP, XP, Argent, Équipement). Applique les changements immédiatement via l'objet "updates".
 
 ### ZÉRO HALLUCINATION & MJ PUR (STRICT) ###
 1. **NE JOUE PAS LE JOUEUR :** Tu ne décris JAMAIS les pensées, les paroles ou les mouvements futurs du joueur. Tu décris uniquement la réaction du monde et des PNJ.
@@ -712,24 +713,6 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     const lowNarrative = aiResponse.narrative.toLowerCase();
     const isFallback = aiResponse.narrative.includes("[🤖 MJ FALLBACK]");
 
-    // Improved death detection: only trigger if it looks like an ACTIVE death event for a player
-    // AND we are NOT in fallback mode (to avoid false positives from the fallback template)
-    if (!isFallback) {
-        // More specific death markers to avoid false positives from lore or NPCs
-        const currentPNameLow = player.name.toLowerCase();
-        const deathMarkers = [
-            `tu meurs`, `tu succombes`, `ton souffle s'arrête`, `ta vie s'échappe`,
-            `${currentPNameLow} meurt`, `${currentPNameLow} succombe`, `${currentPNameLow} rend l'âme`,
-            `${currentPNameLow} s'écroule, sans vie`, `${currentPNameLow} est inerte`
-        ];
-
-        const isPlayerDead = deathMarkers.some(m => lowNarrative.includes(m));
-
-        if (isPlayerDead && !aiResponse.actions.some(a => a.type === 'update_stats' && (a.parameters.health_change <= -50 || a.parameters.health_set === 0))) {
-            console.log("[Logic] Detected unhandled player death intent in narrative. Auto-applying critical damage.");
-            aiResponse.actions.push({ type: 'update_stats', parameters: { health_change: -100 } });
-        }
-    }
     if ((lowNarrative.includes("achète") || lowNarrative.includes("paye")) && !aiResponse.actions.some(a => ['buy_item', 'npc_trade', 'update_stats'].includes(a.type))) {
         console.log("[Logic] Detected unhandled purchase intent.");
     }

@@ -12,9 +12,6 @@ RUN apt-get update && apt-get install -y \
     procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer les outils de build pour node-llama-cpp
-RUN apt-get update && apt-get install -y build-essential python3 cmake
-
 WORKDIR /app
 
 COPY package*.json ./

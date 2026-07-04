@@ -11,10 +11,10 @@ const narrationEngine = require('./aether-narration');
 class AetherAgent {
     /**
      * Executes the full thinking loop before returning narration.
-     * ZERO CLOUD - 100% Procedural & Local Reasoning.
+     * ZERO KEY - 100% Procedural & Neural-Matrix Hybrid.
      */
     async processPlayerTurn(systemPrompt, playerContext, actionText, player, location) {
-        console.log(`[Agent] AetherEngine "A+Z" active for ${player.name}...`);
+        console.log(`[Agent] Aether-Matrix "Gemma 3" active for ${player.name}...`);
 
         try {
             // 1. Semantic Comprehension (Neural-lite Intent Parsing)
@@ -88,15 +88,16 @@ class AetherAgent {
                 playerUpdate.status = [...(playerUpdate.status || []), "excité"];
             }
 
-            // 6. Final Logic Refinement (Local LLM Hybrid - Core Understanding)
-            // ALWAYS use Ollama to glue the procedural narrative with the player's specific intent.
+            // 6. Final Logic Refinement (Neural Matrix Hybrid - Core Understanding)
+            // ALWAYS use the Matrix (Pollinations) to glue the procedural narrative with the player's specific intent.
             // This ensures the bot "understands" and references the player's text.
             try {
-                const { callOllama } = require('./ai-utils');
-                const understandingPrompt = `Tu es le NARRATEUR d'AETHERYS.
+                const { callAI } = require('./ai-utils');
+                const understandingPrompt = `Tu es le SYSTÈME AETHERYS (Noyau Gemma 3).
 CONTEXTE LORE: ${lore}
-ACTION: "${actionText}"
-RÉSULTAT: ${evaluation.isSuccess ? 'SUCCÈS' : 'ÉCHEC'}
+ACTION DU JOUEUR: "${actionText}"
+RÉSULTAT LOGIQUE: ${evaluation.isSuccess ? 'SUCCÈS' : 'ÉCHEC'}
+DÉTERMINATION: ${intent.isPowerful ? 'DOMINATION TOTALE' : 'NORMAL'}
 
 CONSIGNE: Rédige une narration ULTRA-CONCISE (max 3 phrases).
 RÈGLES:
@@ -104,15 +105,17 @@ RÈGLES:
 - ZÉRO Hallucination (ne joue pas à la place du joueur).
 - Style percutant et immersif.
 - Inclus une onomatopée (*BAM*, *SHRING*...).
-- Si le joueur est puissant et combat: il massacre ses ennemis sans effort.
-- Base-toi sur ce style: "${narrativeText}"`;
+- Si domination: le joueur écrase ses ennemis sans effort.
+- Applique les changements de statut.
 
-                const refinement = await callOllama("Arbitre Lore", understandingPrompt, true);
-                if (refinement && refinement.length > 20) {
+Base-toi sur ce canevas pour le style: "${narrativeText}"`;
+
+                const refinement = await callAI("Arbitre Lore", understandingPrompt);
+                if (refinement && refinement.length > 20 && !refinement.includes("FALLBACK")) {
                     narrativeText = refinement;
                 }
             } catch (e) {
-                console.warn("[Aether] Local node failed, using procedural base.");
+                console.warn("[Aether] Matrix refinement failed, using procedural base.");
             }
 
             return JSON.stringify({

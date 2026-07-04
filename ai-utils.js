@@ -321,14 +321,43 @@ async function callBlackbox(system, prompt) {
 }
 
 
-async function callOllama(system, prompt, isRaw = false) {
-    const { callLlama } = require('./llama-engine');
+async function callPollinationModel(system, prompt, model) {
     try {
-        console.log(`[AI] Llama.cpp Local - Traitement en cours...`);
-        const content = await callLlama(system, prompt);
+        const maxLen = 12000;
+        let activeSystem = system;
+        if (system.length > maxLen) {
+            activeSystem = system.substring(0, 4000) + "\n[...]\n" + system.substring(system.length - 6000);
+        }
+        const activePrompt = prompt.length > 10000 ? prompt.substring(prompt.length - 10000) : prompt;
+
+        const resp = await axios.post("https://text.pollinations.ai/", {
+            messages: [
+                { role: "system", content: activeSystem },
+                { role: "user", content: activePrompt }
+            ],
+            model: model,
+            seed: Math.floor(Math.random() * 1000000),
+            jsonMode: true
+        }, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 25000
+        });
+
+        let content = resp.data?.choices?.[0]?.message?.content || resp.data?.content;
+        if (!content && typeof resp.data === 'object') content = JSON.stringify(resp.data);
+        return content;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function callOllama(system, prompt, isRaw = false) {
+    try {
+        console.log(`[AI] Pollinations (Aetherys Core) - Traitement en cours...`);
+        const content = await callPollinationModel(system, prompt, "openai");
         if (isRaw || isValidAIResponse(content)) return content;
     } catch (e) {
-        console.warn(`[AI] Llama.cpp Error:`, e.message);
+        console.warn(`[AI] System Core Error:`, e.message);
     }
     return null;
 }
@@ -422,10 +451,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     console.log(`[AI] Lancement de la Course Parallèle (depth: ${depth})...`);
 
     // Priority race
-    // Note: Puter is prioritized for better instruction following
+    // Pollinations is prioritized for zero-cost hosted inference on Render
     const raceModels = [
-        { name: 'Puter-API-V1', fn: callPuterAPI, timeout: 15000 },
-        { name: 'Puter-SDK', fn: callPuterSDK, timeout: 25000 },
+        { name: 'Aether-Matrix-V1', fn: (s, p) => callPollinationModel(s, p, "openai"), timeout: 20000 },
+        { name: 'Aether-Matrix-SDK', fn: (s, p) => callPollinationModel(s, p, "mistral"), timeout: 20000 },
+        { name: 'Gemma-3-Remote', fn: (s, p) => callOpenRouter(s, p), timeout: 30000 },
         { name: 'Blackbox', fn: callBlackbox, timeout: 30000 }
     ];
 
