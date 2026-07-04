@@ -299,99 +299,6 @@ async function callBlackbox(system, prompt) {
     }
 }
 
-async function callPollinationModel(system, prompt, model) {
-    try {
-        // Stop aggressive truncation to keep RPG rules intact
-        const maxLen = 12000;
-        let activeSystem = system;
-        if (system.length > maxLen) {
-            activeSystem = system.substring(0, 4000) + "\n[...]\n" + system.substring(system.length - 6000);
-        }
-
-        // Keep more of the user prompt (actions history)
-        const activePrompt = prompt.length > 10000 ? prompt.substring(prompt.length - 10000) : prompt;
-
-        const resp = await axios.post("https://text.pollinations.ai/", {
-            messages: [
-                { role: "system", content: activeSystem },
-                { role: "user", content: activePrompt }
-            ],
-            model: model,
-            seed: Math.floor(Math.random() * 1000000),
-            temperature: 0.7,
-            jsonMode: true
-        }, {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 25000
-        });
-
-        let content = resp.data?.choices?.[0]?.message?.content || resp.data?.content;
-        if (!content && typeof resp.data === 'object') content = JSON.stringify(resp.data);
-        return content;
-    } catch (e) {
-        return null;
-    }
-}
-
-async function callPollinationKeyedModel(system, prompt, model) {
-    const key = process.env.POLLINATIONS_API_KEY || process.env.POLLINATIONS_KEY;
-    if (!key) return null;
-
-    try {
-        // Increased context for keyed calls (Professional tier)
-        const maxLen = 15000;
-        let activeSystem = system;
-        if (system.length > maxLen) {
-            activeSystem = system.substring(0, 5000) + "\n[...]\n" + system.substring(system.length - 8000);
-        }
-        const activePrompt = prompt.length > 12000 ? prompt.substring(prompt.length - 12000) : prompt;
-
-        const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
-            model: model,
-            messages: [
-                { role: "system", content: activeSystem },
-                { role: "user", content: activePrompt }
-            ],
-            temperature: 0.8,
-            response_format: { type: "json_object" }
-        }, {
-            headers: {
-                'Authorization': `Bearer ${key}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 25000
-        });
-
-        let content = resp.data?.choices?.[0]?.message?.content;
-        if (!content && resp.data?.content) content = resp.data.content;
-        return content;
-    } catch (e) {
-        return null;
-    }
-}
-
-async function callPollinationsGET(system, prompt) {
-    try {
-        console.log(`[AI] Pollinations GET - Tentative...`);
-        // Pollinations has strict limits on URL length
-        const miniPrompt = prompt.substring(prompt.length - 1200);
-        const fullPrompt = encodeURIComponent(miniPrompt);
-        const systemEncoded = encodeURIComponent(system.substring(0, 1000));
-        const seed = Math.floor(Math.random() * 1000000);
-        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}&json=true`;
-
-        const resp = await axios.get(url, { timeout: 15000 });
-        let content = resp.data;
-        if (typeof content === 'object') {
-            content = content.choices?.[0]?.message?.content || JSON.stringify(content);
-        }
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] Pollinations GET Error:`, e.message);
-        return null;
-    }
-    return null;
-}
 
 async function callOllama(system, prompt) {
     const model = process.env.OLLAMA_MODEL || "gemma3:4b";
@@ -502,16 +409,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     console.log(`[AI] Lancement de la Course Parallèle (depth: ${depth})...`);
 
-    // Priority race including keyed Pollinations
-    // Note: Puter and Keyed models are prioritized for better instruction following
+    // Priority race
+    // Note: Puter is prioritized for better instruction following
     const raceModels = [
         { name: 'Puter-API-V1', fn: callPuterAPI, timeout: 15000 },
         { name: 'Puter-SDK', fn: callPuterSDK, timeout: 25000 },
-        { name: 'Pollinations-Keyed-Claude', fn: (s, p) => callPollinationKeyedModel(s, p, 'claude-3.5-sonnet'), timeout: 25000 },
-        { name: 'Pollinations-Keyed-GPT4o', fn: (s, p) => callPollinationKeyedModel(s, p, 'gpt-4o'), timeout: 25000 },
-        { name: 'Pollinations-Keyed-OpenAI', fn: (s, p) => callPollinationKeyedModel(s, p, 'openai'), timeout: 25000 },
-        { name: 'Pollinations-OpenAI', fn: (s, p) => callPollinationModel(s, p, 'openai'), timeout: 20000 },
-        { name: 'Pollinations-Mistral', fn: (s, p) => callPollinationModel(s, p, 'mistral'), timeout: 20000 },
         { name: 'Blackbox', fn: callBlackbox, timeout: 30000 }
     ];
 
