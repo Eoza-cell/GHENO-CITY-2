@@ -55,7 +55,7 @@ async function generateMainMenuImage() {
             <text font-family="sans-serif" font-weight="900" font-size="90" fill="white" style="letter-spacing: 2px;">ARISE</text>
             <text x="5" y="115" font-family="sans-serif" font-weight="bold" font-size="28" fill="#ffaa00" style="letter-spacing: 12px;">GHENO CITY</text>
             <rect x="0" y="135" width="260" height="5" fill="#ffaa00" />
-            <text x="0" y="165" font-family="sans-serif" font-size="16" fill="white" opacity="0.8">EARLY ACCESS VERSION 2.0 // GEMMA 3</text>
+            <text x="0" y="165" font-family="sans-serif" font-size="16" fill="white" opacity="0.8">EARLY ACCESS VERSION 2.0 // CLOUD</text>
         </g>
 
         <!-- Primary Menu Items -->
@@ -84,13 +84,13 @@ async function generateMainMenuImage() {
             <rect x="10" y="55" width="300" height="150" fill="none" />
 
             <g transform="translate(15, 230)" font-family="sans-serif" fill="white">
-                <text font-weight="bold" font-size="18">L'Éveil de Gemma 3</text>
+                <text font-weight="bold" font-size="18">L'Éveil du Cloud</text>
                 <text y="25" font-size="13" opacity="0.6">Build 211839 - ARISE Team</text>
 
                 <text y="60" font-size="14" opacity="0.9">Le serveur d'intelligence mondiale</text>
                 <text y="80" font-size="14" opacity="0.9">est désormais opérationnel.</text>
 
-                <text y="110" font-size="14" opacity="0.9">• IA Gemma 3 ultra-réactive</text>
+                <text y="110" font-size="14" opacity="0.9">• IA Cloud ultra-réactive</text>
                 <text y="130" font-size="14" opacity="0.9">• Synchronisation Inventaire</text>
                 <text y="150" font-size="14" opacity="0.9">• Géopolitique dynamique</text>
                 <text y="170" font-size="14" opacity="0.9">• Nouveaux Donjons de Rang S</text>

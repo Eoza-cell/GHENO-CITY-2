@@ -121,11 +121,11 @@ const Player = sequelize.define('Player', {
     defaultValue: 100,
   },
   hunger: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 100,
   },
   sleep: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 100,
   },
   inventory: {
@@ -216,23 +216,23 @@ const Player = sequelize.define('Player', {
     defaultValue: 0,
   },
   strength: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 10,
   },
   agility: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 10,
   },
   intelligence: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 10,
   },
   luck: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 5,
   },
   defense: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.FLOAT,
     defaultValue: 10,
   },
   equippedOutfit: {
@@ -246,6 +246,15 @@ const Player = sequelize.define('Player', {
   isPrisoner: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
+  },
+  statusEffects: {
+    type: DataTypes.TEXT,
+    defaultValue: '[]',
+    get() {
+      const raw = this.getDataValue('statusEffects');
+      try { return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+    },
+    set(val) { this.setDataValue('statusEffects', JSON.stringify(val)); }
   },
 });
 
@@ -391,6 +400,11 @@ const WorldJournal = sequelize.define('WorldJournal', {
     timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
 
+const GlobalState = sequelize.define('GlobalState', {
+    key: { type: DataTypes.STRING, primaryKey: true },
+    value: { type: DataTypes.TEXT }
+});
+
 const NPC = sequelize.define('NPC', {
     name: { type: DataTypes.STRING, unique: true },
     role: { type: DataTypes.STRING },
@@ -526,6 +540,7 @@ async function setupDatabase() {
       Schools: School.rawAttributes,
       RPMessages: RPMessage.rawAttributes,
       WorldJournals: WorldJournal.rawAttributes,
+      GlobalStates: GlobalState.rawAttributes,
       Duels: Duel.rawAttributes
     };
 
@@ -653,6 +668,56 @@ async function setupDatabase() {
                 slot: 'chest',
                 statBonuses: { defense: 20, strength: 5 },
                 imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_210.jpg'
+            },
+            {
+                name: 'Brise-Sceau',
+                description: 'Une dague capable de perturber le flux de mana. Requiert 30 AGI.',
+                price: 2800,
+                type: 'weapon',
+                rarity: 'rare',
+                slot: 'weapon',
+                statBonuses: { agility: 10, intelligence: 5 },
+                imageUrl: 'https://images.pollinations.ai/prompt/techno-fantasy%20dagger%20glow%20blue?model=flux'
+            },
+            {
+                name: 'Canon à Éther Portatif',
+                description: 'Une arme technomagique dévastatrice. Requiert 60 INT.',
+                price: 8500,
+                type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { intelligence: 30, defense: -5 },
+                imageUrl: 'https://images.pollinations.ai/prompt/techno-fantasy%20cannon%20weapon?model=flux'
+            },
+            {
+                name: 'Lame du Néant',
+                description: 'Une épée qui semble absorber la lumière. Requiert 80 STR.',
+                price: 12000,
+                type: 'weapon',
+                rarity: 'legendary',
+                slot: 'weapon',
+                statBonuses: { strength: 60, agility: 15 },
+                imageUrl: 'https://images.pollinations.ai/prompt/dark%20void%20sword%20techno%20fantasy?model=flux'
+            },
+            {
+                name: 'Béhérit Rouge',
+                description: 'Un œuf mystérieux avec des traits humains. Objet de destin.',
+                price: 50000,
+                type: 'item',
+                rarity: 'legendary',
+                slot: 'none',
+                statBonuses: { luck: 100, strength: -10 },
+                imageUrl: 'https://images.pollinations.ai/prompt/red%20beherit%20berserk%20anime%20style?model=flux'
+            },
+            {
+                name: 'Katana Maudit de Muramasa',
+                description: 'Une lame assoiffée de sang. Requiert 45 AGI.',
+                price: 9500,
+                type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { agility: 40, defense: -10 },
+                imageUrl: 'https://images.pollinations.ai/prompt/cursed%20katana%20anime%20style%20purple%20aura?model=flux'
             }
         ];
 
@@ -661,18 +726,18 @@ async function setupDatabase() {
     }
 
     // Seed 1000 Varied Clothing Items
-    const currentItemCount = await Item.count({ where: { type: 'clothing' } });
-    if (currentItemCount < 1000) {
-        console.log(`[SEED] Generating ${1000 - currentItemCount} additional clothing items...`);
+    let currentClothingCount = await Item.count({ where: { type: 'clothing' } });
+    if (currentClothingCount < 1000) {
+        console.log(`[SEED] Generating ${1000 - currentClothingCount} additional clothing items...`);
         const adjectives = ["Élégant", "Sombre", "Guerrier", "Mystique", "Ancien", "Royal", "Oublié", "Céleste", "Bestial", "Vaporeux", "Renforcé", "Léger", "Lourd", "Scintillant", "Maudit", "Sacré", "Interdit", "Nomade", "Urbain", "Techno-magique"];
         const baseNames = ["Manteau", "Tunique", "Armure", "Robe", "Veste", "Costume", "Plastron", "Cape", "Haut", "Gilet", "Tabard", "Kimonos", "Yukata", "Uniforme", "Tenue"];
         const materials = ["de Soie", "de Fer", "de Mana", "en Cuir", "de Velours", "de Lin", "d'Éther", "en Écailles", "de Cristal", "de Dragon", "d'Ombre", "de Lumière"];
         const colors = ["#ffffff", "#000000", "#ff0000", "#0000ff", "#ffff00", "#00ff00", "#8a2be2", "#ffd700", "#c0c0c0", "#ff4500", "#2f4f4f", "#4b0082"];
 
         const batchSize = 100;
-        for (let i = 0; i < 1000 - currentItemCount; i += batchSize) {
+        for (let i = 0; i < 1000 - currentClothingCount; i += batchSize) {
             const batch = [];
-            for (let j = 0; j < batchSize && (i + j) < (1000 - currentItemCount); j++) {
+            for (let j = 0; j < batchSize && (i + j) < (1000 - currentClothingCount); j++) {
                 const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
                 const base = baseNames[Math.floor(Math.random() * baseNames.length)];
                 const mat = materials[Math.floor(Math.random() * materials.length)];
@@ -705,6 +770,48 @@ async function setupDatabase() {
             await Item.bulkCreate(batch, { ignoreDuplicates: true });
         }
         console.log("[SEED] 1000 clothing items ready.");
+    }
+
+    // Seed 1000 Varied Weapon Items
+    const currentWeaponCount = await Item.count({ where: { type: 'weapon' } });
+    if (currentWeaponCount < 1000) {
+        console.log(`[SEED] Generating ${1000 - currentWeaponCount} additional weapon items...`);
+        const adjectives = ["Tranchant", "Lourd", "Léger", "Divin", "Maudit", "Empoisonné", "Éclatant", "Antique", "Techno", "Vibrant", "Brut", "Élégant"];
+        const baseNames = ["Épée", "Dague", "Hache", "Lance", "Arc", "Marteau", "Katana", "Sabre", "Bâton", "Faux", "Rapière", "Masse"];
+        const materials = ["en Acier", "en Mana", "en Éther", "en Os", "en Cristal", "en Fer", "d'Argent", "d'Or", "d'Ombre", "de Lumière", "en Obsidienne"];
+
+        const batchSize = 100;
+        for (let i = 0; i < 1000 - currentWeaponCount; i += batchSize) {
+            const batch = [];
+            for (let j = 0; j < batchSize && (i + j) < (1000 - currentWeaponCount); j++) {
+                const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+                const base = baseNames[Math.floor(Math.random() * baseNames.length)];
+                const mat = materials[Math.floor(Math.random() * materials.length)];
+                const rarityRoll = Math.random();
+                let rarity = 'common';
+                let priceMult = 1;
+                if (rarityRoll < 0.05) { rarity = 'legendary'; priceMult = 10; }
+                else if (rarityRoll < 0.15) { rarity = 'epic'; priceMult = 5; }
+                else if (rarityRoll < 0.35) { rarity = 'rare'; priceMult = 2; }
+
+                const name = `${adj} ${base} ${mat} #${Math.floor(Math.random() * 10000)}`;
+                batch.push({
+                    name,
+                    description: `Une arme redoutable forgée dans les flammes d'Aetherys. Style: ${adj}.`,
+                    price: Math.floor((Math.random() * 1000 + 200) * priceMult),
+                    type: 'weapon',
+                    rarity,
+                    slot: 'weapon',
+                    durability: 100,
+                    statBonuses: {
+                        strength: rarity === 'common' ? 2 : Math.floor(Math.random() * 15 * priceMult),
+                        agility: Math.floor(Math.random() * 10 * priceMult)
+                    }
+                });
+            }
+            await Item.bulkCreate(batch, { ignoreDuplicates: true });
+        }
+        console.log("[SEED] 1000 weapon items ready.");
     }
 
     const skillCount = await Skill.count();
@@ -768,8 +875,55 @@ async function setupDatabase() {
             { name: 'Pluie de Météores', description: 'Déluge de feu s\'abattant du ciel.', type: 'spell', manaCost: 150, statBonuses: { intelligence: 60 } },
 
             { name: 'Régénération Accélérée', description: 'Soigne les blessures au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
-            { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } }
+            { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } },
+            { name: 'Exode Heis', description: 'Canon laser technomagique tirant 12 rayons. Requiert 75 INT.', type: 'Mage', manaCost: 80, statBonuses: { intelligence: 20 } },
+            { name: 'Jugement de Gaia', description: 'Soulèvement tectonique massif. Requiert 65 STR.', type: 'Guerrier', manaCost: 50, statBonuses: { strength: 15 } },
+            { name: 'Valse des Lames', description: 'Enchaînement de 10 frappes rapides. Requiert 50 AGI.', type: 'Assassin', manaCost: 40, statBonuses: { agility: 12 } },
+            { name: 'God Speed', description: 'Déplacement instantané et frappe foudroyante. Requiert 70 AGI.', type: 'Assassin', manaCost: 60, statBonuses: { agility: 30 } },
+            { name: 'Aura du Monarque', description: 'Une pression écrasante qui paralyse les faibles. Requiert 60 INT.', type: 'Mage', manaCost: 50, statBonuses: { intelligence: 25, luck: 10 } },
+
+            // Compétences de Cuisine
+            { name: 'Préparation de Base', description: 'Permet de préparer des repas simples.', type: 'Cuisine', manaCost: 0, statBonuses: { luck: 1 } },
+            { name: 'Maîtrise du Feu de Camp', description: 'Cuisiner efficacement en plein air.', type: 'Cuisine', manaCost: 0, statBonuses: { defense: 2 } },
+            { name: 'Soupe Régénératrice', description: 'Un repas qui redonne un peu de PV.', type: 'Cuisine', manaCost: 10, statBonuses: { health: 10 } },
+            { name: 'Festin de Chasseur', description: 'Augmente temporairement la force.', type: 'Cuisine', manaCost: 20, statBonuses: { strength: 5 } },
+            { name: 'Art Culinaire Sacré', description: 'Repas béni aux propriétés curatives.', type: 'Cuisine', manaCost: 30, statBonuses: { luck: 5, intelligence: 5 } },
+            { name: 'Cuisine de l\'Ombre', description: 'Utilise des ingrédients sombres pour des buffs d\'agilité.', type: 'Cuisine', manaCost: 25, statBonuses: { agility: 8 } },
+            { name: 'Alchimie Gastronomique', description: 'Fusion entre cuisine et potions.', type: 'Cuisine', manaCost: 40, statBonuses: { intelligence: 10 } }
         ]);
+    }
+
+    // Seed 1000 Varied Skills
+    const currentSkillCount = await Skill.count();
+    if (currentSkillCount < 1000) {
+        console.log(`[SEED] Generating ${1000 - currentSkillCount} additional skills...`);
+        const prefixes = ["Frappe", "Souffle", "Cri", "Danse", "Sceau", "Aura", "Éclair", "Onde", "Pacte", "Lame", "Bouclier", "Météore", "Explosion", "Murmure", "Appel", "Chant", "Rupture", "Vortex", "Sillon", "Éveil", "Recette", "Plat", "Goût"];
+        const types = ["GUERRIER", "MAGE", "ASSASSIN", "ARCHER", "PRÊTRE", "MOINE", "PALADIN", "INVOCATEUR", "NÉCROMANCIEN", "SAMOURAÏ", "CH.-DRAGON", "ALCHIMISTE", "BARDE", "CUISINE"];
+        const suffixes = ["de Feu", "de Glace", "de Foudre", "des Ombres", "de Lumière", "du Néant", "des Anciens", "Céleste", "Bestial", "du Destin", "de Sang", "d'Argent", "d'Émeraude", "de Platine", "de Mana", "de l'Interstice", "Savoureux", "Épicé", "Régénérant"];
+
+        const batchSize = 100;
+        for (let i = 0; i < 1000 - currentSkillCount; i += batchSize) {
+            const batch = [];
+            for (let j = 0; j < batchSize && (i + j) < (1000 - currentSkillCount); j++) {
+                const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+                const type = types[Math.floor(Math.random() * types.length)];
+                const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+                const name = `${prefix} ${suffix} #${Math.floor(Math.random() * 10000)}`;
+                const manaCost = Math.floor(Math.random() * 50) + 10;
+
+                batch.push({
+                    name,
+                    description: `Une technique secrète de type ${type.toLowerCase()} utilisant l'énergie ${suffix.toLowerCase()}.`,
+                    type,
+                    manaCost,
+                    statBonuses: {
+                        [ ['strength', 'agility', 'intelligence', 'luck', 'defense'][Math.floor(Math.random()*5)] ]: Math.floor(Math.random() * 10) + 1
+                    }
+                });
+            }
+            await Skill.bulkCreate(batch, { ignoreDuplicates: true });
+        }
+        console.log("[SEED] 1000 skills ready.");
     }
 
     const houseCount = await House.count();
@@ -949,7 +1103,10 @@ async function setupDatabase() {
             { name: 'Dragon d\'Azur', rank: 'A', health: 2000, strength: 150, defense: 120, agility: 80, intelligence: 60, location: 'Volcan d\'Ignis', xp_reward: 5000, col_reward: 3000 },
             { name: 'Le Roi Gobelin (BOSS)', rank: 'D', health: 400, strength: 40, defense: 30, agility: 20, intelligence: 35, location: 'Forêt des Gobelins', xp_reward: 500, col_reward: 1000 },
             { name: 'Vharos le Seigneur Liche (BOSS)', rank: 'A', health: 3000, strength: 200, defense: 150, agility: 100, intelligence: 95, location: 'Vharos le Maudit', xp_reward: 10000, col_reward: 5000 },
-            { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, intelligence: 150, location: 'Origine de l\'Existence', xp_reward: 100000, col_reward: 50000 }
+            { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, intelligence: 150, location: 'Origine de l\'Existence', xp_reward: 100000, col_reward: 50000 },
+            { name: 'Soldat d\'Élite d\'Elion', rank: 'C', health: 250, strength: 35, defense: 30, agility: 25, intelligence: 15, location: 'Empire Impérial d\'Elion', xp_reward: 150, col_reward: 100 },
+            { name: 'Golem de Mana Instable', rank: 'B', health: 800, strength: 50, defense: 70, agility: 10, intelligence: 40, location: 'Royaume de Valkyrr', xp_reward: 500, col_reward: 300 },
+            { name: 'Traqueur de l\'Interstice', rank: 'A', health: 1200, strength: 90, defense: 60, agility: 110, intelligence: 50, location: 'L\'Interstice', xp_reward: 2000, col_reward: 1500 }
         ]);
     } else {
         // Update existing monsters to ensure intelligence and location are set
@@ -1027,6 +1184,24 @@ async function setupDatabase() {
                 objective: "Protège les prêtres célestes pendant le rituel de scellage contre les Entités Bestiales.",
                 type: 'historic', chain: 'Chroniques du Passé', step: 3,
                 nextQuestTitle: null, rank_required: 'B', reward_col: 10000, reward_xp: 8000
+            },
+            {
+                title: 'Infiltration à Valkyrr', description: "Le Grand Laboratoire cache un secret technomagique.",
+                objective: "Pénètre dans le Grand Laboratoire sans déclencher l'alarme et récupère les plans du Canon à Éther.",
+                type: 'side', chain: 'Espionnage Industriel', step: 1,
+                nextQuestTitle: 'Le Sabotage du Réacteur', rank_required: 'D', reward_col: 1500, reward_xp: 1000
+            },
+            {
+                title: 'Le Sabotage du Réacteur', description: "Ralentissez la production d'armes de Valkyrr.",
+                objective: "Surchargez le réacteur principal du Grand Laboratoire.",
+                type: 'side', chain: 'Espionnage Industriel', step: 2,
+                nextQuestTitle: null, rank_required: 'C', reward_col: 3000, reward_xp: 2500
+            },
+            {
+                title: 'Menace Bestiale à Oakhaven', description: "Des créatures attaquent le village des chasseurs.",
+                objective: "Élimine 10 bêtes sauvages autour d'Oakhaven.",
+                type: 'side', chain: 'Défense des Frontières', step: 1,
+                nextQuestTitle: null, rank_required: 'E', reward_col: 600, reward_xp: 400
             }
         ]);
     }
@@ -1038,6 +1213,6 @@ async function setupDatabase() {
 
 module.exports = {
   sequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, GlobalState, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
   setupDatabase,
 };

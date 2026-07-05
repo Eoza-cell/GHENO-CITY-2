@@ -15,15 +15,38 @@ const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
-const { startModelServer } = require('./model-server');
+
+let pairingCode = null;
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
+    if (req.url === '/pairing') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        if (pairingCode) {
+            res.end(`
+                <html>
+                    <body style="font-family: sans-serif; text-align: center; padding-top: 50px; background: #121212; color: white;">
+                        <h1>Code de Pairage Skype</h1>
+                        <p style="font-size: 1.2em;">Entrez ce code sur votre téléphone :</p>
+                        <div style="font-size: 3em; font-weight: bold; color: #25D366; letter-spacing: 5px; margin: 20px 0; border: 2px solid #25D366; padding: 20px; display: inline-block;">
+                            ${pairingCode.match(/.{1,4}/g)?.join('-') || pairingCode}
+                        </div>
+                        <p>Allez dans WhatsApp > Appareils connectés > Connecter un appareil > Se connecter avec le numéro de téléphone</p>
+                    </body>
+                </html>
+            `);
+        } else {
+            res.end("<h1>Code non généré.</h1><p>Vérifiez que le bot est en train de démarrer ou qu'il n'est pas déjà connecté.</p>");
+        }
+        return;
+    }
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running');
+    res.end('Bot is running. Visit /pairing for WhatsApp code.');
 });
 const PORT = process.env.PORT || 3000;
-let serverStarted = false;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[CORE] Server listening on port ${PORT} for Render health checks.`);
+});
 
 // Initialisation de la queue pour gérer la charge
 const messageQueue = new PQueue({ concurrency: 5 });
@@ -61,41 +84,58 @@ async function connectToWhatsApp() {
       process.exit(1);
     }
 
-    await delay(1500); // Small delay to ensure the socket is ready
-    console.log(`Tentative de connexion avec le numéro de téléphone : ${phoneNumber}`);
-    console.log('Demande du code de pairage...');
-    try {
-      const code = await sock.requestPairingCode(phoneNumber);
-      console.log('==============================================================');
-      console.log('Votre code de pairage Skype :');
-      console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
-      console.log('==============================================================');
-      console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
-    } catch (error) {
-      console.error('Impossible de demander le code de pairage :', error);
-      process.exit(1);
-    }
+    await delay(5000); // Increased delay to ensure socket is fully ready
+    console.log(`[AUTH] Tentative de connexion avec le numéro : ${phoneNumber}`);
+
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    const getCode = async () => {
+        try {
+            console.log(`[AUTH] Demande du code de pairage (tentative ${retryCount + 1}/${maxRetries})...`);
+            const code = await sock.requestPairingCode(phoneNumber);
+            pairingCode = code;
+            console.log('==============================================================');
+            console.log('VOTRE CODE DE PAIRAGE WHATSAPP :');
+            console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
+            console.log('==============================================================');
+            console.log(`CONSULTEZ AUSSI ICI : /pairing sur votre URL de déploiement`);
+            console.log('==============================================================');
+        } catch (error) {
+            console.error('[AUTH] Erreur lors de la demande du code :', error.message);
+            if (retryCount < maxRetries) {
+                retryCount++;
+                await delay(5000);
+                return getCode();
+            }
+            process.exit(1);
+        }
+    };
+
+    getCode();
   }
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
+      const statusCode = (lastDisconnect.error)?.output?.statusCode;
+      const shouldReconnect = statusCode !== 401;
+
       console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
-      if (shouldReconnect) {
+
+      if (statusCode === 401) {
+          console.error('!!! SESSION INVALIDÉE (401) !!!');
+          console.log('Réinitialisation de la session dans la base de données...');
+          const { Creds } = require('./database');
+          await Creds.destroy({ where: {} });
+          console.log('Session effacée. Relancement pour nouveau pairage...');
+          connectToWhatsApp();
+      } else if (shouldReconnect) {
         connectToWhatsApp();
       }
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       startDayNightCycle();
-
-      // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
-      if (!serverStarted) {
-          server.listen(PORT, () => {
-              console.log(`Server listening on port ${PORT} for Render health checks.`);
-              serverStarted = true;
-          });
-      }
     }
   });
 
@@ -135,7 +175,7 @@ async function connectToWhatsApp() {
                             });
 
                             console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                            await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
+                            await sock.sendMessage(message.key.remoteJid, { text: `✅ *IDENTITÉ CONFIRMÉE* : Ta photo a été gravée dans les archives d'Aetherys.` });
 
                             // Trigger tutorial after profile pic
                             await startTutorial(sock, message.key.remoteJid, player);
@@ -171,9 +211,6 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(() => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
-
-    // Démarre le 2ème serveur pour le modèle GEMMA 3
-    startModelServer();
 
     connectToWhatsApp();
   })

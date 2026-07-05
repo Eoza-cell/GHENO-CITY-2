@@ -16,7 +16,8 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
         'arrest_player', 'set_wanted_level', 'release_player', 'manage_house',
         'set_academic_status', 'get_player_details', 'modify_reputation',
         'resurrect_player', 'forge_pact', 'join_club', 'start_quest',
-        'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade'
+        'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade',
+        'submit_player'
     ];
 
     for (const actionObj of actions) {
@@ -89,6 +90,17 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     const sLine = await questUtils.startQuest(target, parameters.questTitle);
                     if (sLine) questFeedback.push(sLine);
                     break;
+                case 'start_multiplayer_quest':
+                    const mResult = await questUtils.startMultiplayerQuest(target, parameters.questTitle);
+                    if (mResult) {
+                        questFeedback.push(mResult.narrative);
+                        for (const n of mResult.notified) {
+                            if (shouldNotifyPlayer(n.player)) {
+                                await sock.sendMessage(n.player.whatsappId, { text: n.line });
+                            }
+                        }
+                    }
+                    break;
                 case 'advance_quest':
                     const aLine = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
                     if (aLine) questFeedback.push(aLine);
@@ -126,7 +138,40 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     const docBuffer = await generatePaperImage(parameters.content, parameters.title || "DOCUMENT");
                     await sock.sendMessage(jid, { image: docBuffer, caption: `📄 ${parameters.title}` });
                     break;
-                // Add other cases as needed...
+                case 'query_database':
+                    // AI Database Research Logic: Appends findings to WorldJournal so AI sees it in next turns
+                    const researchResult = await handleAIDatabaseQuery(parameters);
+                    if (researchResult) {
+                        await WorldJournal.create({
+                            entry: `[RECHERCHE_IA] ${researchResult}`,
+                            category: 'plot',
+                            importance: 1
+                        });
+                    }
+                    break;
+                case 'get_player_details':
+                    const pDetails = await handleGetPlayerDetails(parameters.target_name);
+                    if (pDetails) {
+                        await WorldJournal.create({
+                            entry: `[INFO_JOUEUR] ${pDetails}`,
+                            category: 'character',
+                            importance: 1
+                        });
+                    }
+                    break;
+                case 'submit_player':
+                    await handleSubmitPlayer(player, target, parameters, questFeedback, playersToUpdate);
+                    break;
+                case 'execute_command':
+                    const { handleCommand } = require('./command-handler');
+                    // Create a fake message object to trigger command
+                    const fakeMsg = {
+                        key: { remoteJid: jid, participant: player.whatsappId },
+                        message: { conversation: `/${parameters.command}` },
+                        pushName: player.name
+                    };
+                    await handleCommand(sock, fakeMsg, null);
+                    break;
             }
         } catch (err) {
             console.error(`[Processor] Error in ${actionObj.type}:`, err.message);
@@ -157,9 +202,23 @@ async function handleUpdateLocation(target, params, aiResponse, playersToUpdate)
 async function handleUpdateStats(target, params, questFeedback, playersToUpdate, sock) {
     let hasChanged = false;
 
+    // Progression Safeguards: Hard caps per action to prevent accidental "God-mode" leaps
+    const MAX_XP_PER_ACTION = 150;
+    const MAX_COL_PER_ACTION = 500;
+    const MAX_STAT_PER_ACTION = 5;
+
     // Relative changes
-    if (params.col_change) { await target.increment('col', { by: params.col_change }); hasChanged = true; }
-    if (params.xp_gain) { await target.increment('xp', { by: params.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
+    if (params.col_change) {
+        const change = Math.min(params.col_change, MAX_COL_PER_ACTION);
+        await target.increment('col', { by: change });
+        hasChanged = true;
+    }
+    if (params.xp_gain) {
+        const gain = Math.min(params.xp_gain, MAX_XP_PER_ACTION);
+        await target.increment('xp', { by: gain });
+        await checkLevelUp(target, sock);
+        hasChanged = true;
+    }
     if (params.health_change) {
         await target.increment('health', { by: params.health_change });
         hasChanged = true;
@@ -180,8 +239,25 @@ async function handleUpdateStats(target, params, questFeedback, playersToUpdate,
         const pChange = s === 'skillPoints' ? 'sp_change' : `${s}_change`;
         const pSet = s === 'skillPoints' ? 'sp_set' : `${s}_set`;
 
-        if (params[pChange]) { await target.increment(s, { by: params[pChange] }); hasChanged = true; }
-        if (params[pSet] !== undefined) { await target.update({ [s]: params[pSet] }); hasChanged = true; }
+        if (params[pChange]) {
+            const change = Math.min(params[pChange], MAX_STAT_PER_ACTION);
+            await target.increment(s, { by: change });
+            hasChanged = true;
+        }
+        if (params[pSet] !== undefined) {
+            // We allow absolute sets (sync) but log if they are suspiciously high
+            if (params[pSet] > 500 && !target.isGod) {
+                console.warn(`[Safeguard] Suspicious absolute set for ${s}: ${params[pSet]} on player ${target.name}`);
+            }
+
+            // Power logic: Rank F cannot have stats > 50
+            if (target.rank === 'F' && params[pSet] > 50 && s !== 'skillPoints' && !target.isGod) {
+                console.warn(`[Logic] Rank F player ${target.name} tried to exceed 50 in ${s}. Capping.`);
+                params[pSet] = 50;
+            }
+            await target.update({ [s]: params[pSet] });
+            hasChanged = true;
+        }
     }
 
     if (hasChanged) {
@@ -310,10 +386,35 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
 }
 
 async function handleAddSkill(target, params, playersToUpdate) {
-    const skill = await Skill.findOne({ where: { name: { [Op.like]: `%${params.skillName}%` } } });
-    if (skill && !(await target.hasSkill(skill))) {
+    const skill = await Skill.findOne({
+        where: {
+            [Op.or]: [
+                { name: { [Op.like]: `%${params.skillName}%` } },
+                { name: params.skillName }
+            ]
+        }
+    });
+
+    if (skill) {
+        const hasSkill = await target.hasSkill(skill);
+        if (hasSkill) return;
+
+        // Progression Safeguard: Skill acquisition requires SP or "Exam" context
+        const isExam = target.subLocation.toLowerCase().includes('académie') || target.subLocation.toLowerCase().includes('école') || params.is_exam;
+        const spCost = params.sp_cost || 1;
+
+        if (!isExam && !target.isGod) {
+            if (target.skillPoints < spCost) {
+                console.log(`[Safeguard] ${target.name} tried to learn ${skill.name} without enough SP.`);
+                return;
+            }
+            await target.decrement('skillPoints', { by: spCost });
+        }
+
         await target.addSkill(skill);
         playersToUpdate.add(target.whatsappId);
+    } else {
+        console.warn(`[Skills] Skill not found: ${params.skillName}`);
     }
 }
 
@@ -396,4 +497,145 @@ async function handleNPCTrade(player, params, questFeedback, playersToUpdate) {
     playersToUpdate.add(player.whatsappId);
 }
 
-module.exports = { processActions };
+async function handleAIDatabaseQuery(params) {
+    const { model, search } = params;
+    if (!model || !search) return null;
+
+    try {
+        const { NPC, Item, Skill, Kingdom } = require('./database');
+        let result = null;
+
+        switch(model.toLowerCase()) {
+            case 'npc':
+                const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${search}%` } } });
+                if (npc) result = `PNJ ${npc.name}: ${npc.role}, Force ${npc.powerLevel}, Spécialité ${npc.specialty}. Bio: ${npc.description}`;
+                break;
+            case 'item':
+                const item = await Item.findOne({ where: { name: { [Op.like]: `%${search}%` } } });
+                if (item) result = `OBJET ${item.name}: Type ${item.type}, Prix ${item.price} COL. Desc: ${item.description}`;
+                break;
+            case 'skill':
+                const skill = await Skill.findOne({ where: { name: { [Op.like]: `%${search}%` } } });
+                if (skill) result = `COMPÉTENCE ${skill.name}: Type ${skill.type}, Coût ${skill.manaCost} PM. Desc: ${skill.description}`;
+                break;
+            case 'kingdom':
+                const kingdom = await Kingdom.findOne({ where: { name: { [Op.like]: `%${search}%` } } });
+                if (kingdom) result = `ROYAUME ${kingdom.name}: Leader ${kingdom.leader}, Militaire ${kingdom.militaryPower}. Lore: ${kingdom.description}`;
+                break;
+        }
+        return result;
+    } catch (e) {
+        return `Erreur de recherche pour ${model}:${search}`;
+    }
+}
+
+async function handleGetPlayerDetails(name) {
+    if (!name) return null;
+    const { Player } = require('./database');
+    const p = await Player.findOne({ where: { name: { [Op.like]: `%${name}%` } } });
+    if (!p) return `Joueur "${name}" introuvable.`;
+
+    return `STATUT_JOUEUR ${p.name}: Niv ${p.level}, Classe ${p.class}, PV ${p.health}/${p.maxHealth}, PM ${p.mana}/${p.maxMana}, Lieu ${p.location}(${p.subLocation}), Argent ${p.col} COL.`;
+}
+
+async function handleSubmitPlayer(master, target, params, questFeedback, playersToUpdate) {
+    if (!master || !target || master.whatsappId === target.whatsappId) return;
+
+    // Power Check: Master must be significantly stronger or have high rank
+    const masterPower = (master.level * 10) + master.strength + master.intelligence;
+    const targetPower = (target.level * 10) + target.strength + target.intelligence;
+
+    if (masterPower < targetPower * 1.5 && !master.isGod) {
+        console.log(`[Submission] ${master.name} failed to submit ${target.name}: not strong enough.`);
+        return;
+    }
+
+    // Level adjustment: Target rises to a fraction of Master's level
+    const newLevel = Math.max(target.level, master.level - 5);
+    const oldName = target.name;
+    const newName = params.new_name || target.name;
+
+    await target.update({
+        name: newName,
+        level: newLevel,
+        organization: `Serviteur de ${master.name}`,
+        characterDescription: (target.characterDescription || "") + `\n(A été soumis par ${master.name})`
+    });
+
+    questFeedback.push(`⛓️ *SOUMISSION* : ${oldName} est maintenant ${newName}, serviteur de ${master.name}. (Niveau synchronisé au Niv ${newLevel})`);
+    playersToUpdate.add(target.whatsappId);
+}
+
+/**
+ * Applies AI-suggested stat updates with validation and safeguards.
+ * @param {Array} updates Array of update objects from AI JSON.
+ * @param {Set} playersToUpdate Set of player IDs to notify.
+ */
+async function applyPlayerUpdates(updates, playersToUpdate) {
+    if (!Array.isArray(updates)) return;
+
+    for (const update of updates) {
+        try {
+            const { playerName, hp, mp, xp, col, sp, status, hunger, sleep, strength, agility, intelligence, defense, luck } = update;
+            if (!playerName) continue;
+
+            const { Player } = require('./database');
+            const player = await Player.findOne({ where: { name: { [Op.like]: `%${playerName}%` } } });
+            if (!player) continue;
+
+            // Apply validated changes
+            const hChange = parseInt(hp) || 0;
+            const mChange = parseInt(mp) || 0;
+            const xGain = Math.min(parseInt(xp) || 0, 150); // Hard cap 150 XP
+            const cGain = Math.min(parseInt(col) || 0, 500); // Hard cap 500 Col
+            const sGain = Math.min(parseInt(sp) || 0, 5);   // Hard cap 5 SP
+            const hungChange = parseFloat(hunger) || 0;
+            const sleepChange = parseFloat(sleep) || 0;
+
+            // AI-driven Stat Growth
+            const strGain = parseFloat(strength) || 0;
+            const agiGain = parseFloat(agility) || 0;
+            const intGain = parseFloat(intelligence) || 0;
+            const defGain = parseFloat(defense) || 0;
+            const lukGain = parseFloat(luck) || 0;
+
+            // Update stats with bounds checking
+            let newHp = Math.max(0, Math.min(player.maxHealth, player.health + hChange));
+            let newMp = Math.max(0, Math.min(player.maxMana, player.mana + mChange));
+
+            // Handle Status Effects
+            let currentStatus = player.statusEffects || [];
+            if (Array.isArray(status)) {
+                currentStatus = [...new Set([...currentStatus, ...status])];
+            }
+
+            await player.update({
+                health: newHp,
+                mana: newMp,
+                xp: player.xp + xGain,
+                col: player.col + cGain,
+                skillPoints: player.skillPoints + sGain,
+                statusEffects: currentStatus,
+                hunger: Math.max(0, Math.min(100, player.hunger + hungChange)),
+                sleep: Math.max(0, Math.min(100, player.sleep + sleepChange)),
+                strength: player.strength + strGain,
+                agility: player.agility + agiGain,
+                intelligence: player.intelligence + intGain,
+                defense: player.defense + defGain,
+                luck: player.luck + lukGain
+            });
+
+            // Handle death state
+            if (newHp === 0 && player.location !== 'Nécropolis') {
+                await player.update({ location: 'Nécropolis', subLocation: 'Le Seuil' });
+            }
+
+            playersToUpdate.add(player.whatsappId);
+            console.log(`[Arbitrator] Applied updates to ${player.name}: HP:${hChange}, XP:${xGain}`);
+        } catch (e) {
+            console.error("[Arbitrator] Error applying update:", e.message);
+        }
+    }
+}
+
+module.exports = { processActions, applyPlayerUpdates };

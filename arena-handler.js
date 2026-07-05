@@ -1,5 +1,5 @@
 const { Player, Duel, RPMessage } = require('./database');
-const { callAI } = require('./ai-utils');
+const aether = require('./aether-core');
 const sharp = require('sharp');
 
 /**
@@ -100,19 +100,20 @@ class ArenaHandler {
      */
     async refereeAction(player, opponent, actionDescription) {
         const systemPrompt = `
-Tu es l'Arbitre Suprême de l'ATR ARENA. Ton rôle est purement technique, clinique et impitoyable.
-VÉRIFIE LA LOGIQUE DU COUP AVEC UNE RIGUEUR ABSOLUE :
-1. DISTANCE : L'attaquant est-il à portée ? (Corps-à-corps, mi-distance, longue portée).
-2. PRÉCISION : Le membre visé est-il exposé ? (Tête, Bras G/D, Jambes G/D, Torse).
-3. STATS : Compare AGILITÉ (Attaque) vs AGILITÉ (Esquive) et FORCE (Dégâts) vs DÉFENSE (Absorption).
-4. TRAUMA : Si le coup porte, décris les dommages anatomiques précis (ex: éclatement de la rotule, déchirure du deltoïde, hémorragie faciale).
+Tu es l'Arbitre de l'ATR ARENA. Ambiance Animé Japonais.
+
+STYLE: Français très simple (niveau A1). Un seul paragraphe court.
+VÉRIFICATION :
+1. Est-ce que le coup touche ?
+2. Compare les stats de force et défense.
+3. Sois sévère mais juste.
 
 FORMAT JSON :
 {
   "valid": true/false,
   "damage": 0-100,
-  "hitLimb": "nom_du_membre",
-  "narrative": "Description courte, brutale et chirurgicale de l'impact ou de l'échec. Utilise un ton froid.",
+  "hitLimb": "membre",
+  "narrative": "Un seul paragraphe court en français facile.",
   "distanceChange": 0
 }
         `;
@@ -124,7 +125,7 @@ ACTION: ${actionDescription}
         `;
 
         try {
-            const response = await callAI(systemPrompt, userPrompt);
+            const response = await aether.generateNarration(systemPrompt, userPrompt, actionDescription, player.location);
             return JSON.parse(response);
         } catch (e) {
             return { valid: true, damage: 10, narrative: "Le combat fait rage." };

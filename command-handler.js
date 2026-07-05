@@ -10,6 +10,7 @@ const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage } = require('./shop-generator');
+const { generateSkillTable } = require('./skill-visualizer');
 const { handleFreeAction } = require('./ai-handler');
 const arenaHandler = require('./arena-handler');
 const { startTutorial } = require('./tutorial-handler');
@@ -66,49 +67,122 @@ commands.set('start', async (sock, message) => {
 });
 
 // Command: /quests
-// Command: /competences
-commands.set('competences', async (sock, message) => {
+// Command: /competences (Show PLAYER'S skills with pagination)
+commands.set('competences', async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid }, include: Skill });
+    const player = await Player.findOne({ where: { whatsappId: jid } });
 
     if (!player) {
         await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
         return;
     }
 
-    const skills = player.Skills;
+    const page = args[0] && !isNaN(parseInt(args[0])) ? parseInt(args[0]) : 1;
+    const pageSize = 10;
+    const offset = (page - 1) * pageSize;
 
-    if (!skills || skills.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !" });
-        return;
-    }
+    try {
+        const { count, rows: skills } = await Skill.findAndCountAll({
+            include: [{
+                model: Player,
+                where: { whatsappId: jid },
+                through: { attributes: [] }
+            }],
+            limit: pageSize,
+            offset,
+            order: [['type', 'ASC'], ['name', 'ASC']]
+        });
 
-    let skillText = `*Compétences de ${player.name}:*\n\n`;
+        if (count === 0) {
+            await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !" });
+            return;
+        }
 
-    const activeSkills = skills.filter(s => s.type !== 'passive');
-    const passiveSkills = skills.filter(s => s.type === 'passive');
+        if (skills.length === 0) {
+            return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas autant de compétences. Essaye une page plus petite.` });
+        }
 
-    if (activeSkills.length > 0) {
-        skillText += "⚔️ *TECHNIQUES ET SORTS ACTIFS:*\n";
-        activeSkills.forEach(s => {
-            skillText += `├ *${s.name.toUpperCase()}*\n`;
-            skillText += `│ 💠 Coût: ${s.manaCost} PM\n`;
+        const totalPages = Math.ceil(count / pageSize);
+
+        const skillBuffer = await generateSkillTable(skills, {
+            page,
+            totalPages,
+            title: `GRIMOIRE DE ${player.name.toUpperCase()}`
+        });
+
+        await sock.sendMessage(replyJid, {
+            image: skillBuffer,
+            caption: `*Grimoire de ${player.name}*\nPage ${page}/${totalPages} (${count} techniques possédées)\n\n_Utilise /action pour invoquer tes sorts._\n_Utilise /competences [page] pour naviguer._`
+        });
+    } catch (e) {
+        console.error("[Skills] Error generating visual:", e);
+        // Fallback text
+        let skillText = `*Compétences de ${player.name}:*\n\n`;
+        skills.forEach(s => {
+            skillText += `├ *${s.name.toUpperCase()}* (${s.type})\n`;
             skillText += `└ 📜 ${s.description}\n\n`;
         });
+        await sock.sendMessage(replyJid, { text: skillText });
+    }
+});
+
+// Command: /skills (Show available skills to learn with categories and pagination)
+commands.set('skills', async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+
+    // Category or Page
+    let category = null;
+    let page = 1;
+
+    if (args[0]) {
+        if (!isNaN(parseInt(args[0]))) {
+            page = parseInt(args[0]);
+        } else {
+            category = args[0].toUpperCase();
+            if (args[1] && !isNaN(parseInt(args[1]))) {
+                page = parseInt(args[1]);
+            }
+        }
     }
 
-    if (passiveSkills.length > 0) {
-        skillText += "✨ *COMPÉTENCES PASSIVES:*\n";
-        passiveSkills.forEach(s => {
-            skillText += `├ *${s.name}*\n`;
-            skillText += `└ 📜 ${s.description}\n\n`;
+    const pageSize = 10;
+    const offset = (page - 1) * pageSize;
+
+    const where = {};
+    if (category) {
+        where.type = category;
+    }
+
+    try {
+        const { count, rows: skills } = await Skill.findAndCountAll({
+            where,
+            limit: pageSize,
+            offset,
+            order: [['type', 'ASC'], ['name', 'ASC']]
         });
+
+        if (skills.length === 0) {
+            return await sock.sendMessage(replyJid, { text: `❌ Aucune compétence trouvée ${category ? `pour la catégorie ${category}` : ''} à cette page.` });
+        }
+
+        const totalPages = Math.ceil(count / pageSize);
+        const title = category ? `COMPÉTENCES : ${category}` : "BIBLIOTHÈQUE DES COMPÉTENCES";
+
+        const skillBuffer = await generateSkillTable(skills, {
+            page,
+            totalPages,
+            title
+        });
+
+        await sock.sendMessage(replyJid, {
+            image: skillBuffer,
+            caption: `📜 *${title}*\nPage ${page}/${totalPages} (${count} au total)\n\n_Utilise /skills [catégorie] [page] pour naviguer._\n_Ex: /skills mage 2_`
+        });
+    } catch (e) {
+        console.error("[Skills] Error generating visual:", e);
+        await sock.sendMessage(replyJid, { text: "Impossible d'afficher le tableau des compétences." });
     }
-
-    skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pacts._";
-
-    await sock.sendMessage(replyJid, { text: skillText });
 });
 
 commands.set('quests', async (sock, message) => {
@@ -245,6 +319,52 @@ const profileCommand = async (sock, message) => {
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
 commands.set('techniques', commands.get('competences'));
+
+// Command: /age
+commands.set('age', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const newAge = parseInt(args[0]);
+    if (isNaN(newAge) || newAge <= 0 || newAge >= 150) {
+        return await sock.sendMessage(replyJid, { text: "❌ Âge invalide. Entre un nombre entre 1 et 150 (ex: /age 18)." });
+    }
+
+    await player.update({ age: newAge });
+    await sock.sendMessage(replyJid, { text: `✅ Ton âge a été mis à jour : ${newAge} ans.` });
+});
+
+// Command: /sexe
+commands.set('sexe', async (sock, message, args) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    const newSexe = args.join(' ').trim();
+    if (!newSexe || newSexe.length > 20) {
+        return await sock.sendMessage(replyJid, { text: "❌ Sexe invalide (max 20 caractères, ex: /sexe Homme)." });
+    }
+
+    await player.update({ gender: newSexe });
+    await sock.sendMessage(replyJid, { text: `✅ Ton sexe a été mis à jour : ${newSexe}.` });
+});
+
+// Command: /photo
+commands.set('photo', async (sock, message) => {
+    const jid = getJid(message);
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const replyJid = message.key.remoteJid;
+
+    if (!player) return;
+
+    await player.update({ awaitingProfilePic: true });
+    await sock.sendMessage(replyJid, { text: "📸 *MISE À JOUR PHOTO* \n\nEnvoie maintenant l'image que tu souhaites utiliser comme nouvelle photo de profil. Elle sera gravée dans la matrice d'Aetherys." });
+});
 
 // Command: /creer_tenue
 commands.set('creer_tenue', async (sock, message, args) => {
@@ -754,6 +874,35 @@ commands.set('joueurs', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: playersText });
 });
 
+// Command: /monde (See all active players)
+commands.set('monde', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const activeThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24h
+
+    const activePlayers = await Player.findAll({
+        where: {
+            lastActivity: { [Op.gt]: activeThreshold }
+        },
+        order: [['lastActivity', 'DESC']]
+    });
+
+    if (activePlayers.length === 0) {
+        return await sock.sendMessage(replyJid, { text: "Le monde semble désert pour le moment..." });
+    }
+
+    let text = "--- 🌍 HÉRITIERS ACTIFS DANS AETHERYS --- \n\n";
+    activePlayers.forEach(p => {
+        const timeDiff = Math.floor((Date.now() - p.lastActivity.getTime()) / (60 * 1000));
+        const timeStr = timeDiff < 60 ? `${timeDiff}m` : `${Math.floor(timeDiff/60)}h`;
+        text += `• *${p.name}* (Niv ${p.level})\n`;
+        text += `  📍 ${p.location} (${p.subLocation})\n`;
+        text += `  ⏱️ Actif il y a ${timeStr}\n\n`;
+    });
+
+    text += `_Total: ${activePlayers.length} joueurs actifs ces dernières 24h._`;
+    await sock.sendMessage(replyJid, { text });
+});
+
 // Command: /royaumes
 commands.set('royaumes', async (sock, message) => {
     const replyJid = message.key.remoteJid;
@@ -872,9 +1021,28 @@ commands.set('examens', async (sock, message) => {
     text += `🎓 *Année:* ${player.academicYear}${academicSuffix} Année\n`;
     text += `🏫 *École:* ${player.schoolName}\n`;
     text += `📊 *Moyenne Générale:* ${player.academicGrade}/100\n\n`;
-    text += `_Les examens de ${player.academicYear}${academicSuffix} année se passent via /action (écriture sur copie)._`;
+    text += `_Les examens de ${player.academicYear}${academicSuffix} année se passent via /examen._`;
 
     await sock.sendMessage(replyJid, { text: text });
+});
+
+// Command: /examen
+commands.set('examen', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    if (player.location !== "Empire Impérial d'Elion" && player.location !== "Royaume de Valkyrr") {
+        return await sock.sendMessage(replyJid, { text: "❌ Tu dois être dans une Académie pour passer un examen." });
+    }
+
+    await player.update({ mode: 'action' }); // Switch to RP mode for the exam
+
+    const examPrompt = `📝 *DÉBUT DE L'EXAMEN ACADÉMIQUE*\n\nTu es devant ton pupitre. L'examinateur s'approche et te tend une feuille.\n\n*MJ:* "Aujourd'hui, nous allons tester tes connaissances et ton contrôle du mana. Quel skill souhaites-tu apprendre ?"`;
+
+    await sock.sendMessage(replyJid, { text: examPrompt });
 });
 
 // Command: /god
@@ -1091,41 +1259,6 @@ commands.set('tirage_tournoi', async (sock, message) => {
     await sock.sendMessage(replyJid, { text: drawText });
 });
 
-// Command: /duel
-commands.set('duel', async (sock, message, args) => {
-    const jid = getJid(message);
-    const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-
-    if (!player) return;
-
-    const mentionedJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    if (!mentionedJid) {
-        return await sock.sendMessage(replyJid, { text: "Mentionne un joueur pour le défier en duel (ex: /duel @joueur)." });
-    }
-
-    const targetPlayer = await Player.findOne({ where: { whatsappId: mentionedJid } });
-    if (!targetPlayer) {
-        return await sock.sendMessage(replyJid, { text: "Ce joueur n'existe pas." });
-    }
-
-    if (player.location !== targetPlayer.location || player.subLocation !== targetPlayer.subLocation) {
-        return await sock.sendMessage(replyJid, { text: "Tu dois être au même endroit (Royaume et Lieu précis) pour défier quelqu'un." });
-    }
-
-    const existingDuel = await Duel.findOne({
-        where: {
-            [Op.or]: [{ playerAJid: jid }, { playerBJid: jid }],
-            status: 'active'
-        }
-    });
-
-    if (existingDuel) {
-        return await sock.sendMessage(replyJid, { text: "Tu es déjà dans un duel actif !" });
-    }
-
-    await arenaHandler.startDuel(sock, jid, mentionedJid, player.location);
-});
 
 // Command: /conflits
 commands.set('conflits', async (sock, message) => {
@@ -1577,7 +1710,7 @@ commands.set('tuto_rp', async (sock, message) => {
 
     const tutoTitle = "MANUEL DU RP IMMERSIF";
     const tutoContent = "Bienvenue dans GHENO CITY, Egoïste.\n\n" +
-        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par GEMMA 3 (IA Locale).\n\n" +
+        "1. LE MODE ACTION\nTape `/action` pour passer en mode Roleplay. Ici, tes messages sont interprétés par le MJ (IA Cloud).\n\n" +
         "2. LA PRÉCISION\nNe dis pas 'Je frappe'. Dis 'Je pivote sur ma jambe gauche pour envoyer un coup de pied circulaire au niveau des côtes'. Plus tu es précis, plus le MJ est clément.\n\n" +
         "3. LES STATS\nTout est calculé. Si ton adversaire a 80 en FORCE et toi 20, tu vas souffrir. Utilise ton intelligence ou l'environnement pour compenser.\n\n" +
         "4. LE COMMERCE\nTu peux acheter des objets directement en parlant aux marchands ou au MJ. Dis 'Je veux acheter l'Épée de Fer' et si tu as les COL, le MJ mettra à jour ton profil.\n\n" +
@@ -1619,6 +1752,9 @@ commands.set('help', async (sock, message) => {
   const helpText = "*Commandes Disponibles:*\n" +
                    "/start - Commencer l'aventure.\n" +
                    "/profile - Voir ton profil de joueur.\n" +
+                   "/age <valeur> - Changer ton âge.\n" +
+                   "/sexe <valeur> - Changer ton sexe.\n" +
+                   "/photo - Changer ta photo de profil.\n" +
                    "/statut - Voir l'état de ton équipement.\n" +
                    "/inventory - Consulter ton inventaire.\n" +
                    "/quests - Voir tes quêtes actives.\n" +
@@ -1639,8 +1775,10 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
-                   "/download_model - Télécharger Gemma 3 localement (Admin).\n" +
+                   "/skills - Voir les compétences disponibles.\n" +
+                   "/examen - Passer un examen pour apprendre un skill.\n" +
                    "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
+                   "/monde - Voir les joueurs actifs dans le monde.\n" +
                    "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
                    "/lore <topic> - Consulter la bibliothèque.\n" +
                    "/action - Mode immersif (RP).\n" +
@@ -1701,16 +1839,16 @@ commands.set('evenement', async (sock, message, args) => {
 
     await sock.sendMessage(replyJid, { text: "🌍 *Manipulation de la réalité en cours...*" });
 
-    const systemPrompt = `Tu es le MJ d'Arise. Un administrateur déclenche un événement spécial.
-LORE: Convergence, Éveil, Monstres, Entités.
-RÈGLES: Décris l'apparition brutale d'un monstre, d'une entité ou d'un événement environnemental.
-FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
+    const systemPrompt = `Tu es le MJ d'AETHERYS. Un administrateur déclenche un événement.
+STYLE: Français facile. Un seul paragraphe court.
+RÈGLES: Décris un événement lié au LORE (Monstres, Entités, Magie). Laisse les joueurs libres de réagir.
+FORMAT: JSON STRICT {"narrative":"...", "actions":[], "imagePrompt":"..."}`;
 
     const userPrompt = `LIEU: ${player.location}\nSOUS_LIEU: ${player.subLocation}\nÉVÉNEMENT: ${eventDesc}`;
 
     try {
-        const { callAI } = require('./ai-utils');
-        const content = await callAI(systemPrompt, userPrompt);
+        const aether = require('./aether-core');
+        const content = await aether.generateNarration(systemPrompt, userPrompt, eventDesc, player.location);
         if (!content) throw new Error("IA muette");
 
         let aiResponse = { narrative: "L'air crépite... quelque chose arrive." };
@@ -1751,32 +1889,6 @@ commands.set('action', async (sock, message) => {
   }
 });
 
-// Command: /download_model
-commands.set('download_model', async (sock, message) => {
-    const jid = getJid(message);
-    const replyJid = message.key.remoteJid;
-    const player = await Player.findOne({ where: { whatsappId: jid } });
-
-    if (!player || !player.isGod) {
-        await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent initier des téléchargements système." });
-        return;
-    }
-
-    const model = process.env.OLLAMA_MODEL || 'gemma3:4b';
-    await sock.sendMessage(replyJid, { text: `📥 *INITIATION DU TÉLÉCHARGEMENT*\n\nModèle : ${model}\n\nCette opération peut prendre plusieurs minutes selon votre connexion. Le bot restera disponible.` });
-
-    const { exec } = require('child_process');
-    exec(`ollama pull ${model}`, (error, stdout, stderr) => {
-        if (error) {
-            console.error(`[OLLAMA] Pull error: ${error.message}`);
-            sock.sendMessage(replyJid, { text: `❌ *ÉCHEC DU TÉLÉCHARGEMENT*\n\nErreur : ${error.message}` });
-            return;
-        }
-        console.log(`[OLLAMA] Pull success: ${stdout}`);
-        sock.sendMessage(replyJid, { text: `✅ *TÉLÉCHARGEMENT TERMINÉ*\n\nLe modèle ${model} est prêt à l'emploi.` });
-    });
-});
-
 // Command: /checkai
 commands.set('checkai', async (sock, message) => {
     const replyJid = message.key.remoteJid;
@@ -1784,25 +1896,62 @@ commands.set('checkai', async (sock, message) => {
 
     await sock.sendMessage(replyJid, { text: "🔍 *DIAGNOSTIC DES FLUX MAGIQUES (IA)*...\nVeuillez patienter." });
 
+    // Check Local Ollama Status
+    const model = process.env.OLLAMA_MODEL || "gemma3:4b";
+    let ollamaStatus = "🔴 Injoignable";
+    try {
+        const ollamaTags = await axios.get("http://localhost:11434/api/tags", { timeout: 2000 });
+        const models = ollamaTags.data?.models || [];
+        const hasModel = models.some(m => m.name.includes(model));
+        ollamaStatus = hasModel ? `🟢 Opérationnel (${model})` : `🟡 Connecté (Modèle ${model} manquant)`;
+    } catch (e) {
+        ollamaStatus = "🔴 Inaccessible (Local)";
+    }
+
     const startTime = Date.now();
     try {
         const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
         const duration = (Date.now() - startTime) / 1000;
 
         let status = "🟢 *OPÉRATIONNEL*";
-        if (result.includes("Le flux magique est instable")) status = "🔴 *LIMITE ATTEINTE*";
+        if (result.includes("Le flux magique est instable")) status = "🔴 *LIMITE ATTEINTE (Fallback)*";
 
         await sock.sendMessage(replyJid, {
             text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
-                  `Statut: ${status}\n` +
+                  `Flux Global: ${status}\n` +
+                  `Ollama Local: ${ollamaStatus}\n` +
                   `Latence: ${duration}s\n` +
-                  `Serveur Ollama: ${process.env.OLLAMA_URL || 'http://localhost:11434'}\n` +
                   `Réponse: ${result.substring(0, 100)}...\n\n` +
-                  `_Si le statut est dégradé, vérifiez vos clés API ou la connexion Ollama._`
+                  `_Si le statut est dégradé, vérifiez vos clés API Cloud._`
         });
     } catch (e) {
-        await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
+        await sock.sendMessage(replyJid, { text: `🔴 *ERREUR CRITIQUE*\n\nOllama Local: ${ollamaStatus}\nAucun flux magique n'a pu être établi. Contactez l'administrateur.` });
     }
+});
+
+// Command: /download_model
+commands.set('download_model', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        return await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent commander de nouveaux modèles." });
+    }
+
+    const modelName = args[0] || "gemma3:4b";
+    await sock.sendMessage(replyJid, { text: `📥 *OLLAMA* : Lancement du téléchargement de \`${modelName}\`...\nCeci peut prendre quelques minutes en fonction de la connexion du serveur.` });
+
+    const { exec } = require('child_process');
+    exec(`ollama pull ${modelName}`, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`[Ollama] Pull error: ${error.message}`);
+            sock.sendMessage(replyJid, { text: `❌ *OLLAMA* : Échec du téléchargement de \`${modelName}\`.\nErreur: ${error.message}` });
+            return;
+        }
+        console.log(`[Ollama] Model ${modelName} pulled successfully.`);
+        sock.sendMessage(replyJid, { text: `✅ *OLLAMA* : Le modèle \`${modelName}\` est maintenant prêt à l'emploi.` });
+    });
 });
 
 // Command: /menu
@@ -1827,6 +1976,7 @@ commands.set('menu', async (sock, message) => {
                    "📍 *NAVIGATION*\n" +
                    "├ `/map` - Monde & Donjons\n" +
                    "├ `/quests` - Journal d'objectifs\n" +
+                   "├ `/monde` - Qui est actif ?\n" +
                    "├ `/joueurs` - Qui est ici ?\n" +
                    "└ `/lieux` - Ta position actuelle\n\n" +
                    "💰 *ÉCONOMIE*\n" +
@@ -1926,9 +2076,10 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     return;
   }
 
-  // Handle free action mode
-  if (player?.mode === 'action' && !messageText.startsWith('/') && !messageText.startsWith('@')) {
+  // Handle AI-first mode: everything is interpreted by the MJ
+  if ((player?.mode === 'action' || !messageText.startsWith('/')) && !messageText.startsWith('@')) {
     try {
+        // Redirige vers le MJ pour traitement naturel
         if (player.tutorialStep >= 0 && player.tutorialStep < 3) {
             const { handleTutorialAction } = require('./tutorial-handler');
             await handleTutorialAction(sock, message, player, messageText);
