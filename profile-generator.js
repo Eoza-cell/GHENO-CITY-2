@@ -167,7 +167,12 @@ async function addOverlay(baseImg, player, width, height) {
                     <text x="0" y="210" class="label">SKILLS</text>
                     <text x="0" y="235" class="stat-val">${skillsList.length > 0 ? skillsList.join(' • ') : "AWAKENING..."}</text>
 
-                    <text x="0" y="280" class="label">FINANCES</text>
+                    ${player.masterId || player.fusedWithId ? `
+                        <text x="0" y="280" class="label" style="fill:#00ffff">${player.masterId ? 'SERVITUDE BOND' : 'FUSION SYNC'}</text>
+                        <text x="0" y="305" class="stat-val" style="fill:#00ffff">${player.masterId ? 'ACTIVE' : (Math.round(player.fusionSyncLevel * 100) + '%')}</text>
+                    ` : ''}
+
+                    <text x="0" y="${player.masterId || player.fusedWithId ? 350 : 280}" class="label">FINANCES</text>
                     <text x="0" y="305" class="stat-val">${player.col.toLocaleString()} COL • 🏦 ${bankBalance.toLocaleString()}</text>
 
                     <text x="0" y="350" class="label">WEAPONS &amp; EQS</text>

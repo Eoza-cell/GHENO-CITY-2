@@ -247,6 +247,22 @@ const Player = sequelize.define('Player', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  masterId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  servantPowerBonus: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0,
+  },
+  fusedWithId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  fusionSyncLevel: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0,
+  },
 });
 
 const Item = sequelize.define('Item', {

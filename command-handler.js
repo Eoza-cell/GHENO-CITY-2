@@ -224,6 +224,8 @@ const profileCommand = async (sock, message) => {
                           `🍀 Chance: ${player.luck}\n` +
                           `✨ *SP:* ${player.skillPoints}\n\n` +
                           `💰 *COL:* ${player.col} 🪙\n` +
+                          (player.masterId ? `🔗 *MAÎTRE:* ${player.masterId.substring(0, 8)}...\n` : '') +
+                          (player.fusedWithId ? `🌀 *FUSION:* Sync ${Math.round(player.fusionSyncLevel * 100)}%\n` : '') +
                           `📍 *LIEU:* ${player.location} (${player.subLocation})\n` +
                           `---------------------------`;
 

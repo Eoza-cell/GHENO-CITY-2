@@ -167,6 +167,16 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
   if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
 
+  const availableQuests = await Quest.findAll({
+      where: {
+          [Op.or]: [
+              { rank_required: player.rank },
+              { rank_required: 'F' } // Always show basic quests
+          ]
+      },
+      limit: 5
+  });
+
   // Keyword Detection for Quests & Intent
   const lowAction = actionText.toLowerCase();
   if (lowAction.match(/\b(quête|mission|travail|besoin d'aide|contrat|recherche|objectif|prime|job|faire quelque chose|s'occuper|aider|aventure)\b/i)) {
@@ -217,7 +227,29 @@ async function handleFreeAction(sock, message, player, actionText) {
       await player.update({ lastActivity: new Date() });
   }
 
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
+  // Final Stat Calculation for Main Player
+  let mainFor = player.strength;
+  let mainAgi = player.agility;
+  let mainInt = player.intelligence;
+  let mainBond = "";
+
+  if (player.masterId) {
+      const master = await Player.findOne({ where: { whatsappId: player.masterId } });
+      if (master) {
+          const bonus = (master.strength + master.agility + master.intelligence) * 0.2;
+          mainFor += bonus * 0.4; mainAgi += bonus * 0.3; mainInt += bonus * 0.3;
+          mainBond = ` [SERVITEUR de ${master.name}]`;
+      }
+  }
+  if (player.fusedWithId) {
+      const partner = await Player.findOne({ where: { whatsappId: player.fusedWithId } });
+      if (partner) {
+          mainFor += partner.strength; mainAgi += partner.agility; mainInt += partner.intelligence;
+          mainBond = ` [FUSIONNÉ avec ${partner.name} - Sync:${Math.round(player.fusionSyncLevel * 100)}%]`;
+      }
+  }
+
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
@@ -226,15 +258,6 @@ async function handleFreeAction(sock, message, player, actionText) {
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
   const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%, Récompenses:${q.reward_col}Col/${q.reward_xp}XP)`).join(',') : "Pas de quête";
 
-  const availableQuests = await Quest.findAll({
-      where: {
-          [Op.or]: [
-              { rank_required: player.rank },
-              { rank_required: 'F' } // Always show basic quests
-          ]
-      },
-      limit: 5
-  });
   const availableQuestState = "Quêtes Dispo: " + availableQuests.map(q => `${q.title} (Rang ${q.rank_required})`).join(', ');
 
   const dungeons = await Dungeon.findAll({ limit: 1 });
@@ -254,13 +277,40 @@ async function handleFreeAction(sock, message, player, actionText) {
       const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
       const pActions = recentActions.filter(a => a.senderName === p.name).map(a => a.content);
 
+      // Stat Calculation (Servitude/Fusion)
+      let displayFor = p.strength;
+      let displayAgi = p.agility;
+      let displayInt = p.intelligence;
+      let bondInfo = "";
+
+      if (p.masterId) {
+          const master = await Player.findOne({ where: { whatsappId: p.masterId } });
+          if (master) {
+              const bonus = (master.strength + master.agility + master.intelligence) * 0.2;
+              displayFor += bonus * 0.4;
+              displayAgi += bonus * 0.3;
+              displayInt += bonus * 0.3;
+              bondInfo = ` [SERVITEUR de ${master.name}]`;
+          }
+      }
+
+      if (p.fusedWithId) {
+          const partner = await Player.findOne({ where: { whatsappId: p.fusedWithId } });
+          if (partner) {
+              displayFor += partner.strength;
+              displayAgi += partner.agility;
+              displayInt += partner.intelligence;
+              bondInfo = ` [FUSIONNÉ avec ${partner.name} - Sync:${Math.round(p.fusionSyncLevel * 100)}%]`;
+          }
+      }
+
       return {
           nom: p.name,
           est_god: p.isGod,
           lieu_precis: p.subLocation,
           est_proche: p.subLocation === player.subLocation,
           est_acteur: (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
-          etat: `Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}`,
+          etat: `Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${Math.round(displayFor)} AGI:${Math.round(displayAgi)} INT:${Math.round(displayInt)} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}${bondInfo}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
           metier: p.occupation,
@@ -514,7 +564,18 @@ RÈGLES TECHNIQUES:
 - get_player_details : { "target_name": "..." } (Permet de connaître l'état d'un joueur hors-scène).
 - query_database : { "model": "Player|NPC|Kingdom", "search": "nom" } (Demande des détails précis au bot).
 - modify_reputation : { "target_name": "...", "kingdom": "...", "change": -50 à +50 }
-- generate_document : { "type": "exam|note|decree", "content": "...", "title": "..." }`;
+ - generate_document : { "type": "exam|note|decree", "content": "...", "title": "..." }
+ - request_servitude : { "target_name": "..." } (Le joueur propose un pacte de servitude).
+ - accept_servitude : { "master_name": "..." } (Le joueur accepte de devenir le serviteur).
+ - request_fusion : { "target_name": "..." } (Le joueur propose une fusion d'âmes).
+ - accept_fusion : { "partner_name": "..." } (Le joueur accepte la fusion).
+ - dissolve_fusion : {} (Met fin à la fusion actuelle).
+
+RÈGLES DE LIENS (CRITIQUE):
+1. SERVITUDE : Un serviteur reçoit 20% de la puissance de son Maître. C'est un pacte de soumission qui demande le consentement du serviteur. Décris la marque de servitude apparaissant sur le corps.
+2. FUSION : Deux joueurs fusionnent en un seul être. Les statistiques (FOR/AGI/INT) sont ADDITIONNÉES.
+   - CONTRÔLE : Le contrôle dépend de la 'fusionSyncLevel'. Si < 0.5, l'être est instable et ses actions peuvent échouer ou être contradictoires. Si > 0.8, l'harmonie est parfaite et les mouvements sont divins.
+   - NARRATION : Décris la fusion comme un processus métaphysique intense. L'être fusionné possède les traits des deux joueurs.`;
 
 
     const memoryJson = JSON.stringify({

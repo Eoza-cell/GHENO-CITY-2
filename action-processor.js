@@ -16,7 +16,8 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
         'arrest_player', 'set_wanted_level', 'release_player', 'manage_house',
         'set_academic_status', 'get_player_details', 'modify_reputation',
         'resurrect_player', 'forge_pact', 'join_club', 'start_quest',
-        'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade'
+        'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade',
+        'request_servitude', 'accept_servitude', 'request_fusion', 'accept_fusion', 'dissolve_fusion'
     ];
 
     for (const actionObj of actions) {
@@ -181,6 +182,53 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     await target.increment('influence', { by: parameters.change });
                     playersToUpdate.add(target.whatsappId);
                     break;
+                case 'request_servitude':
+                    const sMaster = player;
+                    const sTarget = await Player.findOne({ where: { name: { [Op.like]: `%${parameters.target_name}%` }, location: player.location } });
+                    if (sTarget) {
+                        aiResponse.narrative = `${aiResponse.narrative}\n\n📜 *PACT DE SERVITUDE* : ${sMaster.name} propose à ${sTarget.name} de devenir son serviteur. ${sTarget.name} doit accepter pour sceller le lien.`;
+                    }
+                    break;
+                case 'accept_servitude':
+                    const aServant = player;
+                    const aMaster = await Player.findOne({ where: { name: { [Op.like]: `%${parameters.master_name}%` }, location: player.location } });
+                    if (aMaster && !aServant.masterId) {
+                        await aServant.update({ masterId: aMaster.whatsappId });
+                        // Servant gets 20% of Master's main stats as bonus
+                        const bonus = (aMaster.strength + aMaster.agility + aMaster.intelligence) * 0.2;
+                        await aServant.update({ servantPowerBonus: bonus });
+                        playersToUpdate.add(aServant.whatsappId);
+                        questFeedback.push(`🔗 *SERVANTE* : ${aServant.name} est désormais lié à ${aMaster.name}.`);
+                    }
+                    break;
+                case 'request_fusion':
+                    const fRequester = player;
+                    const fTarget = await Player.findOne({ where: { name: { [Op.like]: `%${parameters.target_name}%` }, location: player.location } });
+                    if (fTarget) {
+                        aiResponse.narrative = `${aiResponse.narrative}\n\n✨ *FUSION* : ${fRequester.name} propose une fusion d'âmes à ${fTarget.name}. Les puissances seront combinées.`;
+                    }
+                    break;
+                case 'accept_fusion':
+                    const p1 = player;
+                    const p2 = await Player.findOne({ where: { name: { [Op.like]: `%${parameters.partner_name}%` }, location: player.location } });
+                    if (p2 && !p1.fusedWithId && !p2.fusedWithId) {
+                        await p1.update({ fusedWithId: p2.whatsappId, fusionSyncLevel: 0.5 });
+                        await p2.update({ fusedWithId: p1.whatsappId, fusionSyncLevel: 0.5 });
+                        playersToUpdate.add(p1.whatsappId);
+                        playersToUpdate.add(p2.whatsappId);
+                        questFeedback.push(`🌀 *SYMBIOSE* : ${p1.name} et ${p2.name} ont fusionné !`);
+                    }
+                    break;
+                case 'dissolve_fusion':
+                    if (player.fusedWithId) {
+                        const partner = await Player.findOne({ where: { whatsappId: player.fusedWithId } });
+                        await player.update({ fusedWithId: null, fusionSyncLevel: 0 });
+                        if (partner) await partner.update({ fusedWithId: null, fusionSyncLevel: 0 });
+                        playersToUpdate.add(player.whatsappId);
+                        if (partner) playersToUpdate.add(partner.whatsappId);
+                        questFeedback.push(`💔 *DISSOLUTION* : La fusion a pris fin.`);
+                    }
+                    break;
             }
         } catch (err) {
             console.error(`[Processor] Error in ${actionObj.type}:`, err.message);
@@ -254,7 +302,7 @@ async function handleBankTransaction(target, params, questFeedback, playersToUpd
 }
 
 async function handleUpdatePlayer(target, params, questFeedback, playersToUpdate) {
-    const fields = ['name', 'class', 'derivative', 'rank', 'family', 'occupation', 'organization', 'characterDescription', 'profilePicUrl'];
+    const fields = ['name', 'class', 'derivative', 'rank', 'family', 'occupation', 'organization', 'characterDescription', 'profilePicUrl', 'fusionSyncLevel'];
     let hasChanged = false;
     for (const f of fields) {
         const pName = f === 'class' ? 'new_class' : (f === 'rank' ? 'new_rank' : f);
