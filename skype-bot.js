@@ -75,7 +75,7 @@ async function connectToWhatsApp() {
 
   // Handle pairing code logic
   if (!sock.authState.creds.registered) {
-    const phoneNumber = (process.env.PHONE_NUMBER || "").replace(/\+/g, "").trim();
+    const phoneNumber = (process.env.PHONE_NUMBER || "").replace(/\D/g, "").trim();
     if (!phoneNumber) {
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
@@ -95,12 +95,22 @@ async function connectToWhatsApp() {
             console.log(`[AUTH] Demande du code de pairage (tentative ${retryCount + 1}/${maxRetries})...`);
             const code = await sock.requestPairingCode(phoneNumber);
             pairingCode = code;
-            console.log('==============================================================');
-            console.log('VOTRE CODE DE PAIRAGE WHATSAPP :');
-            console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
-            console.log('==============================================================');
-            console.log(`CONSULTEZ AUSSI ICI : /pairing sur votre URL de déploiement`);
-            console.log('==============================================================');
+
+            const displayCode = () => {
+                if (sock.authState.creds.registered) return;
+                console.log('\x1b[33m%s\x1b[0m', '==============================================================');
+                console.log('\x1b[32m%s\x1b[0m', 'VOTRE CODE DE PAIRAGE WHATSAPP :');
+                console.log('\x1b[32m%s\x1b[0m', `➡️➡️➡️   ${pairingCode?.match(/.{1,4}/g)?.join('-') || pairingCode}   ⬅️⬅️⬅️`);
+                console.log('\x1b[33m%s\x1b[0m', '==============================================================');
+                console.log('\x1b[36m%s\x1b[0m', `CONSULTEZ AUSSI ICI : /pairing sur votre URL de déploiement`);
+                console.log('\x1b[33m%s\x1b[0m', '==============================================================');
+
+                if (!sock.authState.creds.registered) {
+                    setTimeout(displayCode, 20000);
+                }
+            };
+
+            displayCode();
         } catch (error) {
             console.error('[AUTH] Erreur lors de la demande du code :', error.message);
             if (retryCount < maxRetries) {
@@ -209,9 +219,17 @@ async function connectToWhatsApp() {
 }
 
 setupDatabase()
-  .then(() => {
-    console.log('[CORE] Base de données prête. Lancement du bot...');
+  .then(async () => {
+    console.log('[CORE] Base de données prête.');
 
+    if (process.env.RESET_SESSION === 'true') {
+        console.log('[AUTH] RESET_SESSION est activé. Nettoyage de la session...');
+        const { Creds } = require('./database');
+        await Creds.destroy({ where: {} });
+        console.log('[AUTH] Session réinitialisée.');
+    }
+
+    console.log('[CORE] Lancement du bot...');
     connectToWhatsApp();
   })
   .catch(err => {
