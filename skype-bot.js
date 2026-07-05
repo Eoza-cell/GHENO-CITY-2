@@ -22,12 +22,22 @@ const server = http.createServer((req, res) => {
     res.end('Bot is running');
 });
 const PORT = process.env.PORT || 3000;
-let serverStarted = false;
+server.listen(PORT, () => {
+    console.log(`[CORE] Server listening on port ${PORT} for Render health checks.`);
+});
 
 // Initialisation de la queue pour gérer la charge
 const messageQueue = new PQueue({ concurrency: 5 });
 
 async function connectToWhatsApp() {
+  // Check for manual session reset via ENV
+  if (process.env.RESET_SESSION === 'true') {
+      console.log('[CONN] RESET_SESSION=true détecté. Nettoyage de la base de données auth...');
+      const { Creds } = require('./database');
+      await Creds.destroy({ where: {} });
+      console.log('[CONN] Session réinitialisée. Pour éviter un nouveau reset, retirez la variable RESET_SESSION.');
+  }
+
   // Assure que le dossier des profils existe
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
       fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
@@ -39,12 +49,11 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false, // QR code is no longer needed
-    browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
+    printQRInTerminal: false, // Pairing code is used instead
+    browser: ['Mac OS', 'Safari', '10.15.7'], // More standard browser for stability
     version,
-    logger: pino({ level: 'silent' }), // Suppress verbose logging
+    logger: pino({ level: 'error' }), // Only show errors to reduce noise but keep critical info
     getMessage: async key => {
-        console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return { conversation: '🔄 Réessaye d\'envoyer ton message' };
     }
   });
@@ -60,41 +69,55 @@ async function connectToWhatsApp() {
       process.exit(1);
     }
 
-    await delay(1500); // Small delay to ensure the socket is ready
-    console.log(`Tentative de connexion avec le numéro de téléphone : ${phoneNumber}`);
-    console.log('Demande du code de pairage...');
-    try {
-      const code = await sock.requestPairingCode(phoneNumber);
-      console.log('==============================================================');
-      console.log('Votre code de pairage Skype :');
-      console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
-      console.log('==============================================================');
-      console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
-    } catch (error) {
-      console.error('Impossible de demander le code de pairage :', error);
-      process.exit(1);
+    await delay(5000); // Wait longer for the socket to stabilize
+    console.log(`[CONN] Tentative de connexion avec : ${phoneNumber}`);
+
+    let pairingSuccess = false;
+    let attempts = 0;
+    while (!pairingSuccess && attempts < 3) {
+        attempts++;
+        try {
+            console.log(`[CONN] Demande du code de pairage (Essai ${attempts}/3)...`);
+            const code = await sock.requestPairingCode(phoneNumber);
+            console.log('==============================================================');
+            console.log('Votre code de pairage Skype :');
+            console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
+            console.log('==============================================================');
+            console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
+            pairingSuccess = true;
+        } catch (error) {
+            console.error(`[CONN] Échec demande code (Essai ${attempts}):`, error.message);
+            if (attempts < 3) await delay(10000); // Wait 10s before retry
+            else {
+                console.error('[CONN] Impossible de générer un code de pairage après 3 essais.');
+                process.exit(1);
+            }
+        }
     }
   }
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
+      const statusCode = (lastDisconnect.error)?.output?.statusCode;
+      const shouldReconnect = statusCode !== 401;
+
+      console.log(`[CONN] Connection fermée (Code: ${statusCode}). Reconnexion: ${shouldReconnect}`);
+
+      if (statusCode === 401) {
+          console.error('[CONN] Session expirée ou déconnectée. Réinitialisation des identifiants...');
+          const { Creds } = require('./database');
+          await Creds.destroy({ where: {} });
+          console.log('[CONN] Cache de session vidé. Redémarrage pour nouveau pairage...');
+          process.exit(1); // Exit and let the process manager restart it
+      }
+
       if (shouldReconnect) {
         connectToWhatsApp();
       }
     } else if (connection === 'open') {
-      console.log('Connecté à WhatsApp');
+      console.log('[CONN] Connecté à WhatsApp avec succès !');
       startDayNightCycle();
-
-      // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
-      if (!serverStarted) {
-          server.listen(PORT, () => {
-              console.log(`Server listening on port ${PORT} for Render health checks.`);
-              serverStarted = true;
-          });
-      }
     }
   });
 
