@@ -16,10 +16,38 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 
-// Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
+let currentPairingCode = null;
+
+// Crée un serveur HTTP pour répondre aux contrôles de santé de Render et afficher le code de pairage
 const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running');
+    if (req.url === '/pairing') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        if (currentPairingCode) {
+            const formattedCode = currentPairingCode.match(/.{1,4}/g).join('-');
+            res.end(`
+                <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+                    <h1>🔗 Code de pairage WhatsApp</h1>
+                    <p style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 20px; display: inline-block; border-radius: 10px; letter-spacing: 2px;">
+                        ${formattedCode}
+                    </p>
+                    <p>Entrez ce code sur votre téléphone dans <b>Appareils connectés > Connecter un appareil</b>.</p>
+                    <p style="color: gray; font-size: 12px;">Dernière mise à jour : ${new Date().toLocaleTimeString()}</p>
+                    <script>setTimeout(() => location.reload(), 30000);</script>
+                </div>
+            `);
+        } else {
+            res.end(`
+                <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+                    <h1>⏳ En attente du code...</h1>
+                    <p>Le bot génère un code. Veuillez rafraîchir cette page dans quelques secondes.</p>
+                    <script>setTimeout(() => location.reload(), 5000);</script>
+                </div>
+            `);
+        }
+    } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Bot is running. Visit /pairing for WhatsApp pairing code.');
+    }
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
@@ -79,11 +107,12 @@ async function connectToWhatsApp() {
         try {
             console.log(`[CONN] Demande du code de pairage (Essai ${attempts}/3)...`);
             const code = await sock.requestPairingCode(phoneNumber);
+            currentPairingCode = code;
             console.log('==============================================================');
-            console.log('Votre code de pairage Skype :');
+            console.log('Votre code de pairage WhatsApp :');
             console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
             console.log('==============================================================');
-            console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
+            console.log(`Disponible également sur : http://localhost:${PORT}/pairing (ou votre URL Render)`);
             pairingSuccess = true;
         } catch (error) {
             console.error(`[CONN] Échec demande code (Essai ${attempts}):`, error.message);
@@ -117,6 +146,7 @@ async function connectToWhatsApp() {
       }
     } else if (connection === 'open') {
       console.log('[CONN] Connecté à WhatsApp avec succès !');
+      currentPairingCode = null; // Clear the code as it's no longer needed
       startDayNightCycle();
     }
   });
