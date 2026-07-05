@@ -262,9 +262,10 @@ const profileCommand = async (sock, message) => {
 };
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
-commands.set('techniques', commands.get('competences'));
-commands.set('skills', commands.get('competences'));
-commands.set('skill', commands.get('competences'));
+
+commands.set('techniques', (...args) => commands.get('competences')(...args));
+commands.set('skills', (...args) => commands.get('competences')(...args));
+commands.set('skill', (...args) => commands.get('competences')(...args));
 
 // Command: /background
 commands.set('background', async (sock, message, args) => {

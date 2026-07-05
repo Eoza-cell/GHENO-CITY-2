@@ -87,15 +87,24 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     break;
                 case 'start_quest':
                     const sLine = await questUtils.startQuest(target, parameters.questTitle);
-                    if (sLine) questFeedback.push(sLine);
+                    if (sLine) {
+                        questFeedback.push(sLine);
+                        playersToUpdate.add(target.whatsappId);
+                    }
                     break;
                 case 'advance_quest':
                     const aLine = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
-                    if (aLine) questFeedback.push(aLine);
+                    if (aLine) {
+                        questFeedback.push(aLine);
+                        playersToUpdate.add(target.whatsappId);
+                    }
                     break;
                 case 'complete_quest':
                     const cLine = await questUtils.completeQuest(target, parameters.questTitle, sock);
-                    if (cLine) questFeedback.push(cLine);
+                    if (cLine) {
+                        questFeedback.push(cLine);
+                        playersToUpdate.add(target.whatsappId);
+                    }
                     break;
                 case 'write_journal':
                     await WorldJournal.create({
@@ -129,7 +138,40 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     const docBuffer = await generatePaperImage(parameters.content, parameters.title || "DOCUMENT");
                     await sock.sendMessage(jid, { image: docBuffer, caption: `📄 ${parameters.title}` });
                     break;
-                // Add other cases as needed...
+                case 'set_wanted_level':
+                    await target.update({ wantedLevel: parameters.level != null ? parameters.level : parameters.wantedLevel });
+                    playersToUpdate.add(target.whatsappId);
+                    break;
+                case 'forge_pact':
+                    const entity = await Entity.findOne({ where: { name: { [Op.like]: `%${parameters.entityName}%` } } });
+                    if (entity) {
+                        await target.addEntity(entity);
+                        playersToUpdate.add(target.whatsappId);
+                    }
+                    break;
+                case 'join_club':
+                    const club = await Club.findOne({ where: { name: { [Op.like]: `%${parameters.clubName}%` } } });
+                    if (club) {
+                        await target.addClub(club);
+                        playersToUpdate.add(target.whatsappId);
+                    }
+                    break;
+                case 'set_academic_status':
+                    await target.update({
+                        academicYear: parameters.academicYear || target.academicYear,
+                        academicGrade: parameters.academicGrade || target.academicGrade,
+                        schoolName: parameters.schoolName || target.schoolName
+                    });
+                    playersToUpdate.add(target.whatsappId);
+                    break;
+                case 'resurrect_player':
+                    await target.update({ health: Math.floor(target.maxHealth * 0.5), location: "Empire Impérial d'Elion", subLocation: 'Cathédrale de la Lumière' });
+                    playersToUpdate.add(target.whatsappId);
+                    break;
+                case 'modify_reputation':
+                    await target.increment('influence', { by: parameters.change });
+                    playersToUpdate.add(target.whatsappId);
+                    break;
             }
         } catch (err) {
             console.error(`[Processor] Error in ${actionObj.type}:`, err.message);

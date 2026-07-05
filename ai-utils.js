@@ -271,14 +271,14 @@ async function callPollinationsGen(system, prompt) {
     const key = process.env.POLLINATIONS_API_KEY;
     if (!key) return null;
 
-    const models = ['openai', 'mistral', 'llama', 'unity'];
+    const models = ['openai', 'mistral', 'llama', 'qwen-coder'];
     for (const model of models) {
         try {
             console.log(`[AI] Pollinations Gen (Keyed) - Tentative avec ${model}...`);
             const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
                 model: model,
                 messages: [
-                    { role: "system", content: system },
+                    { role: "system", content: system + "\n\nIMPORTANT: Réponds UNIQUEMENT en JSON valide." },
                     { role: "user", content: prompt }
                 ],
                 response_format: { type: "json_object" }
@@ -287,7 +287,7 @@ async function callPollinationsGen(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 12000
+                timeout: 25000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -301,7 +301,6 @@ async function callPollinationsGen(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    // Narrow down to the fastest/most reliable models for JSON on Pollinations
     const models = ['openai', 'mistral', 'llama'];
 
     for (const model of models) {
@@ -309,7 +308,7 @@ async function callPollinationsPOST(system, prompt) {
             console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
             const resp = await axios.post("https://text.pollinations.ai/", {
                 messages: [
-                    { role: "system", content: system + "\nTu DOIS répondre au format JSON." },
+                    { role: "system", content: system },
                     { role: "user", content: prompt }
                 ],
                 model: model,
@@ -319,15 +318,15 @@ async function callPollinationsPOST(system, prompt) {
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
+                    'User-Agent': `Mozilla/5.0 (Arise-Bot/3.1; ${Math.random().toString(36).substring(7)})`
                 },
-                timeout: 15000 // Increased timeout for Pollinations as primary provider
+                timeout: 25000 // Further increased timeout
             });
 
             let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
             if (isValidAIResponse(resText)) return resText;
         } catch (e) {
-            console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
+            console.warn(`[AI] Pollinations POST Error (${model}):`, e.response?.data || e.message);
             continue;
         }
     }
@@ -337,15 +336,13 @@ async function callPollinationsPOST(system, prompt) {
 async function callPollinationsGET(system, prompt) {
     try {
         console.log(`[AI] Pollinations GET - Tentative...`);
-        // Use a more concise prompt for GET to stay within URL limits
-        // Pollinations GET supports /prompt?model=...&seed=...&system=...
-        const miniPrompt = `Action Joueur: ${prompt.substring(prompt.length - 800)}`;
+        const miniPrompt = `MJ Arise. Action: ${prompt.substring(prompt.length - 1000)}`;
         const fullPrompt = encodeURIComponent(miniPrompt);
-        const systemEncoded = encodeURIComponent(system.substring(0, 800));
+        const systemEncoded = encodeURIComponent(system.substring(0, 1000));
         const seed = Math.floor(Math.random() * 1000000);
-        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}`;
+        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}&json=true`;
 
-        const resp = await axios.get(url, { timeout: 20000 });
+        const resp = await axios.get(url, { timeout: 25000 });
         if (isValidAIResponse(resp.data)) return resp.data;
     } catch (e) {
         console.warn(`[AI] Pollinations GET Error:`, e.message);
