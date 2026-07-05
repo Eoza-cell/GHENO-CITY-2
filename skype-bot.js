@@ -17,6 +17,7 @@ const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 
 let pairingCode = null;
+let isWhatsAppConnected = false;
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -44,9 +45,6 @@ const server = http.createServer((req, res) => {
     res.end('Bot is running. Visit /pairing for WhatsApp code.');
 });
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[CORE] Server listening on port ${PORT} for Render health checks.`);
-});
 
 // Initialisation de la queue pour gérer la charge
 const messageQueue = new PQueue({ concurrency: 5 });
@@ -133,6 +131,7 @@ async function connectToWhatsApp() {
 
       console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
 
+      isWhatsAppConnected = false;
       if (statusCode === 401) {
           console.error('!!! SESSION INVALIDÉE (401) !!!');
           console.log('Réinitialisation de la session dans la base de données...');
@@ -145,6 +144,7 @@ async function connectToWhatsApp() {
       }
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
+      isWhatsAppConnected = true;
       startDayNightCycle();
     }
   });
@@ -231,6 +231,16 @@ setupDatabase()
 
     console.log('[CORE] Lancement du bot...');
     connectToWhatsApp();
+
+    // Boucle d'attente pour bloquer le déploiement tant que WhatsApp n'est pas connecté
+    console.log('[CORE] Attente de la connexion WhatsApp pour finaliser le déploiement...');
+    while (!isWhatsAppConnected) {
+        await delay(2000);
+    }
+
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`[CORE] Server listening on port ${PORT}. Déploiement complété.`);
+    });
   })
   .catch(err => {
     console.error('[CRITICAL] Échec du démarrage de la base de données:', err);
