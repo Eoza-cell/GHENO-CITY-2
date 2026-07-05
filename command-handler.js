@@ -67,7 +67,7 @@ commands.set('start', async (sock, message) => {
 
 // Command: /quests
 // Command: /competences
-commands.set('competences', async (sock, message) => {
+commands.set('competences', async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid }, include: Skill });
@@ -77,36 +77,44 @@ commands.set('competences', async (sock, message) => {
         return;
     }
 
-    const skills = player.Skills;
+    const query = args.join(' ').toLowerCase();
+    let skills = player.Skills;
+
+    if (query) {
+        skills = skills.filter(s => s.name.toLowerCase().includes(query) || s.type.toLowerCase().includes(query));
+    }
 
     if (!skills || skills.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !" });
+        const msg = query ? `Aucune compétence ne correspond à "${query}".` : "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !";
+        await sock.sendMessage(replyJid, { text: msg });
         return;
     }
 
-    let skillText = `*Compétences de ${player.name}:*\n\n`;
+    let skillText = `*Compétences de ${player.name}${query ? ' (Filtre: ' + query + ')' : ''}:*\n\n`;
 
     const activeSkills = skills.filter(s => s.type !== 'passive');
     const passiveSkills = skills.filter(s => s.type === 'passive');
 
     if (activeSkills.length > 0) {
         skillText += "⚔️ *TECHNIQUES ET SORTS ACTIFS:*\n";
-        activeSkills.forEach(s => {
+        activeSkills.slice(0, 15).forEach(s => {
             skillText += `├ *${s.name.toUpperCase()}*\n`;
             skillText += `│ 💠 Coût: ${s.manaCost} PM\n`;
             skillText += `└ 📜 ${s.description}\n\n`;
         });
+        if (activeSkills.length > 15) skillText += `_... et ${activeSkills.length - 15} autres techniques actives._\n\n`;
     }
 
     if (passiveSkills.length > 0) {
         skillText += "✨ *COMPÉTENCES PASSIVES:*\n";
-        passiveSkills.forEach(s => {
+        passiveSkills.slice(0, 10).forEach(s => {
             skillText += `├ *${s.name}*\n`;
             skillText += `└ 📜 ${s.description}\n\n`;
         });
+        if (passiveSkills.length > 10) skillText += `_... et ${passiveSkills.length - 10} autres passifs._\n\n`;
     }
 
-    skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pacts._";
+    skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pactes._";
 
     await sock.sendMessage(replyJid, { text: skillText });
 });
@@ -256,6 +264,7 @@ commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
 commands.set('techniques', commands.get('competences'));
 commands.set('skills', commands.get('competences'));
+commands.set('skill', commands.get('competences'));
 
 // Command: /background
 commands.set('background', async (sock, message, args) => {

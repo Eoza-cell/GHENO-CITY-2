@@ -25,13 +25,27 @@ async function generateActionVisual(data) {
     if (actionType === 'travel') primaryColor = '#00ffcc'; // Teal for travel
 
     // Handle Elemental colors
-    if (description.includes('[Feu]')) primaryColor = '#ff4500';
-    if (description.includes('[Eau]')) primaryColor = '#00ffff';
-    if (description.includes('[Terre]')) primaryColor = '#8b4513';
-    if (description.includes('[Vent]')) primaryColor = '#ffffff';
+    let elementalOverlay = '';
+    if (description.includes('[Feu]')) {
+        primaryColor = '#ff4500';
+        elementalOverlay = `<rect x="0" y="0" width="${width}" height="${height}" fill="orange" opacity="0.1" />`;
+    }
+    if (description.includes('[Eau]')) {
+        primaryColor = '#00ffff';
+        elementalOverlay = `<rect x="0" y="0" width="${width}" height="${height}" fill="cyan" opacity="0.1" />`;
+    }
+    if (description.includes('[Terre]')) {
+        primaryColor = '#8b4513';
+        elementalOverlay = `<rect x="0" y="0" width="${width}" height="${height}" fill="brown" opacity="0.1" />`;
+    }
+    if (description.includes('[Vent]')) {
+        primaryColor = '#ffffff';
+        elementalOverlay = `<rect x="0" y="0" width="${width}" height="${height}" fill="white" opacity="0.1" />`;
+    }
 
     const overlaySvg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+            ${elementalOverlay}
             <!-- Dark bottom gradient for text readability -->
             <defs>
                 <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
