@@ -4,7 +4,7 @@ require('dotenv').config();
 // Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const http = require('http');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -84,8 +84,8 @@ async function connectToWhatsApp() {
   console.log('[CORE] Création de la socket WhatsApp...');
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false, // QR code is no longer needed
-    browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
+    printQRInTerminal: true,
+    browser: Browsers.macOS('Desktop'),
     version,
     logger: pino({ level: 'silent' }), // Suppress verbose logging
     getMessage: async key => {
@@ -168,6 +168,16 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       isWhatsAppConnected = true;
+
+      // Envoyer une notification de connexion au numéro du bot
+      try {
+          const botId = jidNormalizedUser(sock.user.id);
+          await sock.sendMessage(botId, { text: '✅ *SYSTÈME OPÉRATIONNEL* : Le Noyau Gemma 3 est maintenant en ligne et synchronisé avec WhatsApp.' });
+          console.log('[AUTH] Notification de connexion envoyée.');
+      } catch (e) {
+          console.error('[AUTH] Échec de l\'envoi de la notification de connexion :', e.message);
+      }
+
       startDayNightCycle();
     }
   });
