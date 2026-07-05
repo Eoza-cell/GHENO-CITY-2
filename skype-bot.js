@@ -41,6 +41,18 @@ const server = http.createServer((req, res) => {
         }
         return;
     }
+
+    if (req.url === '/health') {
+        if (isWhatsAppConnected) {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+        } else {
+            res.writeHead(503, { 'Content-Type': 'text/plain' });
+            res.end('WhatsApp not connected');
+        }
+        return;
+    }
+
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Bot is running. Visit /pairing for WhatsApp code.');
 });
@@ -50,15 +62,26 @@ const PORT = process.env.PORT || 3000;
 const messageQueue = new PQueue({ concurrency: 5 });
 
 async function connectToWhatsApp() {
+  console.log('[CORE] Initialisation de la connexion WhatsApp...');
   // Assure que le dossier des profils existe
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
       fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
   }
 
   const { state, saveCreds } = await useDatabaseAuth();
-  const { version, isLatest } = await fetchLatestBaileysVersion();
-  console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
+  console.log('[AUTH] État de session chargé depuis la DB.');
 
+  let version;
+  try {
+      const v = await fetchLatestBaileysVersion();
+      version = v.version;
+      console.log(`[CORE] Utilisation de la version Baileys v${version.join('.')} (dernière : ${v.isLatest})`);
+  } catch (e) {
+      console.warn('[CORE] Échec de la récupération de la version Baileys, utilisation du défaut [2, 3000, 1015970611].');
+      version = [2, 3000, 1015970611];
+  }
+
+  console.log('[CORE] Création de la socket WhatsApp...');
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false, // QR code is no longer needed
@@ -229,18 +252,13 @@ setupDatabase()
         console.log('[AUTH] Session réinitialisée.');
     }
 
+    // On lance le serveur HTTP immédiatement pour éviter le timeout de Render sur le port
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`[CORE] Server listening on port ${PORT}. Health checks available on /health.`);
+    });
+
     console.log('[CORE] Lancement du bot...');
     connectToWhatsApp();
-
-    // Boucle d'attente pour bloquer le déploiement tant que WhatsApp n'est pas connecté
-    console.log('[CORE] Attente de la connexion WhatsApp pour finaliser le déploiement...');
-    while (!isWhatsAppConnected) {
-        await delay(2000);
-    }
-
-    server.listen(PORT, '0.0.0.0', () => {
-        console.log(`[CORE] Server listening on port ${PORT}. Déploiement complété.`);
-    });
   })
   .catch(err => {
     console.error('[CRITICAL] Échec du démarrage de la base de données:', err);
