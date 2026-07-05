@@ -301,11 +301,10 @@ async function callPollinationsGen(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'unity', 'p1', 'searchgp'];
-    // Shuffle models to avoid hitting the same one first
-    const shuffled = models.sort(() => Math.random() - 0.5);
+    // Narrow down to the fastest/most reliable models for JSON on Pollinations
+    const models = ['openai', 'mistral', 'llama'];
 
-    for (const model of shuffled) {
+    for (const model of models) {
         try {
             console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
             const resp = await axios.post("https://text.pollinations.ai/", {
@@ -322,15 +321,13 @@ async function callPollinationsPOST(system, prompt) {
                     'Content-Type': 'application/json',
                     'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
                 },
-                timeout: 15000
+                timeout: 8000 // Reduced timeout for faster failover
             });
 
             let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
             if (isValidAIResponse(resText)) return resText;
         } catch (e) {
             console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
-            // Jitter delay
-            await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
             continue;
         }
     }
@@ -563,16 +560,17 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
-        { name: 'Llamafile (Local)', fn: callLlamafile },
+        // Prioritize stable but fast remote providers
         { name: '9Router', fn: call9Router },
-        { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
+        { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
         { name: 'Ollama (Local)', fn: callOllama },
+        { name: 'Llamafile (Local)', fn: callLlamafile },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Blackbox', fn: callBlackbox }
     ];
