@@ -2,10 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
+const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
 const { generateMainMenuImage } = require('./menu-generator');
 const { handleFreeAction } = require('./ai-handler');
@@ -26,6 +27,14 @@ function getJid(message) {
 
 const commands = new Map();
 
+// Command: /ping
+commands.set('ping', async (sock, message) => {
+    const start = Date.now();
+    await sock.sendMessage(message.key.remoteJid, { text: "🏓 *Pong !*" });
+    const latency = Date.now() - start;
+    console.log(`[DIAG] Ping latency: ${latency}ms`);
+});
+
 // Command: /start
 commands.set('start', async (sock, message) => {
   const jid = getJid(message);
@@ -37,11 +46,11 @@ commands.set('start', async (sock, message) => {
         whatsappId: jid,
         registrationStep: 'awaiting_name'
     });
-    await sock.sendMessage(replyJid, { text: "*Soyez les bienvenus dans Skype chers joueurs, gameurs et bêta testeurs....pour votre plus grand plaisir*\n\nHélas un malheur guette nos cieux. Des portails se crée dans l'univers de Solo Leveling et apparaissent dans les mondes virtuels. La matrice de Skype est alors bourrée de failles actuellement.\n\nLe temps de réparer ce dommage collatéral, votre mission sera de conquérir les donjons , éliminer les boss tous plus impitoyables les uns que les autres , canaliser votre esprit...vous vous ferez des alliés mais aussi des énemies... mais n'oubliez surtout pas que mourir dans le jeu est un game over dans le real world...\n\n*...3_2_1...*\n\n*START!!*\n\nPour commencer, quel est votre nom, aventurier ?" });
+    await sock.sendMessage(replyJid, { text: "*Bienvenue dans Aetheris, Héritier...*\n\nLe monde que tu connaissais n'est plus. Les sceaux se brisent, et l'Essence Primordiale s'éveille en toi. Entre la protection des Célestes et la menace des Bestiaux, ta lignée déterminera le futur de l'existence.\n\nTraverse l'Interstice, défie le Roi Vide et forge ton destin dans la matrice d'Aetheris.\n\n*...3_2_1...*\n\n*LINK START!!*\n\nPour commencer, quel est ton nom, Héritier ?" });
   } else if (player.registrationStep) {
     // Resume registration
     if (player.registrationStep === 'awaiting_name') {
-        await sock.sendMessage(replyJid, { text: "Rappel: Quel est votre nom, aventurier ?" });
+        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton nom, Héritier ?" });
     } else if (player.registrationStep === 'awaiting_description') {
         await sock.sendMessage(replyJid, { text: `Rappel: Enchanté ${player.name}. Décris ton personnage en une phrase.` });
     }
@@ -75,19 +84,23 @@ commands.set('competences', async (sock, message) => {
     const passiveSkills = skills.filter(s => s.type === 'passive');
 
     if (activeSkills.length > 0) {
-        skillText += "*Capacités Actives & Sorts:*\n";
+        skillText += "⚔️ *TECHNIQUES ET SORTS ACTIFS:*\n";
         activeSkills.forEach(s => {
-            skillText += `- *${s.name}* (${s.manaCost} PM): ${s.description}\n`;
+            skillText += `├ *${s.name.toUpperCase()}*\n`;
+            skillText += `│ 💠 Coût: ${s.manaCost} PM\n`;
+            skillText += `└ 📜 ${s.description}\n\n`;
         });
-        skillText += "\n";
     }
 
     if (passiveSkills.length > 0) {
-        skillText += "*Capacités Passives:*\n";
+        skillText += "✨ *COMPÉTENCES PASSIVES:*\n";
         passiveSkills.forEach(s => {
-            skillText += `- *${s.name}*: ${s.description}\n`;
+            skillText += `├ *${s.name}*\n`;
+            skillText += `└ 📜 ${s.description}\n\n`;
         });
     }
+
+    skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pacts._";
 
     await sock.sendMessage(replyJid, { text: skillText });
 });
@@ -111,17 +124,29 @@ commands.set('quests', async (sock, message) => {
         return;
     }
 
-    let questText = '--- 📜 JOURNAL DE QUÊTES --- \n\n';
+    let questText = '╔══════════════════════════╗\n' +
+                    '   📜 *JOURNAL DES QUÊTES*   \n' +
+                    '╚══════════════════════════╝\n\n';
+
     if (activeQuests.length > 0) {
-        questText += '*⚔️ En Cours:*\n' + activeQuests.map(q => `├ ${q.title}\n└ ${q.description}`).join('\n\n') + '\n\n';
+        questText += '⚔️ *MISSIONS ACTIVES*\n' +
+                     activeQuests.map(q => {
+                         const progress = q.PlayerQuest.progress || 0;
+                         const bar = createStatusBar(progress, 100, '▰', '▱', 8);
+                         return `├ *${q.title}*\n│ 📊 [${bar}] ${progress}%\n└ 📝 ${q.description}`;
+                     }).join('\n\n') + '\n\n';
     }
+
     if (notStartedQuests.length > 0) {
-        questText += '*📍 Disponibles:*\n' + notStartedQuests.map(q => `└ ${q.title}`).join('\n');
+        questText += '📍 *OBJECTIFS DÉCOUVERTS*\n' +
+                     notStartedQuests.map(q => `└ 💠 ${q.title}`).join('\n') + '\n\n';
     }
 
     if (activeQuests.length === 0 && notStartedQuests.length === 0) {
-        questText += "Aucune quête à l'horizon. Explore le monde !";
+        questText += "🌀 *Rien à signaler...*\nExplorez les environs pour trouver du travail, Héritier.";
     }
+
+    questText += '\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬';
 
     await sock.sendMessage(replyJid, { text: questText });
 });
@@ -156,7 +181,7 @@ const profileCommand = async (sock, message) => {
       const xpBar = createStatusBar(player.xp, xpNeeded);
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
-                          `👤 *JOUEUR:* ${player.name}\n` +
+                          `👤 *HÉRITIER:* ${player.name}\n` +
                           `👪 *FAMILLE:* ${player.family}\n` +
                           `🎭 *CLASSE:* ${player.class}\n` +
                           `🎖️ *RANG:* ${player.rank}\n` +
@@ -172,6 +197,7 @@ const profileCommand = async (sock, message) => {
                           `🍀 Chance: ${player.luck}\n` +
                           `✨ *SP:* ${player.skillPoints}\n\n` +
                           `💰 *COL:* ${player.col} 🪙\n` +
+                          `📍 *LIEU:* ${player.location} (${player.subLocation})\n` +
                           `---------------------------`;
 
       await sock.sendMessage(replyJid, {
@@ -248,7 +274,7 @@ commands.set('inspecter', async (sock, message) => {
                         `🧠 Intelligence: ${targetPlayer.intelligence}\n` +
                         `🛡️ Défense: ${targetPlayer.defense}\n` +
                         `🍀 Chance: ${targetPlayer.luck}\n\n` +
-                        `📍 *LIEU:* ${targetPlayer.location}\n` +
+                        `📍 *LIEU:* ${targetPlayer.location} (${targetPlayer.subLocation})\n` +
                         `---------------------------`;
 
     await sock.sendMessage(replyJid, { text: profileText });
@@ -300,6 +326,234 @@ commands.set('map', async (sock, message) => {
         console.error('[MAP] Échec génération carte:', err.message);
         await sock.sendMessage(replyJid, { text: mapText });
     }
+});
+
+// Command: /maison
+commands.set('maison', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Houses' });
+
+    if (!player) return;
+
+    if (player.Houses.length === 0) {
+        const availableHouses = await House.findAll({ where: { ownerId: null } });
+        let text = "🏠 *SYSTÈME IMMOBILIER*\n\nTu ne possèdes aucune propriété. Maisons disponibles à proximité :\n\n";
+        availableHouses.forEach(h => {
+            text += `├ *${h.name}*\n│ 📍 Lieu: ${h.location}\n│ 💰 Prix: ${h.price} Col\n└ _Utilise /achetermaison ${h.id}_\n\n`;
+        });
+        return await sock.sendMessage(replyJid, { text });
+    }
+
+    const house = player.Houses[0]; // For now, handle one house
+    if (args[0] === 'config') {
+        const newTheme = args[1] || 'moderne';
+        const newColor = args[2] || 'blanc';
+        await house.update({ config: { theme: newTheme, color: newColor } });
+        return await sock.sendMessage(replyJid, { text: `✅ *Maison configurée !*\nThème: ${newTheme}\nCouleur: ${newColor}` });
+    }
+
+    let houseText = `🏠 *TA MAISON : ${house.name}*\n\n`;
+    houseText += `🎨 Config: Thème ${house.config.theme}, Couleur ${house.config.color}\n`;
+    houseText += `📦 Stockage (${house.storage.length}/20 objets) :\n`;
+
+    if (house.storage.length === 0) {
+        houseText += "└ _Vide_";
+    } else {
+        house.storage.forEach(item => {
+            houseText += `├ ${item.name} (x${item.quantity})\n`;
+        });
+    }
+
+    houseText += "\n\n_Utilise /stocker <objet> ou /recuperer <objet>_";
+    await sock.sendMessage(replyJid, { text: houseText });
+});
+
+commands.set('achetermaison', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    const houseId = parseInt(args[0]);
+
+    if (!player || !houseId) return;
+
+    const house = await House.findByPk(houseId);
+    if (!house || house.ownerId) {
+        return await sock.sendMessage(replyJid, { text: "❌ Cette maison n'est pas disponible." });
+    }
+
+    if (player.col < house.price) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de Col (${house.price} requis).` });
+    }
+
+    await player.decrement('col', { by: house.price });
+    await house.update({ ownerId: player.whatsappId });
+    await sock.sendMessage(replyJid, { text: `🎉 *Félicitations !* Tu es maintenant propriétaire de : ${house.name}.` });
+});
+
+commands.set('stocker', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Houses' });
+    const itemName = args.join(' ');
+
+    if (!player || player.Houses.length === 0 || !itemName) return;
+
+    const house = player.Houses[0];
+    let inventory = [...player.inventory];
+    const itemIdx = inventory.findIndex(i => i.name.toLowerCase().includes(itemName.toLowerCase()));
+
+    if (itemIdx === -1) return await sock.sendMessage(replyJid, { text: "❌ Objet introuvable dans ton inventaire." });
+
+    const item = inventory[itemIdx];
+    let storage = [...house.storage];
+
+    // Add to storage
+    const storageIdx = storage.findIndex(i => i.name === item.name);
+    if (storageIdx !== -1) storage[storageIdx].quantity += 1;
+    else storage.push({ name: item.name, quantity: 1 });
+
+    // Remove from inventory
+    if (item.quantity > 1) item.quantity -= 1;
+    else inventory.splice(itemIdx, 1);
+
+    await player.update({ inventory });
+    await house.update({ storage });
+    await sock.sendMessage(replyJid, { text: `📦 *${item.name}* a été déposé dans ton coffre.` });
+});
+
+commands.set('recuperer', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid }, include: 'Houses' });
+    const itemName = args.join(' ');
+
+    if (!player || player.Houses.length === 0 || !itemName) return;
+
+    const house = player.Houses[0];
+    let storage = [...house.storage];
+    const itemIdx = storage.findIndex(i => i.name.toLowerCase().includes(itemName.toLowerCase()));
+
+    if (itemIdx === -1) return await sock.sendMessage(replyJid, { text: "❌ Objet introuvable dans ta maison." });
+
+    const item = storage[itemIdx];
+    let inventory = [...player.inventory];
+
+    // Add to inventory
+    const invIdx = inventory.findIndex(i => i.name === item.name);
+    if (invIdx !== -1) inventory[invIdx].quantity += 1;
+    else inventory.push({ name: item.name, quantity: 1 });
+
+    // Remove from storage
+    if (item.quantity > 1) item.quantity -= 1;
+    else storage.splice(itemIdx, 1);
+
+    await player.update({ inventory });
+    await house.update({ storage });
+    await sock.sendMessage(replyJid, { text: `🎒 *${item.name}* a été récupéré dans ton inventaire.` });
+});
+
+// Command: /vetements
+const vetementsCommand = async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const items = await Item.findAll({ where: { type: 'clothing' } });
+
+    if (items.length === 0) {
+        return await sock.sendMessage(replyJid, { text: "La boutique de vêtements est vide." });
+    }
+
+    let text = "👗 *BOUTIQUE DE MODE D'AETHERYS*\n\n";
+
+    for (const item of items) {
+        const itemText = `*${item.name.toUpperCase()}*\n├ 💰 Prix: ${item.price} Col\n└ 📜 ${item.description}\n\n_Acheter via /action : "Je veux acheter ${item.name}"_`;
+
+        if (item.imageUrl) {
+            await sock.sendMessage(replyJid, {
+                image: { url: item.imageUrl },
+                caption: itemText
+            });
+        } else {
+            text += itemText;
+        }
+    }
+
+    if (text.length > 30) {
+        await sock.sendMessage(replyJid, { text });
+    }
+};
+commands.set('vetements', vetementsCommand);
+commands.set('vêtements', vetementsCommand);
+
+// Command: /top
+commands.set('top', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const topPlayers = await Player.findAll({
+        order: [['level', 'DESC'], ['xp', 'DESC']],
+        limit: 10
+    });
+
+    let topText = "🏆 *CLASSEMENT DES MEILLEURS HÉRITIERS*\n\n";
+    topPlayers.forEach((p, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '👤';
+        topText += `${medal} *${p.name}* (Niv ${p.level})\n└ Rang ${p.rank} • ${p.class}\n\n`;
+    });
+
+    await sock.sendMessage(replyJid, { text: topText });
+});
+
+// Command: /up
+commands.set('up', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    if (args.length === 0) {
+        let text = `--- 📈 AMÉLIORATION DES STATS --- \n\n`;
+        text += `✨ Points de Compétence (SP) dispos : *${player.skillPoints}*\n\n`;
+        text += `Utilise \`/up <stat> <points>\` pour augmenter tes stats :\n`;
+        text += `- *FOR* (Force)\n`;
+        text += `- *AGI* (Agilité)\n`;
+        text += `- *INT* (Intelligence)\n`;
+        text += `- *DEF* (Défense)\n`;
+        text += `- *LUK* (Chance)\n\n`;
+        text += `Exemple : \`/up for 5\``;
+        return await sock.sendMessage(replyJid, { text });
+    }
+
+    const statMap = {
+        'for': 'strength', 'force': 'strength', 'strength': 'strength',
+        'agi': 'agility', 'agilité': 'agility', 'agility': 'agility',
+        'int': 'intelligence', 'intelligence': 'intelligence',
+        'def': 'defense', 'défense': 'defense', 'defense': 'defense',
+        'luk': 'luck', 'chance': 'luck', 'luck': 'luck'
+    };
+
+    const requestedStat = args[0].toLowerCase();
+    const targetStat = statMap[requestedStat];
+    const points = parseInt(args[1]) || 1;
+
+    if (!targetStat) {
+        return await sock.sendMessage(replyJid, { text: "❌ Statistique invalide. Choisis entre FOR, AGI, INT, DEF, LUK." });
+    }
+
+    if (player.skillPoints < points) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de SP. Il te manque ${points - player.skillPoints} SP.` });
+    }
+
+    if (points <= 0) {
+        return await sock.sendMessage(replyJid, { text: "❌ Le nombre de points doit être supérieur à 0." });
+    }
+
+    await player.decrement('skillPoints', { by: points });
+    await player.increment(targetStat, { by: points });
+    await player.reload();
+
+    const newVal = player[targetStat];
+    const statName = requestedStat.toUpperCase();
+
+    await sock.sendMessage(replyJid, { text: `✅ *Amélioration réussie !*\n\n${statName} : +${points} ➔ *${newVal}*\nSP restants : ${player.skillPoints}` });
 });
 
 // Command: /boutique
@@ -384,9 +638,10 @@ commands.set('joueurs', async (sock, message) => {
         return;
     }
 
-    let playersText = `--- 👥 AVENTURIERS À PROXIMITÉ --- \n\n`;
+    let playersText = `--- 👥 HÉRITIERS À PROXIMITÉ --- \n\n`;
     otherPlayers.forEach(p => {
         playersText += `*${p.name}*\n`;
+        playersText += `├ 📍 ${p.subLocation}\n`;
         playersText += `├ 👪 Famille: ${p.family}\n`;
         playersText += `├ 🎭 Classe: ${p.class} | 📊 Niveau: ${p.level}\n`;
         playersText += `├ 🎖️ Rang: ${p.rank}\n`;
@@ -509,11 +764,13 @@ commands.set('examens', async (sock, message) => {
 
     if (!player) return;
 
+    const academicSuffix = player.academicYear === 1 ? 'ère' : 'ème';
     let text = "--- 📝 DOSSIER ACADÉMIQUE --- \n\n";
     text += `👤 *Élève:* ${player.name}\n`;
+    text += `🎓 *Année:* ${player.academicYear}${academicSuffix} Année\n`;
     text += `🏫 *École:* ${player.schoolName}\n`;
     text += `📊 *Moyenne Générale:* ${player.academicGrade}/100\n\n`;
-    text += `_Participe aux cours via /action pour améliorer tes notes et passer les examens._`;
+    text += `_Les examens de ${player.academicYear}${academicSuffix} année se passent via /action (écriture sur copie)._`;
 
     await sock.sendMessage(replyJid, { text: text });
 });
@@ -560,7 +817,7 @@ commands.set('god', async (sock, message, args) => {
     }
 
     if (!subCommand) {
-        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur] <stat> <valeur>\n/god give [@joueur] <item> <quantité>\n/god rank [@joueur] <rang>\n/god col [@joueur] <montant>\n/god max [@joueur] (met toutes les stats à 999)\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
+        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur] <stat> <valeur>\n/god give [@joueur] <item> <quantité>\n/god rank [@joueur] <rang>\n/god col [@joueur] <montant>\n/god pacte [@joueur] <entité>\n/god max [@joueur] (met toutes les stats à 999)\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
         return;
     }
 
@@ -601,6 +858,26 @@ commands.set('god', async (sock, message, args) => {
                 await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${amount} Col de la part du créateur.` });
             }
             break;
+        case 'pacte':
+            const entityName = args.join(' ');
+            if (entityName) {
+                const entity = await Entity.findOne({ where: { name: { [Op.like]: `%${entityName}%` } } });
+                if (entity) {
+                    await targetPlayer.addEntity(entity);
+                    const bonuses = entity.pactBonus || {};
+                    for (const [stat, value] of Object.entries(bonuses)) {
+                        if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                            await targetPlayer.increment(stat, { by: value });
+                        }
+                    }
+                    await targetPlayer.save();
+                    await targetPlayer.reload();
+                    await sock.sendMessage(replyJid, { text: `🔥 *Pacte divin établi !* ${targetPlayer.name} est désormais lié à ${entity.name}.` });
+                } else {
+                    await sock.sendMessage(replyJid, { text: `❌ Entité "${entityName}" introuvable.` });
+                }
+            }
+            break;
         case 'max':
             await targetPlayer.update({
                 strength: 999,
@@ -623,14 +900,93 @@ commands.set('god', async (sock, message, args) => {
 // Command: /tournoi
 commands.set('tournoi', async (sock, message) => {
     const replyJid = message.key.remoteJid;
+    const participants = await TournamentParticipant.findAll();
 
     let text = "--- 🏆 GRAND TOURNOI D'AETHERYS --- \n\n";
-    text += "Le Tournoi Inter-Écoles a lieu une fois par an (chaque mois réel).\n\n";
-    text += "⚔️ *Format:* Duels 1v1 par rangs.\n";
-    text += "🎁 *Récompenses:* Équipement légendaire, Col, et titres de noblesse.\n\n";
-    text += "_Les inscriptions s'ouvriront bientôt auprès du Directeur de ton école._";
+    text += "Le Tournoi Inter-Écoles a lieu une fois par an.\n\n";
+    text += `👥 *Inscrits:* ${participants.length}\n`;
+    text += "⚔️ *Format:* Duels 1v1 par rangs.\n\n";
+
+    if (participants.length > 0) {
+        text += "*Participants Actuels:*\n";
+        participants.forEach(p => {
+            text += `├ ${p.playerName} (Rang ${p.rank}) - ${p.status}\n`;
+        });
+        text += "\n";
+    }
+
+    text += "🎁 *Récompenses:* Équipement légendaire, Col.\n\n";
+    text += "👉 Utilise `/inscription_tournoi` pour participer !\n";
+    text += "_Le tirage au sort sera effectué par les Administrateurs._";
 
     await sock.sendMessage(replyJid, { text: text });
+});
+
+commands.set('inscription_tournoi', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    const existing = await TournamentParticipant.findByPk(jid);
+    if (existing) {
+        return await sock.sendMessage(replyJid, { text: "❌ Tu es déjà inscrit au tournoi." });
+    }
+
+    await TournamentParticipant.create({
+        playerJid: jid,
+        playerName: player.name,
+        rank: player.rank
+    });
+
+    await sock.sendMessage(replyJid, { text: `✅ *Inscription réussie !* Bonne chance pour le tournoi, ${player.name}.` });
+});
+
+commands.set('tirage_tournoi', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        return await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent lancer le tirage." });
+    }
+
+    let participants = await TournamentParticipant.findAll({ where: { status: 'registered' } });
+
+    if (participants.length === 0) {
+        return await sock.sendMessage(replyJid, { text: "Aucun participant inscrit pour le moment." });
+    }
+
+    // Ensure even number by adding NPC
+    if (participants.length % 2 !== 0) {
+        const npcNames = ["Kaelith l'Invocatrice", "Guerrier d'Élite d'Elion", "Apprenti de Nécropolis", "Gardien du Vide"];
+        const npcName = npcNames[Math.floor(Math.random() * npcNames.length)];
+        const newNpc = await TournamentParticipant.create({
+            playerJid: `npc_${Date.now()}`,
+            playerName: `[PNJ] ${npcName}`,
+            rank: 'B',
+            status: 'registered'
+        });
+        participants.push(newNpc);
+    }
+
+    // Shuffle
+    participants = participants.sort(() => Math.random() - 0.5);
+
+    let drawText = "--- ⚔️ TIRAGE AU SORT DU TOURNOI --- \n\n";
+    for (let i = 0; i < participants.length; i += 2) {
+        const p1 = participants[i];
+        const p2 = participants[i+1];
+
+        await p1.update({ opponentJid: p2.playerJid, status: 'qualified' });
+        await p2.update({ opponentJid: p1.playerJid, status: 'qualified' });
+
+        drawText += `🔥 Match ${Math.floor(i/2) + 1} :\n*${p1.playerName}*  VS  *${p2.playerName}*\n\n`;
+    }
+
+    drawText += "_Les duels peuvent commencer via /action !_";
+    await sock.sendMessage(replyJid, { text: drawText });
 });
 
 // Command: /conflits
@@ -700,8 +1056,8 @@ commands.set('donner', async (sock, message, args) => {
         return;
     }
 
-    if (player.location !== targetPlayer.location) {
-        await sock.sendMessage(replyJid, { text: "Tu dois être au même endroit que le joueur pour lui donner quelque chose." });
+    if (player.location !== targetPlayer.location || player.subLocation !== targetPlayer.subLocation) {
+        await sock.sendMessage(replyJid, { text: "Tu dois être juste à côté du joueur pour lui donner quelque chose." });
         return;
     }
 
@@ -905,6 +1261,84 @@ commands.set('dbrestore', async (sock, message, args, downloadMediaMessage) => {
     }
 });
 
+// Command: /lore
+commands.set('lore', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const topic = args.join(' ').trim();
+
+    if (!topic) {
+        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour en savoir plus :\n\n- *Origines* (One Above All, Idée du Mal)\n- *Royaumes* (Elion, Valkyr, Nécropolis)\n- *Mystères* (Béhérit, Apôtres, Interstice)\n- *Événements* (Convergence, Histoire)\n- *Société* (Clubs, Académie, Aetherys)`;
+        return await sock.sendMessage(replyJid, { text: categories });
+    }
+
+    await sock.sendMessage(replyJid, { text: "🔍 _Recherche dans les archives d'Aetherys..._" });
+
+    let loreData = null;
+    let type = 'LORE';
+
+    // Search in Entities
+    const entity = await Entity.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
+    if (entity) { loreData = { title: entity.name, content: entity.description, type: 'ENTITY' }; }
+
+    if (!loreData) {
+        const kingdom = await Kingdom.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
+        if (kingdom) { loreData = { title: kingdom.name, content: kingdom.description, type: 'KINGDOM' }; }
+    }
+
+    if (!loreData) {
+        const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
+        if (npc) { loreData = { title: npc.name, content: npc.description, type: 'NPC', imageUrl: npc.imageUrl }; }
+    }
+
+    if (!loreData) {
+        const club = await Club.findOne({ where: { name: { [Op.like]: `%${topic}%` } } });
+        if (club) { loreData = { title: club.name, content: club.description, type: 'CLUB' }; }
+    }
+
+    if (!loreData) {
+        const worldLore = {
+            'one above all': "L'origine même de l'existence, le créateur du temps, de l'espace, de la vie et de la mort. Il demeure silencieux mais reviendra juger sa création.",
+            'idée du mal': "Conscience collective alimentée par les peurs et la haine de l'humanité. Elle manipule discrètement le destin du monde depuis les profondeurs, se nourrissant de la souffrance des mortels.",
+            'béhérit': "Reliques vivantes ressemblant à des visages de pierre déformés avec des yeux et des bouches mal alignés. Ils choisissent leur propriétaire lors d'un moment de désespoir absolu pour déclencher l'Éclipse. Impossibles à trouver sans aide divine ou destin tragique.",
+            'apôtres': "Humains ayant sacrifié ce qu'ils chérissent le plus via un Béhérit pour obtenir un pouvoir dépassant celui des mortels. Ils servent la Main de Dieu et l'Idée du Mal.",
+            'interstice': "Dimension située entre tous les mondes, là où les esprits, les démons et les entités résident. C'est là que l'Idée du Mal réside et que les pactes interdits sont conclus.",
+            'origines': "Au commencement, One Above All façonna les Entités Célestes et Bestiales. L'humanité prospéra jusqu'à ce que ses propres ténèbres donnent naissance à l'Idée du Mal dans l'Interstice.",
+            'nécropolis': "La cité silencieuse des morts gouvernée par Orpheon. Les âmes y attendent le jugement final du Dieu Suprême avant d'être réincorporées dans le flux de l'existence ou condamnées au Néant.",
+            'missions historiques': "Quêtes projetant un Héritier dans le passé pour revivre la chute de grands royaumes, l'avènement des premiers Apôtres ou les guerres entre Célestes et Bestiaux.",
+            'histoire': "Le monde approche d'un nouvel âge chaotique. La Convergence approche : les Béhérits réapparaissent massivement et les frontières entre l'Interstice et le monde matériel s'effacent.",
+            'convergence': "Phénomène apocalyptique où les dimensions fusionnent. Les monstres de l'Interstice se déversent dans Aetherys, et les Apôtres préparent l'arrivée de la Main de Dieu.",
+            'aetherys': "Un monde complexe né de la fusion entre technologie moderne et mana ancestral. Autrefois stable, il vacille maintenant sous la pression de la Causalité.",
+            'mystères': "Les Mystères d'Aetherys englobent les secrets de la Causalité, la nature des Béhérits et l'existence de l'Interstice. Peu d'Héritiers survivent assez longtemps pour en comprendre la portée.",
+            'société': "La société d'Aetherys est structurée autour de l'Académie Impériale, des Guildes et des Clubs. C'est un équilibre fragile entre l'avancée technologique et les anciennes traditions magiques."
+        };
+        const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const topicNormalized = normalize(topic);
+        const key = Object.keys(worldLore).find(k => {
+            const kn = normalize(k);
+            return topicNormalized.includes(kn) || kn.includes(topicNormalized);
+        });
+        if (key) {
+            loreData = { title: key.charAt(0).toUpperCase() + key.slice(1), content: worldLore[key], type: 'HISTORY' };
+        }
+    }
+
+    if (!loreData) {
+        return await sock.sendMessage(replyJid, { text: `❌ Aucune archive trouvée pour "${topic}".` });
+    }
+
+    try {
+        const posterPath = await generateLorePoster(loreData.title, loreData.content, loreData.type, loreData.imageUrl);
+        await sock.sendMessage(replyJid, {
+            image: { url: posterPath },
+            caption: `📚 *Archives d'Aetherys : ${loreData.title}*\n\n${loreData.content}`
+        });
+    } catch (err) {
+        console.error("[Lore] Error generating poster:", err);
+        await sock.sendMessage(replyJid, { text: `📚 *Archives d'Aetherys : ${loreData.title}*\n\n${loreData.content}` });
+    }
+});
+
 // Command: /help
 // Command: /save
 commands.set('save', async (sock, message) => {
@@ -947,10 +1381,101 @@ commands.set('help', async (sock, message) => {
                    "/pacts - Pactes avec les entités.\n" +
                    "/save - Sauvegarder tes données.\n" +
                    "/checkai - Diagnostic IA.\n" +
+                   "/up <stat> <points> - Augmenter tes statistiques (SP).\n" +
+                   "/evenement <description> - Déclencher un évent MJ (GOD).\n" +
+                   "/lore <topic> - Consulter la bibliothèque.\n" +
                    "/action - Mode immersif (RP).\n" +
                    "/menu - Menu principal.\n" +
+                   "/reset - Réinitialiser ton personnage.\n" +
                    "/help - Cette aide.";
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
+});
+
+// Command: /reset
+commands.set('reset', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de personnage à réinitialiser." });
+        return;
+    }
+
+    if (args[0] !== 'confirm') {
+        await sock.sendMessage(replyJid, { text: "⚠️ *ATTENTION* ⚠️\n\nCette action supprimera définitivement ton personnage, tes statistiques, ton inventaire et ta progression.\n\nPour confirmer, tape : `/reset confirm`" });
+        return;
+    }
+
+    try {
+        // We delete the player. Associations like Bank might need manual cleanup if not cascading.
+        await Bank.destroy({ where: { PlayerWhatsappId: jid } });
+        // PlayerQuest and PlayerSkill should be handled by sequelize if constraints are right,
+        // but often in SQLite/Manual sync we might need to be careful.
+        // However, destroying the player is the core.
+        await player.destroy();
+
+        await sock.sendMessage(replyJid, { text: "💥 *Personnage réinitialisé.* Ta présence a été effacée de la matrice d'Aetherys. Utilise `/start` pour renaître." });
+    } catch (error) {
+        console.error("Erreur reset personnage:", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la réinitialisation de ton personnage." });
+    }
+});
+
+// Command: /evenement
+commands.set('evenement', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player || !player.isGod) {
+        await sock.sendMessage(replyJid, { text: "Seuls les administrateurs peuvent manipuler le destin." });
+        return;
+    }
+
+    const eventDesc = args.join(' ');
+    if (!eventDesc) {
+        await sock.sendMessage(replyJid, { text: "Utilise /evenement <description> pour introduire un monstre ou un événement." });
+        return;
+    }
+
+    await sock.sendMessage(replyJid, { text: "🌍 *Manipulation de la réalité en cours...*" });
+
+    const systemPrompt = `Tu es le MJ d'Arise. Un administrateur déclenche un événement spécial.
+LORE: Convergence, Éveil, Monstres, Entités.
+RÈGLES: Décris l'apparition brutale d'un monstre, d'une entité ou d'un événement environnemental.
+FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
+
+    const userPrompt = `LIEU: ${player.location}\nÉVÉNEMENT: ${eventDesc}`;
+
+    try {
+        const { callAI } = require('./ai-utils');
+        const content = await callAI(systemPrompt, userPrompt);
+        if (!content) throw new Error("IA muette");
+
+        let aiResponse = { narrative: "L'air crépite... quelque chose arrive." };
+        try {
+            const start = content.indexOf('{');
+            const end = content.lastIndexOf('}');
+            if (start !== -1 && end !== -1) {
+                aiResponse = JSON.parse(content.substring(start, end + 1));
+            }
+        } catch (e) {}
+
+        // Save event to history
+        await RPMessage.create({
+            senderJid: 'system',
+            senderName: 'Arise MJ',
+            content: aiResponse.narrative,
+            location: player.location
+        });
+
+        const { sendWithImage } = require('./message-handler');
+        await sendWithImage(sock, replyJid, aiResponse);
+    } catch (error) {
+        console.error("[CMD] Erreur /evenement:", error);
+        await sock.sendMessage(replyJid, { text: "La réalité a résisté à la modification." });
+    }
 });
 
 // Command: /action
@@ -1001,27 +1526,35 @@ commands.set('menu', async (sock, message) => {
     await player.update({ mode: 'normal' });
   }
 
-  const menuText = "🌐 *GHENO CITY 2: LINK START* 🌐\n\n" +
-                   "Que souhaites-tu faire, voyageur ?\n\n" +
-                   "🎮 `/action` - Entrer dans la matrice (RP).\n" +
-                   "👤 `/profil` - Ton profil de joueur.\n" +
-                   "📋 `/quests` - Liste de tes objectifs.\n" +
-                   "🗺️ `/map` - Carte du monde & Donjons.\n" +
-                   "💰 `/bank` - Gestion de tes Col (🪙).\n" +
-                   "🛡️ `/statut` - État de ton équipement.\n" +
-                   "✨ `/competences` - Sorts & Techniques.\n" +
-                   "🛒 `/boutique` - Boutique d'objets.\n" +
-                   "👥 `/joueurs` - Joueurs aux alentours.\n" +
-                   "🔍 `/inspecter @joueur` - Inspecter un rival.\n" +
-                   "🤝 `/donner @joueur ...` - Échange d'objets.\n" +
-                   "🏰 `/royaumes` - Géopolitique mondiale.\n" +
-                   "🛡️ `/conflits` - Guerres en cours.\n" +
-                   "🏫 `/ecoles` - Liste des académies.\n" +
-                   "📝 `/examens` - Ton dossier scolaire.\n" +
-                   "✨ `/clubs` - Clubs extrascolaires.\n" +
-                   "🔥 `/pacts` - Pactes avec les entités.\n" +
-                   "🏆 `/tournoi` - Infos sur le grand tournoi.\n" +
-                   "❓ `/help` - Guide de survie.";
+  const menuText = "╔══════════════════════════╗\n" +
+                   "   🌐  *ARISE : GHENO CITY*  🌐\n" +
+                   "╚══════════════════════════╝\n\n" +
+                   "🕹️ *IMMERSION*\n" +
+                   "└ `/action` - Entrer dans le RP\n\n" +
+                   "👤 *HÉRITIER*\n" +
+                   "├ `/profil` - Statut & Stats\n" +
+                   "├ `/inventory` - Sac à dos\n" +
+                   "└ `/competences` - Sorts & Skills\n\n" +
+                   "📍 *NAVIGATION*\n" +
+                   "├ `/map` - Monde & Donjons\n" +
+                   "├ `/quests` - Journal d'objectifs\n" +
+                   "└ `/joueurs` - Qui est ici ?\n\n" +
+                   "💰 *ÉCONOMIE*\n" +
+                   "├ `/bank` - Ton compte (Col)\n" +
+                   "├ `/boutique` - Armes & Items\n" +
+                   "└ `/vetements` - Mode Aetherys\n\n" +
+                   "🏛️ *SOCIÉTÉ*\n" +
+                   "├ `/lore` - Bibliothèque\n" +
+                   "├ `/pacts` - Entités & Pactes\n" +
+                   "├ `/maison` - Ton domicile\n" +
+                   "└ `/clubs` - Clubs Académiques\n\n" +
+                   "🏆 *COMPÉTITION*\n" +
+                   "├ `/top` - Classement Global\n" +
+                   "└ `/tournoi` - Événements PVP\n\n" +
+                   "⚙️ *SYSTÈME*\n" +
+                   "├ `/help` - Aide complète\n" +
+                   "└ `/save` - Sauvegarder\n\n" +
+                   "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
   try {
     const menuImage = await generateMainMenuImage();

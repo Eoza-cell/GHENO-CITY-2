@@ -5,6 +5,7 @@ const { generateLinkStartImage } = require('./start-image-generator');
 const { generateProfileCard } = require('./profile-generator');
 const { sendWithImage } = require('./message-handler');
 const { callAI } = require('./ai-utils');
+const { Skill, Op } = require('./database');
 
 async function startTutorial(sock, jid, player) {
     await player.update({ tutorialStep: 1, mode: 'action' });
@@ -116,15 +117,57 @@ async function handleTutorialAction(sock, message, player, actionText) {
             intelligence: player.intelligence + bonus.intelligence,
             luck: player.luck + bonus.luck,
             col: player.col + bonus.col,
+            tutorialStep: 1.8 // Move to Gift selection
+        });
+
+        const nextText = `Superviseur : 'Un ${occupation}... C'est noté.'\n\n` +
+                         "Il s'arrête un instant, observant un écran de diagnostic.\n\n" +
+                         "'Le système détecte une anomalie mineure dans ton code génétique. Nous pouvons la stabiliser de trois manières différentes. Choisis ton **Don Initial** :'\n\n" +
+                         "1. **Instinct de Survie** (+20 PV Max)\n" +
+                         "2. **Flux d'Éther** (+20 PM Max)\n" +
+                         "3. **Surcharge de Potentiel** (+5 SP immédiats)\n\n" +
+                         "Réponds par le nom du don choisi.";
+
+        try {
+            const profileCard = await generateProfileCard(player);
+            await sock.sendMessage(jid, { image: profileCard, caption: `📇 *STATUT DE LA MATRICE - PHASE 3*\n\nOccupation: ${occupation}` });
+        } catch (e) {}
+
+        await sock.sendMessage(jid, { text: nextText });
+        return;
+    }
+
+    if (player.tutorialStep === 1.8) {
+        const lowerAction = actionText.toLowerCase();
+        let gift = "Aucun";
+        let bonus = { maxHealth: 0, maxMana: 0, skillPoints: 0 };
+
+        if (lowerAction.includes("instinct")) {
+            gift = "Instinct de Survie";
+            bonus.maxHealth = 20;
+        } else if (lowerAction.includes("éther")) {
+            gift = "Flux d'Éther";
+            bonus.maxMana = 20;
+        } else if (lowerAction.includes("surcharge")) {
+            gift = "Surcharge de Potentiel";
+            bonus.skillPoints = 5;
+        }
+
+        await player.update({
+            maxHealth: player.maxHealth + bonus.maxHealth,
+            health: player.health + bonus.maxHealth,
+            maxMana: player.maxMana + bonus.maxMana,
+            mana: player.mana + bonus.maxMana,
+            skillPoints: player.skillPoints + bonus.skillPoints,
             tutorialStep: 2
         });
 
-        const nextText = `Superviseur : 'Un ${occupation}... C'est noté. Voici ton profil complet dans la matrice.'\n\n` +
-                         `*GÉNÉRATION DU PROFIL...*\n\n` +
+        const nextText = `Superviseur : 'Don ${gift} activé. Ton profil est maintenant complet.'\n\n` +
+                         `*GÉNÉRATION FINALE DU PROFIL...*\n\n` +
                          "Il appuie sur un bouton et le sol se dérobe. Tu tombes dans une simulation de combat.\n\n" +
                          "Instructeur : 'Debout, vermisseau ! Tu n'es personne ici, mais si tu ne veux pas mourir, apprends à te battre !'\n\n" +
                          "--- 💡 *CONSEIL DE SURVIE* --- \n" +
-                         "Décris tes actions avec précision. L'IA réagira à ta logique, pas à ton statut de 'héros'.";
+                         "Décris tes actions avec précision (membre utilisé, cible). L'IA est impitoyable.";
 
         try {
             const profileCard = await generateProfileCard(player);
@@ -212,6 +255,21 @@ async function handleTutorialAction(sock, message, player, actionText) {
                     luck: 5 + familyBonus.luck,
                     defense: 10 + familyBonus.defense
                 });
+
+                // Assign basic skills for the class
+                const basicSkills = await Skill.findAll({ where: { type: chosenClass } });
+                for (const s of basicSkills) {
+                    await player.addSkill(s);
+                    // Apply stat bonuses immediately
+                    const bonuses = s.statBonuses || {};
+                    for (const [stat, val] of Object.entries(bonuses)) {
+                        if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                            await player.increment(stat, { by: val });
+                        }
+                    }
+                }
+                await player.reload();
+
                 console.log(`[TUTORIAL] Player updated successfully.`);
             } catch (err) {
                 console.error(`[TUTORIAL] Failed to update player:`, err);
@@ -263,20 +321,21 @@ async function handleTutorialAction(sock, message, player, actionText) {
             Le joueur est un ${player.class} (${player.derivative}), métier: ${player.occupation}.
             Stats: FOR: ${player.strength}, AGI: ${player.agility}, INT: ${player.intelligence}.
 
-            STYLE: Narratif riche, immersif, style anime/manhwa. Pas de texte en anglais. PAS de parenthèses pour les sensations.
-            LONGUEUR: 3-4 paragraphes.
+            STYLE: Français technique, sec et direct. Style "Hardboiled" / Berserk. Pas de métaphores. Pas de poésie.
+            LONGUEUR: CONCISION EXTRÊME. Max 100 mots.
+            PRÉCISION TECHNIQUE: Mentionne la distance exacte en METRES (m) et les membres impliqués (Membre attaquant -> Membre cible).
 
             RÈGLES DU TUTORIEL (PERSONNE ORDINAIRE) :
-            1. PAS UN HÉROS : Le joueur n'est PAS un héros prophétisé ou un protagoniste spécial. C'est une personne lambda qui doit lutter pour survivre. Ne sois pas indulgent.
-            2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR) : N'invente JAMAIS d'actions futures, de pensées ou de mouvements pour le joueur. Tes phrases DOIVENT commencer par les conséquences directes de l'action du joueur.
-            3. ADHÉRENCE STRICTE : Respecte la logique physique. Si le joueur est faible, il ne peut pas faire de miracles.
-            4. PNJ EXCELLENTS & IMPACTANTS : L'Instructeur est impitoyable, vivant, et a une personnalité forte (ex: grognon, finit ses phrases par "...tocard !"). Ses réactions ont un impact sur le moral du joueur.
-            5. IMPACT SOCIAL : Mentionne brièvement comment son métier ou son influence pourrait l'aider ou le desservir si la situation était réelle.
-            6. LIBERTÉ : Décris les attaques de l'instructeur et laisse le joueur réagir. Ne force pas ses mouvements.
+            1. PAS UN HÉROS : Le joueur n'est personne. Ne sois pas indulgent.
+            2. RÉACTIVITÉ ABSOLUE (RÈGLE D'OR) : Ne décris JAMAIS les pensées, paroles ou actions d'un joueur. Commence par les conséquences directes.
+            3. IMPACTS PHYSIQUES : Sois précis sur les os brisés, les ecchymoses et le recul physique en mètres.
+            4. ADHÉRENCE STRICTE : Le joueur est faible. Logique > Fantaisie.
+            5. PNJ : L'Instructeur est impitoyable et technique.
+            6. LIBERTÉ : Décris l'attaque ennemie et laisse le joueur réagir.
             7. COMBAT (1/3 vs 2/3) :
-               - Si le joueur est trop faible ou si son action de défense est médiocre/vague :
-                 - Dans 33% des cas (1/3) : L'attaque touche DIRECTEMENT. Le joueur se prend le coup DE PLEIN FOUET sans possibilité de réaction. Décris l'impact violent. Applique "health_change" négatif conséquent (-15 à -30 PV).
-                 - Dans 66% des cas (2/3) : Tu décris l'attaque imminente et dévastatrice, et tu laisses le joueur TENTER une esquive ou un contre désespéré au prochain tour.
+               - Si défense médiocre :
+                 - 1/3 : Touche directe. Impact violent. -20 PV.
+                 - 2/3 : Menace imminente. Le joueur doit réagir.
             5. FIN: Le tutoriel est COURT. Dès que le joueur tente une attaque ou une action de combat déterminée, mets tutorial_complete à true et félicite-le de manière grandiose.
             ${mustFinish ? "6. IMPÉRATIF: Le joueur s'est assez entraîné. Tu DOIS conclure le tutoriel MAINTENANT : tutorial_complete = true, OBLIGATOIRE." : ""}
             7. JSON STRICT: {"narrative": "...", "tutorial_complete": boolean, "health_change": number}

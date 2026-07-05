@@ -14,88 +14,174 @@ const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
-const { startInactivePlayerCheck } = require('./inactive-handler');
 const { startDayNightCycle } = require('./game-state');
 
-// Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
+let currentPairingCode = null;
+
+// Crée un serveur HTTP pour répondre aux contrôles de santé de Render et afficher le code de pairage
 const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running');
+    if (req.url === '/pairing') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        if (currentPairingCode) {
+            const formattedCode = currentPairingCode.match(/.{1,4}/g).join('-');
+            res.end(`
+                <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+                    <h1>🔗 Code de pairage WhatsApp</h1>
+                    <p style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 20px; display: inline-block; border-radius: 10px; letter-spacing: 2px;">
+                        ${formattedCode}
+                    </p>
+                    <p>Entrez ce code sur votre téléphone dans <b>Appareils connectés > Connecter un appareil</b>.</p>
+                    <p style="color: gray; font-size: 12px;">Dernière mise à jour : ${new Date().toLocaleTimeString()}</p>
+                    <script>setTimeout(() => location.reload(), 30000);</script>
+                </div>
+            `);
+        } else {
+            res.end(`
+                <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+                    <h1>⏳ En attente du code...</h1>
+                    <p>Le bot génère un code. Veuillez rafraîchir cette page dans quelques secondes.</p>
+                    <script>setTimeout(() => location.reload(), 5000);</script>
+                </div>
+            `);
+        }
+    } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Bot is running. Visit /pairing for WhatsApp pairing code.');
+    }
 });
 const PORT = process.env.PORT || 3000;
-let serverStarted = false;
+server.listen(PORT, () => {
+    console.log(`[CORE] Server listening on port ${PORT} for Render health checks.`);
+});
+
+// Initialisation de la queue pour gérer la charge
+const messageQueue = new PQueue({ concurrency: 5 });
 
 async function connectToWhatsApp() {
-  await setupDatabase();
+  // Check for manual session reset via ENV
+  if (process.env.RESET_SESSION === 'true') {
+      console.log('[CONN] RESET_SESSION=true détecté. Nettoyage de la base de données auth...');
+      const { Creds } = require('./database');
+      await Creds.destroy({ where: {} });
+      console.log('[CONN] Session réinitialisée. Pour éviter un nouveau reset, retirez la variable RESET_SESSION.');
+  }
 
   // Assure que le dossier des profils existe
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
       fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
   }
 
+  console.log('[CONN] Initialisation de l\'authentification base de données...');
   const { state, saveCreds } = await useDatabaseAuth();
-  const { version, isLatest } = await fetchLatestBaileysVersion();
-  console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
 
+  console.log('[CONN] Récupération de la version de WhatsApp...');
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(`[CONN] Version Baileys v${version.join('.')} (dernière : ${isLatest})`);
+
+  console.log('[CONN] Création du socket Baileys...');
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false, // QR code is no longer needed
-    browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
+    printQRInTerminal: false, // Pairing code is used instead
+    browser: ['Mac OS', 'Safari', '10.15.7'], // More standard browser for stability
     version,
-    logger: pino({ level: 'silent' }), // Suppress verbose logging
+    logger: pino({ level: 'error' }), // Only show errors to reduce noise but keep critical info
     getMessage: async key => {
-        console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return { conversation: '🔄 Réessaye d\'envoyer ton message' };
     }
   });
 
+  console.log(`[CONN] État de l'enregistrement : ${sock.authState.creds.registered ? 'CONNECTÉ' : 'NON CONNECTÉ'}`);
+
   // Handle pairing code logic
   if (!sock.authState.creds.registered) {
-    const phoneNumber = process.env.PHONE_NUMBER;
+    let phoneNumber = process.env.PHONE_NUMBER;
     if (!phoneNumber) {
-      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-      console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
-      console.error('!!! Définissez la variable d\'environnement PHONE_NUMBER.   !!!');
-      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+      console.error('\n\x1b[31m' + '!' .repeat(60) + '\x1b[0m');
+      console.error('\x1b[31m!!! ERREUR : PHONE_NUMBER non configuré dans les variables d\'env !!!\x1b[0m');
+      console.error('\x1b[31m' + '!' .repeat(60) + '\x1b[0m\n');
       process.exit(1);
     }
 
-    await delay(1500); // Small delay to ensure the socket is ready
-    console.log(`Tentative de connexion avec le numéro de téléphone : ${phoneNumber}`);
-    console.log('Demande du code de pairage...');
-    try {
-      const code = await sock.requestPairingCode(phoneNumber);
-      console.log('==============================================================');
-      console.log('Votre code de pairage Skype :');
-      console.log(`➡️➡️➡️   ${code?.match(/.{1,4}/g)?.join('-') || code}   ⬅️⬅️⬅️`);
-      console.log('==============================================================');
-      console.log('Ouvrez WhatsApp sur votre téléphone, allez dans "Appareils connectés" > "Connecter un appareil" et entrez ce code.');
-    } catch (error) {
-      console.error('Impossible de demander le code de pairage :', error);
-      process.exit(1);
+    // Nettoyage du numéro : garder uniquement les chiffres
+    phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
+
+    await delay(7000); // Wait for socket to be fully ready
+    console.log(`[CONN] Initialisation du pairage pour le numéro : ${phoneNumber}`);
+
+    let pairingSuccess = false;
+    let attempts = 0;
+    while (!pairingSuccess && attempts < 3) {
+        attempts++;
+        try {
+            console.log(`[CONN] Demande du code de pairage (Essai ${attempts}/3)...`);
+            const code = await sock.requestPairingCode(phoneNumber);
+            currentPairingCode = code;
+
+            const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
+
+            // Function to print code prominently
+            const printCode = () => {
+                if (!currentPairingCode) return; // Stop if already connected
+                console.log('\n\n\x1b[32m' + '█'.repeat(60) + '\x1b[0m');
+                console.log('\x1b[32m█\x1b[0m' + ' '.repeat(58) + '\x1b[32m█\x1b[0m');
+                console.log('\x1b[32m█\x1b[0m' + '      VOTRE CODE DE PAIRAGE WHATSAPP EST PRÊT :       ' + '\x1b[32m█\x1b[0m');
+                console.log('\x1b[32m█\x1b[0m' + ' '.repeat(58) + '\x1b[32m█\x1b[0m');
+                console.log('\x1b[32m█\x1b[0m' + `               \x1b[1m\x1b[33m${formattedCode}\x1b[0m               ` + ' '.repeat(58 - 30 - formattedCode.length) + '\x1b[32m█\x1b[0m');
+                console.log('\x1b[32m█\x1b[0m' + ' '.repeat(58) + '\x1b[32m█\x1b[0m');
+                console.log('\x1b[32m█\x1b[0m' + ' '.repeat(58) + '\x1b[32m█\x1b[0m');
+                console.log('\x1b[32m█\x1b[0m' + `  Web UI: http://localhost:${PORT}/pairing              ` + ' '.repeat(58 - 32 - PORT.toString().length) + '\x1b[32m█\x1b[0m');
+                console.log('\x1b[32m█\x1b[0m' + ' '.repeat(58) + '\x1b[32m█\x1b[0m');
+                console.log('\x1b[32m' + '█'.repeat(60) + '\x1b[0m\n\n');
+            };
+
+            printCode();
+
+            // Repeat every 20s to keep it visible and fresh in the log buffer
+            const interval = setInterval(() => {
+                if (currentPairingCode && !sock.authState.creds.registered) {
+                    printCode();
+                } else {
+                    clearInterval(interval);
+                }
+            }, 20000);
+
+            pairingSuccess = true;
+        } catch (error) {
+            console.error(`[CONN] Échec demande code (Essai ${attempts}):`, error.message);
+            if (attempts < 3) await delay(10000); // Wait 10s before retry
+            else {
+                console.error('[CONN] Impossible de générer un code de pairage après 3 essais.');
+                process.exit(1);
+            }
+        }
     }
   }
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
+      const statusCode = (lastDisconnect.error)?.output?.statusCode;
+      const shouldReconnect = statusCode !== 401;
+
+      console.log(`[CONN] Connection fermée (Code: ${statusCode}). Reconnexion: ${shouldReconnect}`);
+
+      if (statusCode === 401) {
+          console.error('[CONN] Session expirée ou déconnectée. Réinitialisation des identifiants...');
+          const { Creds } = require('./database');
+          await Creds.destroy({ where: {} });
+          console.log('[CONN] Cache de session vidé. Redémarrage pour nouveau pairage...');
+          process.exit(1); // Exit and let the process manager restart it
+      }
+
       if (shouldReconnect) {
         connectToWhatsApp();
       }
     } else if (connection === 'open') {
-      console.log('Connecté à WhatsApp');
-      startInactivePlayerCheck(sock);
+      console.log('\n\x1b[32m' + '='.repeat(60) + '\x1b[0m');
+      console.log('\x1b[32m[CONN] WHATSAPP CONNECTÉ AVEC SUCCÈS ! LE BOT EST ACTIF.\x1b[0m');
+      console.log('\x1b[32m' + '='.repeat(60) + '\x1b[0m\n');
+      currentPairingCode = null;
       startDayNightCycle();
-
-      // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
-      if (!serverStarted) {
-          server.listen(PORT, () => {
-              console.log(`Server listening on port ${PORT} for Render health checks.`);
-              serverStarted = true;
-          });
-      }
     }
   });
 
@@ -103,9 +189,6 @@ async function connectToWhatsApp() {
     await saveCreds();
     console.log('[AUTH] Session synchronisée avec la base de données.');
   });
-
-  // Initialisation de la queue pour gérer la charge
-  const messageQueue = new PQueue({ concurrency: 5 });
 
   sock.ev.on('messages.upsert', async (m) => {
     for (const message of m.messages) {
@@ -168,4 +251,12 @@ async function connectToWhatsApp() {
   });
 }
 
-connectToWhatsApp();
+setupDatabase()
+  .then(() => {
+    console.log('[CORE] Base de données prête. Lancement du bot...');
+    connectToWhatsApp();
+  })
+  .catch(err => {
+    console.error('[CRITICAL] Échec du démarrage de la base de données:', err);
+    process.exit(1);
+  });

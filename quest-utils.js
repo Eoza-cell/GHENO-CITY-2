@@ -86,6 +86,7 @@ async function completeQuest(player, title, sock) {
     if (!pq || pq.status === 'completed') return null;
 
     await pq.update({ status: 'completed', progress: 100 });
+    await pq.save();
 
     if (quest.reward_col) await player.increment('col', { by: quest.reward_col });
     if (quest.reward_xp) {

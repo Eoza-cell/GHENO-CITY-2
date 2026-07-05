@@ -82,6 +82,18 @@ async function addOverlay(baseImg, player, width, height) {
             <!-- Stats Bars Overlay -->
             ${statsSvg}
 
+            <!-- Survival Bars (Hunger & Sleep) -->
+            <rect x="420" y="412" width="330" height="75" fill="rgba(0,0,0,0.8)" stroke="#00ff00" stroke-width="1" rx="10" />
+            <text x="435" y="435" class="text item-text" style="fill: #00ff00;">🍔 FAIM</text>
+            <rect x="520" y="423" width="200" height="15" fill="#333" rx="5" />
+            <rect x="520" y="423" width="${(player.hunger / 100) * 200}" height="15" fill="#00ff00" rx="5" />
+            <text x="730" y="435" class="text item-qty">${player.hunger}%</text>
+
+            <text x="435" y="470" class="text item-text" style="fill: #8a2be2;">😴 SOMMEIL</text>
+            <rect x="520" y="458" width="200" height="15" fill="#333" rx="5" />
+            <rect x="520" y="458" width="${(player.sleep / 100) * 200}" height="15" fill="#8a2be2" rx="5" />
+            <text x="730" y="470" class="text item-qty">${player.sleep}%</text>
+
             <!-- Resources Box -->
             <rect x="50" y="615" width="350" height="75" fill="rgba(0,0,0,0.8)" stroke="#ffd700" stroke-width="3" rx="15" />
             <text x="75" y="665" class="money">💰 ${(player.col || 0).toLocaleString()} COL</text>
