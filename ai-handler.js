@@ -166,6 +166,28 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
   if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
+
+  // Keyword Detection for Quests & Intent
+  const lowAction = actionText.toLowerCase();
+  if (lowAction.match(/\b(quête|mission|travail|besoin d'aide|contrat|recherche|objectif|prime|job|faire quelque chose|s'occuper|aider|aventure)\b/i)) {
+      hints.push("🎯 INTENTION DE QUÊTE DÉTECTÉE. Le joueur cherche du travail ou une mission. Propose-lui une quête parmi 'Quêtes Dispo' via un PNJ local ou un message système.");
+
+      // Fuzzy matching for quest titles
+      for (const q of availableQuests) {
+          const title = q.title.toLowerCase();
+          const words = title.split(' ');
+          if (words.some(w => w.length > 3 && lowAction.includes(w))) {
+              hints.push(`🔥 LE JOUEUR SEMBLE PARLER DE LA QUÊTE : "${q.title}". Propose-lui de la démarrer ou fais progresser l'histoire dans cette direction via 'start_quest'.`);
+          }
+      }
+  }
+  if (lowAction.match(/\b(vendre|acheter|marchand|boutique|prix|coûte|commerce)\b/i)) {
+      hints.push("💰 INTENTION COMMERCIALE DÉTECTÉE. Le joueur veut faire du commerce. Utilise 'npc_trade' ou 'buy_item' si un PNJ marchand est présent.");
+  }
+  if (lowAction.match(/\b(apprendre|entraînement|étudier|compétence|skill|technique|maîtrise)\b/i)) {
+      hints.push("📖 INTENTION D'APPRENTISSAGE DÉTECTÉE. Le joueur veut progresser. Propose-lui d'apprendre un skill via 'add_skill' (déduis les SP).");
+  }
+
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
 
   // Survival Depletion Logic
@@ -201,8 +223,16 @@ async function handleFreeAction(sock, message, player, actionText) {
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
   const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%, Récompenses:${q.reward_col}Col/${q.reward_xp}XP)`).join(',') : "Pas de quête";
 
-  const availableQuests = await Quest.findAll({ where: { rank_required: player.rank }, limit: 2 });
-  const availableQuestState = "Dispo: " + availableQuests.map(q => q.title).join(',');
+  const availableQuests = await Quest.findAll({
+      where: {
+          [Op.or]: [
+              { rank_required: player.rank },
+              { rank_required: 'F' } // Always show basic quests
+          ]
+      },
+      limit: 5
+  });
+  const availableQuestState = "Quêtes Dispo: " + availableQuests.map(q => `${q.title} (Rang ${q.rank_required})`).join(', ');
 
   const dungeons = await Dungeon.findAll({ limit: 1 });
   const dungeonState = "Donjon: " + dungeons.map(d => `${d.name}(${d.rank})`).join(',');
@@ -343,6 +373,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `Tu es le narrateur d'un RP fantasy vivant, immersif et dynamique. Le monde évolue en permanence, même lorsque les joueurs n'agissent pas. Les royaumes, factions, guildes, créatures, dieux, monstres et civilisations poursuivent leurs propres objectifs. Les actions des joueurs peuvent modifier l'histoire, influencer la politique, déclencher des guerres, créer des alliances ou provoquer des catastrophes.
 
 Les joueurs sont totalement libres de leurs choix. Ils peuvent explorer, combattre, commercer, discuter, voyager, fonder des organisations, gouverner des territoires ou poursuivre leurs propres ambitions. L'histoire s'adapte naturellement à leurs décisions au lieu de les forcer à suivre un scénario unique.
+
+OBLIGATION DE GESTION DES QUÊTES : Tu es responsable de l'initiation et de la progression des quêtes.
+1. SI un joueur cherche du travail ou exprime une intention de mission, propose-lui CLAIREMENT une quête parmi 'Quêtes Dispo'.
+2. SI un joueur accepte ou commence une mission narrativement, utilise OBLIGATOIREMENT l'action 'start_quest' : { "questTitle": "...", "target_name": "..." }.
+3. SI un joueur progresse vers un objectif (ex: tue un monstre ciblé, atteint un lieu), utilise 'advance_quest' pour mettre à jour son progrès (0-100).
+4. SI un objectif est rempli, utilise 'complete_quest' pour lui accorder ses récompenses.
+5. Ne sois pas passif. Si un joueur tourne en rond, fais intervenir un PNJ pour lui proposer un contrat.
+6. ANALYSE DES MOTS-CLÉS : Repère les intentions du joueur à travers ses mots (ex: "chercher du travail", "aider les villageois", "vendre mes objets", "apprendre un sort"). Réagis immédiatement en déclenchant l'action logique correspondante (start_quest, npc_trade, add_skill, etc.).
 
 Les déplacements sont constamment pris en compte. Chaque personnage possède une position précise dans l'environnement. La narration décrit naturellement les distances importantes, les obstacles, les bâtiments, les reliefs, les objets et les différentes zones présentes autour des personnages. Les mouvements tels que les courses, sauts, esquives, charges, retraites, ascensions ou déplacements tactiques doivent être clairement décrits lorsqu'ils influencent la situation.
 
