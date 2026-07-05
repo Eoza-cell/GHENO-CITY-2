@@ -85,9 +85,9 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: true,
-    browser: Browsers.macOS('Desktop'),
+    browser: Browsers.ubuntu('Chrome'),
     version,
-    logger: pino({ level: 'silent' }), // Suppress verbose logging
+    logger: pino({ level: 'debug' }), // Increased logging level for diagnostics
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return { conversation: '🔄 Réessaye d\'envoyer ton message' };
@@ -146,6 +146,14 @@ async function connectToWhatsApp() {
     getCode();
   }
 
+  // Connection Watchdog
+  setTimeout(() => {
+      if (!isWhatsAppConnected && !pairingCode) {
+          console.warn('[WATCHDOG] La connexion WhatsApp semble bloquée. Aucune session et aucun code de pairage généré.');
+          console.warn('[WATCHDOG] Vérifiez la variable PHONE_NUMBER et DATABASE_URL.');
+      }
+  }, 60000);
+
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
@@ -183,8 +191,12 @@ async function connectToWhatsApp() {
   });
 
   sock.ev.on('creds.update', async () => {
-    await saveCreds();
-    console.log('[AUTH] Session synchronisée avec la base de données.');
+    try {
+        await saveCreds();
+        console.log('[AUTH] Session synchronisée avec la base de données.');
+    } catch (e) {
+        console.error('[AUTH] Erreur lors de la sauvegarde des crédits :', e.message);
+    }
   });
 
   sock.ev.on('messages.upsert', async (m) => {
