@@ -451,6 +451,38 @@ async function call9Router(system, prompt) {
     return null;
 }
 
+async function generateImageVia9Router(prompt) {
+    const baseUrl = process.env.NINEROUTER_URL || "http://localhost:20128/v1";
+    const key = process.env.NINEROUTER_API_KEY || "9router";
+    const model = process.env.NINEROUTER_IMAGE_MODEL || "black-forest-labs/flux-1-schnell";
+
+    try {
+        console.log(`[IMG] 9Router Image Gen - Prompt: ${prompt.substring(0, 50)}...`);
+        const resp = await axios.post(`${baseUrl}/images/generations`, {
+            model: model,
+            prompt: prompt,
+            n: 1,
+            size: "1024x1024",
+            response_format: "url"
+        }, {
+            headers: {
+                'Authorization': `Bearer ${key}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 60000 // Image gen can be slow
+        });
+
+        const imageUrl = resp.data?.data?.[0]?.url;
+        if (imageUrl) {
+            console.log(`[IMG] ✅ Succès 9Router Image: ${imageUrl.substring(0, 50)}...`);
+            return imageUrl;
+        }
+    } catch (e) {
+        console.warn(`[IMG] ❌ Échec 9Router Image:`, e.response?.data || e.message);
+    }
+    return null;
+}
+
 async function callLMStudio(system, prompt) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -593,4 +625,4 @@ function parsePuterResponse(resp) {
     return JSON.stringify(resp);
 }
 
-module.exports = { callAI };
+module.exports = { callAI, generateImageVia9Router };

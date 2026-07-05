@@ -1,5 +1,6 @@
 const axios = require('axios');
 const fs = require('fs');
+const { generateImageVia9Router } = require('./ai-utils');
 
 /**
  * Resolves player tags like @Name in the text and converts them to WhatsApp mentions.
@@ -30,7 +31,7 @@ async function resolveMentions(text) {
 
 /**
  * Sends a message with an optional image from a local asset or direct URL.
- * AI Image generation is DISABLED.
+ * AI Image generation is enabled via 9Router.
  * @param {any} sock The Baileys socket instance.
  * @param {string} jid The recipient JID.
  * @param {object} aiResponse The JSON response from the AI handler.
@@ -62,8 +63,19 @@ async function sendWithImage(sock, jid, aiResponse) {
                 return;
             }
 
-            // If it's a text prompt, we no longer generate. We just log it for debug.
-            console.log(`[IMG] AI requested generation for: "${imagePrompt}" but generation is DISABLED.`);
+            // If it's a text prompt, generate via 9Router
+            console.log(`[IMG] Tentative de génération d'image pour: "${imagePrompt.substring(0, 50)}..."`);
+            const generatedUrl = await generateImageVia9Router(imagePrompt);
+            if (generatedUrl) {
+                const response = await axios.get(generatedUrl, {
+                    responseType: 'arraybuffer',
+                    headers: { 'User-Agent': 'Mozilla/5.0' },
+                    timeout: 15000
+                });
+                const imageBuffer = Buffer.from(response.data, 'binary');
+                await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
+                return;
+            }
         } catch (error) {
             console.error(`[IMG] Erreur d'affichage d'image (${imagePrompt}):`, error.message);
         }
