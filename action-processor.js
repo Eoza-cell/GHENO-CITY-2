@@ -12,7 +12,7 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
 
     const playerTargetableActions = [
         'update_location', 'update_stats', 'update_player', 'bank_transaction',
-        'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item',
+        'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'travel_to',
         'arrest_player', 'set_wanted_level', 'release_player', 'manage_house',
         'set_academic_status', 'get_player_details', 'modify_reputation',
         'resurrect_player', 'forge_pact', 'join_club', 'start_quest',
@@ -122,6 +122,9 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     await target.update({ isPrisoner: false, subLocation: "Portes d'Elion" });
                     playersToUpdate.add(target.whatsappId);
                     break;
+                case 'travel_to':
+                    await handleTravelTo(target, parameters, aiResponse, playersToUpdate);
+                    break;
                 case 'generate_document':
                     const docBuffer = await generatePaperImage(parameters.content, parameters.title || "DOCUMENT");
                     await sock.sendMessage(jid, { image: docBuffer, caption: `📄 ${parameters.title}` });
@@ -222,6 +225,24 @@ async function handleBuyItem(target, params, questFeedback, playersToUpdate) {
         await target.save();
         questFeedback.push(`🛒 *ACHAT* : ${target.name} a acheté ${params.quantity || 1}x ${item.name}.`);
         playersToUpdate.add(target.whatsappId);
+    }
+}
+
+async function handleTravelTo(target, params, aiResponse, playersToUpdate) {
+    if (params.new_location || params.new_sub_location) {
+        const updates = {};
+        if (params.new_location) updates.location = params.new_location;
+        if (params.new_sub_location) updates.subLocation = params.new_sub_location;
+        await target.update(updates);
+        playersToUpdate.add(target.whatsappId);
+
+        // Trigger travel visual
+        aiResponse.actionVisual = {
+            type: 'travel',
+            assetName: params.new_location || target.location,
+            title: 'VOYAGE EN COURS',
+            description: `Destination : ${params.new_sub_location || params.new_location}`
+        };
     }
 }
 

@@ -21,6 +21,14 @@ async function generateActionVisual(data) {
     if (actionType === 'attack') primaryColor = '#ff4444'; // Red
     if (actionType === 'defend') primaryColor = '#44ff44'; // Green
     if (actionType === 'magic') primaryColor = '#cc44ff';  // Purple
+    if (actionType === 'skill') primaryColor = '#ffd700';  // Gold for skills
+    if (actionType === 'travel') primaryColor = '#00ffcc'; // Teal for travel
+
+    // Handle Elemental colors
+    if (description.includes('[Feu]')) primaryColor = '#ff4500';
+    if (description.includes('[Eau]')) primaryColor = '#00ffff';
+    if (description.includes('[Terre]')) primaryColor = '#8b4513';
+    if (description.includes('[Vent]')) primaryColor = '#ffffff';
 
     const overlaySvg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">

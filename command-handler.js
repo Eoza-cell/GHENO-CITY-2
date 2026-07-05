@@ -8,6 +8,7 @@ const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
 const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
+const { generateMissionBoard } = require('./paper-generator');
 const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage } = require('./shop-generator');
 const { handleFreeAction } = require('./ai-handler');
@@ -154,7 +155,17 @@ commands.set('quests', async (sock, message) => {
 
     questText += '\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬';
 
-    await sock.sendMessage(replyJid, { text: questText });
+    try {
+        if (activeQuests.length > 0) {
+            const missionBuffer = await generateMissionBoard(player, activeQuests);
+            await sock.sendMessage(replyJid, { image: missionBuffer, caption: questText });
+        } else {
+            await sock.sendMessage(replyJid, { text: questText });
+        }
+    } catch (err) {
+        console.error("[Quests] Error generating board:", err);
+        await sock.sendMessage(replyJid, { text: questText });
+    }
 });
 
 
@@ -244,6 +255,28 @@ const profileCommand = async (sock, message) => {
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
 commands.set('techniques', commands.get('competences'));
+
+// Command: /background
+commands.set('background', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    const imageUrl = args[0];
+    if (!imageUrl || !imageUrl.startsWith('http')) {
+        return await sock.sendMessage(replyJid, { text: "❌ Utilise : `/background <url de l'image>`" });
+    }
+
+    try {
+        await player.update({ profilePicUrl: imageUrl });
+        await sock.sendMessage(replyJid, { text: "🖼️ *Fond de profil mis à jour !* Ton nouveau style est enregistré." });
+    } catch (err) {
+        console.error("Background update error:", err);
+        await sock.sendMessage(replyJid, { text: "❌ Impossible de mettre à jour le fond. Vérifie l'URL." });
+    }
+});
 
 // Command: /creer_tenue
 commands.set('creer_tenue', async (sock, message, args) => {

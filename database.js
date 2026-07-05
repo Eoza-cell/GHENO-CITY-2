@@ -707,8 +707,9 @@ async function setupDatabase() {
     }
 
     const skillCount = await Skill.count();
-    if (skillCount === 0) {
-        await Skill.bulkCreate([
+    if (skillCount < 2000) {
+        console.log(`[SEED] Seeding skills (Current: ${skillCount})...`);
+        const baseSkills = [
             // Techniques de base par Classe
             { name: 'Fente Puissante', description: 'Un coup d\'estoc dévastateur.', type: 'Guerrier', manaCost: 10, statBonuses: { strength: 5 } },
             { name: 'Cri de Guerre', description: 'Augmente la force brute temporairement.', type: 'Guerrier', manaCost: 20, statBonuses: { strength: 10 } },
@@ -768,7 +769,84 @@ async function setupDatabase() {
 
             { name: 'Régénération Accélérée', description: 'Soigne les blessures au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
             { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } }
-        ]);
+        ];
+
+        for (const s of baseSkills) {
+            await Skill.findOrCreate({ where: { name: s.name }, defaults: s });
+        }
+
+        // 1000 Class Skills
+        const classes = {
+            'Guerrier': { stat: 'strength', bases: ["Fente", "Cri", "Charge", "Brise-Garde", "Tranchant", "Fracas"] },
+            'Mage': { stat: 'intelligence', bases: ["Projectile", "Barrière", "Sphère", "Explosion", "Rayon", "Sceau"] },
+            'Assassin': { stat: 'agility', bases: ["Frappe", "Lame", "Ombre", "Disparition", "Poison", "Éviscération"] },
+            'Archer': { stat: 'luck', bases: ["Tir", "Pluie", "Flèche", "Visée", "Piège", "Salto"] },
+            'Prêtre': { stat: 'intelligence', bases: ["Soins", "Bénédiction", "Lumière", "Sanctuaire", "Expiation", "Prière"] },
+            'Moine': { stat: 'strength', bases: ["Paume", "Coup", "Karaté", "Zen", "Posture", "Impact"] },
+            'Paladin': { stat: 'defense', bases: ["Bouclier", "Lance", "Garde", "Consécration", "Jugement", "Bastion"] },
+            'Invocateur': { stat: 'intelligence', bases: ["Appel", "Lien", "Pacte", "Portail", "Murmure", "Vision"] },
+            'Nécromancien': { stat: 'intelligence', bases: ["Éveil", "Siphon", "Os", "Tombeau", "Désolation", "Peste"] },
+            'Samouraï': { stat: 'agility', bases: ["Iaijutsu", "Katana", "Sabre", "Honneur", "Tranche-Âme", "Méditation"] },
+            'Chevalier-Dragon': { stat: 'strength', bases: ["Saut", "Souffle", "Écaille", "Draconique", "Envol", "Griffe"] },
+            'Alchimiste': { stat: 'intelligence', bases: ["Mixture", "Élixir", "Transmutation", "Fiole", "Gaz", "Métamorphose"] },
+            'Barde': { stat: 'luck', bases: ["Chant", "Mélodie", "Accord", "Rime", "Lyre", "Écho"] }
+        };
+
+        const classAdjectives = ["Puissant", "Rapide", "Mortel", "Divin", "Sombre", "Ancestral", "Éternel", "Spectral", "Enchanté", "Maudit", "Sacré", "Brutal", "Éclair", "Furtif", "Légendaire", "Héroïque", "Infaillible", "Silencieux", "Vibrant", "Ardent"];
+
+        const classSkills = [];
+        const classList = Object.keys(classes);
+        for (let i = 0; i < 1000; i++) {
+            const cls = classList[i % classList.length];
+            const adj = classAdjectives[Math.floor(Math.random() * classAdjectives.length)];
+            const base = classes[cls].bases[Math.floor(Math.random() * classes[cls].bases.length)];
+            const name = `${base} ${adj} de ${cls} #${i}`;
+            classSkills.push({
+                name,
+                description: `Une technique avancée de la classe ${cls}.`,
+                type: cls,
+                manaCost: 10 + Math.floor(Math.random() * 40),
+                statBonuses: { [classes[cls].stat]: 5 + Math.floor(Math.random() * 15) }
+            });
+            if (classSkills.length >= 100) {
+                await Skill.bulkCreate(classSkills, { ignoreDuplicates: true });
+                classSkills.length = 0;
+            }
+        }
+        if (classSkills.length > 0) await Skill.bulkCreate(classSkills, { ignoreDuplicates: true });
+
+        // 1000 Elemental Skills
+        const elements = {
+            'Feu': { stat: 'intelligence', bases: ["Flamme", "Brasier", "Étincelle", "Cendre", "Volcan", "Soleil"] },
+            'Eau': { stat: 'intelligence', bases: ["Vague", "Marée", "Goutte", "Glace", "Océan", "Brume"] },
+            'Terre': { stat: 'defense', bases: ["Roc", "Séisme", "Pierre", "Sable", "Montagne", "Cristal"] },
+            'Vent': { stat: 'agility', bases: ["Souffle", "Tornade", "Brise", "Cyclone", "Tempête", "Zéphyr"] }
+        };
+
+        const elementalAdjectives = ["Dévastateur", "Apocalyptique", "Primordial", "Pur", "Infini", "Chaos", "Radiant", "Obscur", "Flamboyant", "Gelé", "Sismique", "Tourbillonnant", "Céleste", "Infernal", "Instable", "Ancestral"];
+
+        const elementalSkills = [];
+        const elementList = Object.keys(elements);
+        for (let i = 0; i < 1000; i++) {
+            const elem = elementList[i % elementList.length];
+            const adj = elementalAdjectives[Math.floor(Math.random() * elementalAdjectives.length)];
+            const base = elements[elem].bases[Math.floor(Math.random() * elements[elem].bases.length)];
+            const name = `${base} ${adj} [${elem}] #${i}`;
+            elementalSkills.push({
+                name,
+                description: `Une puissante manipulation de l'élément ${elem}.`,
+                type: `Élémentaire (${elem})`,
+                manaCost: 20 + Math.floor(Math.random() * 60),
+                statBonuses: { [elements[elem].stat]: 10 + Math.floor(Math.random() * 20) }
+            });
+            if (elementalSkills.length >= 100) {
+                await Skill.bulkCreate(elementalSkills, { ignoreDuplicates: true });
+                elementalSkills.length = 0;
+            }
+        }
+        if (elementalSkills.length > 0) await Skill.bulkCreate(elementalSkills, { ignoreDuplicates: true });
+
+        console.log("[SEED] 2000+ skills ready.");
     }
 
     const houseCount = await House.count();
@@ -979,9 +1057,9 @@ async function setupDatabase() {
     }
 
     const questCount = await Quest.count();
-    if (questCount === 0) {
-        console.log('Seeding Quests...');
-        await Quest.bulkCreate([
+    if (questCount < 500) {
+        console.log(`[SEED] Seeding quests (Current: ${questCount})...`);
+        const baseQuests = [
             // Ordered chain "L'Ascension de l'Aventurier" (quêtes qui se suivent dans l'ordre)
             {
                 title: 'Premiers Pas à Eldoria', description: 'Le départ de ton aventure à Eldoria.',
@@ -1000,34 +1078,46 @@ async function setupDatabase() {
                 objective: 'Affronte et vaincs le Chef Gobelin au fond de la forêt.',
                 type: 'main', chain: "L'Ascension de l'Aventurier", step: 3,
                 nextQuestTitle: null, rank_required: 'F', reward_col: 500, reward_xp: 400
-            },
-            // Multiplayer / co-op quest
-            {
-                title: 'Le Raid du Donjon Maudit', description: 'Un donjon de rang D nécessite une équipe.',
-                objective: "Rassemble d'autres aventuriers dans ta zone et franchissez le donjon ensemble.",
-                type: 'raid', chain: 'Raids Coopératifs', step: 1, isMultiplayer: true,
-                nextQuestTitle: null, rank_required: 'F', reward_col: 800, reward_xp: 600
-            },
-            // Historic Missions (Temporal)
-            {
-                title: 'La Chute de Néanthea', description: "Voyage à travers une faille temporelle vers l'époque où Néanthea a sombré.",
-                objective: "Assiste à l'ouverture de l'Interstice et survit à l'assaut initial des créatures du Néant.",
-                type: 'historic', chain: 'Chroniques du Passé', step: 1,
-                nextQuestTitle: 'Duel avec le Roi Aldren', rank_required: 'D', reward_col: 2000, reward_xp: 1500
-            },
-            {
-                title: 'Duel avec le Roi Aldren', description: "Aldren a perdu la raison. Tu dois le stopper avant qu'il n'ouvre la porte.",
-                objective: "Affronte Aldren au sommet de la Tour d'Ivoire dans le passé.",
-                type: 'historic', chain: 'Chroniques du Passé', step: 2,
-                nextQuestTitle: null, rank_required: 'C', reward_col: 5000, reward_xp: 3000
-            },
-            {
-                title: 'Le Premier Sceau', description: "Assiste à la création des sceaux par les Célestes il y a des millénaires.",
-                objective: "Protège les prêtres célestes pendant le rituel de scellage contre les Entités Bestiales.",
-                type: 'historic', chain: 'Chroniques du Passé', step: 3,
-                nextQuestTitle: null, rank_required: 'B', reward_col: 10000, reward_xp: 8000
             }
-        ]);
+        ];
+
+        for (const q of baseQuests) {
+            await Quest.findOrCreate({ where: { title: q.title }, defaults: q });
+        }
+
+        const questTypes = ["Chasse", "Récolte", "Exploration", "Escorte", "Infiltration", "Diplomatie"];
+        const ranks = ["F", "E", "D", "C", "B", "A", "S"];
+        const targets = ["Gobelins", "Loups", "Orques", "Spectres", "Dragons", "Slimes", "Bandits", "Apôtres"];
+        const locations = ["Forêt", "Mine", "Grotte", "Plaine", "Montagne", "Ruines", "Château"];
+
+        const proceduralQuests = [];
+        for (let i = 0; i < 600; i++) {
+            const type = questTypes[Math.floor(Math.random() * questTypes.length)];
+            const rank = ranks[Math.floor(Math.random() * ranks.length)];
+            const target = targets[Math.floor(Math.random() * targets.length)];
+            const loc = locations[Math.floor(Math.random() * locations.length)];
+            const title = `${type} de ${target} à ${loc} #${i}`;
+            const xp = (ranks.indexOf(rank) + 1) * 200 + Math.floor(Math.random() * 100);
+            const col = (ranks.indexOf(rank) + 1) * 300 + Math.floor(Math.random() * 200);
+
+            proceduralQuests.push({
+                title,
+                description: `Une mission de type ${type} visant les ${target} dans la zone : ${loc}.`,
+                objective: `Terminer l'opération ${type} avec succès.`,
+                type: type.toLowerCase(),
+                rank_required: rank,
+                reward_col: col,
+                reward_xp: xp
+            });
+
+            if (proceduralQuests.length >= 100) {
+                await Quest.bulkCreate(proceduralQuests, { ignoreDuplicates: true });
+                proceduralQuests.length = 0;
+            }
+        }
+        if (proceduralQuests.length > 0) await Quest.bulkCreate(proceduralQuests, { ignoreDuplicates: true });
+
+        console.log("[SEED] 500+ quests ready.");
     }
 
   } catch (error) {
