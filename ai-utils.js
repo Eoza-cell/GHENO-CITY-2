@@ -321,7 +321,7 @@ async function callPollinationsPOST(system, prompt) {
                     'Content-Type': 'application/json',
                     'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
                 },
-                timeout: 8000 // Reduced timeout for faster failover
+                timeout: 15000 // Increased timeout for Pollinations as primary provider
             });
 
             let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
@@ -345,7 +345,7 @@ async function callPollinationsGET(system, prompt) {
         const seed = Math.floor(Math.random() * 1000000);
         const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}`;
 
-        const resp = await axios.get(url, { timeout: 15000 });
+        const resp = await axios.get(url, { timeout: 20000 });
         if (isValidAIResponse(resp.data)) return resp.data;
     } catch (e) {
         console.warn(`[AI] Pollinations GET Error:`, e.message);
@@ -560,17 +560,17 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize stable but fast remote providers
+        // Prioritize Pollinations as requested by user
+        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: '9Router', fn: call9Router },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Llamafile (Local)', fn: callLlamafile },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Blackbox', fn: callBlackbox }
     ];

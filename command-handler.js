@@ -255,6 +255,7 @@ const profileCommand = async (sock, message) => {
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
 commands.set('techniques', commands.get('competences'));
+commands.set('skills', commands.get('competences'));
 
 // Command: /background
 commands.set('background', async (sock, message, args) => {
