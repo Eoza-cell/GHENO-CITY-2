@@ -92,6 +92,13 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                         playersToUpdate.add(target.whatsappId);
                     }
                     break;
+                case 'modify_quest':
+                    const mLine = await questUtils.modifyQuest(target, parameters.questTitle, parameters.branch, parameters.notes);
+                    if (mLine) {
+                        questFeedback.push(mLine);
+                        playersToUpdate.add(target.whatsappId);
+                    }
+                    break;
                 case 'advance_quest':
                     const aLine = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
                     if (aLine) {
@@ -115,9 +122,11 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     break;
                 case 'spawn_npc':
                     await NPC.create({ ...parameters, location: player.location });
+                    playersToUpdate.add(player.whatsappId); // Refresh to see NPC if needed (though usually text is enough)
                     break;
                 case 'spawn_monster':
                     await Monster.create({ ...parameters, location: player.location });
+                    playersToUpdate.add(player.whatsappId);
                     break;
                 case 'change_weather':
                     require('./game-state').setWeather(parameters.weather);
