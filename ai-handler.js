@@ -63,14 +63,29 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const isTriggerWord = actionText.toLowerCase().trim() === 'next';
 
-  // Check if player is truly alone (ignoring themselves)
-  const otherActorsCount = nearbyPlayers.filter(p => p.whatsappId !== player.whatsappId).length;
-  const isSolo = otherActorsCount === 0;
+  // Scene Logic: Detect players in the same sub-location
+  const otherActorsInScene = nearbyPlayers.filter(p => p.whatsappId !== player.whatsappId);
+
+  // Logic: Solo players (or those choosing to act alone) don't need 'next' to get a response
+  // unless they are explicitly in a group scene.
+  const isSolo = otherActorsInScene.length === 0;
 
   // Only trigger AI on 'next' in multiplayer, or always in solo
   const lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
+  });
+
+  // Calculate time advancement: 10 mins per action
+  const actionsSinceLastMJ = await RPMessage.count({
+      where: {
+          [Op.or]: [
+              { senderJid: player.whatsappId },
+              { subLocation: player.subLocation, location: player.location }
+          ],
+          id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
+          senderName: { [Op.ne]: 'Arise MJ' }
+      }
   });
 
   if (!isTriggerWord && !isSolo) {
@@ -254,12 +269,14 @@ async function handleFreeAction(sock, message, player, actionText) {
       hints.push("🏦 INTENTION BANCAIRE DÉTECTÉE. Utilise 'bank_transaction' { \"type\": \"deposit|withdraw\", \"amount\": n }.");
   }
 
+  hints.push("⚠️ LOIS DE CAUSALITÉ & ANTI-TRICHE : Le monde est un écosystème logique. Un joueur ne peut PAS nager 3h sans compétence spéciale (il se noie en 5min s'il est Rang F). Pas de vol ou téléportation sans skill appris. Chaque action consomme du Mana (si technique) ou de l'endurance (Faim/Sommeil).");
+  hints.push("⚠️ SENSORIALITÉ : Un joueur ne ressent pas les autres à distance sans compétence. Son rayon de perception naturelle dépend de son Rang (F: 5m, S: 100m).");
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
   hints.push("⚠️ RESTRICTION DE RANG & SKILLS : Un Rang F ne peut JAMAIS accomplir les prouesses d'un Rang B. Si un joueur tente une action sans avoir la compétence correspondante dans sa liste 'Skills', il ÉCHOUE bruyamment (maladresse, blessure, ridicule). Tu DOIS impérativement utiliser l'action 'check_requirements' pour valider toute tentative risquée ou technique.");
-  hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend du temps RP (plusieurs heures). Si un joueur veut changer de Royaume, utilise 'travel_to'. Le déplacement entre Sous-Lieux proches est immédiat.");
+  hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend DES JOURS RP. Utilise 'travel_to' pour les longs voyages. Interdiction de changer de royaume instantanément sans téléportation (Skill S).");
   hints.push("⚠️ ÉPUISEMENT : Si Hunger ou Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement. Toute action physique exigeante ÉCHOUE ou entraîne un évanouissement immédiat.");
   hints.push("🎁 RÉCOMPENSES : Récompense systématiquement les actions réussies, l'ingéniosité ou les victoires par 'update_stats' { \"xp_gain\": n, \"sp_change\": n, \"col_change\": n }.");
-  hints.push("🧠 GESTION DES SP : Chaque skill appris via 'add_skill' DOIT déduire des SP (ex: 5 SP). Si le joueur n'a plus de SP, l'action échoue narrativement.");
+  hints.push("🧠 GESTION DES SP : Chaque skill appris via 'add_skill' DOIT déduire 5 SP. Créer une compétence via 'create_custom_skill' coûte 10 SP. Si le joueur n'a plus de SP, l'action échoue.");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -488,8 +505,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const houses = await player.getHouses();
   const playerHouses = houses.map(h => `${h.name}(${h.location})`).join(', ');
 
-  // Updated Time Logic: 1:9 scale
-  const rpTime = getRPTime();
+  // Updated Time Logic: 1:9 scale + 10 mins per action
+  const rpTime = getRPTime(actionsSinceLastMJ);
   const rpYearString = rpTime.formatted;
   const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
@@ -500,11 +517,11 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `DÉTERMINATION SYSTÈME GHENO-CITY (HARDCORE & MÉMOIRE ABSOLUE) :
-Tu es le MJ central (Noyau Gemma 3). Ton objectif est de répondre en JSON valide.
+  const systemPrompt = `DÉTERMINATION SYSTÈME GHENO-CITY (ÉCOSYSTÈME LOGIQUE & CAUSALITÉ) :
+Tu es le MJ central (Noyau Gemma 3). Ton objectif est d'incarner un écosystème logique avec des lois de causalité strictes. Réponds en JSON valide.
 
 RÈGLE D'OR (ACTIONS JSON & SP):
-Toute modification de l'état d'un joueur DOIT se traduire par une action JSON. La base de données DOIT correspondre à ta narration.
+Toute modification de l'état d'un joueur DOIT se traduire par une action JSON. La base de données est la SEULE vérité de ton univers.
 - MORT : Si PV <= 0, le joueur est MORT. Il ne peut plus rien faire physiquement. Action 'update_stats' { "health_change": 0 } pour fixer.
 - APPRENTISSAGE : Apprendre un skill existant = 'add_skill' { "skillName": "...", "sp_cost": 5 }.
 - CRÉATION UNIQUE : Créer un skill personnalisé = 'create_custom_skill' { "name": "...", "description": "...", "sp_cost": 10 }.
@@ -567,11 +584,11 @@ RÈGLES TECHNIQUES:
    - TEMPS DE TRAJET : Le passage d'un Royaume à un autre n'est PAS instantané. Décris le voyage (rencontres, fatigue, paysages). Utilise 'travel_to' pour marquer les voyages significatifs.
    - FATIGUE & SURVIE : Les statistiques de Faim et Sommeil dictent les capacités physiques. Un joueur affamé ou épuisé (<20) ne peut pas effectuer d'actions complexes ou de combat prolongé. S'il insiste, il subit des malus de stats massifs ou s'évanouit.
    - NON-BLOCAGE : Ne bloque JAMAIS un joueur qui veut entrer ou sortir d'un lieu (sauf porte verrouillée magiquement ou garde hostile). Si un joueur dit "Je sors", déplace-le immédiatement dans le Sous-lieu logique suivant (ex: Taverne -> Rue d'Eldoria -> Portes d'Elion -> Plaines).
-  - STATS ET EFFICACITÉ (LOI ABSOLUE): Les résultats dépendent STRICTEMENT des statistiques.
-    * SUPÉRIORITÉ ABSOLUE : Un joueur Rang S avec 999 de Force est INVINCIBLE face à des adversaires de rang inférieur. RIEN ne peut le faire plier. Ses coups vaporisent la matière, ses défenses sont impénétrables.
-    * INFÉRIORITÉ PROPORTIONNELLE : Plus le Rang et les stats d'un personnage sont bas, plus il est faible, fragile et insignifiant. C'est une règle immuable. Un Rang F est une fourmi face à un Rang B.
-    * Pas de succès miraculeux. Si un joueur tente une action dépassant ses capacités, il ÉCHOUE brutalement (fractures, mort immédiate, ridicule).
-  - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (os broyés, organes explosés). À >100 pts d'écart, la cible est atomisée.
+  - STATS ET EFFICACITÉ (LOI DE CAUSALITÉ): Les résultats dépendent STRICTEMENT des statistiques et du rang.
+    * SUPÉRIORITÉ ABSOLUE : Un joueur Rang S avec 999 de Force est INVINCIBLE. RIEN ne peut le faire plier face à plus faible. Ses coups vaporisent la matière.
+    * INFÉRIORITÉ LOGIQUE : Plus le Rang et les stats sont bas, plus le personnage est faible. Un Rang F est une fourmi fragile.
+    * ANTI-TRICHE : Pas de succès miraculeux. Si un joueur tente une action incohérente (nager 3h sans skill, voler sans ailes/sort), il ÉCHOUE et subit les conséquences logiques (noyade en 5min, chute mortelle).
+  - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (os broyés). À >100 pts d'écart, la cible est atomisée.
   - RANG ET LÉGITIMITÉ: Un Rang F ne peut RIEN faire contre un Rang B.
    - COMPÉTENCES MANQUANTES: Pas de 'Lame de Feu' si le skill n'est pas dans 'competences'. Le joueur gesticule inutilement et devient une cible facile. Utilise 'check_requirements' systématiquement pour ces cas.
    - LIBERTÉ ET AVENTURE (PRIORITÉ) : Le joueur est libre et son aventure est le cœur du récit. Ne t'enlise PAS dans des procédures administratives, des gardes omniprésents ou des rappels constants aux lois. Priorise l'exploration, l'action, le lore métaphysique et les interactions significatives.
@@ -642,7 +659,7 @@ RÈGLES TECHNIQUES:
 
       [NOM_JOUEUR_2]
       (Narration pour joueur 2 en un seul paragraphe riche...)
-    - ISOLATION NARRATIVE ABSOLUE: Traite chaque lieu comme un monde séparé.
+    - ISOLATION NARRATIVE ABSOLUE: Traite chaque lieu comme un monde séparé. Si des joueurs sont ensemble, ils partagent le même bloc [GROUPE: Nom1, Nom2].
     - INTERDICTION FORMELLE : N'utilise JAMAIS de tirets (-), de puces, de caractères de liste (├, └, ┠) ou de délimiteurs (▬▬▬▬).
     - STYLE : La narration doit être un bloc de texte fluide, riche et cinématographique. Pas de listes d'actions ou de descriptions fragmentées.
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
@@ -683,6 +700,7 @@ RÈGLES TECHNIQUES:
  - dissolve_fusion : {} (Met fin à la fusion actuelle).
  - check_requirements : { "rank_required": "G-S", "skill_required": "Nom" } (Vérifie si le joueur a le niveau pour son action. En cas d'échec, l'action est annulée et le joueur est pénalisé).
  - create_custom_skill : { "name": "...", "description": "...", "sp_cost": 10 } (Crée une technique unique).
+ - promote_player : { "target_name": "...", "new_rank": "F-S" } (Uniquement pour les Rang S/GOD avec skill approprié).
 
 RÈGLES DE LIENS (CRITIQUE):
 1. SERVITUDE : Un serviteur reçoit 20% de la puissance de son Maître. C'est un pacte de soumission qui demande le consentement du serviteur. Décris la marque de servitude apparaissant sur le corps.

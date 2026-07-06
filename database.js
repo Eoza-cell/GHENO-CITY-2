@@ -64,6 +64,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'Non-défini',
   },
+  race: {
+    type: DataTypes.STRING,
+    defaultValue: 'Humain',
+  },
   age: {
     type: DataTypes.INTEGER,
     defaultValue: 18,

@@ -206,6 +206,9 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     });
                     playersToUpdate.add(target.whatsappId);
                     break;
+                case 'promote_player':
+                    await handlePromotePlayer(player, target, parameters, questFeedback, playersToUpdate);
+                    break;
                 case 'resurrect_player':
                     await target.update({ health: Math.floor(target.maxHealth * 0.5), location: "Empire Impérial d'Elion", subLocation: 'Cathédrale de la Lumière' });
                     playersToUpdate.add(target.whatsappId);
@@ -402,6 +405,13 @@ async function handleUpdateStats(target, params, questFeedback, playersToUpdate,
     if (params.health_change) {
         await target.increment('health', { by: params.health_change });
         await target.reload();
+
+        // Class-specific recovery bonus
+        if (params.health_change > 0 && target.class === 'Moine' && params.is_meditation) {
+            await target.increment('mana', { by: Math.floor(params.health_change * 1.5) });
+            questFeedback.push(`🧘 *MÉDITATION* : En tant que Moine, ${target.name} récupère aussi son mana.`);
+        }
+
         if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
         if (target.health <= 0) {
             await target.update({ health: 0, location: 'Nécropolis', subLocation: 'Le Seuil' });
@@ -410,10 +420,17 @@ async function handleUpdateStats(target, params, questFeedback, playersToUpdate,
         hasChanged = true;
     }
     if (params.mana_change) {
+        // Enforce mana cost logic: No negative mana unless special power
         await target.increment('mana', { by: params.mana_change });
         await target.reload();
         if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
-        if (target.mana < 0) await target.update({ mana: 0 });
+        if (target.mana < 0) {
+            // Mana Burn/Exhaustion
+            const burnDamage = Math.abs(target.mana) * 2;
+            await target.update({ mana: 0 });
+            await target.decrement('health', { by: burnDamage });
+            questFeedback.push(`🔥 *RÉSIDU DE MANA* : ${target.name} a forcé ses limites magiques et subit ${burnDamage} dégâts !`);
+        }
         hasChanged = true;
     }
     const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck', 'skillPoints'];
@@ -532,11 +549,13 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
 async function handleAddSkill(target, params, playersToUpdate) {
     const skill = await Skill.findOne({ where: { name: { [Op.like]: `%${params.skillName}%` } } });
     if (skill && !(await target.hasSkill(skill))) {
-        const cost = params.sp_cost || 0;
+        const cost = params.sp_cost || 5; // Standard cost is 5 SP
         if (target.skillPoints >= cost) {
-            if (cost > 0) await target.decrement('skillPoints', { by: cost });
+            await target.decrement('skillPoints', { by: cost });
             await target.addSkill(skill);
             playersToUpdate.add(target.whatsappId);
+        } else {
+            console.log(`[Processor] add_skill failed: ${target.name} has only ${target.skillPoints}/${cost} SP.`);
         }
     }
 }
@@ -624,6 +643,33 @@ async function handleP2PTransfer(player, params, questFeedback, playersToUpdate,
     }
     playersToUpdate.add(sender.whatsappId);
     playersToUpdate.add(recipient.whatsappId);
+}
+
+async function handlePromotePlayer(actor, target, params, questFeedback, playersToUpdate) {
+    // Only Rank S players or GODs can promote others
+    if (!actor.isGod && actor.rank !== 'S') {
+        console.log(`[Processor] promote_player failed: ${actor.name} is not Rank S.`);
+        return;
+    }
+
+    // Must have a skill that allows promotion or breaking limits
+    const skills = await actor.getSkills();
+    const hasPromotionSkill = skills.some(s => s.name.toLowerCase().includes('briser les limites') || s.name.toLowerCase().includes('éveil') || s.name.toLowerCase().includes('mentor'));
+
+    if (!actor.isGod && !hasPromotionSkill) {
+        console.log(`[Processor] promote_player failed: ${actor.name} lacks promotion skill.`);
+        return;
+    }
+
+    const rankMap = { 'F': 1, 'E': 2, 'D': 3, 'C': 4, 'B': 5, 'A': 6, 'S': 7 };
+    const currentRankVal = rankMap[target.rank] || 0;
+    const newRank = params.new_rank;
+
+    if (newRank && rankMap[newRank]) {
+        await target.update({ rank: newRank });
+        playersToUpdate.add(target.whatsappId);
+        questFeedback.push(`✨ *ÉVEIL DE RANG* : ${actor.name} a brisé les limites de ${target.name}, l'élevant au Rang ${newRank} !`);
+    }
 }
 
 async function handleNPCTrade(player, params, questFeedback, playersToUpdate) {
