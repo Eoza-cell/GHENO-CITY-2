@@ -22,10 +22,19 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
         'create_custom_item', 'manage_house', 'trigger_conflict', 'broadcast', 'notify_player', 'query_database', 'steal_item', 'create_quest'
     ];
 
+    let turnFailed = false;
+
     for (const actionObj of actions) {
         try {
             const { type, parameters } = actionObj;
             if (!parameters) continue;
+
+            // Global Requirement Failure Block: If a previous requirement check failed, skip subsequent physical/technical actions
+            const failureExemptActions = ['write_journal', 'notify_player', 'query_database', 'update_stats']; // Allow some stat changes (penalties)
+            if (turnFailed && !failureExemptActions.includes(type)) {
+                console.log(`[Processor] Action ${type} skipped: turn failed requirement check.`);
+                continue;
+            }
 
             // Global Actor Death Block: If the acting player is dead, they can't perform physical actions
             const actorAllowedActions = ['update_stats', 'update_player', 'write_journal', 'notify_player', 'query_database', 'resurrect_player'];
@@ -85,7 +94,8 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     await handleAddSkill(target, parameters, playersToUpdate);
                     break;
         case 'check_requirements':
-            await handleCheckRequirements(target, parameters, aiResponse, playersToUpdate);
+            const checkResult = await handleCheckRequirements(target, parameters, aiResponse, playersToUpdate);
+            if (checkResult.failed) turnFailed = true;
             break;
                 case 'create_custom_skill':
                     await handleCreateCustomSkill(target, parameters, playersToUpdate);
@@ -532,7 +542,7 @@ async function handleAddSkill(target, params, playersToUpdate) {
 }
 
 async function handleCheckRequirements(target, params, aiResponse, playersToUpdate) {
-    const rankMap = { 'F': 0, 'E': 1, 'D': 2, 'C': 3, 'B': 4, 'A': 5, 'S': 6 };
+    const rankMap = { 'G': 0, 'F': 1, 'E': 2, 'D': 3, 'C': 4, 'B': 5, 'A': 6, 'S': 7 };
     const requiredRankValue = rankMap[params.rank_required] || 0;
     const playerRankValue = rankMap[target.rank] || 0;
 
@@ -554,10 +564,12 @@ async function handleCheckRequirements(target, params, aiResponse, playersToUpda
 
     if (failed) {
         aiResponse.narrative = `${aiResponse.narrative}\n\n❌ *ÉCHEC CRITIQUE* : ${reason}. L'action a échoué lamentablement.`;
-        // Optionally penalize
-        await target.decrement('health', { by: 10 });
+        // Penalize
+        await target.decrement('health', { by: 15 });
         playersToUpdate.add(target.whatsappId);
+        return { failed: true };
     }
+    return { failed: false };
 }
 
 async function handleCreateCustomSkill(target, params, playersToUpdate) {
@@ -637,6 +649,7 @@ async function handleNPCTrade(player, params, questFeedback, playersToUpdate) {
         let inv = [...player.inventory];
         const idx = inv.findIndex(i => i.name.toLowerCase().includes(params.itemName.toLowerCase()));
         if (idx !== -1) {
+            const soldItemName = inv[idx].name;
             const qty = Math.min(params.quantity || 1, inv[idx].quantity);
             const gain = Math.floor(item.price * 0.5) * qty;
             inv[idx].quantity -= qty;
@@ -644,7 +657,7 @@ async function handleNPCTrade(player, params, questFeedback, playersToUpdate) {
             player.inventory = inv;
             await player.save();
             await player.increment('col', { by: gain });
-            questFeedback.push(`🤝 *VENTE PNJ* : Tu as vendu ${qty}x ${inv[idx]?.name || params.itemName} à ${npc.name} pour ${gain} Col.`);
+            questFeedback.push(`🤝 *VENTE PNJ* : Tu as vendu ${qty}x ${soldItemName} à ${npc.name} pour ${gain} Col.`);
         }
     }
     playersToUpdate.add(player.whatsappId);

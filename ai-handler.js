@@ -218,7 +218,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
-  hints.push("⚠️ RESTRICTION DE RANG & SKILLS : Un Rang F ne peut JAMAIS accomplir les prouesses d'un Rang B. Si un joueur tente une action sans avoir la compétence correspondante dans sa liste 'Skills', il ÉCHOUE bruyamment (maladresse, blessure, ridicule).");
+  hints.push("⚠️ RESTRICTION DE RANG & SKILLS : Un Rang F ne peut JAMAIS accomplir les prouesses d'un Rang B. Si un joueur tente une action sans avoir la compétence correspondante dans sa liste 'Skills', il ÉCHOUE bruyamment (maladresse, blessure, ridicule). Tu DOIS impérativement utiliser l'action 'check_requirements' pour valider toute tentative risquée ou technique.");
+  hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend du temps RP (plusieurs heures). Si un joueur veut changer de Royaume, utilise 'travel_to'. Le déplacement entre Sous-Lieux proches est immédiat.");
+  hints.push("⚠️ ÉPUISEMENT : Si Hunger ou Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement. Toute action physique exigeante ÉCHOUE ou entraîne un évanouissement immédiat.");
+  hints.push("🎁 RÉCOMPENSES : Récompense systématiquement les actions réussies, l'ingéniosité ou les victoires par 'update_stats' { \"xp_gain\": n, \"sp_change\": n, \"col_change\": n }.");
+  hints.push("🧠 GESTION DES SP : Chaque skill appris via 'add_skill' DOIT déduire des SP (ex: 5 SP). Si le joueur n'a plus de SP, l'action échoue narrativement.");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -522,12 +526,14 @@ RÈGLES TECHNIQUES:
    - MÉMOIRE JSON PERSISTANTE: Consulte systématiquement le JSON 'personnages_en_scene' pour connaître l'état EXACT (Items, Skills, Quêtes) de chaque joueur. Ne te fie jamais à tes suppositions.
    - INVENTAIRE: Un joueur ne peut utiliser QUE les objets listés dans 'Inv'. S'il tente d'utiliser un objet qu'il n'a pas, l'action échoue narrativement (ex: il fouille ses poches en vain).
    - LIEU: Le joueur est strictement limité à sa 'Location' et sa 'Sub-Location'. Il ne peut pas interagir avec des éléments d'un autre lieu sans se déplacer physiquement via 'update_location'.
-   - NAVIGATION SYSTÈME : Les joueurs peuvent se déplacer librement en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_location" pour modifier son "new_location" (Royaume) ou son "new_sub_location" (Lieu précis/Ville/Bâtiment).
+   - NAVIGATION SYSTÈME & RÉALISME : Les joueurs peuvent se déplacer librement en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_location" pour modifier son "new_location" (Royaume) ou son "new_sub_location" (Lieu précis/Ville/Bâtiment).
+   - TEMPS DE TRAJET : Le passage d'un Royaume à un autre n'est PAS instantané. Décris le voyage (rencontres, fatigue, paysages). Utilise 'travel_to' pour marquer les voyages significatifs.
+   - FATIGUE & SURVIE : Les statistiques de Faim et Sommeil dictent les capacités physiques. Un joueur affamé ou épuisé (<20) ne peut pas effectuer d'actions complexes ou de combat prolongé. S'il insiste, il subit des malus de stats massifs ou s'évanouit.
    - NON-BLOCAGE : Ne bloque JAMAIS un joueur qui veut entrer ou sortir d'un lieu (sauf porte verrouillée magiquement ou garde hostile). Si un joueur dit "Je sors", déplace-le immédiatement dans le Sous-lieu logique suivant (ex: Taverne -> Rue d'Eldoria -> Portes d'Elion -> Plaines).
    - STATS ET EFFICACITÉ (STRICT): Les résultats dépendent UNIQUEMENT des statistiques fournies. Le joueur ne peut PAS tout réaliser facilement. Une simple action de "concentration" ne permet pas de surmonter un manque de stats ou de compétences. Pas de succès miraculeux sans stats adéquates. Si un joueur tente une action dépassant ses capacités physiques ou magiques, il ÉCHOUE brutalement (fatigue extrême, contrecoup, blessure).
    - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (anatomie broyée, os fracturés, projection sur plusieurs mètres). Le MJ doit décrire ces conséquences physiques avec précision.
    - RANG ET LÉGITIMITÉ: Un Rang F ne peut JAMAIS réussir une action de Rang B (ex: briser du mithril, voler un dragon). Si le joueur tente cela, il ÉCHOUE brutalement (fractures, retour de mana).
-   - COMPÉTENCES MANQUANTES: Pas de 'Lame de Feu' si le skill n'est pas dans 'competences'. Le joueur gesticule inutilement et devient une cible facile.
+   - COMPÉTENCES MANQUANTES: Pas de 'Lame de Feu' si le skill n'est pas dans 'competences'. Le joueur gesticule inutilement et devient une cible facile. Utilise 'check_requirements' systématiquement pour ces cas.
    - LIBERTÉ ET AVENTURE (PRIORITÉ) : Le joueur est libre et son aventure est le cœur du récit. Ne t'enlise PAS dans des procédures administratives, des gardes omniprésents ou des rappels constants aux lois. Priorise l'exploration, l'action, le lore métaphysique et les interactions significatives.
    - MINIMISATION DES GARDES : Ne fais intervenir des gardes ou la police QUE si le joueur commet un crime flagrant et public, ou si cela sert un arc narratif majeur. Évite les "contrôles d'identité" ou les "procédures" ennuyeuses qui cassent le rythme.
    - SUBTILITÉ DES LOIS : Ne liste JAMAIS les lois ou "le Code" d'un royaume de manière systématique. Les lois sont des détails du monde, pas des règles de jeu à afficher. Elles doivent transparaître naturellement à travers le comportement des PNJ ou des conséquences immédiates, sans être citées comme un règlement.
@@ -561,7 +567,7 @@ RÈGLES TECHNIQUES:
     - OBLIGATOIRE (VISUELS TECHNIQUES): Lorsqu'un joueur utilise une compétence (Skill), tu DOIS inclure l'objet "actionVisual" avec type="skill", le nom de la compétence en titre, et une description stylisée incluant obligatoirement son tag élémentaire [Feu], [Eau], [Terre] ou [Vent] pour générer l'illustration Canvas correspondante. Ne laisse JAMAIS la narrative vide. Si l'IA texte échoue, le système utilisera un message d'erreur, évite cela en étant concis et précis.
     - update_location : { "new_location": "Royaume", "new_sub_location": "Lieu" }. (OBLIGATOIRE dès que le lieu change).
     - travel_to : { "new_location": "Royaume", "new_sub_location": "Lieu" }. (Utilise ceci pour les voyages longs via calèche, portail, ou monture).
-    - update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n, "hunger_change": n, "sleep_change": n }. (OBLIGATOIRE dès qu'une stat, XP ou monnaie (Col) change).
+    - update_stats : { "health_change": n, "mana_change": n, "strength_change": n, "agility_change": n, "intelligence_change": n, "defense_change": n, "luck_change": n, "col_change": n, "xp_gain": n, "sp_change": n, "hunger_change": n, "sleep_change": n }. (OBLIGATOIRE dès qu'une stat, XP, SP ou monnaie (Col) change).
     - bank_transaction : { "type": "deposit|withdraw", "amount": n }. (OBLIGATOIRE pour gérer l'argent en banque).
     - update_player : name, characterDescription, profilePicUrl, gender, age, new_class, new_rank, wantedLevel_change. (OBLIGATOIRE dès qu'un élément d'identité ou de fiche change narratiment, ex: une cicatrice, un changement de tenue, une nouvelle réputation).
 15. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
@@ -611,7 +617,7 @@ RÈGLES TECHNIQUES:
    - L'ARBITRE (WORLD PULSE) : Tu DOIS utiliser les valeurs de 'WORLD_PULSE' pour déterminer le succès des actions risquées (Vol, Esquive extrême, etc.). Si 'luck_seed' > 70 ou 'critical_success' est vrai, le joueur réussit magnifiquement. Sinon, applique la cruauté du monde.
 - buy_item : { "itemName": "nom", "quantity": 1 }.
 - use_item : { "itemName": "nom" }.
-- add_skill : { "skillName": "nom", "target_name": "nom" }.
+- add_skill : { "skillName": "nom", "target_name": "nom", "sp_cost": 5 }.
 - create_custom_item : { "name": "...", "description": "...", "type": "weapon|clothing|consumable", "rarity": "rare|epic|legendary", "statBonuses": {"strength": 5}, "target_name": "..." }
 - manage_house : { "action": "grant|revoke", "houseName": "...", "target_name": "..." }
 - trigger_conflict : { "title": "...", "description": "...", "involvedKingdoms": ["..."] }
@@ -635,7 +641,7 @@ RÈGLES TECHNIQUES:
  - request_fusion : { "target_name": "..." } (Le joueur propose une fusion d'âmes).
  - accept_fusion : { "partner_name": "..." } (Le joueur accepte la fusion).
  - dissolve_fusion : {} (Met fin à la fusion actuelle).
- - check_requirements : { "rank_required": "F-S", "skill_required": "Nom" } (Vérifie si le joueur a le niveau pour son action).
+ - check_requirements : { "rank_required": "G-S", "skill_required": "Nom" } (Vérifie si le joueur a le niveau pour son action. En cas d'échec, l'action est annulée et le joueur est pénalisé).
  - create_custom_skill : { "name": "...", "description": "...", "sp_cost": 10 } (Crée une technique unique).
 
 RÈGLES DE LIENS (CRITIQUE):
@@ -932,13 +938,10 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     await sendWithImage(sock, jid, aiResponse);
 
-    // LIVE-actualisation: Silent Database Update + Strategic Profile Delivery
-    // We send profile cards ONLY if a major event occurred (Level up, death, new skill, etc.)
-    const majorChange = aiResponse.actions.some(a => ['update_player', 'add_skill', 'create_custom_skill', 'complete_quest', 'resurrect_player'].includes(a.type));
-
-    if (majorChange) {
-        const everyoneInScene = nearbyPlayers.map(p => p.whatsappId);
-        for (const pId of everyoneInScene) {
+    // LIVE-actualisation: Silent Database Update + Automatic Profile Delivery
+    // We send profile cards whenever a player's state has been modified.
+    if (playersToUpdate.size > 0) {
+        for (const pId of playersToUpdate) {
             try {
                 const pToUpdate = await Player.findOne({ where: { whatsappId: pId } });
                 if (pToUpdate && shouldNotifyPlayer(pToUpdate)) {
@@ -946,7 +949,7 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
                     const profileBuffer = await generateProfileCard(pToUpdate);
                     await sock.sendMessage(pId, {
                         image: profileBuffer,
-                        caption: `--- 🆔 PROFIL SYNCHRONISÉ : ${pToUpdate.name} ---`
+                        caption: `--- 🆔 PROFIL ACTUALISÉ : ${pToUpdate.name} ---`
                     });
                 }
             } catch (e) {
