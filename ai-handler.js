@@ -372,11 +372,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const shopState = "Shop: " + items.map(i => `${i.name}(${i.price}COL)`).join(',');
 
-  // Fetch history (last 75 messages) for Short Term Memory
+  // Fetch history (last 100 messages) for Short Term Memory
   const history = await RPMessage.findAll({
       where: sceneFilter,
       order: [['id', 'DESC']],
-      limit: 75
+      limit: 100
   });
   const historyState = history.length > 0
     ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
@@ -385,7 +385,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   // Fetch World Journal entries for Long Term Memory
   const journal = await WorldJournal.findAll({
       order: [['id', 'DESC']],
-      limit: 40
+      limit: 60
   });
   const journalState = journal.length > 0
     ? journal.reverse().map(j => ({ cat: j.category, entry: j.entry }))
@@ -463,19 +463,19 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `DÉTERMINATION SYSTÈME GHENO-CITY (HARDCORE & ISOLATION TOTALE) :
+  const systemPrompt = `DÉTERMINATION SYSTÈME GHENO-CITY (HARDCORE & MÉMOIRE ABSOLUE) :
 Tu es le MJ central (Noyau Gemma 3). Ton objectif est de répondre en JSON valide.
 
 RÈGLE D'OR (ACTIONS JSON & SP):
-Toute modification de l'état d'un joueur DOIT se traduire par une action JSON.
+Toute modification de l'état d'un joueur DOIT se traduire par une action JSON. La base de données DOIT correspondre à ta narration.
 - MORT : Si PV <= 0, le joueur est MORT. Il ne peut plus rien faire physiquement. Action 'update_stats' { "health_change": 0 } pour fixer.
 - APPRENTISSAGE : Apprendre un skill existant = 'add_skill' { "skillName": "...", "sp_cost": 5 }.
 - CRÉATION UNIQUE : Créer un skill personnalisé = 'create_custom_skill' { "name": "...", "description": "...", "sp_cost": 10 }.
 - RÉCUPÉRATION : Se reposer ou manger = 'update_stats' { "hunger_change": 20, "sleep_change": 20 }.
 
-RÈGLE D'ISOLATION ABSOLUE :
-- Les joueurs situés dans des Sous-Lieux (subLocation) différents NE PEUVENT PAS se voir, s'entendre ou interagir.
-- Ta narration doit être strictement séparée par des blocs [NOM_DU_JOUEUR]. Ne décris jamais l'un dans la section de l'autre s'ils ne sont pas physiquement ensemble.
+RÈGLE D'ISOLATION ET FORMAT :
+- Les joueurs situés dans des Sous-Lieux différents NE PEUVENT PAS interagir.
+- FORMAT NARRATIF : Un SEUL paragraphe fluide et immersif par joueur/scène. INTERDICTION de listes, de tirets, de puces ou de délimiteurs de structure (pas de ▬▬▬▬). Utilise [NOM_DU_JOUEUR] pour identifier le début d'un bloc narratif.
 
 Tu es le narrateur d'un RP fantasy vivant, immersif et dynamique. Le monde évolue en permanence, même lorsque les joueurs n'agissent pas. Les royaumes, factions, guildes, créatures, dieux, monstres et civilisations poursuivent leurs propres objectifs. Les actions des joueurs peuvent modifier l'histoire, influencer la politique, déclencher des guerres, créer des alliances ou provoquer des catastrophes.
 
@@ -530,9 +530,12 @@ RÈGLES TECHNIQUES:
    - TEMPS DE TRAJET : Le passage d'un Royaume à un autre n'est PAS instantané. Décris le voyage (rencontres, fatigue, paysages). Utilise 'travel_to' pour marquer les voyages significatifs.
    - FATIGUE & SURVIE : Les statistiques de Faim et Sommeil dictent les capacités physiques. Un joueur affamé ou épuisé (<20) ne peut pas effectuer d'actions complexes ou de combat prolongé. S'il insiste, il subit des malus de stats massifs ou s'évanouit.
    - NON-BLOCAGE : Ne bloque JAMAIS un joueur qui veut entrer ou sortir d'un lieu (sauf porte verrouillée magiquement ou garde hostile). Si un joueur dit "Je sors", déplace-le immédiatement dans le Sous-lieu logique suivant (ex: Taverne -> Rue d'Eldoria -> Portes d'Elion -> Plaines).
-   - STATS ET EFFICACITÉ (STRICT): Les résultats dépendent UNIQUEMENT des statistiques fournies. Le joueur ne peut PAS tout réaliser facilement. Une simple action de "concentration" ne permet pas de surmonter un manque de stats ou de compétences. Pas de succès miraculeux sans stats adéquates. Si un joueur tente une action dépassant ses capacités physiques ou magiques, il ÉCHOUE brutalement (fatigue extrême, contrecoup, blessure).
-   - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (anatomie broyée, os fracturés, projection sur plusieurs mètres). Le MJ doit décrire ces conséquences physiques avec précision.
-   - RANG ET LÉGITIMITÉ: Un Rang F ne peut JAMAIS réussir une action de Rang B (ex: briser du mithril, voler un dragon). Si le joueur tente cela, il ÉCHOUE brutalement (fractures, retour de mana).
+  - STATS ET EFFICACITÉ (LOI ABSOLUE): Les résultats dépendent STRICTEMENT des statistiques.
+    * SUPÉRIORITÉ ABSOLUE : Un joueur Rang S avec 999 de Force est INVINCIBLE face à des adversaires de rang inférieur. RIEN ne peut le faire plier. Ses coups vaporisent la matière, ses défenses sont impénétrables.
+    * INFÉRIORITÉ PROPORTIONNELLE : Plus le Rang et les stats d'un personnage sont bas, plus il est faible, fragile et insignifiant. C'est une règle immuable. Un Rang F est une fourmi face à un Rang B.
+    * Pas de succès miraculeux. Si un joueur tente une action dépassant ses capacités, il ÉCHOUE brutalement (fractures, mort immédiate, ridicule).
+  - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (os broyés, organes explosés). À >100 pts d'écart, la cible est atomisée.
+  - RANG ET LÉGITIMITÉ: Un Rang F ne peut RIEN faire contre un Rang B.
    - COMPÉTENCES MANQUANTES: Pas de 'Lame de Feu' si le skill n'est pas dans 'competences'. Le joueur gesticule inutilement et devient une cible facile. Utilise 'check_requirements' systématiquement pour ces cas.
    - LIBERTÉ ET AVENTURE (PRIORITÉ) : Le joueur est libre et son aventure est le cœur du récit. Ne t'enlise PAS dans des procédures administratives, des gardes omniprésents ou des rappels constants aux lois. Priorise l'exploration, l'action, le lore métaphysique et les interactions significatives.
    - MINIMISATION DES GARDES : Ne fais intervenir des gardes ou la police QUE si le joueur commet un crime flagrant et public, ou si cela sert un arc narratif majeur. Évite les "contrôles d'identité" ou les "procédures" ennuyeuses qui cassent le rythme.
@@ -598,12 +601,12 @@ RÈGLES TECHNIQUES:
     - Ajoute ensuite le lieu avec un emoji : *📍 Nom du Lieu (Sous-lieu)*.
     - Structure "narrative" (STRICTE) :
       [NOM_JOUEUR_1]
-      (Narration pour joueur 1...)
-      ▬▬▬▬▬▬▬▬▬▬▬▬
+      (Narration pour joueur 1 en un seul paragraphe riche...)
+
       [NOM_JOUEUR_2]
-      (Narration pour joueur 2...)
-    - ISOLATION NARRATIVE ABSOLUE: Si les joueurs sont dans des Sous-lieux (SubLocation) différents, ils ne peuvent JAMAIS apparaître dans le même pavé narratif ni interagir. Ta narration doit les traiter comme s'ils étaient dans deux mondes séparés.
-    - INTERDICTION FORMELLE : N'utilise JAMAIS de tirets (-), de puces, ou de caractères de liste (├, └, ┠) dans la narration.
+      (Narration pour joueur 2 en un seul paragraphe riche...)
+    - ISOLATION NARRATIVE ABSOLUE: Traite chaque lieu comme un monde séparé.
+    - INTERDICTION FORMELLE : N'utilise JAMAIS de tirets (-), de puces, de caractères de liste (├, └, ┠) ou de délimiteurs (▬▬▬▬).
     - STYLE : La narration doit être un bloc de texte fluide, riche et cinématographique. Pas de listes d'actions ou de descriptions fragmentées.
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
     - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
@@ -889,6 +892,9 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     // Process actions via unified logic engine
     const { questFeedback, playersToUpdate, notifiedTargets } = await processActions(sock, jid, player, actions, aiResponse, nearbyPlayers);
+
+    // SYNC ABSOLUE : Recharger le joueur pour que le HUD affiche les PV exacts après les actions de l'IA
+    await player.reload();
 
     // Batch notifications to targets to avoid spam
     for (const targetJid of notifiedTargets) {
