@@ -675,21 +675,24 @@ async function setupDatabase() {
         await Item.findOrCreate({ where: { name: item.name }, defaults: item });
     }
 
-    // Seed 1000 Varied Clothing Items
-    const currentItemCount = await Item.count({ where: { type: 'clothing' } });
-    if (currentItemCount < 1000) {
-        console.log(`[SEED] Generating ${1000 - currentItemCount} additional clothing items...`);
-        const adjectives = ["Élégant", "Sombre", "Guerrier", "Mystique", "Ancien", "Royal", "Oublié", "Céleste", "Bestial", "Vaporeux", "Renforcé", "Léger", "Lourd", "Scintillant", "Maudit", "Sacré", "Interdit", "Nomade", "Urbain", "Techno-magique"];
-        const baseNames = ["Manteau", "Tunique", "Armure", "Robe", "Veste", "Costume", "Plastron", "Cape", "Haut", "Gilet", "Tabard", "Kimonos", "Yukata", "Uniforme", "Tenue"];
-        const materials = ["de Soie", "de Fer", "de Mana", "en Cuir", "de Velours", "de Lin", "d'Éther", "en Écailles", "de Cristal", "de Dragon", "d'Ombre", "de Lumière"];
+    // Seed 3000 Varied Items (Clothing, Weapons, Artifacts)
+    const currentItemCount = await Item.count();
+    if (currentItemCount < 3000) {
+        console.log(`[SEED] Generating ${3000 - currentItemCount} additional items...`);
+        const adjectives = ["Élégant", "Sombre", "Guerrier", "Mystique", "Ancien", "Royal", "Oublié", "Céleste", "Bestial", "Vaporeux", "Renforcé", "Léger", "Lourd", "Scintillant", "Maudit", "Sacré", "Interdit", "Nomade", "Urbain", "Techno-magique", "Solaire", "Lunaire", "Abyssal", "Éthéré", "Corrompu", "Divin", "Mécano", "Néon", "Rune", "Plasma", "Vibration"];
+        const clothingBases = ["Manteau", "Tunique", "Armure", "Robe", "Veste", "Costume", "Plastron", "Cape", "Haut", "Gilet", "Tabard", "Kimonos", "Yukata", "Uniforme", "Tenue"];
+        const weaponBases = ["Épée", "Lance", "Dague", "Arc", "Bâton", "Hache", "Masse", "Katana", "Faux", "Griffes", "Gantelets", "Sabre", "Rapière", "Marteau", "Fronde"];
+        const materials = ["de Soie", "de Fer", "de Mana", "en Cuir", "de Velours", "de Lin", "d'Éther", "en Écailles", "de Cristal", "de Dragon", "d'Ombre", "de Lumière", "d'Obsidienne", "de Mithril", "d'Adamantite", "de Plasma", "de Force"];
         const colors = ["#ffffff", "#000000", "#ff0000", "#0000ff", "#ffff00", "#00ff00", "#8a2be2", "#ffd700", "#c0c0c0", "#ff4500", "#2f4f4f", "#4b0082"];
 
         const batchSize = 100;
-        for (let i = 0; i < 1000 - currentItemCount; i += batchSize) {
+        const targetCount = 3000;
+        for (let i = currentItemCount; i < targetCount; i += batchSize) {
             const batch = [];
-            for (let j = 0; j < batchSize && (i + j) < (1000 - currentItemCount); j++) {
+            for (let j = 0; j < batchSize && (i + j) < targetCount; j++) {
+                const isWeapon = Math.random() > 0.5;
                 const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-                const base = baseNames[Math.floor(Math.random() * baseNames.length)];
+                const base = isWeapon ? weaponBases[Math.floor(Math.random() * weaponBases.length)] : clothingBases[Math.floor(Math.random() * clothingBases.length)];
                 const mat = materials[Math.floor(Math.random() * materials.length)];
                 const rarityRoll = Math.random();
                 let rarity = 'common';
@@ -698,32 +701,38 @@ async function setupDatabase() {
                 else if (rarityRoll < 0.15) { rarity = 'epic'; priceMult = 5; }
                 else if (rarityRoll < 0.35) { rarity = 'rare'; priceMult = 2; }
 
-                const name = `${adj} ${base} ${mat} #${Math.floor(Math.random() * 10000)}`;
+                const name = `${adj} ${base} ${mat} #${Math.floor(Math.random() * 100000)}`;
+                const statBonuses = {};
+                if (isWeapon) {
+                    statBonuses.strength = rarity === 'common' ? 2 : Math.floor(Math.random() * 15 * priceMult);
+                    statBonuses.agility = Math.floor(Math.random() * 10 * priceMult);
+                } else {
+                    statBonuses.defense = rarity === 'common' ? 1 : Math.floor(Math.random() * 12 * priceMult);
+                    statBonuses.intelligence = Math.floor(Math.random() * 8 * priceMult);
+                }
+
                 batch.push({
                     name,
-                    description: `Une pièce d'équipement unique issue des forges d'Aetherys. Style: ${adj}.`,
-                    price: Math.floor((Math.random() * 500 + 100) * priceMult),
-                    type: 'clothing',
+                    description: `Un objet de type ${isWeapon ? 'arme' : 'vêtement'} forgé dans les terres d'Aetherys. Propriétés: ${adj}, ${mat}.`,
+                    price: Math.floor((Math.random() * 600 + 150) * priceMult),
+                    type: isWeapon ? 'weapon' : 'clothing',
                     rarity,
-                    slot: 'chest',
+                    slot: isWeapon ? 'weapon' : 'chest',
                     durability: 100,
                     visualData: {
                         color: colors[Math.floor(Math.random() * colors.length)],
                         style: adj.toLowerCase()
                     },
-                    statBonuses: {
-                        defense: rarity === 'common' ? 1 : Math.floor(Math.random() * 10 * priceMult),
-                        luck: Math.floor(Math.random() * 5 * priceMult)
-                    }
+                    statBonuses
                 });
             }
             await Item.bulkCreate(batch, { ignoreDuplicates: true });
         }
-        console.log("[SEED] 1000 clothing items ready.");
+        console.log(`[SEED] ${targetCount} items ready.`);
     }
 
     const skillCount = await Skill.count();
-    if (skillCount < 2000) {
+    if (skillCount < 4000) {
         console.log(`[SEED] Seeding skills (Current: ${skillCount})...`);
         const baseSkills = [
             // Techniques de base par Classe
@@ -831,29 +840,29 @@ async function setupDatabase() {
         }
         if (classSkills.length > 0) await Skill.bulkCreate(classSkills, { ignoreDuplicates: true });
 
-        // 1000 Elemental Skills
+        // 3000 Elemental Skills (Expanded to reach 4000+ total skills)
         const elements = {
-            'Feu': { stat: 'intelligence', bases: ["Flamme", "Brasier", "Étincelle", "Cendre", "Volcan", "Soleil"] },
-            'Eau': { stat: 'intelligence', bases: ["Vague", "Marée", "Goutte", "Glace", "Océan", "Brume"] },
-            'Terre': { stat: 'defense', bases: ["Roc", "Séisme", "Pierre", "Sable", "Montagne", "Cristal"] },
-            'Vent': { stat: 'agility', bases: ["Souffle", "Tornade", "Brise", "Cyclone", "Tempête", "Zéphyr"] }
+            'Feu': { stat: 'intelligence', bases: ["Flamme", "Brasier", "Étincelle", "Cendre", "Volcan", "Soleil", "Inferno", "Magma", "Braise", "Foyer", "Éclat", "Pyre"] },
+            'Eau': { stat: 'intelligence', bases: ["Vague", "Marée", "Goutte", "Glace", "Océan", "Brume", "Torrent", "Source", "Geyser", "Cascade", "Givre", "Averse"] },
+            'Terre': { stat: 'defense', bases: ["Roc", "Séisme", "Pierre", "Sable", "Montagne", "Cristal", "Moteur", "Falaise", "Gravier", "Sillon", "Grotte", "Noyau"] },
+            'Vent': { stat: 'agility', bases: ["Souffle", "Tornade", "Brise", "Cyclone", "Tempête", "Zéphyr", "Rafale", "Ouragan", "Alizé", "Mistral", "Aura", "Vol"] }
         };
 
-        const elementalAdjectives = ["Dévastateur", "Apocalyptique", "Primordial", "Pur", "Infini", "Chaos", "Radiant", "Obscur", "Flamboyant", "Gelé", "Sismique", "Tourbillonnant", "Céleste", "Infernal", "Instable", "Ancestral"];
+        const elementalAdjectives = ["Dévastateur", "Apocalyptique", "Primordial", "Pur", "Infini", "Chaos", "Radiant", "Obscur", "Flamboyant", "Gelé", "Sismique", "Tourbillonnant", "Céleste", "Infernal", "Instable", "Ancestral", "Légendaire", "Maudit", "Sacré", "Éternel", "Éphémère", "Brutal", "Élégant", "Sorcier", "Souverain"];
 
         const elementalSkills = [];
         const elementList = Object.keys(elements);
-        for (let i = 0; i < 1000; i++) {
+        for (let i = 0; i < 3000; i++) {
             const elem = elementList[i % elementList.length];
             const adj = elementalAdjectives[Math.floor(Math.random() * elementalAdjectives.length)];
             const base = elements[elem].bases[Math.floor(Math.random() * elements[elem].bases.length)];
-            const name = `${base} ${adj} [${elem}] #${i}`;
+            const name = `${base} ${adj} [${elem}] #${i + 1000}`;
             elementalSkills.push({
                 name,
-                description: `Une puissante manipulation de l'élément ${elem}.`,
+                description: `Une puissante manipulation de l'élément ${elem}. Variante #${i + 1000}.`,
                 type: `Élémentaire (${elem})`,
-                manaCost: 20 + Math.floor(Math.random() * 60),
-                statBonuses: { [elements[elem].stat]: 10 + Math.floor(Math.random() * 20) }
+                manaCost: 20 + Math.floor(Math.random() * 80),
+                statBonuses: { [elements[elem].stat]: 10 + Math.floor(Math.random() * 30) }
             });
             if (elementalSkills.length >= 100) {
                 await Skill.bulkCreate(elementalSkills, { ignoreDuplicates: true });

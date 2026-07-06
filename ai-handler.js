@@ -130,6 +130,16 @@ async function handleFreeAction(sock, message, player, actionText) {
   let hasInteraction = false;
   let interactionTargetSubLocation = null;
 
+  // Goldfish Memory Defense: Check if player just got a new item/skill in previous turns
+  const recentGains = await WorldJournal.findAll({
+      where: { entry: { [Op.like]: `%${player.name}%` }, category: 'plot' },
+      limit: 2,
+      order: [['id', 'DESC']]
+  });
+  if (recentGains.length > 0) {
+      hints.push(`⚠️ MÉMOIRE RÉCENTE : ${player.name} a récemment vécu : ${recentGains.map(g => g.entry).join(' | ')}. Intègre ces éléments pour éviter l'oubli.`);
+  }
+
   const aggregatedActions = recentActions.length > 0
     ? recentActions.map(a => {
         let prefix = "";
@@ -208,6 +218,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
+  hints.push("⚠️ RESTRICTION DE RANG & SKILLS : Un Rang F ne peut JAMAIS accomplir les prouesses d'un Rang B. Si un joueur tente une action sans avoir la compétence correspondante dans sa liste 'Skills', il ÉCHOUE bruyamment (maladresse, blessure, ridicule).");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -225,6 +236,12 @@ async function handleFreeAction(sock, message, player, actionText) {
       await player.reload();
       if (player.hunger < 0) await player.update({ hunger: 0 });
       if (player.sleep < 0) await player.update({ sleep: 0 });
+
+      // Check if player is dead/unconscious
+      const isDead = player.health <= 0;
+      if (isDead) {
+          hints.push("⚠️ LE JOUEUR EST MORT OU INCONSCIENT (0 PV). Il ne peut RIEN faire à part observer ou parler brièvement à des entités de Nécropolis s'il y est. Toute tentative d'action physique ÉCHOUE automatiquement.");
+      }
 
       // Starvation damage
       if (player.hunger === 0 && rpElapsedHours > 0.5) {
@@ -370,6 +387,19 @@ async function handleFreeAction(sock, message, player, actionText) {
     ? journal.reverse().map(j => ({ cat: j.category, entry: j.entry }))
     : [];
 
+  // Story Hooks: Persistent JSON Memory for each player's recent narrative arc
+  const storyHooks = await Promise.all(scenePlayersData.map(async p => {
+      const pJournal = await WorldJournal.findAll({
+          where: { entry: { [Op.like]: `%${p.nom}%` } },
+          limit: 3,
+          order: [['id', 'DESC']]
+      });
+      return {
+          joueur: p.nom,
+          derniers_evenements: pJournal.map(j => j.entry)
+      };
+  }));
+
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0 ? "Skills: " + playerSkills.map(s => s.name).join(', ') : "Aucun skill";
 
@@ -481,6 +511,7 @@ RÈGLES TECHNIQUES:
    - Si un joueur est listé comme SPECTATEUR, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard.
    - Si un joueur est listé comme ACTEUR, réagis UNIQUEMENT à ce qu'il a écrit. N'invente AUCUN dialogue ou mouvement pour lui.
 2. STATS & ÉQUIPEMENT (STRICT):
+   - MÉMOIRE JSON PERSISTANTE: Consulte systématiquement le JSON 'personnages_en_scene' pour connaître l'état EXACT (Items, Skills, Quêtes) de chaque joueur. Ne te fie jamais à tes suppositions.
    - INVENTAIRE: Un joueur ne peut utiliser QUE les objets listés dans 'Inv'. S'il tente d'utiliser un objet qu'il n'a pas, l'action échoue narrativement (ex: il fouille ses poches en vain).
    - LIEU: Le joueur est strictement limité à sa 'Location' et sa 'Sub-Location'. Il ne peut pas interagir avec des éléments d'un autre lieu sans se déplacer physiquement via 'update_location'.
    - NAVIGATION SYSTÈME : Les joueurs peuvent se déplacer librement en décrivant leur trajet. Dès qu'un joueur change de salle, de bâtiment ou de ville, tu DOIS utiliser l'action "update_location" pour modifier son "new_location" (Royaume) ou son "new_sub_location" (Lieu précis/Ville/Bâtiment).
@@ -555,6 +586,7 @@ RÈGLES TECHNIQUES:
       ▬▬▬▬▬▬▬▬▬▬▬▬
       [NOM_JOUEUR_2]
       (Narration pour joueur 2...)
+    - ISOLATION NARRATIVE ABSOLUE: Si les joueurs sont dans des Sous-lieux (SubLocation) différents, ils ne peuvent JAMAIS apparaître dans le même pavé narratif ni interagir. Ta narration doit les traiter comme s'ils étaient dans deux mondes séparés.
     - INTERDICTION FORMELLE : N'utilise JAMAIS de tirets (-), de puces, ou de caractères de liste (├, └, ┠) dans la narration.
     - STYLE : La narration doit être un bloc de texte fluide, riche et cinématographique. Pas de listes d'actions ou de descriptions fragmentées.
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
@@ -670,6 +702,8 @@ RÉALITÉ PHYSIQUE:
     const fullPrompt = `### WORLD_PULSE (DICE/LUCK) ###\n${JSON.stringify(worldPulse)}
 
 ### MÉMOIRE_SYSTÈME_JSON (CONTEXTE DÉTAILLÉ PAR JOUEUR) ###\n${memoryJson}
+
+### HISTORIQUE_NARRATIF_RÉCENT_PAR_JOUEUR ###\n${JSON.stringify(storyHooks, null, 2)}
 
 ### RÉSUMÉ DES ACTIONS À TRAITER ###
 ${actionSummary}
@@ -877,25 +911,35 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
       aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
 
+    // Live HUD Integration: Inject a concise status bar at the end of the narrative for immediate feedback
+    const hud = `\n\n📊 *STATUS* : [❤️ HP ${player.health}/${player.maxHealth} | 🌀 MP ${player.mana}/${player.maxMana} | 💰 Col ${player.col}]`;
+    aiResponse.narrative = `${aiResponse.narrative}${hud}`;
+
     // Prepend World Clock Header
     aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
 
     await sendWithImage(sock, jid, aiResponse);
 
-    // Auto-Profile Delivery for all updated players
-    for (const pId of playersToUpdate) {
-        try {
-            const pToUpdate = await Player.findOne({ where: { whatsappId: pId } });
-            if (pToUpdate && shouldNotifyPlayer(pToUpdate)) {
-                await pToUpdate.reload();
-                const profileBuffer = await generateProfileCard(pToUpdate);
-                await sock.sendMessage(pId, {
-                    image: profileBuffer,
-                    caption: `--- 🆔 PROFIL MIS À JOUR : ${pToUpdate.name} --- \n\nLe système a synchronisé tes nouvelles données (PV/PM/Stats/Finances).`
-                });
+    // LIVE-actualisation: Silent Database Update + Strategic Profile Delivery
+    // We send profile cards ONLY if a major event occurred (Level up, death, new skill, etc.)
+    const majorChange = aiResponse.actions.some(a => ['update_player', 'add_skill', 'create_custom_skill', 'complete_quest', 'resurrect_player'].includes(a.type));
+
+    if (majorChange) {
+        const everyoneInScene = nearbyPlayers.map(p => p.whatsappId);
+        for (const pId of everyoneInScene) {
+            try {
+                const pToUpdate = await Player.findOne({ where: { whatsappId: pId } });
+                if (pToUpdate && shouldNotifyPlayer(pToUpdate)) {
+                    await pToUpdate.reload();
+                    const profileBuffer = await generateProfileCard(pToUpdate);
+                    await sock.sendMessage(pId, {
+                        image: profileBuffer,
+                        caption: `--- 🆔 PROFIL SYNCHRONISÉ : ${pToUpdate.name} ---`
+                    });
+                }
+            } catch (e) {
+                console.error(`[AI] Profile auto-update failed for ${pId}:`, e.message);
             }
-        } catch (e) {
-            console.error(`[AI] Profile auto-update failed for ${pId}:`, e.message);
         }
     }
 

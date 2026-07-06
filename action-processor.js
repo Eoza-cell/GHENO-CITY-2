@@ -54,6 +54,13 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                 notifiedTargets.add(target.whatsappId);
             }
 
+            // Global Death Block: Dead players (0 HP) can only be targets of specific actions
+            const allowedForDead = ['update_stats', 'resurrect_player', 'update_player', 'write_journal', 'notify_player', 'query_database'];
+            if (target && target.health <= 0 && !allowedForDead.includes(type)) {
+                console.log(`[Processor] Action ${type} blocked: target ${target.name} is dead.`);
+                continue;
+            }
+
             switch (type) {
                 case 'update_location':
                     await handleUpdateLocation(target, parameters, aiResponse, playersToUpdate);
@@ -347,6 +354,7 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
 }
 
 async function handleUpdateLocation(target, params, aiResponse, playersToUpdate) {
+    if (target.health <= 0) return; // Dead players can't move
     const updates = {};
     if (params.new_location) updates.location = params.new_location;
     if (params.new_sub_location) updates.subLocation = params.new_sub_location;
@@ -436,6 +444,7 @@ async function handleBuyItem(target, params, questFeedback, playersToUpdate) {
 }
 
 async function handleTravelTo(target, params, aiResponse, playersToUpdate) {
+    if (target.health <= 0) return; // Dead players can't travel
     if (params.new_location || params.new_sub_location) {
         const updates = {};
         if (params.new_location) updates.location = params.new_location;
