@@ -561,21 +561,23 @@ RÈGLES TECHNIQUES:
    - ÉCHANGES : Pour donner entre joueurs, utilise "p2p_transfer" : { "recipient_name": "...", "amount": n, "itemName": "...", "quantity": 1 }.
    - SUIVI DES QUÊTES : Tu gères les compteurs (Kills/Collectes). Utilise "advance_quest" : { "questTitle": "...", "progress": n, "note": "+1" }.
    - L'ARBITRE (WORLD PULSE) : Tu DOIS utiliser les valeurs de 'WORLD_PULSE' pour déterminer le succès des actions risquées (Vol, Esquive extrême, etc.). Si 'luck_seed' > 70 ou 'critical_success' est vrai, le joueur réussit magnifiquement. Sinon, applique la cruauté du monde.
-- buy_item : { "itemName": "nom", "quantity": 1 }. (Vérifie COL).
-- use_item : { "itemName": "nom" }. (Vérifie possession).
+- buy_item : { "itemName": "nom", "quantity": 1 }.
+- use_item : { "itemName": "nom" }.
 - add_skill : { "skillName": "nom", "target_name": "nom" }.
+- create_custom_item : { "name": "...", "description": "...", "type": "weapon|clothing|consumable", "rarity": "rare|epic|legendary", "statBonuses": {"strength": 5}, "target_name": "..." }
+- manage_house : { "action": "grant|revoke", "houseName": "...", "target_name": "..." }
+- trigger_conflict : { "title": "...", "description": "...", "involvedKingdoms": ["..."] }
+- broadcast : { "message": "..." }
+- notify_player : { "target_name": "...", "message": "..." }
+- query_database : { "model": "Player|NPC|Kingdom|Quest|Item", "search": "nom" }
+- steal_item : { "itemName": "...", "target_name": "..." }
+- create_quest : { "title": "...", "description": "...", "objective": "...", "rank_required": "F-S", "reward_col": n, "reward_xp": n }
 - spawn_npc : { "name": "...", "role": "...", "powerLevel": 1-100, "description": "...", "specialty": "..." }
 - spawn_monster : { "name": "...", "rank": "G-S", "health": 100, "strength": 10, "defense": 10, "agility": 10, "intelligence": 10 }
-- create_custom_item : { "name": "...", "description": "...", "type": "weapon|clothing|consumable", "rarity": "common|rare|epic|legendary", "statBonuses": {"strength": 5}, "target_name": "..." }
 - change_weather : { "weather": "Ensoleillé|Pluvieux|Orageux|Neigeux|Brouillard" }
-- trigger_conflict : { "title": "...", "description": "...", "involvedKingdoms": ["..."] }
-- royal_visit : { "npcName": "...", "reason": "...", "impact": "..." }
-- manage_house : { "action": "grant|revoke|modify", "houseName": "...", "target_name": "..." }
 - set_academic_status : { "target_name": "...", "academicYear": 1-5, "academicGrade": 0-100, "schoolName": "..." }
-- get_player_details : { "target_name": "..." } (Permet de connaître l'état d'un joueur hors-scène).
-- query_database : { "model": "Player|NPC|Kingdom", "search": "nom" } (Demande des détails précis au bot).
 - modify_reputation : { "target_name": "...", "kingdom": "...", "change": -50 à +50 }
- - generate_document : { "type": "exam|note|decree", "content": "...", "title": "..." }
+- generate_document : { "type": "exam|note|decree", "content": "...", "title": "..." }
  - trigger_trap : { "damage": n } (Inflige des dégâts immédiats via un piège).
  - break_equipment : { "itemName": "..." } (Détruit un objet de l'inventaire).
  - social_consequence : { "influence_loss": n } (Réduit l'influence après une faute sociale).

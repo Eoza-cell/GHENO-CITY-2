@@ -18,7 +18,8 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
         'resurrect_player', 'forge_pact', 'join_club', 'start_quest',
         'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade',
         'request_servitude', 'accept_servitude', 'request_fusion', 'accept_fusion', 'dissolve_fusion',
-        'trigger_trap', 'apply_status_effect', 'break_equipment', 'social_consequence'
+        'trigger_trap', 'apply_status_effect', 'break_equipment', 'social_consequence',
+        'create_custom_item', 'manage_house', 'trigger_conflict', 'broadcast', 'notify_player', 'query_database', 'steal_item', 'create_quest'
     ];
 
     for (const actionObj of actions) {
@@ -255,6 +256,86 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     // Just narrative feedback for now as we don't have a status system in DB yet
                     questFeedback.push(`✨ *ÉTAT* : ${target.name} est sous l'effet : ${parameters.effect}.`);
                     playersToUpdate.add(target.whatsappId);
+                    break;
+                case 'create_custom_item':
+                    const newItem = await Item.create({
+                        name: parameters.name,
+                        description: parameters.description,
+                        type: parameters.type || 'misc',
+                        rarity: parameters.rarity || 'rare',
+                        statBonuses: parameters.statBonuses || {}
+                    });
+                    let cInv = [...target.inventory];
+                    cInv.push({ name: newItem.name, quantity: 1 });
+                    target.inventory = cInv;
+                    await target.save();
+                    playersToUpdate.add(target.whatsappId);
+                    questFeedback.push(`🎁 *OBJET UNIQUE* : ${target.name} a reçu "${parameters.name}".`);
+                    break;
+                case 'manage_house':
+                    const house = await House.findOne({ where: { name: { [Op.like]: `%${parameters.houseName}%` } } });
+                    if (house) {
+                        if (parameters.action === 'grant') await house.update({ ownerId: target.whatsappId });
+                        else if (parameters.action === 'revoke') await house.update({ ownerId: null });
+                        playersToUpdate.add(target.whatsappId);
+                        questFeedback.push(`🏠 *MAISON* : Le statut de la propriété "${house.name}" a changé.`);
+                    }
+                    break;
+                case 'trigger_conflict':
+                    await Conflict.create({
+                        title: parameters.title,
+                        description: parameters.description,
+                        involvedKingdoms: parameters.involvedKingdoms,
+                        status: 'active'
+                    });
+                    aiResponse.broadcastMessage = `⚔️ *NOUVEAU CONFLIT* : ${parameters.title} !`;
+                    break;
+                case 'broadcast':
+                    aiResponse.broadcastMessage = parameters.message;
+                    break;
+                case 'notify_player':
+                    aiResponse.notifications.push({
+                        target_name: parameters.target_name,
+                        message: parameters.message
+                    });
+                    break;
+                case 'query_database':
+                    console.log(`[MJ QUERY] Model: ${parameters.model}, Search: ${parameters.search}`);
+                    // AI queries are logged, system provides info in context next turn
+                    break;
+                case 'steal_item':
+                    const victim = target;
+                    const thief = player;
+                    let vInv = [...victim.inventory];
+                    const sIdx = vInv.findIndex(i => i.name.toLowerCase().includes(parameters.itemName?.toLowerCase()));
+                    if (sIdx !== -1) {
+                        const stolenItem = vInv.splice(sIdx, 1)[0];
+                        victim.inventory = vInv;
+                        await victim.save();
+
+                        let tInv = [...thief.inventory];
+                        const existing = tInv.find(i => i.name === stolenItem.name);
+                        if (existing) existing.quantity += 1;
+                        else tInv.push({ name: stolenItem.name, quantity: 1 });
+                        thief.inventory = tInv;
+                        await thief.save();
+
+                        playersToUpdate.add(victim.whatsappId);
+                        playersToUpdate.add(thief.whatsappId);
+                        questFeedback.push(`🕵️ *VOL* : Un objet a été dérobé à ${victim.name}.`);
+                    }
+                    break;
+                case 'create_quest':
+                    await Quest.create({
+                        title: parameters.title,
+                        description: parameters.description,
+                        objective: parameters.objective,
+                        rank_required: parameters.rank_required || 'E',
+                        reward_col: parameters.reward_col || 0,
+                        reward_xp: parameters.reward_xp || 0,
+                        type: parameters.type || 'side'
+                    });
+                    questFeedback.push(`📜 *NOUVELLE MISSION DISPONIBLE* : "${parameters.title}".`);
                     break;
             }
         } catch (err) {
