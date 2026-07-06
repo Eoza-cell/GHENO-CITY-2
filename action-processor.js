@@ -27,6 +27,13 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
             const { type, parameters } = actionObj;
             if (!parameters) continue;
 
+            // Global Actor Death Block: If the acting player is dead, they can't perform physical actions
+            const actorAllowedActions = ['update_stats', 'update_player', 'write_journal', 'notify_player', 'query_database', 'resurrect_player'];
+            if (player.health <= 0 && !actorAllowedActions.includes(type)) {
+                console.log(`[Processor] Action ${type} blocked: actor ${player.name} is dead.`);
+                continue;
+            }
+
             let target = player;
             let targetFound = true;
 
@@ -76,6 +83,12 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     break;
                 case 'add_skill':
                     await handleAddSkill(target, parameters, playersToUpdate);
+                    break;
+        case 'check_requirements':
+            await handleCheckRequirements(target, parameters, aiResponse, playersToUpdate);
+            break;
+                case 'create_custom_skill':
+                    await handleCreateCustomSkill(target, parameters, playersToUpdate);
                     break;
                 case 'buy_item':
                     await handleBuyItem(target, parameters, questFeedback, playersToUpdate);
@@ -509,7 +522,59 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
 async function handleAddSkill(target, params, playersToUpdate) {
     const skill = await Skill.findOne({ where: { name: { [Op.like]: `%${params.skillName}%` } } });
     if (skill && !(await target.hasSkill(skill))) {
+        const cost = params.sp_cost || 0;
+        if (target.skillPoints >= cost) {
+            if (cost > 0) await target.decrement('skillPoints', { by: cost });
+            await target.addSkill(skill);
+            playersToUpdate.add(target.whatsappId);
+        }
+    }
+}
+
+async function handleCheckRequirements(target, params, aiResponse, playersToUpdate) {
+    const rankMap = { 'F': 0, 'E': 1, 'D': 2, 'C': 3, 'B': 4, 'A': 5, 'S': 6 };
+    const requiredRankValue = rankMap[params.rank_required] || 0;
+    const playerRankValue = rankMap[target.rank] || 0;
+
+    let failed = false;
+    let reason = "";
+
+    if (playerRankValue < requiredRankValue) {
+        failed = true;
+        reason = `Rang ${params.rank_required} requis (tu es Rang ${target.rank})`;
+    }
+
+    if (params.skill_required) {
+        const hasSkill = (await target.getSkills()).some(s => s.name.toLowerCase().includes(params.skill_required.toLowerCase()));
+        if (!hasSkill) {
+            failed = true;
+            reason = `Compétence "${params.skill_required}" requise`;
+        }
+    }
+
+    if (failed) {
+        aiResponse.narrative = `${aiResponse.narrative}\n\n❌ *ÉCHEC CRITIQUE* : ${reason}. L'action a échoué lamentablement.`;
+        // Optionally penalize
+        await target.decrement('health', { by: 10 });
+        playersToUpdate.add(target.whatsappId);
+    }
+}
+
+async function handleCreateCustomSkill(target, params, playersToUpdate) {
+    const cost = params.sp_cost || 10;
+    if (target.skillPoints >= cost) {
+        const [skill, created] = await Skill.findOrCreate({
+            where: { name: params.name },
+            defaults: {
+                description: params.description,
+                type: 'Custom',
+                manaCost: params.manaCost || 20,
+                statBonuses: params.statBonuses || {}
+            }
+        });
         await target.addSkill(skill);
+        await target.decrement('skillPoints', { by: cost });
+        await target.reload();
         playersToUpdate.add(target.whatsappId);
     }
 }

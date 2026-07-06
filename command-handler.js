@@ -11,6 +11,7 @@ const { generateWorldMapImage } = require('./world-map');
 const { generateMissionBoard } = require('./paper-generator');
 const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage } = require('./shop-generator');
+const { generateSkillListImage } = require('./action-visual-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
@@ -116,7 +117,13 @@ commands.set('competences', async (sock, message, args) => {
 
     skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pactes._";
 
-    await sock.sendMessage(replyJid, { text: skillText });
+    try {
+        const skillBuffer = await generateSkillListImage(player, skills.slice(0, 15));
+        await sock.sendMessage(replyJid, { image: skillBuffer, caption: skillText });
+    } catch (err) {
+        console.error("[Skills] Visual error:", err);
+        await sock.sendMessage(replyJid, { text: skillText });
+    }
 });
 
 commands.set('quests', async (sock, message) => {

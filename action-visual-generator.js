@@ -75,4 +75,63 @@ async function generateActionVisual(data) {
         .toBuffer();
 }
 
-module.exports = { generateActionVisual };
+/**
+ * Generates a grid of skill cards for the player's profile or /skills command.
+ */
+async function generateSkillListImage(player, skills) {
+    const width = 1000;
+    const cardWidth = 300;
+    const cardHeight = 150;
+    const margin = 20;
+    const cols = 3;
+    const rows = Math.ceil(skills.length / cols);
+    const height = Math.max(400, rows * (cardHeight + margin) + 150);
+
+    let skillsSvg = '';
+    skills.forEach((skill, i) => {
+        const row = Math.floor(i / cols);
+        const col = i % cols;
+        const x = margin + col * (cardWidth + margin);
+        const y = 120 + row * (cardHeight + margin);
+
+        let color = '#4fb3ff';
+        if (skill.name.includes('[Feu]')) color = '#ff4500';
+        if (skill.name.includes('[Eau]')) color = '#00ffff';
+        if (skill.name.includes('[Terre]')) color = '#8b4513';
+        if (skill.name.includes('[Vent]')) color = '#ffffff';
+
+        skillsSvg += `
+            <g transform="translate(${x}, ${y})">
+                <rect width="${cardWidth}" height="${cardHeight}" fill="#1a1a2e" stroke="${color}" stroke-width="2" rx="10" />
+                <text x="15" y="40" font-family="Arial" font-size="20" fill="${color}" font-weight="bold">${escapeXml(skill.name.substring(0, 22))}</text>
+                <text x="15" y="70" font-family="Arial" font-size="14" fill="#aaa">Coût: ${skill.manaCost} PM</text>
+                <foreignObject x="15" y="85" width="${cardWidth - 30}" height="55">
+                    <div xmlns="http://www.w3.org/1999/xhtml" style="color: #eee; font-family: Arial; font-size: 12px; line-height: 1.2;">
+                        ${escapeXml(skill.description)}
+                    </div>
+                </foreignObject>
+            </g>
+        `;
+    });
+
+    const svg = `
+        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="#0a0a1a" />
+            <defs>
+                <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:#ff4500;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#ffd700;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="${width}" height="100" fill="url(#headerGrad)" />
+            <text x="40" y="65" font-family="Arial Black" font-size="40" fill="black">TECHNIQUES DE RANG ${player.rank}</text>
+            <text x="${width - 40}" y="65" text-anchor="end" font-family="monospace" font-size="20" fill="black">${player.name.toUpperCase()} // LVL ${player.level}</text>
+
+            ${skillsSvg}
+        </svg>
+    `;
+
+    return await sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+module.exports = { generateActionVisual, generateSkillListImage };
