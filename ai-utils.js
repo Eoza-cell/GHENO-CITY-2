@@ -560,16 +560,16 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         // Prioritize Pollinations as requested by user
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: '9Router', fn: call9Router },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'Blackbox', fn: callBlackbox },
         ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Llamafile (Local)', fn: callLlamafile },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'Blackbox', fn: callBlackbox }
+        { name: 'LM Studio (Local)', fn: callLMStudio }
     ];
 
     for (const provider of providers) {
@@ -588,7 +588,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             const result = await provider.fn(activeSystem, sanitizedUser, options);
             const providerDuration = (Date.now() - providerStart) / 1000;
 
-            if (isValidAIResponse(result)) {
+            // Handle potential JSON objects from some providers
+            let finalResult = result;
+            if (typeof result === 'object' && result !== null) {
+                finalResult = JSON.stringify(result);
+            }
+
+            if (isValidAIResponse(finalResult)) {
                 console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration}s`);
                 // Verify the result is not just a technical JSON dump without narrative
                 if (result.trim().startsWith('{')) {
