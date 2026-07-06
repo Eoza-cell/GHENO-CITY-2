@@ -189,32 +189,69 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   // Keyword Detection for Quests & Intent
   const lowAction = actionText.toLowerCase();
-  if (lowAction.match(/\b(quête|mission|travail|besoin d'aide|contrat|recherche|objectif|prime|job|faire quelque chose|s'occuper|aider|aventure)\b/i)) {
-      hints.push("🎯 INTENTION DE QUÊTE DÉTECTÉE. Le joueur cherche du travail ou une mission. Propose-lui une quête parmi 'Quêtes Dispo' via un PNJ local ou un message système.");
+
+  // CATEGORY: QUESTS (Keyword Activation)
+  if (lowAction.match(/\b(quête|mission|travail|besoin d'aide|contrat|recherche|objectif|prime|job|faire quelque chose|s'occuper|aider|aventure|aider|services|tâche|recrute|demander du travail|postuler|chercher une mission)\b/i)) {
+      hints.push("🎯 [KEYWORD_ACTIVATE: QUEST] Intention de mission détectée. Tu DOIS proposer une quête ou utiliser 'start_quest' si le joueur accepte.");
 
       // Fuzzy matching for quest titles
       for (const q of availableQuests) {
           const title = q.title.toLowerCase();
           const words = title.split(' ');
           if (words.some(w => w.length > 3 && lowAction.includes(w))) {
-              hints.push(`🔥 LE JOUEUR SEMBLE PARLER DE LA QUÊTE : "${q.title}". Propose-lui de la démarrer ou fais progresser l'histoire dans cette direction via 'start_quest'.`);
+              hints.push(`🔥 [SYNC] Le joueur cible la quête : "${q.title}". Propose-lui de démarrer via 'start_quest'.`);
           }
       }
   }
-  if (lowAction.match(/\b(vendre|acheter|marchand|boutique|prix|coûte|commerce)\b/i)) {
-      hints.push("💰 INTENTION COMMERCIALE DÉTECTÉE. Le joueur veut faire du commerce. Utilise 'npc_trade' ou 'buy_item' si un PNJ marchand est présent.");
+
+  // CATEGORY: COMMERCE & MONEY
+  if (lowAction.match(/\b(vendre|acheter|marchand|boutique|prix|coûte|commerce|échanger|troc|magasin|étal|vendeur|négocier|paye|pièces|argent|donne-moi|combien|tarif|achat|vente)\b/i)) {
+      hints.push("💰 [KEYWORD_ACTIVATE: TRADE] Intention commerciale. Utilise 'npc_trade' (buy/sell) ou 'buy_item'. Déduis le Col via 'update_stats'.");
   }
-  if (lowAction.match(/\b(apprendre|entraînement|étudier|compétence|skill|technique|maîtrise)\b/i)) {
-      hints.push("📖 INTENTION D'APPRENTISSAGE DÉTECTÉE. Le joueur veut progresser. Propose-lui d'apprendre un skill via 'add_skill' (déduis les SP).");
+
+  // CATEGORY: TRAINING & SKILLS
+  if (lowAction.match(/\b(apprendre|entraînement|étudier|compétence|skill|technique|maîtrise|pouvoir|entraînement|développer|pratique|exercer|méditer|apprendre|maîtriser|nouveau sort|nouvelle technique)\b/i)) {
+      hints.push("📖 [KEYWORD_ACTIVATE: SKILL] Apprentissage détecté. Utilise 'add_skill' (coût 5 SP) ou 'create_custom_skill' (coût 10 SP).");
   }
-  if (lowAction.match(/\b(attaque|frappe|tue|meurt|combat|lance|sort|magie|épée|lame|poing|coup|sang)\b/i)) {
-      hints.push("⚔️ SITUATION DE COMBAT DÉTECTÉE. Applique la LÉTHALITÉ et la PRÉCISION. Si le joueur est imprécis (ex: 'J'attaque'), il reste immobile ou subit une contre-attaque dévastatrice. Vérifie les stats (FOR/AGI gap).");
+
+  // CATEGORY: COMBAT & LETHALITY
+  if (lowAction.match(/\b(attaque|frappe|tue|meurt|combat|lance|sort|magie|épée|lame|poing|coup|sang|duel|défi|assassinat|fendre|trancher|brûler|frapper|cogner|massacrer|achever)\b/i)) {
+      hints.push("⚔️ [KEYWORD_ACTIVATE: COMBAT] Combat intense. Applique la léthallité. Utilise 'update_stats' pour les PV. Si le joueur est imprécis, il subit une riposte.");
   }
-  if (lowAction.match(/\b(fouille|cherche|observe|regarde|examine|porte|couloir|coffre|recherche)\b/i)) {
-      hints.push("🕵️ EXPLORATION DÉTECTÉE. L'aventure n'est pas facile. N'hésite pas à déclencher un piège via 'trigger_trap' ou à briser un équipement via 'break_equipment' si le joueur est imprudent.");
+
+  // CATEGORY: EXPLORATION
+  if (lowAction.match(/\b(fouille|cherche|observe|regarde|examine|porte|couloir|coffre|recherche|inspecte|fouille|découvre|trouver|fouiller|analyser|voir de plus près|ouvrir)\b/i)) {
+      hints.push("🕵️ [KEYWORD_ACTIVATE: EXPLORE] Exploration détectée. Utilise 'trigger_trap' ou 'add_item' si un trésor est trouvé.");
   }
-  if (lowAction.match(/\b(insulte|frappe|vole|tue|crime|garde|loi|roi|noble)\b/i)) {
-      hints.push("⚖️ CONSÉQUENCE SOCIALE POTENTIELLE. Si le joueur manque de respect ou commet un crime, utilise 'social_consequence' pour réduire son influence.");
+
+  // CATEGORY: JUSTICE & SOCIAL
+  if (lowAction.match(/\b(insulte|frappe|vole|tue|crime|garde|loi|roi|noble|duc|trahison|meurtre|voler|dérober|menace|provocation|crachat|manquer de respect)\b/i)) {
+      hints.push("⚖️ [KEYWORD_ACTIVATE: JUSTICE] Infraction détectée. Utilise 'social_consequence', 'set_wanted_level' ou 'arrest_player'.");
+  }
+
+  // CATEGORY: WRITING & DOCUMENTS
+  if (lowAction.match(/\b(écrit|écrire|rédige|rédiger|note|noter|journal|lettre|décret|contrat|examen|copie|parchemin|signe|signer|stylo|plume|écrire une lettre|signer le contrat)\b/i)) {
+      hints.push("📄 [KEYWORD_ACTIVATE: WRITE] Écriture détectée. Utilise 'generate_document' pour matérialiser l'écrit.");
+  }
+
+  // CATEGORY: TRAVEL & MOVEMENT
+  if (lowAction.match(/\b(va|vers|part|voyage|chevauche|calèche|portail|téléportation|route|chemin|direction|quitte|entre|déplace|bouge|sort)\b/i)) {
+      hints.push("🚩 INTENTION DE MOUVEMENT DÉTECTÉE. Si le joueur change de lieu important, utilise 'travel_to' ou 'update_location'. Décris le paysage et les rencontres durant le trajet.");
+  }
+
+  // CATEGORY: RELATIONSHIPS & BONDS
+  if (lowAction.match(/\b(fusion|fusionner|âme|lien|pacte|serviteur|maître|soumission|obéir|donner|partager|union|fusion d'âmes|pacte de servitude)\b/i)) {
+      hints.push("🔗 INTENTION DE LIEN DÉTECTÉE. Le joueur veut créer un lien puissant. Utilise 'request_servitude' ou 'request_fusion'.");
+  }
+
+  // CATEGORY: SURVIVAL & REST
+  if (lowAction.match(/\b(dort|repos|mange|bois|faim|soif|nourriture|sommeil|fatigue|épuisé|taverne|auberge|lit|repas|festin)\b/i)) {
+      hints.push("🍖 INTENTION DE SURVIE DÉTECTÉE. Le joueur cherche à se restaurer. Utilise 'update_stats' { \"hunger_change\": 20, \"sleep_change\": 20 } après un repas ou une nuit de sommeil.");
+  }
+
+  // CATEGORY: BANK & FINANCE
+  if (lowAction.match(/\b(banque|déposer|retirer|coffre-fort|compte|épargne|guichet|banquier|transfert|col)\b/i)) {
+      hints.push("🏦 INTENTION BANCAIRE DÉTECTÉE. Utilise 'bank_transaction' { \"type\": \"deposit|withdraw\", \"amount\": n }.");
   }
 
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
