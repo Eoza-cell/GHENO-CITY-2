@@ -17,7 +17,8 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
         'set_academic_status', 'get_player_details', 'modify_reputation',
         'resurrect_player', 'forge_pact', 'join_club', 'start_quest',
         'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade',
-        'request_servitude', 'accept_servitude', 'request_fusion', 'accept_fusion', 'dissolve_fusion'
+        'request_servitude', 'accept_servitude', 'request_fusion', 'accept_fusion', 'dissolve_fusion',
+        'trigger_trap', 'apply_status_effect', 'break_equipment', 'social_consequence'
     ];
 
     for (const actionObj of actions) {
@@ -228,6 +229,32 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                         if (partner) playersToUpdate.add(partner.whatsappId);
                         questFeedback.push(`💔 *DISSOLUTION* : La fusion a pris fin.`);
                     }
+                    break;
+                case 'trigger_trap':
+                    await target.decrement('health', { by: parameters.damage || 20 });
+                    playersToUpdate.add(target.whatsappId);
+                    questFeedback.push(`🪤 *PIÈGE* : ${target.name} a déclenché un piège !`);
+                    break;
+                case 'break_equipment':
+                    let inv = [...target.inventory];
+                    const idx = inv.findIndex(i => i.name.toLowerCase().includes(parameters.itemName?.toLowerCase()));
+                    if (idx !== -1) {
+                        inv.splice(idx, 1);
+                        target.inventory = inv;
+                        await target.save();
+                        playersToUpdate.add(target.whatsappId);
+                        questFeedback.push(`🔨 *DÉGÂTS* : L'équipement de ${target.name} s'est brisé.`);
+                    }
+                    break;
+                case 'social_consequence':
+                    await target.decrement('influence', { by: parameters.influence_loss || 10 });
+                    playersToUpdate.add(target.whatsappId);
+                    questFeedback.push(`📢 *RÉPUTATION* : ${target.name} subit les conséquences de ses actes.`);
+                    break;
+                case 'apply_status_effect':
+                    // Just narrative feedback for now as we don't have a status system in DB yet
+                    questFeedback.push(`✨ *ÉTAT* : ${target.name} est sous l'effet : ${parameters.effect}.`);
+                    playersToUpdate.add(target.whatsappId);
                     break;
             }
         } catch (err) {

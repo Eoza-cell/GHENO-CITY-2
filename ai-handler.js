@@ -200,6 +200,12 @@ async function handleFreeAction(sock, message, player, actionText) {
   if (lowAction.match(/\b(attaque|frappe|tue|meurt|combat|lance|sort|magie|épée|lame|poing|coup|sang)\b/i)) {
       hints.push("⚔️ SITUATION DE COMBAT DÉTECTÉE. Applique la LÉTHALITÉ et la PRÉCISION. Si le joueur est imprécis (ex: 'J'attaque'), il reste immobile ou subit une contre-attaque dévastatrice. Vérifie les stats (FOR/AGI gap).");
   }
+  if (lowAction.match(/\b(fouille|cherche|observe|regarde|examine|porte|couloir|coffre|recherche)\b/i)) {
+      hints.push("🕵️ EXPLORATION DÉTECTÉE. L'aventure n'est pas facile. N'hésite pas à déclencher un piège via 'trigger_trap' ou à briser un équipement via 'break_equipment' si le joueur est imprudent.");
+  }
+  if (lowAction.match(/\b(insulte|frappe|vole|tue|crime|garde|loi|roi|noble)\b/i)) {
+      hints.push("⚖️ CONSÉQUENCE SOCIALE POTENTIELLE. Si le joueur manque de respect ou commet un crime, utilise 'social_consequence' pour réduire son influence.");
+  }
 
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
 
@@ -482,6 +488,9 @@ RÈGLES TECHNIQUES:
    - LÉTHALITÉ & PRÉCISION (CRITIQUE): Les adversaires cherchent activement à TUER le joueur s'ils sont hostiles. Ils visent les points vitaux (gorge, cœur, articulations), exploitent chaque erreur de placement (imprécision du joueur) et n'ont aucune pitié. La riposte doit être chirurgicale. Un monstre dominant ne laissera aucune chance à un joueur faible.
    - RIPOSTE ADAPTATIVE (STRICT): Les monstres et PNJ ne se contentent pas de frapper au hasard. Leurs ripostes s'adaptent SPÉCIFIQUEMENT aux actions du joueur. Si un joueur feinte, le PNJ (selon son INT) peut voir clair dans le jeu ou se faire piéger. Si un joueur vise une jambe, le PNJ tente de protéger cette zone ou utilise le déséquilibre pour contre-attaquer. Chaque riposte doit être une réponse tactique directe au mouvement du joueur.
    - RIPOSTE DES MONSTRES: Ils esquivent/parent et contre-attaquent dans le même tour. Inflige des dégâts sévères via update_stats si le joueur est dominé par les stats ou l'imprécision. On doit sentir le danger de mort imminente.
+    - ÉCHELLE DE DIFFICULTÉ : L'aventure n'est pas facile. Si un joueur est en difficulté ou trop faible pour une zone, les monstres utilisent leurs "Techniques Ultimes" sans hésiter. Ne sois pas clément.
+    - TRAUMATISMES : Décris les cicatrices permanentes, les membres meurtris ou les effets psychologiques durables après un échec ou un combat violent.
+    - COÛT DES ACTIONS : Même les actions magiques simples ont un coût élevé en Mana. Si le Mana tombe à 0, le joueur s'évanouit ou subit des dégâts de retour de bâton magique.
    - CONSISTANCE GÉOGRAPHIQUE: Les monstres et BOSS ne peuvent apparaître que dans leur lieu (Location) assigné.
 3. PRÉCISION CHIRURGICALE & SENSORIELLE: Mentionne les membres visés, les distances en mètres, mais aussi les odeurs (fer, poussière, parfum), les sons (craquement d'os, sifflement d'air, brouhaha lointain) et les textures (froid du métal, rugosité de la pierre).
 4. PHYSIQUE & POIDS: Décris l'inertie, le poids des armes, la résistance de l'air, et l'impact brutal des chocs. Chaque mouvement doit avoir une consistance physique réelle.
@@ -540,6 +549,8 @@ RÈGLES TECHNIQUES:
       ▬▬▬▬▬▬▬▬▬▬▬▬
       [NOM_JOUEUR_2]
       (Narration pour joueur 2...)
+    - INTERDICTION FORMELLE : N'utilise JAMAIS de tirets (-), de puces, ou de caractères de liste (├, └, ┠) dans la narration.
+    - STYLE : La narration doit être un bloc de texte fluide, riche et cinématographique. Pas de listes d'actions ou de descriptions fragmentées.
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
     - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
 20. NARRATION & DIALOGUES: Français riche et cinématographique. Les dialogues des PNJ doivent être percutants et refléter leur personnalité unique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 500 mots). Va droit au but, évite les fioritures inutiles.
@@ -565,6 +576,10 @@ RÈGLES TECHNIQUES:
 - query_database : { "model": "Player|NPC|Kingdom", "search": "nom" } (Demande des détails précis au bot).
 - modify_reputation : { "target_name": "...", "kingdom": "...", "change": -50 à +50 }
  - generate_document : { "type": "exam|note|decree", "content": "...", "title": "..." }
+ - trigger_trap : { "damage": n } (Inflige des dégâts immédiats via un piège).
+ - break_equipment : { "itemName": "..." } (Détruit un objet de l'inventaire).
+ - social_consequence : { "influence_loss": n } (Réduit l'influence après une faute sociale).
+ - apply_status_effect : { "effect": "..." } (Applique un état spécial narratif).
  - request_servitude : { "target_name": "..." } (Le joueur propose un pacte de servitude).
  - accept_servitude : { "master_name": "..." } (Le joueur accepte de devenir le serviteur).
  - request_fusion : { "target_name": "..." } (Le joueur propose une fusion d'âmes).
