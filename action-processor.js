@@ -404,7 +404,7 @@ async function handleUpdateStats(target, params, questFeedback, playersToUpdate,
     // Stat Capping & Progression Safeguards
     const rankMap = { 'G': 0, 'F': 1, 'E': 2, 'D': 3, 'C': 4, 'B': 5, 'A': 6, 'S': 7 };
     const playerRankVal = rankMap[target.rank] || 0;
-    const statCap = playerRankVal === 1 ? 50 : 9999; // Strict cap for Rank F
+    const statCap = playerRankVal === 1 ? 30 : 9999; // Strict cap for Rank F (Low stats)
 
     if (params.col_change) { await target.increment('col', { by: params.col_change }); hasChanged = true; }
     if (params.xp_gain) {

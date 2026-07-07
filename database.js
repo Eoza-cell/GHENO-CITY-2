@@ -221,23 +221,23 @@ const Player = sequelize.define('Player', {
   },
   strength: {
     type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 5,
   },
   agility: {
     type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 5,
   },
   intelligence: {
     type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 5,
   },
   luck: {
     type: DataTypes.INTEGER,
-    defaultValue: 5,
+    defaultValue: 2,
   },
   defense: {
     type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 5,
   },
   equippedOutfit: {
     type: DataTypes.STRING,
