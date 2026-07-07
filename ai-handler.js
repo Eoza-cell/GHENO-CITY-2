@@ -252,8 +252,13 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   // CATEGORY: COMBAT & LETHALITY
-  if (lowAction.match(/\b(attaque|frappe|tue|meurt|combat|lance|sort|magie|épée|lame|poing|coup|sang|duel|défi|assassinat|fendre|trancher|brûler|frapper|cogner|massacrer|achever)\b/i)) {
-      hints.push("⚔️ [KEYWORD_ACTIVATE: COMBAT] Combat intense. Applique la léthallité. Utilise 'update_stats' pour les PV. Si le joueur est imprécis, il subit une riposte.");
+  if (lowAction.match(/\b(attaque|frappe|tue|meurt|combat|lance|sort|magie|épée|lame|poing|coup|sang|duel|défi|assassinat|fendre|trancher|brûler|frapper|cogner|massacrer|achever|décapiter|éventrer|briser)\b/i)) {
+      hints.push("⚔️ [KEYWORD_ACTIVATE: COMBAT] Combat ultra-violent. Applique une léthallité immédiate. Utilise 'update_stats' pour des dégâts massifs. Si le joueur est imprécis ou faible, il subit des blessures mutilantes ou la mort.");
+  }
+
+  // CATEGORY: MATURE & RELATIONSHIPS
+  if (lowAction.match(/\b(sexe|coucher|embrasser|caresse|nu|déshabiller|plaisir|désir|étreinte|lit|chambre|amour|passion|vif|charnel)\b/i)) {
+      hints.push("🔞 [KEYWORD_ACTIVATE: MATURE] Interaction intime détectée. Décris l'acte avec une prose viscérale, immersive et mature, sans censure, tout en restant dans l'esthétique Manhwa/Seinen.");
   }
 
   // CATEGORY: EXPLORATION
@@ -561,7 +566,10 @@ LOI DE CAUSALITÉ & ANTI-TRICHE:
 NARRATION:
 - FORMAT: Un SEUL paragraphe fluide par joueur/groupe. Pas de listes, dashes (-) ou délimiteurs (▬▬▬▬).
 - GROUPE: Si des joueurs sont ensemble, utilise un bloc [GROUPE: Nom1, Nom2]. Sinon, blocs [NOM_JOUEUR] isolés.
-- STYLE: Manhwa/Anime visuel et viscéral. Décris les impacts, les odeurs et la causalité des actions.
+- STYLE: Manhwa/Anime visuel et viscéral. Décris les impacts, les odeurs, le sang et la causalité des actions.
+- DIFFICULTÉ ÉQUILIBRÉE: Le monde est exigeant et réaliste, mais pas injuste. Les défis doivent être surmontables avec de la stratégie. La mort est possible mais n'est pas systématique.
+- LÉTHALITÉ & VIOLENCE: Les combats sont brutaux et ont un poids réel. Une erreur grave peut être fatale, mais le succès est gratifiant.
+- MATURITÉ: Le monde est mature et sans tabou (violence, relations charnelles, manipulations). Incarne cette crudité avec le style élégant d'un Seinen/Shonen sombre.
 - MJ PUR: Ne joue JAMAIS le joueur. Décris UNIQUEMENT les conséquences et l'environnement.
 
 VISUELS:
