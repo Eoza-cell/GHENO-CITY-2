@@ -30,10 +30,10 @@ try {
 }
 
 const PUTER_MODELS = [
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
     "gpt-4o",
     "claude-3-5-sonnet",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
     "meta-llama-3.1-70b-instruct"
 ];
 
@@ -168,8 +168,8 @@ async function callPuterAPI(system, prompt) {
  */
 async function callPuterSDK(system, prompt) {
     if (!puter || !puter.ai) return null;
-    // Prioritizing Llama 3.1 models as they are great for Roleplay and often free on Puter
-    const models = ["meta-llama-3.1-70b-instruct", "gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+    // Prioritizing Gemini models as requested
+    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o", "claude-3-5-sonnet"];
 
     for (const model of models) {
         try {
