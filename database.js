@@ -368,6 +368,7 @@ const PlayerSkill = sequelize.define('PlayerSkill', {
 const Kingdom = sequelize.define('Kingdom', {
     name: { type: DataTypes.STRING, unique: true },
     description: { type: DataTypes.TEXT },
+    continent: { type: DataTypes.STRING, defaultValue: 'Aetheria' },
     status: { type: DataTypes.STRING, defaultValue: 'peace' },
     influence: { type: DataTypes.INTEGER, defaultValue: 50 },
     militaryPower: { type: DataTypes.INTEGER, defaultValue: 50 },
@@ -888,56 +889,108 @@ async function setupDatabase() {
     }
 
     const kingdomsToSeed = [
+        // Continent: Aetheria (Main Continent - High Fantasy)
         {
-            name: 'Origine de l\'Existence',
-            description: 'Le domaine de ONE ABOVE ALL, où la Causalité Absolue lie chaque action au destin éternel. Sub-locations: Autel de la Causalité, Mer de Conscience, Les Portes du Temps.',
-            status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL'
-        },
-        {
-            name: 'L\'Interstice',
-            description: 'Dimension entre les mondes où règne la loi du plus fort et où la survie dépend de l\'aptitude magique. Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.',
-            status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal'
-        },
-        {
-            name: 'Royaume Céleste',
-            description: 'Domaine des Entités Célestes baigné dans la pureté de l\'Aether, où toute noirceur est proscrite. Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.',
-            status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius'
-        },
-        {
-            name: 'Terres Bestiales',
-            description: 'Domaine sauvage régi par l\'instinct de chasse, où l\'on ne tue que par nécessité. Villages: Oakhaven (Village de chasseurs), Claw-reach (Poste avancé). Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
-            status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos'
-        },
-        {
-            name: 'Empire Impérial d\'Elion',
-            description: 'Royaume humain sous le Code de Valerius, exigeant respect des nobles et obéissance à la couronne. La magie y est strictement régulée. Villages: Riverbend (Pêcheurs), Green-Fields (Agriculteurs). Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale, Solis.',
+            name: 'Empire Impérial d\'Elion', continent: 'Aetheria',
+            description: 'Royaume humain central. Villes: Eldoria (Capitale), Solis, Riverbend, Green-Fields, Portes d\'Elion.',
             status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II'
         },
         {
-            name: 'Nécropolis',
-            description: 'Cité des morts drapée de brumes, où le silence éternel est la seule règle. Sub-locations: Le Seuil, Allée des Tombeaux Oubliés, Trône du Jugement.',
-            status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon'
-        },
-        {
-            name: 'Dominion Noir de Vharos',
-            description: 'Territoire désolé pliant sous la volonté de la liche Vharos. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.',
-            status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos'
-        },
-        {
-            name: 'Royaume de Valkyrr',
-            description: 'Centre d\'innovation magique et technologique où chaque recherche est méticuleusement régulée. Villages: Gearhead (Mineurs), Sparkwell (Artisans). Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.',
+            name: 'Royaume de Valkyrr', continent: 'Aetheria',
+            description: 'Centre technologique. Villes: Gearhead, Sparkwell, Grand Laboratoire, Marché de l\'Éther, Lycée de l\'Éther.',
             status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen'
         },
         {
-            name: 'Gheno souterrain',
-            description: 'Plaque tournante du trafic de reliques où le silence est une question de survie face à l\'Ombre. Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé, École des Ombres.',
+            name: 'Gheno souterrain', continent: 'Aetheria',
+            description: 'Cité criminelle. Villes: Marché Noir, Caveau des Ombres, Taverne de l\'Exilé, École des Ombres, Bas-fonds.',
             status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre'
+        },
+        {
+            name: 'Forêt de l\'Éveil', continent: 'Aetheria',
+            description: 'Refuge Elfique. Villes: Sylva-Lumia, Arbre-Mère, Sources d\'Argent, Clairière du Destin, Racines Éternelles.',
+            status: 'peace', influence: 85, militaryPower: 85, leader: 'Reine Elara'
+        },
+        {
+            name: 'Archipel des Murmures', continent: 'Aetheria',
+            description: 'Îles brumeuses. Villes: Port-Brume, Crique de Corail, Phare d\'Écume, Atoll des Sirènes, Rocher Percé.',
+            status: 'neutral', influence: 65, militaryPower: 50, leader: 'Capitaine Drake'
+        },
+
+        // Continent: Zendora (Wild Continent - Beastmen & Orcs)
+        {
+            name: 'Terres Bestiales', continent: 'Zendora',
+            description: 'Plaines sauvages. Villes: Oakhaven, Claw-reach, Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
+            status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos'
+        },
+        {
+            name: 'Bastion d\'Orkh', continent: 'Zendora',
+            description: 'Domaine Orc. Villes: Fort-Sang, Arène de Fer, Mines Rouges, Canyon des Crânes, Temple de la Rage.',
+            status: 'war', influence: 40, militaryPower: 98, leader: 'Grommash'
+        },
+        {
+            name: 'Montagnes de Fer', continent: 'Zendora',
+            description: 'Royaume Nain. Villes: Forge-Profonde, Cité-Sous-Montagne, Gouffre d\'Or, Porte de Granit, Salle du Trône.',
+            status: 'peace', influence: 75, militaryPower: 90, leader: 'Roi Thrain'
+        },
+        {
+            name: 'Désert d\'Ambre', continent: 'Zendora',
+            description: 'Étendue de sable. Villes: Oasis d\'Or, Cité des Dunes, Souk des Mirages, Pyramide de Cristal, Temple Solaire.',
+            status: 'neutral', influence: 55, militaryPower: 65, leader: 'Sultan Malek'
+        },
+
+        // Continent: Umbra (Shadow Continent - Undead & Corruption)
+        {
+            name: 'Dominion Noir de Vharos', continent: 'Umbra',
+            description: 'Terre morte. Villes: Marais Putrides, Donjon de la Liche, Champs Éternels, Fort-Désolation, Sépulture de Sang.',
+            status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos'
+        },
+        {
+            name: 'Nécropolis', continent: 'Umbra',
+            description: 'Cité des morts. Villes: Le Seuil, Allée des Tombeaux, Trône du Jugement, Val des Pleurs, Nécropole d\'Ébène.',
+            status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon'
+        },
+        {
+            name: 'L\'Interstice', continent: 'Umbra',
+            description: 'Zone de faille. Villes: Ravin des Âmes, Forêt des Béhérits, Tour de la Main, Miroir Déformé, Fissure du Néant.',
+            status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal'
+        },
+        {
+            name: 'Cité de Verre', continent: 'Umbra',
+            description: 'Reflets et miroirs. Villes: Palais des Reflets, Prisme d\'Ombre, Labyrinthe de Cristal, Tour de Verre, Miroir Brisé.',
+            status: 'neutral', influence: 70, militaryPower: 60, leader: 'Le Miroir'
+        },
+
+        // Continent: Caelum (Floating Continent - Celestials & Demons)
+        {
+            name: 'Royaume Céleste', continent: 'Caelum',
+            description: 'Îles flottantes. Villes: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières, Portes du Ciel, Sanctuaire Ailé.',
+            status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius'
+        },
+        {
+            name: 'Abysse Inférieur', continent: 'Caelum',
+            description: 'Domaine Démoniaque. Villes: Cité de Pandémonium, Lac de Soufre, Trône de Flammes, Bastion du Pêché, Fosse de Sang.',
+            status: 'war', influence: 50, militaryPower: 95, leader: 'Belial'
+        },
+        {
+            name: 'Origine de l\'Existence', continent: 'Caelum',
+            description: 'Sommet sacré. Villes: Autel de la Causalité, Mer de Conscience, Portes du Temps, Origine du Vide, Zenith Absolu.',
+            status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL'
+        },
+        {
+            name: 'Cité de l\'Aube', continent: 'Caelum',
+            description: 'Premier lever de soleil. Villes: Bastion de l\'Aurore, Palais d\'Or, Jardins Suspendus, Port de Lumière, Tour du Matin.',
+            status: 'peace', influence: 85, militaryPower: 80, leader: 'Dame Aurora'
         }
     ];
+
     for (const k of kingdomsToSeed) {
         const [kingdom, created] = await Kingdom.findOrCreate({ where: { name: k.name }, defaults: k });
         if (!created) {
-            await kingdom.update({ description: k.description, leader: k.leader });
+            await kingdom.update({
+                description: k.description,
+                leader: k.leader,
+                continent: k.continent
+            });
         }
     }
 

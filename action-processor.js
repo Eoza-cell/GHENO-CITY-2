@@ -400,8 +400,19 @@ async function handleUpdateLocation(target, params, aiResponse, playersToUpdate)
 
 async function handleUpdateStats(target, params, questFeedback, playersToUpdate, sock) {
     let hasChanged = false;
+
+    // Stat Capping & Progression Safeguards
+    const rankMap = { 'G': 0, 'F': 1, 'E': 2, 'D': 3, 'C': 4, 'B': 5, 'A': 6, 'S': 7 };
+    const playerRankVal = rankMap[target.rank] || 0;
+    const statCap = playerRankVal === 1 ? 50 : 9999; // Strict cap for Rank F
+
     if (params.col_change) { await target.increment('col', { by: params.col_change }); hasChanged = true; }
-    if (params.xp_gain) { await target.increment('xp', { by: params.xp_gain }); await checkLevelUp(target, sock); hasChanged = true; }
+    if (params.xp_gain) {
+        const limitedXP = Math.min(params.xp_gain, 150); // Cap XP gain per action
+        await target.increment('xp', { by: limitedXP });
+        await checkLevelUp(target, sock);
+        hasChanged = true;
+    }
     if (params.health_change) {
         await target.increment('health', { by: params.health_change });
         await target.reload();
@@ -436,7 +447,19 @@ async function handleUpdateStats(target, params, questFeedback, playersToUpdate,
     const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck', 'skillPoints'];
     for (const s of stats) {
         const pName = s === 'skillPoints' ? 'sp_change' : `${s}_change`;
-        if (params[pName]) { await target.increment(s, { by: params[pName] }); hasChanged = true; }
+        if (params[pName]) {
+            let change = params[pName];
+            if (s !== 'skillPoints') {
+                // Limit stat growth per action
+                change = Math.min(change, 5);
+                // Enforce Rank F stat cap
+                if (target[s] + change > statCap) change = Math.max(0, statCap - target[s]);
+            }
+            if (change !== 0) {
+                await target.increment(s, { by: change });
+                hasChanged = true;
+            }
+        }
     }
     if (hasChanged) { await target.reload(); playersToUpdate.add(target.whatsappId); }
 }

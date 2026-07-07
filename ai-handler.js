@@ -280,7 +280,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   hints.push("⚠️ SENSORIALITÉ : Un joueur ne ressent pas les autres à distance sans compétence. Son rayon de perception naturelle dépend de son Rang (F: 5m, S: 100m).");
   hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
   hints.push("⚠️ RESTRICTION DE RANG & SKILLS : Un Rang F ne peut JAMAIS accomplir les prouesses d'un Rang B. Si un joueur tente une action sans avoir la compétence correspondante dans sa liste 'Skills', il ÉCHOUE bruyamment (maladresse, blessure, ridicule). Tu DOIS impérativement utiliser l'action 'check_requirements' pour valider toute tentative risquée ou technique.");
-  hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend DES JOURS RP. Utilise 'travel_to' pour les longs voyages. Interdiction de changer de royaume instantanément sans téléportation (Skill S).");
+  hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend DES JOURS RP. Changer de Continent prend DES SEMAINES (via 'travel_to'). Interdiction de changer de royaume/continent instantanément sans téléportation (Skill S).");
   hints.push("⚠️ ÉPUISEMENT : Si Hunger ou Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement. Toute action physique exigeante ÉCHOUE ou entraîne un évanouissement immédiat.");
   hints.push("🎁 RÉCOMPENSES : Récompense systématiquement les actions réussies, l'ingéniosité ou les victoires par 'update_stats' { \"xp_gain\": n, \"sp_change\": n, \"col_change\": n }.");
   hints.push("🧠 GESTION DES SP : Chaque skill appris via 'add_skill' DOIT déduire 5 SP. Créer une compétence via 'create_custom_skill' coûte 10 SP. Si le joueur n'a plus de SP, l'action échoue.");
@@ -337,7 +337,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Race:${player.race} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
@@ -398,7 +398,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           lieu_precis: p.subLocation,
           est_proche: p.subLocation === player.subLocation,
           est_acteur: (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
-          etat: `Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${Math.round(displayFor)} AGI:${Math.round(displayAgi)} INT:${Math.round(displayInt)} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}${bondInfo}`,
+          etat: `Race:${p.race} | Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${Math.round(displayFor)} AGI:${Math.round(displayAgi)} INT:${Math.round(displayInt)} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}${bondInfo}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
           metier: p.occupation,
@@ -469,7 +469,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const skillState = playerSkills.length > 0 ? "Skills: " + playerSkills.map(s => s.name).join(', ') : "Aucun skill";
 
   const allKingdoms = await Kingdom.findAll();
-  const worldGeography = allKingdoms.map(k => `- ${k.name}: ${k.description}`).join('\n');
+  const worldGeography = allKingdoms.map(k => `- [${k.continent || 'Aetheria'}] ${k.name}: ${k.description}`).join('\n');
 
   // Find current kingdom lore even if location is a city name
   let kingdom = allKingdoms.find(k => k.name === player.location);
@@ -535,10 +535,12 @@ Toute modification de l'état d'un joueur DOIT se traduire par une action JSON. 
 
 LOI DE CAUSALITÉ & ANTI-TRICHE:
 1. RÉALISME PHYSIQUE: Un joueur ne peut PAS nager 3h sans skill (noyade en 5min pour Rang F). Pas de vol ou téléportation sans skill appris.
-2. TEMPS & ESPACE: Traverser un Royaume prend DES JOURS RP. Utilise 'travel_to'. Pas de déplacement instantané.
-3. SENSORIALITÉ: Perception limitée par le Rang (F: 5m, S: 100m). Pas de détection à distance sans skill spécialisé.
-4. LOI ABSOLUE DES STATS: Un Rang S avec 999 de Force est INVINCIBLE face à plus faible. Ses coups vaporisent la matière.
-5. ÉPUISEMENT: Si Hunger ou Sleep < 20, les actions physiques ÉCHOUENT (évanouissement).
+2. TEMPS & ESPACE: Traverser un Royaume prend DES JOURS RP. Changer de Continent prend DES SEMAINES. Utilise 'travel_to'.
+3. ÉCHELLE DE PUISSANCE (STRICT): Un Rang F ne peut JAMAIS avoir plus de 50 dans une stat. Les gains par action sont limités à +1 ou +2. INTERDICTION de donner des stats de 1000+ à un Rang F.
+4. LOI ABSOLUE DES STATS: Un Rang S avec 999 de Force est INVINCIBLE face à plus faible. Plus le rang est bas, plus le personnage est fragile.
+5. RACES & SOCIÉTÉ: Respecte les races (Humain, Elfe, Nain, Orc, Beastman, Undead, Celestial, Demon).
+6. SENSORIALITÉ: Perception limitée par le Rang (F: 5m, S: 100m).
+7. ÉPUISEMENT: Si Hunger ou Sleep < 20, les actions physiques ÉCHOUENT (évanouissement).
 
 NARRATION:
 - FORMAT: Un SEUL paragraphe fluide par joueur/groupe. Pas de listes, dashes (-) ou délimiteurs (▬▬▬▬).
