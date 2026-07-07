@@ -66,7 +66,14 @@ async function advanceQuest(player, title, progress, note) {
         await pq.update({ progress: newProgress, notes: note || pq.notes });
     }
 
-    return `📈 *${quest.title}* — progression : ${newProgress}%`;
+    return `📈 *${quest.title}* — progression : ${newProgress}%\n${renderProgressBar(newProgress)}`;
+}
+
+function renderProgressBar(progress) {
+    const size = 10;
+    const filled = Math.round((progress / 100) * size);
+    const empty = size - filled;
+    return "◈" + "▰".repeat(filled) + "▱".repeat(empty) + "◈";
 }
 
 /**

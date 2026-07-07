@@ -1,20 +1,24 @@
 /**
  * World Clock Utility for Arise RPG
- * Time Scale: 1:9 (1 day RP = 2h40m Real Time)
+ * Time Scale: 10 minutes per Action.
  */
 
-function getRPTime() {
+function getRPTime(playerActionsCount = 0) {
     // Reference date: Jan 1st 2024
     const startDate = new Date('2024-01-01').getTime();
+
+    // Each action adds 10 minutes
+    const actionMs = playerActionsCount * 10 * 60 * 1000;
     const now = Date.now();
     const elapsedMs = now - startDate;
 
-    // Scale 1:9
-    const rpElapsedMs = elapsedMs * 9;
+    // We combine real-time drift with action-based advancement
+    // Scale 1:9 for background time + 10 mins per explicit action
+    const rpElapsedMs = (elapsedMs * 9) + actionMs;
 
     const rpDate = new Date(startDate + rpElapsedMs);
 
-    const year = rpDate.getFullYear() - 2023; // Year 1 starts in 2024
+    const year = rpDate.getFullYear() - 2023;
     const months = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
     const month = months[rpDate.getMonth()];
     const day = rpDate.getDate();

@@ -64,6 +64,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: 'Non-défini',
   },
+  race: {
+    type: DataTypes.STRING,
+    defaultValue: 'Humain',
+  },
   age: {
     type: DataTypes.INTEGER,
     defaultValue: 18,
@@ -217,23 +221,23 @@ const Player = sequelize.define('Player', {
   },
   strength: {
     type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 5,
   },
   agility: {
     type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 5,
   },
   intelligence: {
     type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 5,
   },
   luck: {
     type: DataTypes.INTEGER,
-    defaultValue: 5,
+    defaultValue: 2,
   },
   defense: {
     type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 5,
   },
   equippedOutfit: {
     type: DataTypes.STRING,
@@ -246,6 +250,22 @@ const Player = sequelize.define('Player', {
   isPrisoner: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
+  },
+  masterId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  servantPowerBonus: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0,
+  },
+  fusedWithId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  fusionSyncLevel: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0,
   },
 });
 
@@ -348,6 +368,7 @@ const PlayerSkill = sequelize.define('PlayerSkill', {
 const Kingdom = sequelize.define('Kingdom', {
     name: { type: DataTypes.STRING, unique: true },
     description: { type: DataTypes.TEXT },
+    continent: { type: DataTypes.STRING, defaultValue: 'Aetheria' },
     status: { type: DataTypes.STRING, defaultValue: 'peace' },
     influence: { type: DataTypes.INTEGER, defaultValue: 50 },
     militaryPower: { type: DataTypes.INTEGER, defaultValue: 50 },
@@ -659,21 +680,24 @@ async function setupDatabase() {
         await Item.findOrCreate({ where: { name: item.name }, defaults: item });
     }
 
-    // Seed 1000 Varied Clothing Items
-    const currentItemCount = await Item.count({ where: { type: 'clothing' } });
-    if (currentItemCount < 1000) {
-        console.log(`[SEED] Generating ${1000 - currentItemCount} additional clothing items...`);
-        const adjectives = ["Élégant", "Sombre", "Guerrier", "Mystique", "Ancien", "Royal", "Oublié", "Céleste", "Bestial", "Vaporeux", "Renforcé", "Léger", "Lourd", "Scintillant", "Maudit", "Sacré", "Interdit", "Nomade", "Urbain", "Techno-magique"];
-        const baseNames = ["Manteau", "Tunique", "Armure", "Robe", "Veste", "Costume", "Plastron", "Cape", "Haut", "Gilet", "Tabard", "Kimonos", "Yukata", "Uniforme", "Tenue"];
-        const materials = ["de Soie", "de Fer", "de Mana", "en Cuir", "de Velours", "de Lin", "d'Éther", "en Écailles", "de Cristal", "de Dragon", "d'Ombre", "de Lumière"];
+    // Seed 3000 Varied Items (Clothing, Weapons, Artifacts)
+    const currentItemCount = await Item.count();
+    if (currentItemCount < 3000) {
+        console.log(`[SEED] Generating ${3000 - currentItemCount} additional items...`);
+        const adjectives = ["Élégant", "Sombre", "Guerrier", "Mystique", "Ancien", "Royal", "Oublié", "Céleste", "Bestial", "Vaporeux", "Renforcé", "Léger", "Lourd", "Scintillant", "Maudit", "Sacré", "Interdit", "Nomade", "Urbain", "Techno-magique", "Solaire", "Lunaire", "Abyssal", "Éthéré", "Corrompu", "Divin", "Mécano", "Néon", "Rune", "Plasma", "Vibration"];
+        const clothingBases = ["Manteau", "Tunique", "Armure", "Robe", "Veste", "Costume", "Plastron", "Cape", "Haut", "Gilet", "Tabard", "Kimonos", "Yukata", "Uniforme", "Tenue"];
+        const weaponBases = ["Épée", "Lance", "Dague", "Arc", "Bâton", "Hache", "Masse", "Katana", "Faux", "Griffes", "Gantelets", "Sabre", "Rapière", "Marteau", "Fronde"];
+        const materials = ["de Soie", "de Fer", "de Mana", "en Cuir", "de Velours", "de Lin", "d'Éther", "en Écailles", "de Cristal", "de Dragon", "d'Ombre", "de Lumière", "d'Obsidienne", "de Mithril", "d'Adamantite", "de Plasma", "de Force"];
         const colors = ["#ffffff", "#000000", "#ff0000", "#0000ff", "#ffff00", "#00ff00", "#8a2be2", "#ffd700", "#c0c0c0", "#ff4500", "#2f4f4f", "#4b0082"];
 
         const batchSize = 100;
-        for (let i = 0; i < 1000 - currentItemCount; i += batchSize) {
+        const targetCount = 3000;
+        for (let i = currentItemCount; i < targetCount; i += batchSize) {
             const batch = [];
-            for (let j = 0; j < batchSize && (i + j) < (1000 - currentItemCount); j++) {
+            for (let j = 0; j < batchSize && (i + j) < targetCount; j++) {
+                const isWeapon = Math.random() > 0.5;
                 const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-                const base = baseNames[Math.floor(Math.random() * baseNames.length)];
+                const base = isWeapon ? weaponBases[Math.floor(Math.random() * weaponBases.length)] : clothingBases[Math.floor(Math.random() * clothingBases.length)];
                 const mat = materials[Math.floor(Math.random() * materials.length)];
                 const rarityRoll = Math.random();
                 let rarity = 'common';
@@ -682,33 +706,40 @@ async function setupDatabase() {
                 else if (rarityRoll < 0.15) { rarity = 'epic'; priceMult = 5; }
                 else if (rarityRoll < 0.35) { rarity = 'rare'; priceMult = 2; }
 
-                const name = `${adj} ${base} ${mat} #${Math.floor(Math.random() * 10000)}`;
+                const name = `${adj} ${base} ${mat} #${Math.floor(Math.random() * 100000)}`;
+                const statBonuses = {};
+                if (isWeapon) {
+                    statBonuses.strength = rarity === 'common' ? 2 : Math.floor(Math.random() * 15 * priceMult);
+                    statBonuses.agility = Math.floor(Math.random() * 10 * priceMult);
+                } else {
+                    statBonuses.defense = rarity === 'common' ? 1 : Math.floor(Math.random() * 12 * priceMult);
+                    statBonuses.intelligence = Math.floor(Math.random() * 8 * priceMult);
+                }
+
                 batch.push({
                     name,
-                    description: `Une pièce d'équipement unique issue des forges d'Aetherys. Style: ${adj}.`,
-                    price: Math.floor((Math.random() * 500 + 100) * priceMult),
-                    type: 'clothing',
+                    description: `Un objet de type ${isWeapon ? 'arme' : 'vêtement'} forgé dans les terres d'Aetherys. Propriétés: ${adj}, ${mat}.`,
+                    price: Math.floor((Math.random() * 600 + 150) * priceMult),
+                    type: isWeapon ? 'weapon' : 'clothing',
                     rarity,
-                    slot: 'chest',
+                    slot: isWeapon ? 'weapon' : 'chest',
                     durability: 100,
                     visualData: {
                         color: colors[Math.floor(Math.random() * colors.length)],
                         style: adj.toLowerCase()
                     },
-                    statBonuses: {
-                        defense: rarity === 'common' ? 1 : Math.floor(Math.random() * 10 * priceMult),
-                        luck: Math.floor(Math.random() * 5 * priceMult)
-                    }
+                    statBonuses
                 });
             }
             await Item.bulkCreate(batch, { ignoreDuplicates: true });
         }
-        console.log("[SEED] 1000 clothing items ready.");
+        console.log(`[SEED] ${targetCount} items ready.`);
     }
 
     const skillCount = await Skill.count();
-    if (skillCount === 0) {
-        await Skill.bulkCreate([
+    if (skillCount < 4000) {
+        console.log(`[SEED] Seeding skills (Current: ${skillCount})...`);
+        const baseSkills = [
             // Techniques de base par Classe
             { name: 'Fente Puissante', description: 'Un coup d\'estoc dévastateur.', type: 'Guerrier', manaCost: 10, statBonuses: { strength: 5 } },
             { name: 'Cri de Guerre', description: 'Augmente la force brute temporairement.', type: 'Guerrier', manaCost: 20, statBonuses: { strength: 10 } },
@@ -768,7 +799,84 @@ async function setupDatabase() {
 
             { name: 'Régénération Accélérée', description: 'Soigne les blessures au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
             { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } }
-        ]);
+        ];
+
+        for (const s of baseSkills) {
+            await Skill.findOrCreate({ where: { name: s.name }, defaults: s });
+        }
+
+        // 1000 Class Skills
+        const classes = {
+            'Guerrier': { stat: 'strength', bases: ["Fente", "Cri", "Charge", "Brise-Garde", "Tranchant", "Fracas"] },
+            'Mage': { stat: 'intelligence', bases: ["Projectile", "Barrière", "Sphère", "Explosion", "Rayon", "Sceau"] },
+            'Assassin': { stat: 'agility', bases: ["Frappe", "Lame", "Ombre", "Disparition", "Poison", "Éviscération"] },
+            'Archer': { stat: 'luck', bases: ["Tir", "Pluie", "Flèche", "Visée", "Piège", "Salto"] },
+            'Prêtre': { stat: 'intelligence', bases: ["Soins", "Bénédiction", "Lumière", "Sanctuaire", "Expiation", "Prière"] },
+            'Moine': { stat: 'strength', bases: ["Paume", "Coup", "Karaté", "Zen", "Posture", "Impact"] },
+            'Paladin': { stat: 'defense', bases: ["Bouclier", "Lance", "Garde", "Consécration", "Jugement", "Bastion"] },
+            'Invocateur': { stat: 'intelligence', bases: ["Appel", "Lien", "Pacte", "Portail", "Murmure", "Vision"] },
+            'Nécromancien': { stat: 'intelligence', bases: ["Éveil", "Siphon", "Os", "Tombeau", "Désolation", "Peste"] },
+            'Samouraï': { stat: 'agility', bases: ["Iaijutsu", "Katana", "Sabre", "Honneur", "Tranche-Âme", "Méditation"] },
+            'Chevalier-Dragon': { stat: 'strength', bases: ["Saut", "Souffle", "Écaille", "Draconique", "Envol", "Griffe"] },
+            'Alchimiste': { stat: 'intelligence', bases: ["Mixture", "Élixir", "Transmutation", "Fiole", "Gaz", "Métamorphose"] },
+            'Barde': { stat: 'luck', bases: ["Chant", "Mélodie", "Accord", "Rime", "Lyre", "Écho"] }
+        };
+
+        const classAdjectives = ["Puissant", "Rapide", "Mortel", "Divin", "Sombre", "Ancestral", "Éternel", "Spectral", "Enchanté", "Maudit", "Sacré", "Brutal", "Éclair", "Furtif", "Légendaire", "Héroïque", "Infaillible", "Silencieux", "Vibrant", "Ardent"];
+
+        const classSkills = [];
+        const classList = Object.keys(classes);
+        for (let i = 0; i < 1000; i++) {
+            const cls = classList[i % classList.length];
+            const adj = classAdjectives[Math.floor(Math.random() * classAdjectives.length)];
+            const base = classes[cls].bases[Math.floor(Math.random() * classes[cls].bases.length)];
+            const name = `${base} ${adj} de ${cls} #${i}`;
+            classSkills.push({
+                name,
+                description: `Une technique avancée de la classe ${cls}.`,
+                type: cls,
+                manaCost: 10 + Math.floor(Math.random() * 40),
+                statBonuses: { [classes[cls].stat]: 5 + Math.floor(Math.random() * 15) }
+            });
+            if (classSkills.length >= 100) {
+                await Skill.bulkCreate(classSkills, { ignoreDuplicates: true });
+                classSkills.length = 0;
+            }
+        }
+        if (classSkills.length > 0) await Skill.bulkCreate(classSkills, { ignoreDuplicates: true });
+
+        // 3000 Elemental Skills (Expanded to reach 4000+ total skills)
+        const elements = {
+            'Feu': { stat: 'intelligence', bases: ["Flamme", "Brasier", "Étincelle", "Cendre", "Volcan", "Soleil", "Inferno", "Magma", "Braise", "Foyer", "Éclat", "Pyre"] },
+            'Eau': { stat: 'intelligence', bases: ["Vague", "Marée", "Goutte", "Glace", "Océan", "Brume", "Torrent", "Source", "Geyser", "Cascade", "Givre", "Averse"] },
+            'Terre': { stat: 'defense', bases: ["Roc", "Séisme", "Pierre", "Sable", "Montagne", "Cristal", "Moteur", "Falaise", "Gravier", "Sillon", "Grotte", "Noyau"] },
+            'Vent': { stat: 'agility', bases: ["Souffle", "Tornade", "Brise", "Cyclone", "Tempête", "Zéphyr", "Rafale", "Ouragan", "Alizé", "Mistral", "Aura", "Vol"] }
+        };
+
+        const elementalAdjectives = ["Dévastateur", "Apocalyptique", "Primordial", "Pur", "Infini", "Chaos", "Radiant", "Obscur", "Flamboyant", "Gelé", "Sismique", "Tourbillonnant", "Céleste", "Infernal", "Instable", "Ancestral", "Légendaire", "Maudit", "Sacré", "Éternel", "Éphémère", "Brutal", "Élégant", "Sorcier", "Souverain"];
+
+        const elementalSkills = [];
+        const elementList = Object.keys(elements);
+        for (let i = 0; i < 3000; i++) {
+            const elem = elementList[i % elementList.length];
+            const adj = elementalAdjectives[Math.floor(Math.random() * elementalAdjectives.length)];
+            const base = elements[elem].bases[Math.floor(Math.random() * elements[elem].bases.length)];
+            const name = `${base} ${adj} [${elem}] #${i + 1000}`;
+            elementalSkills.push({
+                name,
+                description: `Une puissante manipulation de l'élément ${elem}. Variante #${i + 1000}.`,
+                type: `Élémentaire (${elem})`,
+                manaCost: 20 + Math.floor(Math.random() * 80),
+                statBonuses: { [elements[elem].stat]: 10 + Math.floor(Math.random() * 30) }
+            });
+            if (elementalSkills.length >= 100) {
+                await Skill.bulkCreate(elementalSkills, { ignoreDuplicates: true });
+                elementalSkills.length = 0;
+            }
+        }
+        if (elementalSkills.length > 0) await Skill.bulkCreate(elementalSkills, { ignoreDuplicates: true });
+
+        console.log("[SEED] 2000+ skills ready.");
     }
 
     const houseCount = await House.count();
@@ -781,56 +889,108 @@ async function setupDatabase() {
     }
 
     const kingdomsToSeed = [
+        // Continent: Aetheria (Main Continent - High Fantasy)
         {
-            name: 'Origine de l\'Existence',
-            description: 'Le domaine de ONE ABOVE ALL, où la Causalité Absolue lie chaque action au destin éternel. Sub-locations: Autel de la Causalité, Mer de Conscience, Les Portes du Temps.',
-            status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL'
-        },
-        {
-            name: 'L\'Interstice',
-            description: 'Dimension entre les mondes où règne la loi du plus fort et où la survie dépend de l\'aptitude magique. Sub-locations: Ravin des Âmes, Forêt des Béhérits, Tour de la Main de Dieu.',
-            status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal'
-        },
-        {
-            name: 'Royaume Céleste',
-            description: 'Domaine des Entités Célestes baigné dans la pureté de l\'Aether, où toute noirceur est proscrite. Sub-locations: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières.',
-            status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius'
-        },
-        {
-            name: 'Terres Bestiales',
-            description: 'Domaine sauvage régi par l\'instinct de chasse, où l\'on ne tue que par nécessité. Villages: Oakhaven (Village de chasseurs), Claw-reach (Poste avancé). Sub-locations: Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
-            status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos'
-        },
-        {
-            name: 'Empire Impérial d\'Elion',
-            description: 'Royaume humain sous le Code de Valerius, exigeant respect des nobles et obéissance à la couronne. La magie y est strictement régulée. Villages: Riverbend (Pêcheurs), Green-Fields (Agriculteurs). Sub-locations: Place d\'Armes d\'Eldoria, Quartier des Nobles, Cathédrale de la Lumière, Bas-fonds, Académie de la Lame d\'Argent, Prison Impériale, Solis.',
+            name: 'Empire Impérial d\'Elion', continent: 'Aetheria',
+            description: 'Royaume humain central. Villes: Eldoria (Capitale), Solis, Riverbend, Green-Fields, Portes d\'Elion.',
             status: 'peace', influence: 95, militaryPower: 90, leader: 'Empereur Valerius II'
         },
         {
-            name: 'Nécropolis',
-            description: 'Cité des morts drapée de brumes, où le silence éternel est la seule règle. Sub-locations: Le Seuil, Allée des Tombeaux Oubliés, Trône du Jugement.',
-            status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon'
-        },
-        {
-            name: 'Dominion Noir de Vharos',
-            description: 'Territoire désolé pliant sous la volonté de la liche Vharos. Sub-locations: Marais Putrides, Donjon de la Liche, Champs de Bataille Éternels.',
-            status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos'
-        },
-        {
-            name: 'Royaume de Valkyrr',
-            description: 'Centre d\'innovation magique et technologique où chaque recherche est méticuleusement régulée. Villages: Gearhead (Mineurs), Sparkwell (Artisans). Sub-locations: Grand Laboratoire, Marché de l\'Éther, Académie de Magie, Tour de Surveillance, Lycée de l\'Éther.',
+            name: 'Royaume de Valkyrr', continent: 'Aetheria',
+            description: 'Centre technologique. Villes: Gearhead, Sparkwell, Grand Laboratoire, Marché de l\'Éther, Lycée de l\'Éther.',
             status: 'peace', influence: 80, militaryPower: 70, leader: 'Archimage Kaelen'
         },
         {
-            name: 'Gheno souterrain',
-            description: 'Plaque tournante du trafic de reliques où le silence est une question de survie face à l\'Ombre. Sub-locations: Le Marché Noir, Le Caveau des Ombres, Taverne de l\'Exilé, École des Ombres.',
+            name: 'Gheno souterrain', continent: 'Aetheria',
+            description: 'Cité criminelle. Villes: Marché Noir, Caveau des Ombres, Taverne de l\'Exilé, École des Ombres, Bas-fonds.',
             status: 'neutral', influence: 90, militaryPower: 60, leader: 'L\'Ombre'
+        },
+        {
+            name: 'Forêt de l\'Éveil', continent: 'Aetheria',
+            description: 'Refuge Elfique. Villes: Sylva-Lumia, Arbre-Mère, Sources d\'Argent, Clairière du Destin, Racines Éternelles.',
+            status: 'peace', influence: 85, militaryPower: 85, leader: 'Reine Elara'
+        },
+        {
+            name: 'Archipel des Murmures', continent: 'Aetheria',
+            description: 'Îles brumeuses. Villes: Port-Brume, Crique de Corail, Phare d\'Écume, Atoll des Sirènes, Rocher Percé.',
+            status: 'neutral', influence: 65, militaryPower: 50, leader: 'Capitaine Drake'
+        },
+
+        // Continent: Zendora (Wild Continent - Beastmen & Orcs)
+        {
+            name: 'Terres Bestiales', continent: 'Zendora',
+            description: 'Plaines sauvages. Villes: Oakhaven, Claw-reach, Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
+            status: 'neutral', influence: 70, militaryPower: 95, leader: 'Krakos'
+        },
+        {
+            name: 'Bastion d\'Orkh', continent: 'Zendora',
+            description: 'Domaine Orc. Villes: Fort-Sang, Arène de Fer, Mines Rouges, Canyon des Crânes, Temple de la Rage.',
+            status: 'war', influence: 40, militaryPower: 98, leader: 'Grommash'
+        },
+        {
+            name: 'Montagnes de Fer', continent: 'Zendora',
+            description: 'Royaume Nain. Villes: Forge-Profonde, Cité-Sous-Montagne, Gouffre d\'Or, Porte de Granit, Salle du Trône.',
+            status: 'peace', influence: 75, militaryPower: 90, leader: 'Roi Thrain'
+        },
+        {
+            name: 'Désert d\'Ambre', continent: 'Zendora',
+            description: 'Étendue de sable. Villes: Oasis d\'Or, Cité des Dunes, Souk des Mirages, Pyramide de Cristal, Temple Solaire.',
+            status: 'neutral', influence: 55, militaryPower: 65, leader: 'Sultan Malek'
+        },
+
+        // Continent: Umbra (Shadow Continent - Undead & Corruption)
+        {
+            name: 'Dominion Noir de Vharos', continent: 'Umbra',
+            description: 'Terre morte. Villes: Marais Putrides, Donjon de la Liche, Champs Éternels, Fort-Désolation, Sépulture de Sang.',
+            status: 'war', influence: 60, militaryPower: 98, leader: 'Seigneur Vharos'
+        },
+        {
+            name: 'Nécropolis', continent: 'Umbra',
+            description: 'Cité des morts. Villes: Le Seuil, Allée des Tombeaux, Trône du Jugement, Val des Pleurs, Nécropole d\'Ébène.',
+            status: 'neutral', influence: 100, militaryPower: 80, leader: 'Orpheon'
+        },
+        {
+            name: 'L\'Interstice', continent: 'Umbra',
+            description: 'Zone de faille. Villes: Ravin des Âmes, Forêt des Béhérits, Tour de la Main, Miroir Déformé, Fissure du Néant.',
+            status: 'unknown', influence: 80, militaryPower: 90, leader: 'L\'Idée du Mal'
+        },
+        {
+            name: 'Cité de Verre', continent: 'Umbra',
+            description: 'Reflets et miroirs. Villes: Palais des Reflets, Prisme d\'Ombre, Labyrinthe de Cristal, Tour de Verre, Miroir Brisé.',
+            status: 'neutral', influence: 70, militaryPower: 60, leader: 'Le Miroir'
+        },
+
+        // Continent: Caelum (Floating Continent - Celestials & Demons)
+        {
+            name: 'Royaume Céleste', continent: 'Caelum',
+            description: 'Îles flottantes. Villes: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières, Portes du Ciel, Sanctuaire Ailé.',
+            status: 'peace', influence: 90, militaryPower: 85, leader: 'Aetherius'
+        },
+        {
+            name: 'Abysse Inférieur', continent: 'Caelum',
+            description: 'Domaine Démoniaque. Villes: Cité de Pandémonium, Lac de Soufre, Trône de Flammes, Bastion du Pêché, Fosse de Sang.',
+            status: 'war', influence: 50, militaryPower: 95, leader: 'Belial'
+        },
+        {
+            name: 'Origine de l\'Existence', continent: 'Caelum',
+            description: 'Sommet sacré. Villes: Autel de la Causalité, Mer de Conscience, Portes du Temps, Origine du Vide, Zenith Absolu.',
+            status: 'eternal', influence: 100, militaryPower: 100, leader: 'ONE ABOVE ALL'
+        },
+        {
+            name: 'Cité de l\'Aube', continent: 'Caelum',
+            description: 'Premier lever de soleil. Villes: Bastion de l\'Aurore, Palais d\'Or, Jardins Suspendus, Port de Lumière, Tour du Matin.',
+            status: 'peace', influence: 85, militaryPower: 80, leader: 'Dame Aurora'
         }
     ];
+
     for (const k of kingdomsToSeed) {
         const [kingdom, created] = await Kingdom.findOrCreate({ where: { name: k.name }, defaults: k });
         if (!created) {
-            await kingdom.update({ description: k.description, leader: k.leader });
+            await kingdom.update({
+                description: k.description,
+                leader: k.leader,
+                continent: k.continent
+            });
         }
     }
 
@@ -979,9 +1139,9 @@ async function setupDatabase() {
     }
 
     const questCount = await Quest.count();
-    if (questCount === 0) {
-        console.log('Seeding Quests...');
-        await Quest.bulkCreate([
+    if (questCount < 500) {
+        console.log(`[SEED] Seeding quests (Current: ${questCount})...`);
+        const baseQuests = [
             // Ordered chain "L'Ascension de l'Aventurier" (quêtes qui se suivent dans l'ordre)
             {
                 title: 'Premiers Pas à Eldoria', description: 'Le départ de ton aventure à Eldoria.',
@@ -1000,34 +1160,46 @@ async function setupDatabase() {
                 objective: 'Affronte et vaincs le Chef Gobelin au fond de la forêt.',
                 type: 'main', chain: "L'Ascension de l'Aventurier", step: 3,
                 nextQuestTitle: null, rank_required: 'F', reward_col: 500, reward_xp: 400
-            },
-            // Multiplayer / co-op quest
-            {
-                title: 'Le Raid du Donjon Maudit', description: 'Un donjon de rang D nécessite une équipe.',
-                objective: "Rassemble d'autres aventuriers dans ta zone et franchissez le donjon ensemble.",
-                type: 'raid', chain: 'Raids Coopératifs', step: 1, isMultiplayer: true,
-                nextQuestTitle: null, rank_required: 'F', reward_col: 800, reward_xp: 600
-            },
-            // Historic Missions (Temporal)
-            {
-                title: 'La Chute de Néanthea', description: "Voyage à travers une faille temporelle vers l'époque où Néanthea a sombré.",
-                objective: "Assiste à l'ouverture de l'Interstice et survit à l'assaut initial des créatures du Néant.",
-                type: 'historic', chain: 'Chroniques du Passé', step: 1,
-                nextQuestTitle: 'Duel avec le Roi Aldren', rank_required: 'D', reward_col: 2000, reward_xp: 1500
-            },
-            {
-                title: 'Duel avec le Roi Aldren', description: "Aldren a perdu la raison. Tu dois le stopper avant qu'il n'ouvre la porte.",
-                objective: "Affronte Aldren au sommet de la Tour d'Ivoire dans le passé.",
-                type: 'historic', chain: 'Chroniques du Passé', step: 2,
-                nextQuestTitle: null, rank_required: 'C', reward_col: 5000, reward_xp: 3000
-            },
-            {
-                title: 'Le Premier Sceau', description: "Assiste à la création des sceaux par les Célestes il y a des millénaires.",
-                objective: "Protège les prêtres célestes pendant le rituel de scellage contre les Entités Bestiales.",
-                type: 'historic', chain: 'Chroniques du Passé', step: 3,
-                nextQuestTitle: null, rank_required: 'B', reward_col: 10000, reward_xp: 8000
             }
-        ]);
+        ];
+
+        for (const q of baseQuests) {
+            await Quest.findOrCreate({ where: { title: q.title }, defaults: q });
+        }
+
+        const questTypes = ["Chasse", "Récolte", "Exploration", "Escorte", "Infiltration", "Diplomatie"];
+        const ranks = ["F", "E", "D", "C", "B", "A", "S"];
+        const targets = ["Gobelins", "Loups", "Orques", "Spectres", "Dragons", "Slimes", "Bandits", "Apôtres"];
+        const locations = ["Forêt", "Mine", "Grotte", "Plaine", "Montagne", "Ruines", "Château"];
+
+        const proceduralQuests = [];
+        for (let i = 0; i < 600; i++) {
+            const type = questTypes[Math.floor(Math.random() * questTypes.length)];
+            const rank = ranks[Math.floor(Math.random() * ranks.length)];
+            const target = targets[Math.floor(Math.random() * targets.length)];
+            const loc = locations[Math.floor(Math.random() * locations.length)];
+            const title = `${type} de ${target} à ${loc} #${i}`;
+            const xp = (ranks.indexOf(rank) + 1) * 200 + Math.floor(Math.random() * 100);
+            const col = (ranks.indexOf(rank) + 1) * 300 + Math.floor(Math.random() * 200);
+
+            proceduralQuests.push({
+                title,
+                description: `Une mission de type ${type} visant les ${target} dans la zone : ${loc}.`,
+                objective: `Terminer l'opération ${type} avec succès.`,
+                type: type.toLowerCase(),
+                rank_required: rank,
+                reward_col: col,
+                reward_xp: xp
+            });
+
+            if (proceduralQuests.length >= 100) {
+                await Quest.bulkCreate(proceduralQuests, { ignoreDuplicates: true });
+                proceduralQuests.length = 0;
+            }
+        }
+        if (proceduralQuests.length > 0) await Quest.bulkCreate(proceduralQuests, { ignoreDuplicates: true });
+
+        console.log("[SEED] 500+ quests ready.");
     }
 
   } catch (error) {

@@ -21,6 +21,10 @@ global.Element = dom.window.Element;
 let puter = null;
 try {
     puter = require('@heyputer/puter.js');
+    if (process.env.PUTER_TOKEN) {
+        puter.authToken = process.env.PUTER_TOKEN;
+        console.log("[AI] Puter SDK : Token configuré.");
+    }
 } catch (e) {
     console.warn("[AI] Puter SDK could not be loaded:", e.message);
 }
@@ -146,7 +150,7 @@ async function callPuterAPI(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 10000
+                timeout: 8000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -160,11 +164,12 @@ async function callPuterAPI(system, prompt) {
 }
 
 /**
- * Try Puter SDK (Keyless).
+ * Try Puter SDK.
  */
 async function callPuterSDK(system, prompt) {
     if (!puter || !puter.ai) return null;
-    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+    // Prioritizing Llama 3.1 models as they are great for Roleplay and often free on Puter
+    const models = ["meta-llama-3.1-70b-instruct", "gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
 
     for (const model of models) {
         try {
@@ -211,7 +216,7 @@ async function callOpenRouter(system, prompt) {
                     'HTTP-Referer': 'https://github.com/skype-bot/arise',
                     'X-Title': 'Arise RPG'
                 },
-                timeout: 10000
+                timeout: 8000
             });
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
@@ -248,7 +253,7 @@ async function callBlackbox(system, prompt) {
                     'Accept': 'application/json',
                     'x-blackbox-device-id': Math.random().toString(36).substring(2, 15)
                 },
-                timeout: 15000
+                timeout: 10000
             });
 
             let result = "";
@@ -271,14 +276,14 @@ async function callPollinationsGen(system, prompt) {
     const key = process.env.POLLINATIONS_API_KEY;
     if (!key) return null;
 
-    const models = ['openai', 'mistral', 'llama', 'unity'];
+    const models = ['openai', 'mistral', 'llama', 'qwen-coder'];
     for (const model of models) {
         try {
             console.log(`[AI] Pollinations Gen (Keyed) - Tentative avec ${model}...`);
             const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
                 model: model,
                 messages: [
-                    { role: "system", content: system },
+                    { role: "system", content: system + "\n\nIMPORTANT: Réponds UNIQUEMENT en JSON valide." },
                     { role: "user", content: prompt }
                 ],
                 response_format: { type: "json_object" }
@@ -287,7 +292,7 @@ async function callPollinationsGen(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 12000
+                timeout: 15000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -301,16 +306,14 @@ async function callPollinationsGen(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama', 'unity', 'p1', 'searchgp'];
-    // Shuffle models to avoid hitting the same one first
-    const shuffled = models.sort(() => Math.random() - 0.5);
+    const models = ['openai', 'mistral', 'llama'];
 
-    for (const model of shuffled) {
+    for (const model of models) {
         try {
             console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
             const resp = await axios.post("https://text.pollinations.ai/", {
                 messages: [
-                    { role: "system", content: system + "\nTu DOIS répondre au format JSON." },
+                    { role: "system", content: system },
                     { role: "user", content: prompt }
                 ],
                 model: model,
@@ -320,7 +323,7 @@ async function callPollinationsPOST(system, prompt) {
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': `Mozilla/5.0 (Arise-Bot/3.0; ${Math.random().toString(36).substring(7)})`
+                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
                 },
                 timeout: 15000
             });
@@ -328,9 +331,7 @@ async function callPollinationsPOST(system, prompt) {
             let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
             if (isValidAIResponse(resText)) return resText;
         } catch (e) {
-            console.warn(`[AI] Pollinations POST Error (${model}):`, e.message);
-            // Jitter delay
-            await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+            console.warn(`[AI] Pollinations POST Error (${model}):`, e.response?.data || e.message);
             continue;
         }
     }
@@ -340,13 +341,11 @@ async function callPollinationsPOST(system, prompt) {
 async function callPollinationsGET(system, prompt) {
     try {
         console.log(`[AI] Pollinations GET - Tentative...`);
-        // Use a more concise prompt for GET to stay within URL limits
-        // Pollinations GET supports /prompt?model=...&seed=...&system=...
-        const miniPrompt = `Action Joueur: ${prompt.substring(prompt.length - 800)}`;
+        const miniPrompt = `MJ Arise. Action: ${prompt.substring(prompt.length - 1000)}`;
         const fullPrompt = encodeURIComponent(miniPrompt);
-        const systemEncoded = encodeURIComponent(system.substring(0, 800));
+        const systemEncoded = encodeURIComponent(system.substring(0, 1000));
         const seed = Math.floor(Math.random() * 1000000);
-        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}`;
+        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}&json=true`;
 
         const resp = await axios.get(url, { timeout: 15000 });
         if (isValidAIResponse(resp.data)) return resp.data;
@@ -397,7 +396,7 @@ async function callOllama(system, prompt) {
 
         const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
             headers,
-            timeout: 30000
+            timeout: 15000
         });
 
         const content = resp.data?.message?.content || resp.data?.response;
@@ -438,7 +437,7 @@ async function call9Router(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 15000
+                timeout: 10000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -462,7 +461,7 @@ async function callWorldServer(system, prompt) {
                 { role: "user", content: prompt }
             ],
             stream: false
-        }, { timeout: 35000 });
+        }, { timeout: 15000 });
 
         const content = resp.data?.choices?.[0]?.message?.content;
         if (isValidAIResponse(content)) return content;
@@ -484,7 +483,7 @@ async function callLlamafile(system, prompt) {
             ],
             temperature: 0.1,
             stream: false
-        }, { timeout: 45000 });
+        }, { timeout: 15000 });
 
         const content = resp.data?.choices?.[0]?.message?.content;
         if (isValidAIResponse(content)) return content;
@@ -563,18 +562,19 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
-        { name: 'Llamafile (Local)', fn: callLlamafile },
-        { name: '9Router', fn: call9Router },
-        { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        // Prioritize Puter SDK as user provided a token
         { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'OpenRouter', fn: callOpenRouter },
+        { name: '9Router', fn: call9Router },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        { name: 'Blackbox', fn: callBlackbox },
+        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
         { name: 'Ollama (Local)', fn: callOllama },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'Blackbox', fn: callBlackbox }
+        { name: 'Llamafile (Local)', fn: callLlamafile },
+        { name: 'LM Studio (Local)', fn: callLMStudio }
     ];
 
     for (const provider of providers) {
@@ -590,13 +590,18 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                 activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
             }
 
-            const result = await provider.fn(activeSystem, sanitizedUser, options);
+            let result = await provider.fn(activeSystem, sanitizedUser, options);
             const providerDuration = (Date.now() - providerStart) / 1000;
+
+            // Handle potential JSON objects from some providers
+            if (typeof result === 'object' && result !== null) {
+                result = JSON.stringify(result);
+            }
 
             if (isValidAIResponse(result)) {
                 console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration}s`);
                 // Verify the result is not just a technical JSON dump without narrative
-                if (result.trim().startsWith('{')) {
+                if (result && result.trim().startsWith('{')) {
                     try {
                         const parsed = JSON.parse(result);
                         if (!parsed.narrative && !parsed.message && !parsed.text) {

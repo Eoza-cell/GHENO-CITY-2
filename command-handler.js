@@ -8,8 +8,10 @@ const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
 const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
+const { generateMissionBoard } = require('./paper-generator');
 const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage } = require('./shop-generator');
+const { generateSkillListImage } = require('./action-visual-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
@@ -66,7 +68,7 @@ commands.set('start', async (sock, message) => {
 
 // Command: /quests
 // Command: /competences
-commands.set('competences', async (sock, message) => {
+commands.set('competences', async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid }, include: Skill });
@@ -76,38 +78,52 @@ commands.set('competences', async (sock, message) => {
         return;
     }
 
-    const skills = player.Skills;
+    const query = args.join(' ').toLowerCase();
+    let skills = player.Skills;
+
+    if (query) {
+        skills = skills.filter(s => s.name.toLowerCase().includes(query) || s.type.toLowerCase().includes(query));
+    }
 
     if (!skills || skills.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !" });
+        const msg = query ? `Aucune compétence ne correspond à "${query}".` : "Tu ne possèdes aucune compétence pour le moment. Étudie à l'Académie Impériale pour en apprendre !";
+        await sock.sendMessage(replyJid, { text: msg });
         return;
     }
 
-    let skillText = `*Compétences de ${player.name}:*\n\n`;
+    let skillText = `*Compétences de ${player.name}${query ? ' (Filtre: ' + query + ')' : ''}:*\n\n`;
 
     const activeSkills = skills.filter(s => s.type !== 'passive');
     const passiveSkills = skills.filter(s => s.type === 'passive');
 
     if (activeSkills.length > 0) {
         skillText += "⚔️ *TECHNIQUES ET SORTS ACTIFS:*\n";
-        activeSkills.forEach(s => {
+        activeSkills.slice(0, 15).forEach(s => {
             skillText += `├ *${s.name.toUpperCase()}*\n`;
             skillText += `│ 💠 Coût: ${s.manaCost} PM\n`;
             skillText += `└ 📜 ${s.description}\n\n`;
         });
+        if (activeSkills.length > 15) skillText += `_... et ${activeSkills.length - 15} autres techniques actives._\n\n`;
     }
 
     if (passiveSkills.length > 0) {
         skillText += "✨ *COMPÉTENCES PASSIVES:*\n";
-        passiveSkills.forEach(s => {
+        passiveSkills.slice(0, 10).forEach(s => {
             skillText += `├ *${s.name}*\n`;
             skillText += `└ 📜 ${s.description}\n\n`;
         });
+        if (passiveSkills.length > 10) skillText += `_... et ${passiveSkills.length - 10} autres passifs._\n\n`;
     }
 
-    skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pacts._";
+    skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pactes._";
 
-    await sock.sendMessage(replyJid, { text: skillText });
+    try {
+        const skillBuffer = await generateSkillListImage(player, skills.slice(0, 15));
+        await sock.sendMessage(replyJid, { image: skillBuffer, caption: skillText });
+    } catch (err) {
+        console.error("[Skills] Visual error:", err);
+        await sock.sendMessage(replyJid, { text: skillText });
+    }
 });
 
 commands.set('quests', async (sock, message) => {
@@ -154,7 +170,17 @@ commands.set('quests', async (sock, message) => {
 
     questText += '\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬';
 
-    await sock.sendMessage(replyJid, { text: questText });
+    try {
+        if (activeQuests.length > 0) {
+            const missionBuffer = await generateMissionBoard(player, activeQuests);
+            await sock.sendMessage(replyJid, { image: missionBuffer, caption: questText });
+        } else {
+            await sock.sendMessage(replyJid, { text: questText });
+        }
+    } catch (err) {
+        console.error("[Quests] Error generating board:", err);
+        await sock.sendMessage(replyJid, { text: questText });
+    }
 });
 
 
@@ -205,6 +231,8 @@ const profileCommand = async (sock, message) => {
                           `🍀 Chance: ${player.luck}\n` +
                           `✨ *SP:* ${player.skillPoints}\n\n` +
                           `💰 *COL:* ${player.col} 🪙\n` +
+                          (player.masterId ? `🔗 *MAÎTRE:* ${player.masterId.substring(0, 8)}...\n` : '') +
+                          (player.fusedWithId ? `🌀 *FUSION:* Sync ${Math.round(player.fusionSyncLevel * 100)}%\n` : '') +
                           `📍 *LIEU:* ${player.location} (${player.subLocation})\n` +
                           `---------------------------`;
 
@@ -243,7 +271,32 @@ const profileCommand = async (sock, message) => {
 };
 commands.set('profile', profileCommand);
 commands.set('profil', profileCommand);
-commands.set('techniques', commands.get('competences'));
+
+commands.set('techniques', (...args) => commands.get('competences')(...args));
+commands.set('skills', (...args) => commands.get('competences')(...args));
+commands.set('skill', (...args) => commands.get('competences')(...args));
+
+// Command: /background
+commands.set('background', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    const imageUrl = args[0];
+    if (!imageUrl || !imageUrl.startsWith('http')) {
+        return await sock.sendMessage(replyJid, { text: "❌ Utilise : `/background <url de l'image>`" });
+    }
+
+    try {
+        await player.update({ profilePicUrl: imageUrl });
+        await sock.sendMessage(replyJid, { text: "🖼️ *Fond de profil mis à jour !* Ton nouveau style est enregistré." });
+    } catch (err) {
+        console.error("Background update error:", err);
+        await sock.sendMessage(replyJid, { text: "❌ Impossible de mettre à jour le fond. Vérifie l'URL." });
+    }
+});
 
 // Command: /creer_tenue
 commands.set('creer_tenue', async (sock, message, args) => {
@@ -429,12 +482,25 @@ commands.set('map', async (sock, message) => {
         return;
     }
 
+    const kingdoms = await Kingdom.findAll();
     const dungeons = await Dungeon.findAll();
-    const mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
-                    `📍 *Position:* ${player.location}\n\n` +
-                    `🏰 *Donjons par rang:*\n` +
-                    dungeons.map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
-                    `\n\n_Le monde est vaste. Déplace-toi via le mode /action._`;
+
+    let mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
+                  `📍 *Position:* ${player.location} (${player.subLocation})\n\n` +
+                  `🌍 *CONTINENTS ET ROYAUMES:*\n`;
+
+    const continents = [...new Set(kingdoms.map(k => k.continent || 'Aetheria'))];
+    continents.forEach(cont => {
+        mapText += `\n*◈ ${cont.toUpperCase()}*\n`;
+        const contKingdoms = kingdoms.filter(k => (k.continent || 'Aetheria') === cont);
+        contKingdoms.forEach(k => {
+            mapText += `  ├ ${k.name}\n`;
+        });
+    });
+
+    mapText += `\n🏰 *DUNGEONS RECOMMANDÉS:*\n` +
+               dungeons.slice(0, 8).map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
+               `\n\n_Le monde s'est étendu. Traversez les mers via le mode /action._`;
 
     try {
         const mapImage = await generateWorldMapImage();
@@ -639,7 +705,7 @@ commands.set('up', async (sock, message, args) => {
         'luk': 'luck', 'chance': 'luck', 'luck': 'luck'
     };
 
-    const requestedStat = args[0].toLowerCase();
+    const requestedStat = args[0]?.toLowerCase();
     const targetStat = statMap[requestedStat];
     const points = parseInt(args[1]) || 1;
 
@@ -899,39 +965,71 @@ commands.set('god', async (sock, message, args) => {
     const subCommand = args.shift()?.toLowerCase();
     let targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
 
-    // Check if the first remaining arg is a mention (sometimes it's not in contextInfo but in text)
-    if (!targetJid && args[0] && args[0].startsWith('@')) {
-        const potentialId = args[0].substring(1);
-        const found = await Player.findOne({ where: { whatsappId: { [Op.like]: `${potentialId}%` } } });
-        if (found) {
-            targetJid = found.whatsappId;
-            args.shift();
-        }
-    } else if (targetJid && args[0] && args[0].startsWith('@')) {
-        // Remove mention from args if it's there
-        args.shift();
+    // Helper to find player by name if no mention or ID
+    const findByAny = async (str) => {
+        if (!str) return null;
+        const clean = str.replace('@', '');
+        return await Player.findOne({
+            where: {
+                [Op.or]: [
+                    { whatsappId: clean },
+                    { whatsappId: clean + '@s.whatsapp.net' },
+                    { name: { [Op.like]: `%${clean}%` } }
+                ]
+            }
+        });
+    };
+
+    // If first arg is a potential target (mention or name)
+    let targetPlayer = null;
+    if (targetJid) {
+        targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
     }
 
-    // If no mention found, target self
-    if (!targetJid) {
-        targetJid = jid;
-    }
+    // If still no target and subcommand is present, check if subCommand itself is a player (for targetless calls)
+    // or if the next arg is a player.
+    // Actually, let's handle it inside the cases if needed, but standardizing here:
 
     if (!subCommand) {
-        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur] <stat> <valeur>\n/god give [@joueur] <item> <quantité>\n/god rank [@joueur] <rang>\n/god col [@joueur] <montant>\n/god pacte [@joueur] <entité>\n/god max [@joueur] (met toutes les stats à 999)\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
+        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur/nom] <stat> <valeur>\n/god give [@joueur/nom] <item> <quantité>\n/god rank [@joueur/nom] <rang>\n/god col [@joueur/nom] <montant>\n/god pacte [@joueur/nom] <entité>\n/god max [@joueur/nom]\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
         return;
     }
 
-    const targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
+    // If target not found by mention, check if args[0] is a name/ID for specific subcommands
+    const needsTargetShift = ['set', 'give', 'rank', 'col', 'pacte', 'max'].includes(subCommand);
+    if (!targetPlayer && needsTargetShift && args[0] && (args[0].startsWith('@') || isNaN(parseInt(args[0])))) {
+        targetPlayer = await findByAny(args[0]);
+        if (targetPlayer) args.shift();
+    }
+
+    // Default to self if still no target
+    if (!targetPlayer) {
+        targetPlayer = player;
+    }
     if (!targetPlayer) return;
+
+    const statNormalizationMap = {
+        'force': 'strength', 'for': 'strength', 'str': 'strength',
+        'agilité': 'agility', 'agi': 'agility',
+        'intelligence': 'intelligence', 'int': 'intelligence',
+        'défense': 'defense', 'def': 'defense',
+        'chance': 'luck', 'luk': 'luck',
+        'vie': 'health', 'pv': 'health', 'hp': 'health',
+        'mana': 'mana', 'pm': 'mana', 'mp': 'mana',
+        'sp': 'skillPoints', 'skillpoints': 'skillPoints',
+        'xp': 'xp', 'exp': 'xp',
+        'niv': 'level', 'niveau': 'level', 'lvl': 'level'
+    };
 
     switch (subCommand) {
         case 'set':
-            const stat = args[0];
+            let stat = args[0]?.toLowerCase();
+            stat = statNormalizationMap[stat] || stat;
             const value = parseInt(args[1]);
             if (stat && !isNaN(value)) {
                 await targetPlayer.update({ [stat]: value });
-                await sock.sendMessage(replyJid, { text: `La statistique ${stat} de ${targetPlayer.name} a été fixée à ${value} par la main de Dieu.` });
+                await targetPlayer.reload();
+                await sock.sendMessage(replyJid, { text: `✅ [GOD] ${targetPlayer.name} : ${stat} fixé à ${value}.` });
             }
             break;
         case 'give':
@@ -955,8 +1053,10 @@ commands.set('god', async (sock, message, args) => {
         case 'col':
             const amount = parseInt(args[0]);
             if (!isNaN(amount)) {
-                await targetPlayer.increment('col', { by: amount });
-                await sock.sendMessage(replyJid, { text: `${targetPlayer.name} a reçu ${amount} Col de la part du créateur.` });
+                if (amount >= 0) await targetPlayer.increment('col', { by: amount });
+                else await targetPlayer.decrement('col', { by: Math.abs(amount) });
+                await targetPlayer.reload();
+                await sock.sendMessage(replyJid, { text: `✅ [GOD] ${targetPlayer.name} : ${amount} Col ${amount >= 0 ? 'ajoutés' : 'retirés'}.` });
             }
             break;
         case 'pacte':
