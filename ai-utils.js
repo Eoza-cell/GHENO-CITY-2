@@ -318,9 +318,9 @@ async function callPollinationsPOST(system, prompt) {
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': `Mozilla/5.0 (Arise-Bot/3.1; ${Math.random().toString(36).substring(7)})`
+                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
                 },
-                timeout: 25000 // Further increased timeout
+                timeout: 35000
             });
 
             let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
@@ -585,19 +585,18 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                 activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
             }
 
-            const result = await provider.fn(activeSystem, sanitizedUser, options);
+            let result = await provider.fn(activeSystem, sanitizedUser, options);
             const providerDuration = (Date.now() - providerStart) / 1000;
 
             // Handle potential JSON objects from some providers
-            let finalResult = result;
             if (typeof result === 'object' && result !== null) {
-                finalResult = JSON.stringify(result);
+                result = JSON.stringify(result);
             }
 
-            if (isValidAIResponse(finalResult)) {
+            if (isValidAIResponse(result)) {
                 console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration}s`);
                 // Verify the result is not just a technical JSON dump without narrative
-                if (result.trim().startsWith('{')) {
+                if (result && result.trim().startsWith('{')) {
                     try {
                         const parsed = JSON.parse(result);
                         if (!parsed.narrative && !parsed.message && !parsed.text) {
