@@ -20,10 +20,15 @@ global.Element = dom.window.Element;
 
 let puter = null;
 try {
-    puter = require('@heyputer/puter.js');
+    const puterLib = require('@heyputer/puter.js');
+    puter = puterLib.default || puterLib;
+
     if (process.env.PUTER_TOKEN) {
         puter.authToken = process.env.PUTER_TOKEN;
-        console.log("[AI] Puter SDK : Token configuré.");
+        console.log("[AI] Puter SDK : Token configuré via PUTER_TOKEN.");
+    } else if (process.env.PUTER_API_KEY) {
+        puter.authToken = process.env.PUTER_API_KEY;
+        console.log("[AI] Puter SDK : Token configuré via PUTER_API_KEY.");
     }
 } catch (e) {
     console.warn("[AI] Puter SDK could not be loaded:", e.message);
@@ -69,7 +74,11 @@ function isValidAIResponse(text) {
     ];
 
     // If it's a tiny response with an error marker, it's definitely an error
-    if (cleaned.length < 150 && errorMarkers.some(m => lower.includes(m))) return false;
+    if (cleaned.length < 250 && errorMarkers.some(m => lower.includes(m))) {
+        // Double check it's not a valid small JSON action response
+        if (cleaned.startsWith('{') && cleaned.endsWith('}') && lower.includes('"narrative"')) return true;
+        return false;
+    }
 
     // If it's just technical jargon without narrative content
     if (cleaned.startsWith('data: [DONE]') || cleaned === '[DONE]') return false;
@@ -130,7 +139,7 @@ function extractMessageContent(content) {
  * Call Puter's AI over its V1 OpenAI-compatible endpoint.
  */
 async function callPuterAPI(system, prompt) {
-    const key = process.env.PUTER_API_KEY;
+    const key = process.env.PUTER_API_KEY || process.env.PUTER_TOKEN;
     if (!key || key.length < 6 || key === 'test_key') return null;
 
     const messages = [
@@ -150,11 +159,11 @@ async function callPuterAPI(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 8000
+                timeout: 15000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
-            if (content && content.length > 5) return content;
+            if (isValidAIResponse(content)) return content;
         } catch (e) {
             console.warn(`[AI] Puter V1 API Error (${model}):`, e.response?.data || e.message);
             continue;
@@ -167,21 +176,39 @@ async function callPuterAPI(system, prompt) {
  * Try Puter SDK.
  */
 async function callPuterSDK(system, prompt) {
-    if (!puter || !puter.ai) return null;
+    if (!puter || !puter.ai) {
+        console.warn("[AI] Puter SDK non initialisé ou indisponible.");
+        return null;
+    }
     // Prioritizing Gemini models as requested
     const models = ["gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o", "claude-3-5-sonnet"];
 
     for (const model of models) {
         try {
-            console.log(`[AI] Puter SDK (Keyless) - Tentative avec ${model}...`);
-            // Using array format for better system prompt adherence
-            const result = await puter.ai.chat([
-                { role: "system", content: system },
-                { role: "user", content: prompt }
-            ], { model: model });
+            console.log(`[AI] Puter SDK - Tentative avec ${model}...`);
+
+            // Timeout wrapper for SDK call
+            const chatPromise = (async () => {
+                try {
+                    return await puter.ai.chat([
+                        { role: "system", content: system },
+                        { role: "user", content: prompt }
+                    ], { model: model });
+                } catch (err) {
+                    console.warn(`[AI] Puter SDK Chat Array failed for ${model}, trying string format...`);
+                    return await puter.ai.chat(`${system}\n\n${prompt}`, { model: model });
+                }
+            })();
+
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Timeout SDK Puter")), 20000)
+            );
+
+            const result = await Promise.race([chatPromise, timeoutPromise]);
 
             const content = parsePuterResponse(result);
             if (isValidAIResponse(content)) return content;
+            else console.warn(`[AI] Puter SDK ${model} a renvoyé une réponse invalide.`);
         } catch (e) {
             console.warn(`[AI] Puter SDK Error (${model}):`, e.message);
             continue;
