@@ -4,37 +4,37 @@ const sharp = require('sharp');
 const WORLD_NAME = 'AETHERYS';
 
 const KINGDOMS = [
-    // --- AETHERIA (Center-West) ---
-    { name: "Empire Impérial d'Elion", short: "ELION", continent: "Aetheria", color: '#f4c542', fill: 'rgba(244,197,66,0.15)', labelPos: [450, 450], polygon: [[350, 350], [550, 350], [550, 550], [350, 550]] },
-    { name: 'Royaume de Valkyrr', short: 'VALKYRR', continent: "Aetheria", color: '#9fd8ff', fill: 'rgba(159,216,255,0.12)', labelPos: [450, 250], polygon: [[350, 150], [550, 150], [550, 350], [350, 350]] },
-    { name: 'Gheno souterrain', short: 'GHENO', continent: "Aetheria", color: '#2c3e50', fill: 'rgba(44,62,80,0.2)', labelPos: [300, 350], polygon: [[250, 300], [350, 300], [350, 400], [250, 400]] },
-    { name: 'Forêt de l\'Éveil', short: 'SYLVA', continent: "Aetheria", color: '#2ecc71', fill: 'rgba(46,204,113,0.15)', labelPos: [250, 450], polygon: [[150, 350], [350, 350], [350, 550], [150, 550]] },
-    { name: 'Archipel des Murmures', short: 'MURMURES', continent: "Aetheria", color: '#1abc9c', fill: 'rgba(26,188,156,0.15)', labelPos: [200, 250], polygon: [[100, 150], [300, 150], [300, 350], [100, 350]] },
+    // --- AETHERIA (High Fantasy Coast) ---
+    { name: "Empire Impérial d'Elion", short: "ELION", continent: "Aetheria", color: '#f4c542', fill: 'rgba(244,197,66,0.15)', labelPos: [430, 440], polygon: [[380, 360], [450, 340], [540, 370], [560, 480], [510, 540], [390, 530], [360, 450], [350, 380]] },
+    { name: 'Royaume de Valkyrr', short: 'VALKYRR', continent: "Aetheria", color: '#9fd8ff', fill: 'rgba(159,216,255,0.12)', labelPos: [450, 240], polygon: [[380, 180], [480, 160], [550, 200], [540, 340], [450, 340], [380, 310], [360, 250]] },
+    { name: 'Gheno souterrain', short: 'GHENO', continent: "Aetheria", color: '#2c3e50', fill: 'rgba(44,62,80,0.25)', labelPos: [290, 340], polygon: [[260, 310], [340, 300], [360, 380], [270, 390], [250, 350]] },
+    { name: 'Forêt de l\'Éveil', short: 'SYLVA', continent: "Aetheria", color: '#2ecc71', fill: 'rgba(46,204,113,0.15)', labelPos: [240, 460], polygon: [[180, 380], [340, 370], [370, 540], [200, 560], [160, 480], [150, 420]] },
+    { name: 'Archipel des Murmures', short: 'MURMURES', continent: "Aetheria", color: '#1abc9c', fill: 'rgba(26,188,156,0.15)', labelPos: [180, 240], polygon: [[120, 180], [260, 170], [300, 280], [140, 320], [100, 250]] },
 
-    // --- ZENDORA (South-East) ---
-    { name: 'Terres Bestiales', short: 'BESTIALIA', continent: "Zendora", color: '#e67e22', fill: 'rgba(230,126,34,0.15)', labelPos: [950, 750], polygon: [[850, 650], [1050, 650], [1050, 850], [850, 850]] },
-    { name: 'Bastion d\'Orkh', short: 'ORKH', continent: "Zendora", color: '#c0392b', fill: 'rgba(192,57,43,0.15)', labelPos: [1150, 750], polygon: [[1050, 650], [1250, 650], [1250, 850], [1050, 850]] },
-    { name: 'Montagnes de Fer', short: 'IRON', continent: "Zendora", color: '#7f8c8d', fill: 'rgba(127,140,141,0.15)', labelPos: [1050, 900], polygon: [[950, 850], [1150, 850], [1150, 1000], [950, 1000]] },
-    { name: 'Désert d\'Ambre', short: 'AMBRE', continent: "Zendora", color: '#f1c40f', fill: 'rgba(241,196,15,0.15)', labelPos: [1150, 600], polygon: [[1050, 550], [1250, 550], [1250, 700], [1050, 700]] },
+    // --- ZENDORA (The Wild Lands) ---
+    { name: 'Terres Bestiales', short: 'BESTIALIA', continent: "Zendora", color: '#e67e22', fill: 'rgba(230,126,34,0.15)', labelPos: [960, 740], polygon: [[880, 680], [1020, 660], [1060, 780], [1010, 860], [890, 840], [860, 760], [850, 720]] },
+    { name: 'Bastion d\'Orkh', short: 'ORKH', continent: "Zendora", color: '#c0392b', fill: 'rgba(192,57,43,0.15)', labelPos: [1160, 760], polygon: [[1080, 680], [1220, 670], [1260, 820], [1180, 880], [1070, 850], [1060, 750]] },
+    { name: 'Montagnes de Fer', short: 'IRON', continent: "Zendora", color: '#7f8c8d', fill: 'rgba(127,140,141,0.15)', labelPos: [1060, 920], polygon: [[980, 870], [1140, 870], [1160, 980], [1050, 990], [970, 950], [960, 900]] },
+    { name: 'Désert d\'Ambre', short: 'AMBRE', continent: "Zendora", color: '#f1c40f', fill: 'rgba(241,196,15,0.15)', labelPos: [1140, 590], polygon: [[1070, 530], [1240, 540], [1260, 650], [1150, 680], [1060, 640], [1050, 580]] },
 
-    // --- UMBRA (South-West) ---
-    { name: 'Dominion Noir de Vharos', short: 'VHAROS', continent: "Umbra", color: '#8e44ad', fill: 'rgba(142,68,173,0.15)', labelPos: [250, 750], polygon: [[150, 650], [350, 650], [350, 850], [150, 850]] },
-    { name: 'Nécropolis', short: 'NÉCROPOLIS', continent: "Umbra", color: '#34495e', fill: 'rgba(52,73,94,0.2)', labelPos: [450, 750], polygon: [[350, 650], [550, 650], [550, 850], [350, 850]] },
-    { name: 'L\'Interstice', short: 'INTERSTICE', continent: "Umbra", color: '#000000', fill: 'rgba(0,0,0,0.3)', labelPos: [350, 900], polygon: [[250, 850], [450, 850], [450, 1000], [250, 1000]] },
-    { name: 'Cité de Verre', short: 'VERRE', continent: "Umbra", color: '#ecf0f1', fill: 'rgba(236,240,241,0.15)', labelPos: [100, 750], polygon: [[0, 650], [200, 650], [200, 850], [0, 850]] },
+    // --- UMBRA (The Shadow Continent) ---
+    { name: 'Dominion Noir de Vharos', short: 'VHAROS', continent: "Umbra", color: '#8e44ad', fill: 'rgba(142,68,173,0.15)', labelPos: [240, 760], polygon: [[170, 680], [330, 670], [360, 820], [280, 870], [160, 840], [150, 750]] },
+    { name: 'Nécropolis', short: 'NÉCROPOLIS', continent: "Umbra", color: '#34495e', fill: 'rgba(52,73,94,0.25)', labelPos: [460, 770], polygon: [[370, 680], [530, 690], [560, 840], [450, 880], [360, 830], [350, 750]] },
+    { name: 'L\'Interstice', short: 'INTERSTICE', continent: "Umbra", color: '#000000', fill: 'rgba(0,0,0,0.4)', labelPos: [360, 930], polygon: [[280, 880], [440, 880], [460, 990], [350, 980], [270, 940], [260, 900]] },
+    { name: 'Cité de Verre', short: 'VERRE', continent: "Umbra", color: '#ecf0f1', fill: 'rgba(236,240,241,0.15)', labelPos: [110, 740], polygon: [[30, 680], [160, 670], [180, 820], [80, 860], [20, 800], [10, 740]] },
 
-    // --- CAELUM (North-East) ---
-    { name: 'Royaume Céleste', short: 'CELESTIA', continent: "Caelum", color: '#ffffff', fill: 'rgba(255,255,255,0.25)', labelPos: [950, 250], polygon: [[850, 150], [1050, 150], [1050, 350], [850, 350]] },
-    { name: 'Abysse Inférieur', short: 'ABYSSE', continent: "Caelum", color: '#e74c3c', fill: 'rgba(231,76,60,0.15)', labelPos: [1150, 250], polygon: [[1050, 150], [1250, 150], [1250, 350], [1050, 350]] },
-    { name: 'Origine de l\'Existence', short: 'ORIGINE', continent: "Caelum", color: '#f39c12', fill: 'rgba(243,156,18,0.2)', labelPos: [1050, 100], polygon: [[950, 0], [1150, 0], [1150, 150], [950, 150]] },
-    { name: 'Cité de l\'Aube', short: 'AURORE', continent: "Caelum", color: '#d35400', fill: 'rgba(211,84,0,0.15)', labelPos: [1150, 450], polygon: [[1050, 350], [1250, 350], [1250, 550], [1050, 550]] }
+    // --- CAELUM (The Floating Continent) ---
+    { name: 'Royaume Céleste', short: 'CELESTIA', continent: "Caelum", color: '#ffffff', fill: 'rgba(255,255,255,0.3)', labelPos: [940, 240], polygon: [[870, 170], [1030, 160], [1060, 320], [960, 380], [860, 340], [850, 250]] },
+    { name: 'Abysse Inférieur', short: 'ABYSSE', continent: "Caelum", color: '#e74c3c', fill: 'rgba(231,76,60,0.2)', labelPos: [1160, 260], polygon: [[1070, 180], [1230, 170], [1260, 330], [1170, 390], [1060, 350], [1050, 250]] },
+    { name: 'Origine de l\'Existence', short: 'ORIGINE', continent: "Caelum", color: '#f39c12', fill: 'rgba(243,156,18,0.2)', labelPos: [1060, 90], polygon: [[970, 20], [1140, 10], [1160, 140], [1050, 170], [960, 130], [950, 70]] },
+    { name: 'Cité de l\'Aube', short: 'AURORE', continent: "Caelum", color: '#d35400', fill: 'rgba(211,84,0,0.2)', labelPos: [1140, 460], polygon: [[1070, 370], [1240, 360], [1260, 520], [1150, 560], [1060, 510], [1050, 440]] }
 ];
 
 const CONTINENTS_SHAPES = [
-    { name: "Aetheria", polygon: [[80, 120], [600, 100], [620, 600], [100, 580]] },
-    { name: "Zendora", polygon: [[800, 520], [1300, 500], [1320, 1000], [780, 980]] },
-    { name: "Umbra", polygon: [[20, 620], [580, 640], [600, 1000], [40, 980]] },
-    { name: "Caelum", polygon: [[820, 20], [1300, 40], [1320, 480], [840, 500]] }
+    { name: "Aetheria", polygon: [[120, 150], [180, 130], [250, 110], [350, 120], [450, 130], [520, 115], [580, 110], [610, 200], [630, 320], [610, 450], [590, 550], [500, 580], [420, 590], [320, 580], [250, 570], [180, 580], [110, 540], [90, 450], [70, 330], [90, 220]] },
+    { name: "Zendora", polygon: [[850, 550], [920, 530], [1000, 520], [1100, 530], [1200, 540], [1280, 580], [1340, 680], [1320, 780], [1310, 880], [1240, 950], [1150, 980], [1050, 990], [950, 970], [880, 940], [820, 850], [800, 780], [790, 700], [810, 620]] },
+    { name: "Umbra", polygon: [[50, 660], [120, 650], [200, 640], [320, 645], [450, 650], [520, 700], [580, 780], [560, 880], [540, 960], [450, 985], [350, 990], [250, 995], [150, 970], [80, 940], [30, 880], [25, 800], [20, 750], [30, 700]] },
+    { name: "Caelum", polygon: [[860, 60], [950, 40], [1050, 30], [1150, 40], [1250, 60], [1310, 120], [1340, 220], [1320, 350], [1280, 450], [1180, 480], [1080, 490], [980, 485], [880, 460], [840, 400], [820, 300], [825, 220], [830, 150], [845, 100]] }
 ];
 
 const CITIES = [
@@ -117,8 +117,12 @@ async function generateWorldMapImage() {
     CONTINENTS_SHAPES.forEach(c => {
         const path = `M ${c.polygon.map(p => p.join(',')).join(' L ')} Z`;
         continentsSvg += `
-            <path d="${path}" fill="url(#landGrad)" stroke="#4a3b22" stroke-width="5" style="filter: drop-shadow(0 0 15px rgba(0,0,0,0.6));" />
-            <text x="${c.polygon[0][0] + 50}" y="${c.polygon[0][1] + 30}" font-family="serif" font-weight="900" font-size="30" fill="#4a3b22" opacity="0.4" letter-spacing="10">${c.name.toUpperCase()}</text>
+            <!-- Land Glow -->
+            <path d="${path}" fill="none" stroke="${c.name === 'Umbra' ? '#4a0082' : '#c9a24a'}" stroke-width="12" opacity="0.2" style="filter: blur(10px);" />
+            <!-- Land Surface -->
+            <path d="${path}" fill="url(#landGrad)" stroke="#4a3b22" stroke-width="3" style="filter: url(#roughEdge) drop-shadow(0 0 10px rgba(0,0,0,0.5));" />
+            <!-- Continent Name -->
+            <text x="${c.polygon[0][0] + 80}" y="${c.polygon[0][1] + 80}" font-family="serif" font-weight="900" font-size="35" fill="#4a3b22" opacity="0.15" letter-spacing="15" transform="rotate(-5, ${c.polygon[0][0]}, ${c.polygon[0][1]})">${c.name.toUpperCase()}</text>
         `;
     });
 
@@ -187,6 +191,10 @@ async function generateWorldMapImage() {
                 <feDiffuseLighting in="noise" lighting-color="#fff5e6" surfaceScale="2">
                     <feDistantLight azimuth="45" elevation="60" />
                 </feDiffuseLighting>
+            </filter>
+            <filter id="roughEdge">
+                <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G" />
             </filter>
         </defs>
 

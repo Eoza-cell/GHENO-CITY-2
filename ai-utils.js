@@ -557,10 +557,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize Pollinations as requested by user
+        // Prioritize 9Router as requested by user
+        { name: '9Router', fn: call9Router },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        { name: '9Router', fn: call9Router },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },

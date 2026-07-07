@@ -64,20 +64,20 @@ async function handleFreeAction(sock, message, player, actionText) {
   const isTriggerWord = actionText.toLowerCase().trim() === 'next';
 
   // Scene Logic: Detect players in the same sub-location
-  // OPTIMIZATION: Only consider players active in the last 15 minutes to avoid being blocked by inactive ones.
+  // MANDATE: Separation between solo and group play.
   const now = Date.now();
-  const fifteenMins = 15 * 60 * 1000;
+  const activeThreshold = 15 * 60 * 1000; // 15 minutes for broader sync
 
-  const otherActorsInScene = nearbyPlayers.filter(p => {
+  const activeOthersInScene = nearbyPlayers.filter(p => {
       const lastActive = new Date(p.lastActivity).getTime();
-      return p.whatsappId !== player.whatsappId && (now - lastActive) < fifteenMins;
+      return p.whatsappId !== player.whatsappId && (now - lastActive) < activeThreshold;
   });
 
-  // Logic: Solo players (or those choosing to act alone) don't need 'next' to get a response
-  // unless they are explicitly in a group scene.
-  const isSolo = otherActorsInScene.length === 0;
+  // Logic: A player is "Solo" if no one else is ACTIVE in the same Sub-Location.
+  const isSolo = activeOthersInScene.length === 0;
 
-  // Only trigger AI on 'next' in multiplayer, or always in solo
+  // Synchronization: Solo players bypass 'next' for immediate response.
+  // Group players MUST use 'next' or wait for the group to be ready.
   const lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
