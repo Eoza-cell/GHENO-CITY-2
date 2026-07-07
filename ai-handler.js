@@ -847,7 +847,6 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
     // Send typing indicator (presencesUpdate is not always reliable but good to try)
     try {
         await sock.sendPresenceUpdate('composing', jid);
-        await new Promise(r => setTimeout(r, 1000));
         await sock.sendPresenceUpdate('paused', jid);
     } catch (e) {}
 

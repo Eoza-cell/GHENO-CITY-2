@@ -21,6 +21,10 @@ global.Element = dom.window.Element;
 let puter = null;
 try {
     puter = require('@heyputer/puter.js');
+    if (process.env.PUTER_TOKEN) {
+        puter.authToken = process.env.PUTER_TOKEN;
+        console.log("[AI] Puter SDK : Token configuré.");
+    }
 } catch (e) {
     console.warn("[AI] Puter SDK could not be loaded:", e.message);
 }
@@ -146,7 +150,7 @@ async function callPuterAPI(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 10000
+                timeout: 8000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -160,11 +164,12 @@ async function callPuterAPI(system, prompt) {
 }
 
 /**
- * Try Puter SDK (Keyless).
+ * Try Puter SDK.
  */
 async function callPuterSDK(system, prompt) {
     if (!puter || !puter.ai) return null;
-    const models = ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
+    // Prioritizing Llama 3.1 models as they are great for Roleplay and often free on Puter
+    const models = ["meta-llama-3.1-70b-instruct", "gpt-4o", "claude-3-5-sonnet", "gemini-1.5-flash"];
 
     for (const model of models) {
         try {
@@ -211,7 +216,7 @@ async function callOpenRouter(system, prompt) {
                     'HTTP-Referer': 'https://github.com/skype-bot/arise',
                     'X-Title': 'Arise RPG'
                 },
-                timeout: 10000
+                timeout: 8000
             });
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
@@ -248,7 +253,7 @@ async function callBlackbox(system, prompt) {
                     'Accept': 'application/json',
                     'x-blackbox-device-id': Math.random().toString(36).substring(2, 15)
                 },
-                timeout: 15000
+                timeout: 10000
             });
 
             let result = "";
@@ -287,7 +292,7 @@ async function callPollinationsGen(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 25000
+                timeout: 15000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -320,7 +325,7 @@ async function callPollinationsPOST(system, prompt) {
                     'Content-Type': 'application/json',
                     'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
                 },
-                timeout: 35000
+                timeout: 15000
             });
 
             let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
@@ -342,7 +347,7 @@ async function callPollinationsGET(system, prompt) {
         const seed = Math.floor(Math.random() * 1000000);
         const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}&json=true`;
 
-        const resp = await axios.get(url, { timeout: 25000 });
+        const resp = await axios.get(url, { timeout: 15000 });
         if (isValidAIResponse(resp.data)) return resp.data;
     } catch (e) {
         console.warn(`[AI] Pollinations GET Error:`, e.message);
@@ -391,7 +396,7 @@ async function callOllama(system, prompt) {
 
         const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
             headers,
-            timeout: 30000
+            timeout: 15000
         });
 
         const content = resp.data?.message?.content || resp.data?.response;
@@ -432,7 +437,7 @@ async function call9Router(system, prompt) {
                     'Authorization': `Bearer ${key}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 15000
+                timeout: 10000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -456,7 +461,7 @@ async function callWorldServer(system, prompt) {
                 { role: "user", content: prompt }
             ],
             stream: false
-        }, { timeout: 35000 });
+        }, { timeout: 15000 });
 
         const content = resp.data?.choices?.[0]?.message?.content;
         if (isValidAIResponse(content)) return content;
@@ -478,7 +483,7 @@ async function callLlamafile(system, prompt) {
             ],
             temperature: 0.1,
             stream: false
-        }, { timeout: 45000 });
+        }, { timeout: 15000 });
 
         const content = resp.data?.choices?.[0]?.message?.content;
         if (isValidAIResponse(content)) return content;
@@ -557,12 +562,12 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize Puter and Pollinations as requested by user
+        // Prioritize Puter SDK as user provided a token
         { name: 'Puter SDK', fn: callPuterSDK },
+        { name: '9Router', fn: call9Router },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: '9Router', fn: call9Router },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Blackbox', fn: callBlackbox },
