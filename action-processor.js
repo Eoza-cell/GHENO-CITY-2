@@ -2,6 +2,7 @@ const { Player, Bank, Item, Skill, NPC, Monster, House, Entity, Club, WorldJourn
 const { Op } = require('sequelize');
 const { checkLevelUp } = require('./level-utils');
 const { generatePaperImage } = require('./paper-generator');
+const { generateBlackboardImage, generateMagicDetailBoard } = require('./blackboard-generator');
 const questUtils = require('./quest-utils');
 const { shouldNotifyPlayer } = require('./message-handler');
 
@@ -15,7 +16,7 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
         'add_item', 'remove_item', 'add_skill', 'buy_item', 'use_item', 'travel_to',
         'arrest_player', 'set_wanted_level', 'release_player', 'manage_house',
         'set_academic_status', 'get_player_details', 'modify_reputation',
-        'resurrect_player', 'forge_pact', 'join_club', 'start_quest',
+        'resurrect_player', 'forge_pact', 'join_club', 'start_quest', 'explain_magic',
         'advance_quest', 'complete_quest', 'update_quest', 'p2p_transfer', 'npc_trade',
         'request_servitude', 'accept_servitude', 'request_fusion', 'accept_fusion', 'dissolve_fusion',
         'trigger_trap', 'apply_status_effect', 'break_equipment', 'social_consequence',
@@ -177,8 +178,26 @@ async function processActions(sock, jid, player, actions, aiResponse, nearbyPlay
                     await handleTravelTo(target, parameters, aiResponse, playersToUpdate);
                     break;
                 case 'generate_document':
-                    const docBuffer = await generatePaperImage(parameters.content, parameters.title || "DOCUMENT");
-                    await sock.sendMessage(jid, { image: docBuffer, caption: `📄 ${parameters.title}` });
+                    let docBuffer;
+                    if (parameters.type === 'blackboard') {
+                        docBuffer = await generateBlackboardImage(parameters.content, parameters.title || "TABLEAU");
+                    } else {
+                        docBuffer = await generatePaperImage(parameters.content, parameters.title || "DOCUMENT");
+                    }
+                    await sock.sendMessage(jid, { image: docBuffer, caption: parameters.caption || `📄 ${parameters.title}` });
+                    break;
+                case 'explain_magic':
+                    const magicSkill = await Skill.findOne({ where: { name: { [Op.like]: `%${parameters.skillName}%` } } });
+                    if (magicSkill) {
+                        const detailBuffer = await generateMagicDetailBoard({
+                            ...magicSkill.toJSON(),
+                            logic: parameters.logic,
+                            power: parameters.power,
+                            range: parameters.range,
+                            complexity: parameters.complexity
+                        });
+                        await sock.sendMessage(jid, { image: detailBuffer, caption: `📖 *Analyse de Flux : ${magicSkill.name}*` });
+                    }
                     break;
                 case 'set_wanted_level':
                     await target.update({ wantedLevel: parameters.level != null ? parameters.level : parameters.wantedLevel });

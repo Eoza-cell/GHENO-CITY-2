@@ -1,6 +1,7 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
+const { generateBlackboardImage } = require('./blackboard-generator');
 const { generate3DVisual } = require('./three-renderer');
 const { generateActionVisual } = require('./action-visual-generator');
 const { generateProfileCard } = require('./profile-generator');
@@ -28,19 +29,32 @@ async function handleFreeAction(sock, message, player, actionText) {
       console.error("[DB] RPMessage log error:", e.message);
   }
 
-  // Automatic Visual: Detect writing on paper
-  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter)(?:\s+sur\s+(?:du\s+)?papier|\s+une\s+note|\s+une\s+lettre|\s+l'examen)\s*:\s*([\s\S]+)/i);
+  // Automatic Visual: Detect writing on paper or blackboard
+  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter|inscrit|dessine|trace)(?:\s+sur\s+(?:du\s+)?(?:papier|tableau|mur|parchemin|lettre|examen|note|copie))\s*:\s*([\s\S]+)/i);
   if (writingMatch) {
       const writtenText = writingMatch[1].trim();
-      const isExam = actionText.toLowerCase().includes('examen');
+      const lowerAction = actionText.toLowerCase();
+      const isBlackboard = lowerAction.includes('tableau');
+      const isExam = lowerAction.includes('examen');
+
       try {
-          const paperBuffer = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
+          let visualBuffer;
+          let caption = "";
+
+          if (isBlackboard) {
+              visualBuffer = await generateBlackboardImage(writtenText, "TABLEAU");
+              caption = `📝 *Sur le tableau, on peut lire...*`;
+          } else {
+              visualBuffer = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
+              caption = `📜 *Tu as fini d'écrire...*\n\n"${writtenText.substring(0, 100)}${writtenText.length > 100 ? '...' : ''}"`;
+          }
+
           await sock.sendMessage(jid, {
-              image: paperBuffer,
-              caption: `📜 *Tu as fini d'écrire...*\n\n"${writtenText.substring(0, 100)}${writtenText.length > 100 ? '...' : ''}"`
+              image: visualBuffer,
+              caption: caption
           });
       } catch (err) {
-          console.error("[Paper] Error generating paper visual:", err);
+          console.error("[Writing Visual] Error generating visual:", err);
       }
   }
 
@@ -552,8 +566,9 @@ NARRATION:
 
 VISUELS:
 - Pour chaque utilisation de technique ou combat, inclus un objet "actionVisual": {"type": "skill|combat|magic", "assetName": "NomLieuOuMonstre", "title": "NOM TECHNIQUE", "description": "Brève description visuelle"} pour générer une image Canvas.
+- Éducation: Si un PNJ explique une technique magique, utilise 'explain_magic' avec les détails techniques. Si quelqu'un écrit au tableau, utilise 'generate_document' avec type: 'blackboard'.
 
-ACTIONS: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, remove_item, add_skill, travel_to, spawn_npc, spawn_monster, create_custom_item, change_weather, manage_house, set_academic_status, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, forge_pact, join_club, resurrect_player, write_journal, p2p_transfer, npc_trade, check_requirements, create_custom_skill, promote_player.`;
+ACTIONS: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, remove_item, add_skill, travel_to, spawn_npc, spawn_monster, create_custom_item, change_weather, manage_house, set_academic_status, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, forge_pact, join_club, resurrect_player, write_journal, p2p_transfer, npc_trade, check_requirements, create_custom_skill, promote_player, explain_magic.`;
 
 
     const memoryJson = JSON.stringify({
