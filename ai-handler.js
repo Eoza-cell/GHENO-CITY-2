@@ -550,6 +550,9 @@ NARRATION:
 - STYLE: Manhwa/Anime visuel et viscéral. Décris les impacts, les odeurs et la causalité des actions.
 - MJ PUR: Ne joue JAMAIS le joueur. Décris UNIQUEMENT les conséquences et l'environnement.
 
+VISUELS:
+- Pour chaque utilisation de technique ou combat, inclus un objet "actionVisual": {"type": "skill|combat|magic", "assetName": "NomLieuOuMonstre", "title": "NOM TECHNIQUE", "description": "Brève description visuelle"} pour générer une image Canvas.
+
 ACTIONS: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, remove_item, add_skill, travel_to, spawn_npc, spawn_monster, create_custom_item, change_weather, manage_house, set_academic_status, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, forge_pact, join_club, resurrect_player, write_journal, p2p_transfer, npc_trade, check_requirements, create_custom_skill, promote_player.`;
 
 
