@@ -482,12 +482,25 @@ commands.set('map', async (sock, message) => {
         return;
     }
 
+    const kingdoms = await Kingdom.findAll();
     const dungeons = await Dungeon.findAll();
-    const mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
-                    `📍 *Position:* ${player.location}\n\n` +
-                    `🏰 *Donjons par rang:*\n` +
-                    dungeons.map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
-                    `\n\n_Le monde est vaste. Déplace-toi via le mode /action._`;
+
+    let mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
+                  `📍 *Position:* ${player.location} (${player.subLocation})\n\n` +
+                  `🌍 *CONTINENTS ET ROYAUMES:*\n`;
+
+    const continents = [...new Set(kingdoms.map(k => k.continent || 'Aetheria'))];
+    continents.forEach(cont => {
+        mapText += `\n*◈ ${cont.toUpperCase()}*\n`;
+        const contKingdoms = kingdoms.filter(k => (k.continent || 'Aetheria') === cont);
+        contKingdoms.forEach(k => {
+            mapText += `  ├ ${k.name}\n`;
+        });
+    });
+
+    mapText += `\n🏰 *DUNGEONS RECOMMANDÉS:*\n` +
+               dungeons.slice(0, 8).map(d => `├ ${d.name} (Rang ${d.rank})`).join('\n') +
+               `\n\n_Le monde s'est étendu. Traversez les mers via le mode /action._`;
 
     try {
         const mapImage = await generateWorldMapImage();

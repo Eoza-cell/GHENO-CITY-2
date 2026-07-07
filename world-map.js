@@ -4,79 +4,94 @@ const sharp = require('sharp');
 const WORLD_NAME = 'AETHERYS';
 
 const KINGDOMS = [
-    {
-        name: "Empire Impérial d'Elion", short: "EMPIRE D'ELION", status: 'Paix',
-        color: '#f4c542', fill: 'rgba(244,197,66,0.18)',
-        labelPos: [650, 450],
-        polygon: [[470, 360], [760, 320], [880, 470], [820, 690], [560, 740], [430, 600]]
-    },
-    {
-        name: 'Royaume de Valkyrr', short: 'VALKYRR', status: 'Trêve',
-        color: '#9fd8ff', fill: 'rgba(159,216,255,0.15)',
-        labelPos: [520, 220],
-        polygon: [[360, 150], [720, 130], [770, 300], [470, 350], [330, 300]]
-    },
-    {
-        name: 'Dominion Noir de Vharos', short: 'VHAROS', status: 'Guerre',
-        color: '#b06bff', fill: 'rgba(150,70,220,0.22)',
-        labelPos: [950, 620],
-        polygon: [[830, 480], [1150, 540], [1180, 850], [950, 920], [770, 720], [840, 600]]
-    },
-    {
-        name: 'Terres Bestiales', short: 'BESTIALIA', status: 'Sauvage',
-        color: '#8dc63f', fill: 'rgba(141,198,63,0.15)',
-        labelPos: [350, 550],
-        polygon: [[150, 350], [330, 290], [430, 600], [410, 770], [200, 750], [120, 550]]
-    },
-    {
-        name: 'Royaume Céleste', short: 'AETHERIA', status: 'Éternel',
-        color: '#ffffff', fill: 'rgba(255,255,255,0.25)',
-        labelPos: [1150, 250],
-        polygon: [[1000, 100], [1300, 80], [1350, 350], [1100, 450], [900, 330]]
-    },
-    {
-        name: 'Nécropolis', short: 'NÉCROPOLIS', status: 'Mort',
-        color: '#7f8c8d', fill: 'rgba(127,140,141,0.25)',
-        labelPos: [550, 880],
-        polygon: [[410, 770], [560, 800], [690, 860], [800, 950], [400, 980], [300, 850]]
-    },
-    {
-        name: 'Gheno souterrain', short: 'GHENO', status: 'Ombre',
-        color: '#2c3e50', fill: 'rgba(44,62,80,0.3)',
-        labelPos: [150, 200],
-        polygon: [[50, 50], [250, 50], [300, 250], [50, 250]]
-    }
+    // --- AETHERIA (Center-West) ---
+    { name: "Empire Impérial d'Elion", short: "ELION", continent: "Aetheria", color: '#f4c542', fill: 'rgba(244,197,66,0.15)', labelPos: [450, 450], polygon: [[350, 350], [550, 350], [550, 550], [350, 550]] },
+    { name: 'Royaume de Valkyrr', short: 'VALKYRR', continent: "Aetheria", color: '#9fd8ff', fill: 'rgba(159,216,255,0.12)', labelPos: [450, 250], polygon: [[350, 150], [550, 150], [550, 350], [350, 350]] },
+    { name: 'Gheno souterrain', short: 'GHENO', continent: "Aetheria", color: '#2c3e50', fill: 'rgba(44,62,80,0.2)', labelPos: [300, 350], polygon: [[250, 300], [350, 300], [350, 400], [250, 400]] },
+    { name: 'Forêt de l\'Éveil', short: 'SYLVA', continent: "Aetheria", color: '#2ecc71', fill: 'rgba(46,204,113,0.15)', labelPos: [250, 450], polygon: [[150, 350], [350, 350], [350, 550], [150, 550]] },
+    { name: 'Archipel des Murmures', short: 'MURMURES', continent: "Aetheria", color: '#1abc9c', fill: 'rgba(26,188,156,0.15)', labelPos: [200, 250], polygon: [[100, 150], [300, 150], [300, 350], [100, 350]] },
+
+    // --- ZENDORA (South-East) ---
+    { name: 'Terres Bestiales', short: 'BESTIALIA', continent: "Zendora", color: '#e67e22', fill: 'rgba(230,126,34,0.15)', labelPos: [950, 750], polygon: [[850, 650], [1050, 650], [1050, 850], [850, 850]] },
+    { name: 'Bastion d\'Orkh', short: 'ORKH', continent: "Zendora", color: '#c0392b', fill: 'rgba(192,57,43,0.15)', labelPos: [1150, 750], polygon: [[1050, 650], [1250, 650], [1250, 850], [1050, 850]] },
+    { name: 'Montagnes de Fer', short: 'IRON', continent: "Zendora", color: '#7f8c8d', fill: 'rgba(127,140,141,0.15)', labelPos: [1050, 900], polygon: [[950, 850], [1150, 850], [1150, 1000], [950, 1000]] },
+    { name: 'Désert d\'Ambre', short: 'AMBRE', continent: "Zendora", color: '#f1c40f', fill: 'rgba(241,196,15,0.15)', labelPos: [1150, 600], polygon: [[1050, 550], [1250, 550], [1250, 700], [1050, 700]] },
+
+    // --- UMBRA (South-West) ---
+    { name: 'Dominion Noir de Vharos', short: 'VHAROS', continent: "Umbra", color: '#8e44ad', fill: 'rgba(142,68,173,0.15)', labelPos: [250, 750], polygon: [[150, 650], [350, 650], [350, 850], [150, 850]] },
+    { name: 'Nécropolis', short: 'NÉCROPOLIS', continent: "Umbra", color: '#34495e', fill: 'rgba(52,73,94,0.2)', labelPos: [450, 750], polygon: [[350, 650], [550, 650], [550, 850], [350, 850]] },
+    { name: 'L\'Interstice', short: 'INTERSTICE', continent: "Umbra", color: '#000000', fill: 'rgba(0,0,0,0.3)', labelPos: [350, 900], polygon: [[250, 850], [450, 850], [450, 1000], [250, 1000]] },
+    { name: 'Cité de Verre', short: 'VERRE', continent: "Umbra", color: '#ecf0f1', fill: 'rgba(236,240,241,0.15)', labelPos: [100, 750], polygon: [[0, 650], [200, 650], [200, 850], [0, 850]] },
+
+    // --- CAELUM (North-East) ---
+    { name: 'Royaume Céleste', short: 'CELESTIA', continent: "Caelum", color: '#ffffff', fill: 'rgba(255,255,255,0.25)', labelPos: [950, 250], polygon: [[850, 150], [1050, 150], [1050, 350], [850, 350]] },
+    { name: 'Abysse Inférieur', short: 'ABYSSE', continent: "Caelum", color: '#e74c3c', fill: 'rgba(231,76,60,0.15)', labelPos: [1150, 250], polygon: [[1050, 150], [1250, 150], [1250, 350], [1050, 350]] },
+    { name: 'Origine de l\'Existence', short: 'ORIGINE', continent: "Caelum", color: '#f39c12', fill: 'rgba(243,156,18,0.2)', labelPos: [1050, 100], polygon: [[950, 0], [1150, 0], [1150, 150], [950, 150]] },
+    { name: 'Cité de l\'Aube', short: 'AURORE', continent: "Caelum", color: '#d35400', fill: 'rgba(211,84,0,0.15)', labelPos: [1150, 450], polygon: [[1050, 350], [1250, 350], [1250, 550], [1050, 550]] }
 ];
 
-const CONTINENT = [
-    [150, 350], [350, 160], [520, 90], [760, 110], [880, 200], [1000, 100],
-    [1300, 80], [1350, 350], [1100, 450], [1150, 540], [1180, 850], [950, 920],
-    [800, 950], [400, 980], [300, 850], [200, 750], [120, 550]
+const CONTINENTS_SHAPES = [
+    { name: "Aetheria", polygon: [[80, 120], [600, 100], [620, 600], [100, 580]] },
+    { name: "Zendora", polygon: [[800, 520], [1300, 500], [1320, 1000], [780, 980]] },
+    { name: "Umbra", polygon: [[20, 620], [580, 640], [600, 1000], [40, 980]] },
+    { name: "Caelum", polygon: [[820, 20], [1300, 40], [1320, 480], [840, 500]] }
 ];
 
 const CITIES = [
-    { name: 'Eldoria', sub: 'Cité de départ', x: 610, y: 540, capital: false },
-    { name: 'Académie Impériale', sub: 'Académie de magie', x: 700, y: 450, capital: false },
-    { name: 'Lux Aeterna', sub: 'Chevaliers du Sang', x: 540, y: 640, capital: false },
-    { name: 'Solis', sub: "Capitale d'Elion", x: 660, y: 600, capital: true },
-    { name: 'Oakhaven', sub: 'Village de chasseurs', x: 280, y: 520, capital: false },
-    { name: 'Gearhead', sub: 'Cité minière', x: 480, y: 240, capital: false },
-    { name: 'Palais d\'Argent', sub: 'Cœur Céleste', x: 1180, y: 200, capital: true },
-    { name: 'Donjon de la Liche', sub: 'Trône de Vharos', x: 1020, y: 750, capital: true },
-    { name: 'Le Seuil', sub: 'Porte des Morts', x: 550, y: 920, capital: true },
-    { name: 'Marché Noir', sub: 'Cœur de Gheno', x: 150, y: 150, capital: true }
+    // Elion
+    { name: 'Eldoria', sub: 'Cité de départ', x: 400, y: 500, capital: false },
+    { name: 'Solis', sub: "Capitale d'Elion", x: 450, y: 450, capital: true },
+    { name: 'Riverbend', sub: 'Port Fluvial', x: 380, y: 460, capital: false },
+    { name: 'Green-Fields', sub: 'Grenier d\'Elion', x: 480, y: 520, capital: false },
+    { name: 'Portes d\'Elion', sub: 'Garde Royale', x: 520, y: 480, capital: false },
+    // Valkyrr
+    { name: 'Gearhead', sub: 'Cité minière', x: 420, y: 240, capital: false },
+    { name: 'Sparkwell', sub: 'Cité Technomage', x: 480, y: 200, capital: true },
+    { name: 'Grand Laboratoire', sub: 'Recherche Alpha', x: 520, y: 260, capital: false },
+    // Gheno
+    { name: 'Marché Noir', sub: 'Cœur de Gheno', x: 300, y: 350, capital: true },
+    { name: 'Caveau des Ombres', sub: 'Trésors Volés', x: 280, y: 380, capital: false },
+    // Sylva
+    { name: 'Sylva-Lumia', sub: 'Cité de Lumière', x: 250, y: 450, capital: true },
+    { name: 'Arbre-Mère', sub: 'Cœur Elfique', x: 220, y: 420, capital: false },
+    // Zendora / Bestialia
+    { name: 'Oakhaven', sub: 'Village Chasseur', x: 920, y: 720, capital: false },
+    { name: 'Pic du Prédateur', sub: 'Sommet Sauvage', x: 980, y: 780, capital: true },
+    // Bastion d'Orkh
+    { name: 'Fort-Sang', sub: 'Capitale Orc', x: 1150, y: 750, capital: true },
+    { name: 'Arène de Fer', sub: 'Lieu de Combat', x: 1180, y: 720, capital: false },
+    // Umbra / Vharos
+    { name: 'Marais Putrides', sub: 'Entrée Dominion', x: 200, y: 700, capital: false },
+    { name: 'Donjon de la Liche', sub: 'Trône Noir', x: 250, y: 750, capital: true },
+    // Nécropolis
+    { name: 'Le Seuil', sub: 'Porte des Morts', x: 450, y: 750, capital: true },
+    { name: 'Allée des Tombeaux', sub: 'Repos Éternel', x: 420, y: 780, capital: false },
+    // Caelum
+    { name: 'Palais d\'Argent', sub: 'Cœur Céleste', x: 950, y: 250, capital: true },
+    { name: 'Abysse Inférieur', sub: 'Pandémonium', x: 1150, y: 250, capital: true },
+    { name: 'Zenith Absolu', sub: 'Origine', x: 1050, y: 50, capital: true }
 ];
 
 const RANK_COLORS = {
     E: '#7bd88f', D: '#69b7ff', C: '#ffd24d', B: '#ff9a3d', A: '#ff5d5d', S: '#c34bff'
 };
 const DUNGEONS = [
-    { name: 'Forêt des Gobelins', rank: 'E', x: 400, y: 470, glyph: 'tree' },
-    { name: 'Mine de Cobalt', rank: 'D', x: 650, y: 230, glyph: 'mountain' },
-    { name: 'Caverne des Ombres', rank: 'C', x: 860, y: 360, glyph: 'cave' },
-    { name: "Labyrinthe d'Aincrad", rank: 'B', x: 720, y: 720, glyph: 'tower' },
-    { name: "Volcan d'Ignis", rank: 'A', x: 985, y: 660, glyph: 'volcano' },
-    { name: 'Donjon du Destin', rank: 'S', x: 950, y: 790, glyph: 'skull' }
+    // Aetheria
+    { name: 'Forêt des Gobelins', rank: 'E', x: 350, y: 480, glyph: 'tree' },
+    { name: 'Mine de Cobalt', rank: 'D', x: 450, y: 280, glyph: 'mountain' },
+    { name: 'Caverne des Ombres', rank: 'C', x: 320, y: 320, glyph: 'cave' },
+    // Zendora
+    { name: 'Arène de Fer', rank: 'B', x: 1100, y: 800, glyph: 'tower' },
+    { name: 'Canyon des Crânes', rank: 'A', x: 1200, y: 750, glyph: 'cave' },
+    { name: 'Mines Rouges', rank: 'D', x: 1050, y: 850, glyph: 'mountain' },
+    // Umbra
+    { name: 'Champs Éternels', rank: 'C', x: 300, y: 720, glyph: 'tree' },
+    { name: 'Fissure du Néant', rank: 'A', x: 350, y: 920, glyph: 'volcano' },
+    { name: 'Labyrinthe de Cristal', rank: 'S', x: 100, y: 800, glyph: 'tower' },
+    // Caelum
+    { name: 'Cascade des Lumières', rank: 'B', x: 1000, y: 350, glyph: 'volcano' },
+    { name: 'Fosse de Sang', rank: 'A', x: 1200, y: 200, glyph: 'skull' },
+    { name: 'Portes du Temps', rank: 'S', x: 1050, y: 120, glyph: 'tower' }
 ];
 
 function getGlyphSvg(glyph, x, y, color) {
@@ -98,20 +113,26 @@ function getGlyphSvg(glyph, x, y, color) {
 async function generateWorldMapImage() {
     const W = 1400, H = 1000;
 
-    const continentPath = `M ${CONTINENT.map(p => p.join(',')).join(' L ')} Z`;
+    let continentsSvg = '';
+    CONTINENTS_SHAPES.forEach(c => {
+        const path = `M ${c.polygon.map(p => p.join(',')).join(' L ')} Z`;
+        continentsSvg += `
+            <path d="${path}" fill="url(#landGrad)" stroke="#4a3b22" stroke-width="5" style="filter: drop-shadow(0 0 15px rgba(0,0,0,0.6));" />
+            <text x="${c.polygon[0][0] + 50}" y="${c.polygon[0][1] + 30}" font-family="serif" font-weight="900" font-size="30" fill="#4a3b22" opacity="0.4" letter-spacing="10">${c.name.toUpperCase()}</text>
+        `;
+    });
 
     let kingdomsSvg = '';
     KINGDOMS.forEach(k => {
         const polyPath = `M ${k.polygon.map(p => p.join(',')).join(' L ')} Z`;
-        kingdomsSvg += `<path d="${polyPath}" fill="${k.fill}" stroke="${k.color}" stroke-width="2" stroke-dasharray="8,6" />`;
+        kingdomsSvg += `<path d="${polyPath}" fill="${k.fill}" stroke="${k.color}" stroke-width="1.5" stroke-dasharray="4,4" />`;
     });
 
     let labelsSvg = '';
     KINGDOMS.forEach(k => {
         const cx = k.labelPos[0], cy = k.labelPos[1];
         labelsSvg += `
-            <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-family="serif" font-weight="bold" font-size="22" fill="${k.color}" style="filter: drop-shadow(0 0 4px rgba(0,0,0,0.6));">${k.short}</text>
-            <text x="${cx}" y="${cy + 16}" text-anchor="middle" font-family="serif" font-style="italic" font-size="15" fill="#3c2d19">« ${k.status} »</text>
+            <text x="${cx}" y="${cy}" text-anchor="middle" font-family="serif" font-weight="bold" font-size="16" fill="${k.color}" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.8));">${k.short}</text>
         `;
     });
 
@@ -167,9 +188,6 @@ async function generateWorldMapImage() {
                     <feDistantLight azimuth="45" elevation="60" />
                 </feDiffuseLighting>
             </filter>
-            <clipPath id="continentClip">
-                <path d="${continentPath}" />
-            </clipPath>
         </defs>
 
         <!-- Ocean with texture -->
@@ -184,27 +202,31 @@ async function generateWorldMapImage() {
             <path d="M 800,800 Q 820,780 840,800 T 880,800" />
         </g>
 
-        <!-- Landmass -->
-        <path d="${continentPath}" fill="url(#landGrad)" stroke="#4a3b22" stroke-width="5" style="filter: drop-shadow(0 0 15px rgba(0,0,0,0.6));" />
-        <path d="${continentPath}" fill="#000000" opacity="0.05" style="filter: url(#parchmentFilter);" clip-path="url(#continentClip)" />
+        <!-- Landmasses -->
+        ${continentsSvg}
 
-        <g clip-path="url(#continentClip)">
+        <g>
             ${kingdomsSvg}
 
-            <!-- Mountain Ranges -->
-            <g opacity="0.3" fill="none" stroke="#5c4a2a" stroke-width="2">
-                <path d="M 500,300 L 520,270 L 540,300 M 520,270 L 530,285" />
-                <path d="M 540,320 L 560,290 L 580,320 M 560,290 L 570,305" />
-                <path d="M 800,500 L 820,470 L 840,500 M 820,470 L 830,485" />
+            <!-- Geographical Features -->
+            <g opacity="0.25" fill="none" stroke="#5c4a2a" stroke-width="2">
+                <!-- Mountains Aetheria -->
+                <path d="M 400,200 L 420,170 L 440,200 M 420,170 L 430,185" />
+                <path d="M 440,220 L 460,190 L 480,220 M 460,190 L 470,205" />
+                <!-- Mountains Zendora -->
+                <path d="M 1000,800 L 1020,770 L 1040,800" />
+                <path d="M 1040,820 L 1060,790 L 1080,820" />
             </g>
 
             <!-- Forests -->
-            <g opacity="0.3" fill="#2d5a27">
-                <circle cx="400" cy="500" r="15" />
-                <circle cx="420" cy="480" r="12" />
-                <circle cx="380" cy="485" r="10" />
-                <circle cx="250" cy="600" r="20" />
-                <circle cx="230" cy="580" r="15" />
+            <g opacity="0.2" fill="#2d5a27">
+                <!-- Aetheria Forest -->
+                <circle cx="250" cy="450" r="30" />
+                <circle cx="280" cy="430" r="25" />
+                <circle cx="220" cy="470" r="20" />
+                <!-- Zendora Jungle -->
+                <circle cx="950" cy="750" r="40" />
+                <circle cx="980" cy="730" r="35" />
             </g>
         </g>
 
@@ -215,7 +237,7 @@ async function generateWorldMapImage() {
         <!-- Title -->
         <rect x="${W/2 - 320}" y="24" width="640" height="78" fill="rgba(20,12,6,0.72)" stroke="#c9a24a" stroke-width="3" />
         <text x="${W/2}" y="64" text-anchor="middle" font-family="serif" font-weight="bold" font-size="44" fill="#f4e3b0">CARTE DU MONDE — ${WORLD_NAME}</text>
-        <text x="${W/2}" y="90" text-anchor="middle" font-family="serif" font-style="italic" font-size="18" fill="#cbb682">Continent de l'Empire, des terres libres et du Dominion Noir</text>
+        <text x="${W/2}" y="90" text-anchor="middle" font-family="serif" font-style="italic" font-size="18" fill="#cbb682">Aetheria, Zendora, Umbra et Caelum</text>
 
         <!-- Legend -->
         <g transform="translate(40, ${H - 240})">
