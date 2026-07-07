@@ -187,6 +187,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           hints.push(`⚠️ LE JOUEUR ESSAIE D'INTERAGIR AVEC QUELQU'UN À '${interactionTargetSubLocation}'. Propose-lui de se déplacer là-bas ou fais-les se rencontrer.`);
       }
   }
+  const otherActorsCount = activeOthersInScene.length;
   if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
 
   // Goldfish Memory Defense: Check if player just got a new item/skill in previous turns
