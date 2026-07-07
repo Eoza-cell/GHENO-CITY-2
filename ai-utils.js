@@ -23,12 +23,13 @@ try {
     const puterLib = require('@heyputer/puter.js');
     puter = puterLib.default || puterLib;
 
-    if (process.env.PUTER_TOKEN) {
-        puter.authToken = process.env.PUTER_TOKEN;
-        console.log("[AI] Puter SDK : Token configuré via PUTER_TOKEN.");
-    } else if (process.env.PUTER_API_KEY) {
-        puter.authToken = process.env.PUTER_API_KEY;
-        console.log("[AI] Puter SDK : Token configuré via PUTER_API_KEY.");
+    const token = process.env.PUTER_TOKEN || process.env.PUTER_API_KEY;
+    if (token) {
+        if (typeof puter.setAuthToken === 'function') {
+            puter.setAuthToken(token);
+        }
+        puter.authToken = token;
+        console.log("[AI] Puter SDK : Token configuré.");
     }
 } catch (e) {
     console.warn("[AI] Puter SDK could not be loaded:", e.message);
@@ -181,7 +182,8 @@ async function callPuterSDK(system, prompt) {
         return null;
     }
     // Prioritizing Gemini models as requested
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o", "claude-3-5-sonnet"];
+    // Added 'gemini' as a generic name in case versioned names fail
+    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini", "meta-llama-3.1-70b-instruct", "gpt-4o"];
 
     for (const model of models) {
         try {
@@ -190,25 +192,36 @@ async function callPuterSDK(system, prompt) {
             // Timeout wrapper for SDK call
             const chatPromise = (async () => {
                 try {
+                    // Try with options object
                     return await puter.ai.chat([
                         { role: "system", content: system },
                         { role: "user", content: prompt }
                     ], { model: model });
                 } catch (err) {
-                    console.warn(`[AI] Puter SDK Chat Array failed for ${model}, trying string format...`);
-                    return await puter.ai.chat(`${system}\n\n${prompt}`, { model: model });
+                    console.warn(`[AI] Puter SDK Chat Array/Options failed for ${model}, trying simplified call...`);
+                    try {
+                        // Some versions might prefer model as first or second arg
+                        return await puter.ai.chat(`${system}\n\n${prompt}`, { model: model });
+                    } catch (err2) {
+                         // Last ditch: no model specified, let Puter decide (might use a free one)
+                         if (model === "gemini") {
+                             console.warn("[AI] Puter SDK Gemini failed, trying default model...");
+                             return await puter.ai.chat(`${system}\n\n${prompt}`);
+                         }
+                         throw err2;
+                    }
                 }
             })();
 
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Timeout SDK Puter")), 20000)
+                setTimeout(() => reject(new Error("Timeout SDK Puter")), 25000)
             );
 
             const result = await Promise.race([chatPromise, timeoutPromise]);
 
             const content = parsePuterResponse(result);
             if (isValidAIResponse(content)) return content;
-            else console.warn(`[AI] Puter SDK ${model} a renvoyé une réponse invalide.`);
+            else console.warn(`[AI] Puter SDK ${model} a renvoyé une réponse vide ou invalide.`);
         } catch (e) {
             console.warn(`[AI] Puter SDK Error (${model}):`, e.message);
             continue;
@@ -659,7 +672,15 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
 function parsePuterResponse(resp) {
     if (!resp) return null;
+    // Puter SDK often returns an object with a .text property or a toString() that returns the content
     if (typeof resp === 'string') return resp;
+
+    // Handle SDK v2+ response objects
+    if (resp.text && typeof resp.text === 'string') return resp.text;
+    if (typeof resp.toString === 'function' && resp.toString() !== '[object Object]') {
+        const ts = resp.toString();
+        if (ts && ts.length > 5) return ts;
+    }
 
     if (resp.message && resp.message.content) {
         if (Array.isArray(resp.message.content)) {
@@ -671,8 +692,6 @@ function parsePuterResponse(resp) {
     if (resp.choices && resp.choices[0]?.message?.content) {
         return resp.choices[0].message.content;
     }
-
-    if (resp.text && typeof resp.text === 'string') return resp.text;
 
     return JSON.stringify(resp);
 }
