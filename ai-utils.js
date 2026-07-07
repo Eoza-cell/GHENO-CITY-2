@@ -557,13 +557,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize Pollinations as requested by user
+        // Prioritize Puter and Pollinations as requested by user
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: '9Router', fn: call9Router },
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Blackbox', fn: callBlackbox },
         ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
