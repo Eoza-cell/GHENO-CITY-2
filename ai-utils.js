@@ -230,12 +230,12 @@ async function callPuterSDK(system, prompt) {
 
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
-    // Prioritizing extremely fast models for responsiveness
     const models = [
-        "google/gemini-2.0-flash-exp:free",
-        "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "openrouter/free",
         "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-4-26b-a4b-it:free",
+        "google/gemini-2.0-flash-exp:free",
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",
         "deepseek/deepseek-r1:free",
         "qwen/qwen-2.5-72b-instruct:free",
@@ -594,7 +594,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
     if (depth > 2) return null;
 
-    const maxSystemLength = 10000; // Slightly smaller to speed up processing
+    const maxSystemLength = 10000;
     const maxUserLength = 12000;
     const sanitizedSystem = systemPrompt.length > maxSystemLength ? systemPrompt.substring(0, maxSystemLength) : systemPrompt;
     let sanitizedUser = userPrompt;
@@ -608,43 +608,26 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'World Server (Local)', fn: callWorldServer },
-        { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Ollama (Local)', fn: callOllama }
+        { name: 'Blackbox', fn: callBlackbox }
     ];
 
-    for (let i = 0; i < providers.length; i++) {
-        const provider = providers[i];
+    for (const provider of providers) {
         try {
-            console.log(`[AI] Tentative: ${provider.name}...`);
-            const start = Date.now();
+            const providerStart = Date.now();
+            console.log(`[AI] Tentative: ${provider.name}... (depth: ${depth})`);
 
             let activeSystem = sanitizedSystem;
-            if (depth >= 1) activeSystem = "MJ RPG. Style Anime. Réponds en JSON: {\"narrative\": \"...\", \"actions\": []}";
+            if (depth >= 1) activeSystem = "MJ RPG. Style Manhwa/Anime. JSON: {\"narrative\": \"...\", \"actions\": []}";
 
-            // Rapid Failover Strategy: Try next provider if this one is too slow
-            let nextAttemptTimeout;
-            const attempt = provider.fn(activeSystem, sanitizedUser, options);
+            const result = await provider.fn(activeSystem, sanitizedUser, options);
+            const duration = (Date.now() - providerStart) / 1000;
 
-            const nextAttemptPromise = new Promise((resolve) => {
-                nextAttemptTimeout = setTimeout(() => {
-                    console.log(`[AI] ⚡ Provider ${provider.name} trop lent (>10s). Lancement de la suite en parallèle...`);
-                    resolve(null);
-                }, 10000);
-            });
-
-            const result = await Promise.race([attempt, nextAttemptPromise]);
-
-            if (result && isValidAIResponse(result)) {
-                clearTimeout(nextAttemptTimeout);
-                console.log(`[AI] ✅ ${provider.name} en ${(Date.now() - start)/1000}s`);
+            if (isValidAIResponse(result)) {
+                console.log(`[AI] ✅ Succès: ${provider.name} en ${duration}s`);
                 return typeof result === 'object' ? JSON.stringify(result) : result;
             }
-
-            // If the race resolved with null (timeout) or result was invalid,
-            // we continue the loop, which effectively "launches the next one".
-            // If the original 'attempt' finishes later, it won't be used here but that's fine.
         } catch (e) {
-            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message);
+            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
         }
     }
 

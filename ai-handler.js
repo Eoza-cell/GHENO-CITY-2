@@ -684,6 +684,7 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
                 .replace(/^(json|JSON)/g, '')
                 .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
                 .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '')
+                .replace(/\{[\s\S]*?\}/g, '') // Remove remaining JSON-like structures
                 .trim();
     };
 
