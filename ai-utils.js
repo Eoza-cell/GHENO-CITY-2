@@ -344,7 +344,8 @@ async function callPollinationsGen(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    const models = ['openai', 'mistral', 'llama'];
+    // Mistral and Llama are generally better for free Roleplay on Pollinations
+    const models = ['mistral', 'llama', 'openai'];
 
     for (const model of models) {
         try {
@@ -600,12 +601,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize Puter SDK as user provided a token
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: '9Router', fn: call9Router },
+        // Prioritize Pollinations for free unlimited usage as requested
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
+        // Fallbacks
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: '9Router', fn: call9Router },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Blackbox', fn: callBlackbox },
