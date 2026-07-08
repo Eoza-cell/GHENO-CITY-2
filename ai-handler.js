@@ -683,8 +683,11 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
                 .replace(/```/g, '')
                 .replace(/^(json|JSON)/g, '')
                 .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-                .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '')
+                .replace(/(\n|^)[a-z_]+[cC]hange:.*(\n|$)/gi, '')
                 .replace(/\{[\s\S]*?\}/g, '') // Remove remaining JSON-like structures
+                .replace(/\[\s*\{[\s\S]*?\}\s*\]/g, '') // Remove remaining arrays of objects
+                .replace(/imagePrompt:.*(\n|$)/gi, '')
+                .replace(/actions:.*(\n|$)/gi, '')
                 .trim();
     };
 

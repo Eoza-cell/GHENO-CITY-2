@@ -236,11 +236,10 @@ async function callOpenRouter(system, prompt) {
 
     // Prioritizing extremely reliable free models
     const models = [
-        "openrouter/free",
-        "google/gemini-2.0-flash-exp:free",
         "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemini-2.0-flash-exp:free",
         "google/gemma-4-26b-a4b-it:free",
-        "google/gemini-2.0-pro-exp-02-05:free"
+        "openrouter/free"
     ];
 
     for (const model of models) {
@@ -259,7 +258,7 @@ async function callOpenRouter(system, prompt) {
                     'X-Title': 'Arise RPG',
                     'Content-Type': 'application/json'
                 },
-                timeout: 30000 // Increased for free models stability
+                timeout: 15000 // Tight timeout for faster failover
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -616,9 +615,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Blackbox', fn: callBlackbox },
         { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'World Server (Local)', fn: callWorldServer },
-        { name: 'Blackbox', fn: callBlackbox }
+        { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
     for (const provider of providers) {
