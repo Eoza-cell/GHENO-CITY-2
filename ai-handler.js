@@ -558,6 +558,7 @@ NARRATION :
 - DIFFICULTÉ: Exigeante mais juste. Mort possible.
 - MATURITÉ: Mature, violent, sans tabou. Style Seinen.
 - MJ PUR: Ne joue JAMAIS le joueur. Uniquement conséquences et environnement.
+- LÉTHALITÉ: Les combats sont brutaux, sanglants et ont un poids réel.
 
 VISUELS :
 - Technique/Combat: Inclus "actionVisual": {"type": "skill|combat|magic", "assetName": "Lieu", "title": "NOM", "description": "..."}.

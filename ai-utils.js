@@ -613,74 +613,32 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
-    // Parallel Execution Strategy: Try providers with a staggered start
-    const callProvider = async (provider) => {
+    for (const provider of providers) {
         try {
-            const start = Date.now();
-            console.log(`[AI] Lancement: ${provider.name}...`);
+            const providerStart = Date.now();
+            console.log(`[AI] Tentative: ${provider.name}... (depth: ${depth})`);
+
             let activeSystem = sanitizedSystem;
-            if (depth >= 1) activeSystem = "MJ RPG. Style Anime. JSON: {\"narrative\": \"...\"}";
+            if (depth >= 1) activeSystem = "MJ RPG. Style Manhwa/Anime. JSON: {\"narrative\": \"...\", \"actions\": []}";
 
             const result = await provider.fn(activeSystem, sanitizedUser, options);
+            const duration = (Date.now() - providerStart) / 1000;
+
             if (isValidAIResponse(result)) {
-                console.log(`[AI] ✅ ${provider.name} a répondu en ${(Date.now() - start)/1000}s`);
+                console.log(`[AI] ✅ Succès: ${provider.name} en ${duration}s`);
                 return typeof result === 'object' ? JSON.stringify(result) : result;
             }
-            throw new Error("Réponse invalide");
         } catch (e) {
-            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message);
-            throw e;
+            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
         }
-    };
-
-    // Staggered Race
-    const promises = [];
-    const timeouts = [];
-
-    const delay = (ms) => new Promise(resolve => timeouts.push(setTimeout(resolve, ms)));
-
-    const firstSuccess = new Promise(async (resolve, reject) => {
-        let errors = 0;
-        const tryOne = async (index, wait) => {
-            if (index >= providers.length) return;
-            if (wait) await delay(wait);
-
-            try {
-                const res = await callProvider(providers[index]);
-                resolve(res);
-            } catch (err) {
-                errors++;
-                if (errors >= providers.length) reject(new Error("Tous les providers ont échoué"));
-                // Immediately try next if this one fails and we haven't started it yet
-                // but the staggered loop usually handles this.
-            }
-        };
-
-        // Start the first 3 with a 4s stagger for speed
-        tryOne(0, 0);
-        tryOne(1, 4000);
-        tryOne(2, 8000);
-        // Fallback to the rest sequentially if needed
-        for(let i = 3; i < providers.length; i++) {
-            tryOne(i, 12000 + (i-3)*4000);
-        }
-    });
-
-    try {
-        const finalResult = await firstSuccess;
-        // Cleanup all timeouts
-        timeouts.forEach(clearTimeout);
-        return finalResult;
-    } catch (e) {
-        console.warn("[AI] Échec de la stratégie parallèle:", e.message);
     }
 
     console.warn("[AI] Tous les providers ont échoué.");
