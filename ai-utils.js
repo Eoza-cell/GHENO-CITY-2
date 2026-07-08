@@ -75,9 +75,9 @@ function isValidAIResponse(text) {
     ];
 
     // If it's a tiny response with an error marker, it's definitely an error
-    if (cleaned.length < 150 && errorMarkers.some(m => lower.includes(m))) {
+    if (cleaned.length < 200 && errorMarkers.some(m => lower.includes(m))) {
         // Double check it's not a valid small JSON action response
-        if (cleaned.startsWith('{') && cleaned.endsWith('}') && lower.includes('"narrative"')) return true;
+        if (cleaned.startsWith('{') && cleaned.endsWith('}') && (lower.includes('"narrative"') || lower.includes('"actions"'))) return true;
         return false;
     }
 
@@ -278,7 +278,7 @@ async function callOpenRouter(system, prompt) {
 }
 
 async function callBlackbox(system, prompt) {
-    const models = ["deepseek-v3", "llama-3.1-70b", "gpt-4o"];
+    const models = ["deepseek-v3", "llama-3.1-70b", "gpt-4o", "gemini-pro"];
     for (const model of models) {
         try {
             console.log(`[AI] Blackbox - Tentative avec ${model}...`);
@@ -356,7 +356,7 @@ async function callPollinationsGen(system, prompt) {
 
 async function callPollinationsPOST(system, prompt) {
     // Rotating models to find one that works for free
-    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'unity'];
+    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'unity', 'evil', 'p1'];
 
     for (const model of models) {
         try {
@@ -616,8 +616,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
