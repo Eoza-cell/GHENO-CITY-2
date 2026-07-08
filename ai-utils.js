@@ -231,16 +231,15 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
+        "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-4-26b-a4b-it:free",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
         "deepseek/deepseek-r1:free",
         "qwen/qwen-2.5-72b-instruct:free",
         "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "google/gemma-2-9b-it:free",
-        "google/gemma-4-26b-a4b-it:free"
+        "google/gemma-2-9b-it:free"
     ];
 
     for (const model of models) {
@@ -255,7 +254,7 @@ async function callOpenRouter(system, prompt) {
                     'HTTP-Referer': 'https://github.com/skype-bot/arise',
                     'X-Title': 'Arise RPG'
                 },
-            timeout: 30000
+            timeout: 15000
             });
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
@@ -587,39 +586,35 @@ function callMJFallback(prompt) {
 /**
  * Main AI entry point.
  */
+/**
+ * Race multiple provider attempts for speed.
+ */
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
     if (depth > 2) return null;
 
-    // Preserve more context: the RP engine relies on scene isolation and detailed stats.
     const maxSystemLength = 12000;
     const maxUserLength = 16000;
-    const sanitizedSystem = systemPrompt.length > maxSystemLength
-        ? systemPrompt.substring(0, maxSystemLength)
-        : systemPrompt;
+    const sanitizedSystem = systemPrompt.length > maxSystemLength ? systemPrompt.substring(0, maxSystemLength) : systemPrompt;
     let sanitizedUser = userPrompt;
     if (userPrompt.length > maxUserLength) {
-        const headLength = 6000;
-        const tailLength = 9000;
-        sanitizedUser = userPrompt.substring(0, headLength) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - tailLength);
+        sanitizedUser = userPrompt.substring(0, 6000) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 9000);
     }
 
     const providers = [
-        // Prioritize OpenRouter as requested by user
+        // User priority
         { name: 'OpenRouter', fn: callOpenRouter },
-        // Free Unlimited Fallbacks
+        // Unlimited Free
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        // Puter SDK as next free fallback
         { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        // Secondary Fallbacks
-        { name: '9Router', fn: call9Router },
-        { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        // Backup Free
         { name: 'Blackbox', fn: callBlackbox },
-        ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
+        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
+        { name: 'Puter API (Keyed)', fn: callPuterAPI },
+        // Local
+        { name: 'World Server (Local)', fn: callWorldServer },
         { name: 'Ollama (Local)', fn: callOllama },
-        { name: 'Llamafile (Local)', fn: callLlamafile },
         { name: 'LM Studio (Local)', fn: callLMStudio }
     ];
 
@@ -628,10 +623,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             const providerStart = Date.now();
             console.log(`[AI] Tentative: ${provider.name}... (depth: ${depth})`);
 
-            // Smart Fallback: if it's a retry, use a simplified prompt
             let activeSystem = sanitizedSystem;
             if (depth === 1) {
-                activeSystem = "Tu es le MJ du RPG Aetherys. Style Manhwa. Réponds au format JSON: {\"narrative\": \"...\", \"actions\": [], \"imagePrompt\": \"...\"}";
+                activeSystem = "Tu es le MJ du RPG Aetherys. Réponds au format JSON: {\"narrative\": \"...\", \"actions\": []}";
             } else if (depth >= 2) {
                 activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
             }
@@ -639,26 +633,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             let result = await provider.fn(activeSystem, sanitizedUser, options);
             const providerDuration = (Date.now() - providerStart) / 1000;
 
-            // Handle potential JSON objects from some providers
-            if (typeof result === 'object' && result !== null) {
-                result = JSON.stringify(result);
-            }
-
             if (isValidAIResponse(result)) {
                 console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration}s`);
-                // Verify the result is not just a technical JSON dump without narrative
-                if (result && result.trim().startsWith('{')) {
-                    try {
-                        const parsed = JSON.parse(result);
-                        if (!parsed.narrative && !parsed.message && !parsed.text) {
-                             console.warn(`[AI] ⚠️ ${provider.name} JSON sans narration. Fallback.`);
-                             continue;
-                        }
-                    } catch(e) {}
-                }
-                return result;
+                return typeof result === 'object' ? JSON.stringify(result) : result;
             } else {
-                console.warn(`[AI] ⚠️ ${provider.name} réponse invalide ou erreur.`);
+                console.warn(`[AI] ⚠️ ${provider.name} réponse invalide.`);
             }
         } catch (e) {
             console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
