@@ -50,7 +50,7 @@ function isValidAIResponse(text) {
     if (!text || typeof text !== 'string') return false;
 
     const cleaned = text.trim();
-    if (cleaned.length < 5) return false;
+    if (cleaned.length < 3) return false;
 
     const lower = cleaned.toLowerCase();
     const errorMarkers = [
@@ -75,7 +75,7 @@ function isValidAIResponse(text) {
     ];
 
     // If it's a tiny response with an error marker, it's definitely an error
-    if (cleaned.length < 250 && errorMarkers.some(m => lower.includes(m))) {
+    if (cleaned.length < 150 && errorMarkers.some(m => lower.includes(m))) {
         // Double check it's not a valid small JSON action response
         if (cleaned.startsWith('{') && cleaned.endsWith('}') && lower.includes('"narrative"')) return true;
         return false;
@@ -231,7 +231,6 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
-        "openrouter/fusion",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",
@@ -345,8 +344,8 @@ async function callPollinationsGen(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    // Pollinations legacy API often requires 'openai' for anonymous requests
-    const models = ['openai', 'mistral', 'llama'];
+    // Rotating models to find one that works for free
+    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'unity'];
 
     for (const model of models) {
         try {
@@ -379,20 +378,22 @@ async function callPollinationsPOST(system, prompt) {
 }
 
 async function callPollinationsGET(system, prompt) {
-    try {
-        console.log(`[AI] Pollinations GET - Tentative...`);
-        // GET API is very sensitive to length and encoding
-        const cleanedPrompt = prompt.substring(prompt.length - 1500).replace(/["']/g, '');
-        const fullPrompt = encodeURIComponent(cleanedPrompt);
-        const systemEncoded = encodeURIComponent(system.substring(0, 1000).replace(/["']/g, ''));
-        const seed = Math.floor(Math.random() * 1000000);
-        const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}&json=true`;
+    const models = ['openai', 'mistral', 'llama'];
+    for (const model of models) {
+        try {
+            console.log(`[AI] Pollinations GET - Tentative avec ${model}...`);
+            // GET API is very sensitive to length and encoding
+            const cleanedPrompt = prompt.substring(prompt.length - 1000).replace(/["']/g, '');
+            const fullPrompt = encodeURIComponent(cleanedPrompt);
+            const systemEncoded = encodeURIComponent(system.substring(0, 800).replace(/["']/g, ''));
+            const seed = Math.floor(Math.random() * 1000000);
+            const url = `https://text.pollinations.ai/${fullPrompt}?model=${model}&seed=${seed}&system=${systemEncoded}&json=true`;
 
-        const resp = await axios.get(url, { timeout: 20000 });
-        if (isValidAIResponse(resp.data)) return resp.data;
-    } catch (e) {
-        console.warn(`[AI] Pollinations GET Error:`, e.message);
-        return null;
+            const resp = await axios.get(url, { timeout: 25000 });
+            if (isValidAIResponse(resp.data)) return resp.data;
+        } catch (e) {
+            console.warn(`[AI] Pollinations GET Error (${model}):`, e.message);
+        }
     }
     return null;
 }
@@ -603,12 +604,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize OpenRouter as requested by user
-        { name: 'OpenRouter', fn: callOpenRouter },
-        // Primary Free Fallbacks
-        { name: 'Puter SDK', fn: callPuterSDK },
+        // Prioritize Pollinations for 0$ free unlimited usage
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        // Puter SDK as next free fallback
+        { name: 'Puter SDK', fn: callPuterSDK },
+        // Then OpenRouter (using :free models)
+        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
         // Secondary Fallbacks
         { name: '9Router', fn: call9Router },
