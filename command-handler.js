@@ -1897,40 +1897,6 @@ commands.set('companion', async (sock, message, args) => {
     }
 });
 
-commands.set('companion_status', async (sock, message) => {
-    const jid = getJid(message);
-    const replyJid = message.key.remoteJid;
-    const state = await CompanionState.findOne({ where: { playerJid: jid } });
-
-    if (!state) {
-        return await sock.sendMessage(replyJid, { text: "Tu n'as pas encore de compagnon. Utilise /companion pour en choisir un." });
-    }
-
-    const s = state.sentiment;
-    const sentimentText = s > 0.5 ? "Adoration" : s > 0.15 ? "Affection" : s > -0.15 ? "Neutre" : s > -0.5 ? "Défiance" : "Hostilité";
-    const moodText = state.mood > 0.7 ? "Heureux" : state.mood > 0.4 ? "Calme" : "Troublé";
-
-    let text = `✨ *STATUT DU COMPAGNON : ${state.companionName}*\n\n`;
-    text += `💖 Sentiment : ${sentimentText} (${(s * 100).toFixed(1)}%)\n`;
-    text += `😊 Humeur : ${moodText}\n`;
-    if (state.lastSaid) {
-        text += `\n💬 Derniers mots : "${state.lastSaid.substring(0, 100)}..."`;
-    }
-
-    await sock.sendMessage(replyJid, { text });
-});
-
-commands.set('companion_reset', async (sock, message) => {
-    const jid = getJid(message);
-    const replyJid = message.key.remoteJid;
-    const state = await CompanionState.findOne({ where: { playerJid: jid } });
-
-    if (state) {
-        await state.destroy();
-        await sock.sendMessage(replyJid, { text: "✨ La mémoire de ton compagnon a été effacée. Tu peux en choisir un nouveau avec /companion." });
-    }
-});
-
 // Command: /menu
 commands.set('menu', async (sock, message) => {
   const jid = getJid(message);

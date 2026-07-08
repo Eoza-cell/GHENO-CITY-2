@@ -374,13 +374,13 @@ async function handleFreeAction(sock, message, player, actionText) {
 
           companionContext = `\n### COMPAGNON PERSONNEL : ${preset.name} ###
 INSTRUCTION: ${preset.instruction}
-SENTIMENT_ACTUEL: ${sentiment.toFixed(2)} (-1 à 1)
-HUMEUR_ACTUELLE: ${mood.toFixed(2)} (0 à 1)
-INTENTION_NATION: ${intent.kind} (Force: ${intent.strength.toFixed(2)})
 EXAMPLES_STYLE: ${preset.examples}
 
-CONSIGNE COMPAGNON: ${preset.name} est présent(e) avec le joueur. Elle doit intervenir dans la narration, réagir aux actions du joueur, et exprimer son intention actuelle (${intent.kind}). Son ton doit refléter son sentiment (${sentiment.toFixed(2)}) et son humeur (${mood.toFixed(2)}).`;
-          hints.push(`⚠️ COMPAGNON PRÉSENT: Intègre ${preset.name} dans la réponse. Elle se sent ${mood > 0.7 ? 'très bien' : mood < 0.3 ? 'troublée' : 'normale'} et son lien avec le joueur est ${sentiment > 0.5 ? 'extrêmement fort' : sentiment < -0.5 ? 'très tendu' : 'stable'}.`);
+CONSIGNE COMPAGNON: ${preset.name} est présent(e) avec le joueur. Elle doit intervenir naturellement dans la narration et réagir aux actions du joueur.
+TON/HUMER: ${mood > 0.7 ? 'Très joyeux/enthousiaste' : mood < 0.3 ? 'Inquiet/Troublé' : 'Calme/Normal'}
+RELATION: ${sentiment > 0.5 ? 'Adoration/Lien profond' : sentiment < -0.5 ? 'Hostilité/Tension' : 'Amicale/Stable'}
+INTENTION ACTUELLE: ${intent.kind}`;
+          hints.push(`⚠️ COMPAGNON PRÉSENT: Intègre ${preset.name} dans la réponse.`);
       }
   }
 
