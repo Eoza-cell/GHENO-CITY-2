@@ -344,8 +344,8 @@ async function callPollinationsGen(system, prompt) {
 }
 
 async function callPollinationsPOST(system, prompt) {
-    // Mistral and Llama are generally better for free Roleplay on Pollinations
-    const models = ['mistral', 'llama', 'openai'];
+    // Pollinations legacy API often requires 'openai' for anonymous requests
+    const models = ['openai', 'mistral', 'llama'];
 
     for (const model of models) {
         try {
@@ -380,13 +380,14 @@ async function callPollinationsPOST(system, prompt) {
 async function callPollinationsGET(system, prompt) {
     try {
         console.log(`[AI] Pollinations GET - Tentative...`);
-        const miniPrompt = `MJ Arise. Action: ${prompt.substring(prompt.length - 1000)}`;
-        const fullPrompt = encodeURIComponent(miniPrompt);
-        const systemEncoded = encodeURIComponent(system.substring(0, 1000));
+        // GET API is very sensitive to length and encoding
+        const cleanedPrompt = prompt.substring(prompt.length - 1500).replace(/["']/g, '');
+        const fullPrompt = encodeURIComponent(cleanedPrompt);
+        const systemEncoded = encodeURIComponent(system.substring(0, 1000).replace(/["']/g, ''));
         const seed = Math.floor(Math.random() * 1000000);
         const url = `https://text.pollinations.ai/${fullPrompt}?model=openai&seed=${seed}&system=${systemEncoded}&json=true`;
 
-        const resp = await axios.get(url, { timeout: 15000 });
+        const resp = await axios.get(url, { timeout: 20000 });
         if (isValidAIResponse(resp.data)) return resp.data;
     } catch (e) {
         console.warn(`[AI] Pollinations GET Error:`, e.message);
