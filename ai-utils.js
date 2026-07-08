@@ -255,7 +255,7 @@ async function callOpenRouter(system, prompt) {
                     'HTTP-Referer': 'https://github.com/skype-bot/arise',
                     'X-Title': 'Arise RPG'
                 },
-                timeout: 8000
+            timeout: 30000
             });
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
@@ -365,11 +365,11 @@ async function callPollinationsPOST(system, prompt) {
                     'Content-Type': 'application/json',
                     'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
                 },
-                timeout: 15000
+            timeout: 30000
             });
 
-            let resText = typeof resp.data === 'object' ? JSON.stringify(resp.data) : resp.data;
-            if (isValidAIResponse(resText)) return resText;
+        const content = parsePuterResponse(resp.data);
+        if (isValidAIResponse(content)) return content;
         } catch (e) {
             console.warn(`[AI] Pollinations POST Error (${model}):`, e.response?.data || e.message);
             continue;
@@ -603,14 +603,14 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize OpenRouter as requested by user (Keyed)
+        // Prioritize OpenRouter as requested by user
         { name: 'OpenRouter', fn: callOpenRouter },
-        // Fallback to free unlimited Pollinations
+        // Primary Free Fallbacks
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        // Other fallbacks
-        { name: 'Puter SDK', fn: callPuterSDK },
+        // Secondary Fallbacks
         { name: '9Router', fn: call9Router },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Blackbox', fn: callBlackbox },
