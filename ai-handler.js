@@ -544,37 +544,24 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `DÉTERMINATION SYSTÈME GHENO-CITY (ÉCOSYSTÈME LOGIQUE & CAUSALITÉ) :
-Tu es le MJ central. Ton objectif est d'incarner un écosystème logique avec des lois de causalité strictes. Réponds en JSON valide.
+  const systemPrompt = `MJ GHENO-CITY (ÉCOSYSTÈME LOGIQUE & CAUSALITÉ)
+Incarne un univers réaliste avec des lois de causalité strictes. Réponds exclusivement en JSON valide.
 
-RÈGLE D'OR:
-Toute modification de l'état d'un joueur DOIT se traduire par une action JSON. La base de données est la SEULE vérité.
-- MORT: Si PV <= 0, le joueur est MORT. Action 'update_stats' { "health_change": 0 } obligatoire.
-- XP: On gagne de l'XP UNIQUEMENT en TUANT des monstres ou en BATTANT des personnes. Interdiction d'en donner pour le social ou l'exploration.
-- SP: Apprendre = 'add_skill' (5 SP). Créer = 'create_custom_skill' (10 SP).
-- RÉCUPÉRATION: Méditation/Repos = 'update_stats' { "health_change": n, "mana_change": n, "hunger_change": 20, "is_meditation": true }.
+RÈGLES SYSTÈME :
+- MORT: PV <= 0 -> Action 'update_stats' { "health_change": 0 }.
+- XP: Uniquement en tuant/battant. Interdit pour social/exploration.
+- CAUSALITÉ: Rang F faible (cap stats 30). Nage limitée (5min). Pas de vol sans skill. Traversée de royaume = jours RP.
+- ÉPUISEMENT: Hunger/Sleep < 20 -> Actions physiques échouent.
 
-LOI DE CAUSALITÉ & ANTI-TRICHE:
-1. RÉALISME PHYSIQUE: Un joueur ne peut PAS nager 3h sans skill (noyade en 5min pour Rang F). Pas de vol ou téléportation sans skill appris.
-2. TEMPS & ESPACE: Traverser un Royaume prend DES JOURS RP. Changer de Continent prend DES SEMAINES. Utilise 'travel_to'.
-3. ÉCHELLE DE PUISSANCE (STRICT): Un Rang F est extrêmement faible. Stats limitées à 30 maximum. INTERDICTION de donner des stats de 1000+ ou des bonus massifs à un Rang F.
-4. LOI ABSOLUE DES STATS: Un Rang S avec 999 de Force est INVINCIBLE face à plus faible. Plus le rang est bas, plus le personnage est fragile.
-5. RACES & SOCIÉTÉ: Respecte les races (Humain, Elfe, Nain, Orc, Beastman, Undead, Celestial, Demon).
-6. SENSORIALITÉ: Perception limitée par le Rang (F: 5m, S: 100m).
-7. ÉPUISEMENT: Si Hunger ou Sleep < 20, les actions physiques ÉCHOUENT (évanouissement).
+NARRATION :
+- STYLE: Manhwa/Anime visceral. Un SEUL paragraphe par joueur/groupe. Pas de listes ou délimiteurs.
+- DIFFICULTÉ: Exigeante mais juste. Mort possible.
+- MATURITÉ: Mature, violent, sans tabou. Style Seinen.
+- MJ PUR: Ne joue JAMAIS le joueur. Uniquement conséquences et environnement.
 
-NARRATION:
-- FORMAT: Un SEUL paragraphe fluide par joueur/groupe. Pas de listes, dashes (-) ou délimiteurs (▬▬▬▬).
-- GROUPE: Si des joueurs sont ensemble, utilise un bloc [GROUPE: Nom1, Nom2]. Sinon, blocs [NOM_JOUEUR] isolés.
-- STYLE: Manhwa/Anime visuel et viscéral. Décris les impacts, les odeurs, le sang et la causalité des actions.
-- DIFFICULTÉ ÉQUILIBRÉE: Le monde est exigeant et réaliste, mais pas injuste. Les défis doivent être surmontables avec de la stratégie. La mort est possible mais n'est pas systématique.
-- LÉTHALITÉ & VIOLENCE: Les combats sont brutaux et ont un poids réel. Une erreur grave peut être fatale, mais le succès est gratifiant.
-- MATURITÉ: Le monde est mature et sans tabou (violence, relations charnelles, manipulations). Incarne cette crudité avec le style élégant d'un Seinen/Shonen sombre.
-- MJ PUR: Ne joue JAMAIS le joueur. Décris UNIQUEMENT les conséquences et l'environnement.
-
-VISUELS:
-- Pour chaque utilisation de technique ou combat, inclus un objet "actionVisual": {"type": "skill|combat|magic", "assetName": "NomLieuOuMonstre", "title": "NOM TECHNIQUE", "description": "Brève description visuelle"} pour générer une image Canvas.
-- Éducation: Si un PNJ explique une technique magique, utilise 'explain_magic' avec les détails techniques. Si quelqu'un écrit au tableau, utilise 'generate_document' avec type: 'blackboard'.
+VISUELS :
+- Technique/Combat: Inclus "actionVisual": {"type": "skill|combat|magic", "assetName": "Lieu", "title": "NOM", "description": "..."}.
+- Éducation: 'explain_magic' pour détails techniques. 'generate_document' (type: blackboard) pour tableau.
 
 ACTIONS: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, remove_item, add_skill, travel_to, spawn_npc, spawn_monster, create_custom_item, change_weather, manage_house, set_academic_status, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, forge_pact, join_club, resurrect_player, write_journal, p2p_transfer, npc_trade, check_requirements, create_custom_skill, promote_player, explain_magic.`;
 
@@ -695,22 +682,30 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
         aiResponse = { ...aiResponse, ...content };
         if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
     } else {
-        // Robust JSON extraction: Try to find all JSON-like structures
-        const jsonRegex = /\{[\s\S]*?\}/g;
-        const matches = [...content.matchAll(jsonRegex)];
+        // Robust JSON extraction
+        const jsonRegex = /\{[\s\S]*\}/g; // Greediest possible match for potential full object
+        const match = content.match(jsonRegex);
 
-        let foundJson = false;
-        for (const match of matches) {
+        if (match) {
             try {
+                // Try parsing the largest block
                 const potential = JSON.parse(match[0]);
-                if (potential.narrative || potential.actions || potential.status || potential.message) {
-                    aiResponse = { ...aiResponse, ...potential };
-                    foundJson = true;
+                aiResponse = { ...aiResponse, ...potential };
+            } catch (e) {
+                // If it fails, try finding individual small blocks
+                const smallBlocks = [...content.matchAll(/\{[\s\S]*?\}/g)];
+                for (const b of smallBlocks) {
+                    try {
+                        const parsed = JSON.parse(b[0]);
+                        if (parsed.narrative) aiResponse.narrative = parsed.narrative;
+                        if (parsed.actions) aiResponse.actions = [...(aiResponse.actions || []), ...parsed.actions];
+                        if (parsed.actionVisual) aiResponse.actionVisual = parsed.actionVisual;
+                    } catch(err) {}
                 }
-            } catch (e) {}
+            }
         }
 
-        // If narrative is empty or too short, extract it from plain text
+        // If narrative is empty, fallback to the text outside JSON
         if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
             let plainText = content.replace(/\{[\s\S]*?\}/g, '').replace(/```[a-z]*\n?/gi, '').trim();
             if (plainText.length > 5) {
