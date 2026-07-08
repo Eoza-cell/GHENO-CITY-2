@@ -692,44 +692,27 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
         aiResponse = { ...aiResponse, ...content };
         if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
     } else {
-        // Robust JSON extraction: Find the largest JSON block possible
-        let start = content.indexOf('{');
-        let end = content.lastIndexOf('}');
+        // Robust JSON extraction: Try to find all JSON-like structures
+        const jsonRegex = /\{[\s\S]*?\}/g;
+        const matches = [...content.matchAll(jsonRegex)];
 
-        if (start !== -1 && end !== -1 && end > start) {
-            const potentialJson = content.substring(start, end + 1);
+        let foundJson = false;
+        for (const match of matches) {
             try {
-                const parsed = JSON.parse(potentialJson);
-                aiResponse = { ...aiResponse, ...parsed };
-                if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
-            } catch (e) {
-                // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
-                const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
-                for (const match of matches) {
-                    try {
-                        const potential = JSON.parse(match[0]);
-                        if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
-                        if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
-                            aiResponse.narrative = potential.narrative;
-                        }
-                        if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
-                        if (potential.notifications) aiResponse.notifications = [...(aiResponse.notifications || []), ...potential.notifications];
-                    } catch (innerE) {}
+                const potential = JSON.parse(match[0]);
+                if (potential.narrative || potential.actions || potential.status || potential.message) {
+                    aiResponse = { ...aiResponse, ...potential };
+                    foundJson = true;
                 }
-            }
+            } catch (e) {}
         }
 
-        // If narrative is STILL empty, it might be outside the JSON block
-        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
-            // Remove the block we extracted as JSON to find the narrative
-            let plainText = content;
-            if (start !== -1 && end !== -1) {
-                plainText = content.substring(0, start) + content.substring(end + 1);
+        // If narrative is empty or too short, extract it from plain text
+        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+            let plainText = content.replace(/\{[\s\S]*?\}/g, '').replace(/```[a-z]*\n?/gi, '').trim();
+            if (plainText.length > 5) {
+                aiResponse.narrative = cleanupNarrative(plainText);
             }
-            // If still no luck, just use the whole thing but clean markers
-            if (plainText.trim().length < 10) plainText = content.replace(/\{[\s\S]*?\}/g, '');
-
-            aiResponse.narrative = cleanupNarrative(plainText);
         }
     }
 

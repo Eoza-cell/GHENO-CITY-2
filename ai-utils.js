@@ -229,38 +229,48 @@ async function callPuterSDK(system, prompt) {
 }
 
 async function callOpenRouter(system, prompt) {
-    if (!process.env.OPENROUTER_API_KEY) return null;
+    if (!process.env.OPENROUTER_API_KEY) {
+        console.warn("[AI] OpenRouter: Clé API manquante (OPENROUTER_API_KEY).");
+        return null;
+    }
+
+    // Prioritizing extremely reliable free models
     const models = [
         "openrouter/free",
+        "google/gemini-2.0-flash-exp:free",
         "meta-llama/llama-3.3-70b-instruct:free",
         "google/gemma-4-26b-a4b-it:free",
-        "google/gemini-2.0-flash-exp:free",
-        "google/gemini-2.0-flash-lite-preview-02-05:free",
-        "google/gemini-2.0-pro-exp-02-05:free",
-        "deepseek/deepseek-r1:free",
-        "qwen/qwen-2.5-72b-instruct:free",
-        "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "google/gemma-2-9b-it:free"
+        "google/gemini-2.0-pro-exp-02-05:free"
     ];
 
     for (const model of models) {
         try {
-            console.log(`[AI] OpenRouter - Tentative avec ${model}`);
+            console.log(`[AI] OpenRouter - Tentative avec ${model}...`);
             const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
                 model: model,
-                messages: [{ role: "system", content: system }, { role: "user", content: prompt }]
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ]
             }, {
                 headers: {
                     'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
                     'HTTP-Referer': 'https://github.com/skype-bot/arise',
-                    'X-Title': 'Arise RPG'
+                    'X-Title': 'Arise RPG',
+                    'Content-Type': 'application/json'
                 },
-                timeout: 12000 // Very tight timeout for OpenRouter to failover fast
+                timeout: 30000 // Increased for free models stability
             });
+
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
+            else console.warn(`[AI] OpenRouter ${model} a renvoyé une réponse invalide.`);
         } catch (e) {
-            console.warn(`[AI] OpenRouter Error (${model}):`, e.response?.data || e.message);
+            const errorMsg = e.response?.data?.error?.message || e.message;
+            console.warn(`[AI] OpenRouter Error (${model}):`, errorMsg);
+            if (errorMsg.includes("credits")) {
+                console.warn("[AI] OpenRouter: Plus de crédits ou modèle non gratuit. Passage au suivant.");
+            }
             continue;
         }
     }
@@ -604,8 +614,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     const providers = [
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'World Server (Local)', fn: callWorldServer },
         { name: 'Blackbox', fn: callBlackbox }
