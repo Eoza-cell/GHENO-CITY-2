@@ -664,13 +664,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             }
         };
 
-        // Start the first 3 with a 6s stagger
+        // Start the first 3 with a 4s stagger for speed
         tryOne(0, 0);
-        tryOne(1, 6000);
-        tryOne(2, 12000);
+        tryOne(1, 4000);
+        tryOne(2, 8000);
         // Fallback to the rest sequentially if needed
         for(let i = 3; i < providers.length; i++) {
-            tryOne(i, 15000 + (i-3)*5000);
+            tryOne(i, 12000 + (i-3)*4000);
         }
     });
 

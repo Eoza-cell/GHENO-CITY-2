@@ -673,8 +673,8 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
                 .replace(/(\n|^)[a-z_]+[cC]hange:.*(\n|$)/gi, '')
                 .replace(/\{[\s\S]*?\}/g, '') // Remove remaining JSON-like structures
                 .replace(/\[\s*\{[\s\S]*?\}\s*\]/g, '') // Remove remaining arrays of objects
-                .replace(/imagePrompt:.*(\n|$)/gi, '')
-                .replace(/actions:.*(\n|$)/gi, '')
+                .replace(/\b(?:imagePrompt|actions|narrative|notifications|broadcastMessage|status|message|pensee_mj)\b\s*:?.*(\n|$)/gi, '')
+                .replace(/\\n/g, '\n')
                 .trim();
     };
 
