@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant, CompanionPreset, CompanionState } = require('./database');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
 const { generateBlackboardImage } = require('./blackboard-generator');
@@ -12,6 +12,7 @@ const { processActions } = require('./action-processor');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
+const companionLogic = require('./companion-logic');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -359,6 +360,30 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Race:${player.race} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
 
+  // PERSONAL COMPANION LOGIC
+  const companionState = await CompanionState.findOne({ where: { playerJid: player.whatsappId } });
+  let companionContext = "";
+  if (companionState) {
+      const preset = await CompanionPreset.findOne({ where: { name: companionState.companionName } });
+      if (preset) {
+          // Update mood/sentiment based on actionText
+          const { sentiment, mood } = companionLogic.updateState(companionState, actionText);
+          await companionState.update({ sentiment, mood });
+
+          const intent = companionLogic.deliberateIntent(companionState);
+
+          companionContext = `\n### COMPAGNON PERSONNEL : ${preset.name} ###
+INSTRUCTION: ${preset.instruction}
+SENTIMENT_ACTUEL: ${sentiment.toFixed(2)} (-1 à 1)
+HUMEUR_ACTUELLE: ${mood.toFixed(2)} (0 à 1)
+INTENTION_NATION: ${intent.kind} (Force: ${intent.strength.toFixed(2)})
+EXAMPLES_STYLE: ${preset.examples}
+
+CONSIGNE COMPAGNON: ${preset.name} est présent(e) avec le joueur. Elle doit intervenir dans la narration, réagir aux actions du joueur, et exprimer son intention actuelle (${intent.kind}). Son ton doit refléter son sentiment (${sentiment.toFixed(2)}) et son humeur (${mood.toFixed(2)}).`;
+          hints.push(`⚠️ COMPAGNON PRÉSENT: Intègre ${preset.name} dans la réponse. Elle se sent ${mood > 0.7 ? 'très bien' : mood < 0.3 ? 'troublée' : 'normale'} et son lien avec le joueur est ${sentiment > 0.5 ? 'extrêmement fort' : sentiment < -0.5 ? 'très tendu' : 'stable'}.`);
+      }
+  }
+
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
 
@@ -641,6 +666,8 @@ RÉALITÉ PHYSIQUE:
 ### RÉSUMÉ DES ACTIONS À TRAITER ###
 ${actionSummary}
 
+${companionContext}
+
 CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 0. SYNCHRONISATION OBLIGATOIRE : Pour chaque tour, tu DOIS retourner les actions JSON nécessaires pour mettre à jour les fiches des joueurs. Pas de narration sans mise à jour technique si nécessaire.
 1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
@@ -797,6 +824,11 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
         location: player.location,
         subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
+
+    // Update companion lastSaid if present
+    if (companionState) {
+        await companionState.update({ lastSaid: aiResponse.narrative });
+    }
 
     // Process actions via unified logic engine
     const { questFeedback, playersToUpdate, notifiedTargets } = await processActions(sock, jid, player, actions, aiResponse, nearbyPlayers);

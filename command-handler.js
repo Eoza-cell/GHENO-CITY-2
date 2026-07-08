@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, CompanionPreset, CompanionState, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -1841,6 +1841,96 @@ commands.set('checkai', async (sock, message) => {
     }
 });
 
+// Command: /companion
+commands.set('companion', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    if (args.length === 0) {
+        const presets = await CompanionPreset.findAll();
+        const activeState = await CompanionState.findOne({ where: { playerJid: jid } });
+
+        let text = "✨ *COMPAGNON PERSONNEL AI*\n\n";
+        text += "Choisis une IA pour t'accompagner dans ton aventure. Elle apprendra de toi et réagira à tes paroles.\n\n";
+
+        if (activeState) {
+            text += `👤 *Actuel : ${activeState.companionName}*\n\n`;
+        }
+
+        text += "*Disponibles :*\n";
+        presets.forEach(p => {
+            text += `├ *${p.name}*\n│ 📜 ${p.tagline}\n└ _Utilise /companion select ${p.name}_\n\n`;
+        });
+
+        text += "\n_Note: Ton compagnon intervient dans tes sessions /action._";
+        return await sock.sendMessage(replyJid, { text });
+    }
+
+    if (args[0] === 'select') {
+        const name = args.slice(1).join(' ');
+        const preset = await CompanionPreset.findOne({ where: { name: { [Op.like]: `%${name}%` } } });
+
+        if (!preset) {
+            return await sock.sendMessage(replyJid, { text: `❌ Compagnon "${name}" introuvable.` });
+        }
+
+        const [state, created] = await CompanionState.findOrCreate({
+            where: { playerJid: jid },
+            defaults: {
+                playerJid: jid,
+                companionName: preset.name,
+                mood: 0.5,
+                sentiment: 0,
+                bonds: {}
+            }
+        });
+
+        if (!created) {
+            await state.update({ companionName: preset.name });
+        }
+
+        let reply = `✨ *${preset.name} est maintenant ton compagnon !*\n\n${preset.opening}`;
+        await sock.sendMessage(replyJid, { text: reply });
+    }
+});
+
+commands.set('companion_status', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const state = await CompanionState.findOne({ where: { playerJid: jid } });
+
+    if (!state) {
+        return await sock.sendMessage(replyJid, { text: "Tu n'as pas encore de compagnon. Utilise /companion pour en choisir un." });
+    }
+
+    const s = state.sentiment;
+    const sentimentText = s > 0.5 ? "Adoration" : s > 0.15 ? "Affection" : s > -0.15 ? "Neutre" : s > -0.5 ? "Défiance" : "Hostilité";
+    const moodText = state.mood > 0.7 ? "Heureux" : state.mood > 0.4 ? "Calme" : "Troublé";
+
+    let text = `✨ *STATUT DU COMPAGNON : ${state.companionName}*\n\n`;
+    text += `💖 Sentiment : ${sentimentText} (${(s * 100).toFixed(1)}%)\n`;
+    text += `😊 Humeur : ${moodText}\n`;
+    if (state.lastSaid) {
+        text += `\n💬 Derniers mots : "${state.lastSaid.substring(0, 100)}..."`;
+    }
+
+    await sock.sendMessage(replyJid, { text });
+});
+
+commands.set('companion_reset', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const state = await CompanionState.findOne({ where: { playerJid: jid } });
+
+    if (state) {
+        await state.destroy();
+        await sock.sendMessage(replyJid, { text: "✨ La mémoire de ton compagnon a été effacée. Tu peux en choisir un nouveau avec /companion." });
+    }
+});
+
 // Command: /menu
 commands.set('menu', async (sock, message) => {
   const jid = getJid(message);
@@ -1872,7 +1962,8 @@ commands.set('menu', async (sock, message) => {
                    "├ `/lore` - Bibliothèque\n" +
                    "├ `/pacts` - Entités & Pactes\n" +
                    "├ `/maison` - Ton domicile\n" +
-                   "└ `/clubs` - Clubs Académiques\n\n" +
+                   "├ `/clubs` - Clubs Académiques\n" +
+                   "└ `/companion` - Compagnon AI\n\n" +
                    "🏆 *COMPÉTITION*\n" +
                    "├ `/top` - Classement Global\n" +
                    "└ `/tournoi` - Événements PVP\n\n" +
