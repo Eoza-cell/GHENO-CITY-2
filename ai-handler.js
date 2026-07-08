@@ -663,7 +663,8 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 5. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans le RÉSUMÉ DES ACTIONS.
 6. STRUCTURE OBLIGATOIRE : Utilise [NOM_DU_JOUEUR] et le séparateur ▬▬▬▬▬▬▬▬▬▬▬▬.
 
-ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.`;
+ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.
+RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
