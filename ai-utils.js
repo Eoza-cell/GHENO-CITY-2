@@ -231,6 +231,7 @@ async function callPuterSDK(system, prompt) {
 async function callOpenRouter(system, prompt) {
     if (!process.env.OPENROUTER_API_KEY) return null;
     const models = [
+        "google/gemma-4-26b-a4b-it:free",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",
@@ -604,13 +605,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize Pollinations for 0$ free unlimited usage
+        // Prioritize OpenRouter as requested by user
+        { name: 'OpenRouter', fn: callOpenRouter },
+        // Free Unlimited Fallbacks
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         // Puter SDK as next free fallback
         { name: 'Puter SDK', fn: callPuterSDK },
-        // Then OpenRouter (using :free models)
-        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
         // Secondary Fallbacks
         { name: '9Router', fn: call9Router },
