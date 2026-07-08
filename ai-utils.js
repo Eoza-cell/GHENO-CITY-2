@@ -36,11 +36,11 @@ try {
 }
 
 const PUTER_MODELS = [
+    "meta-llama-3.1-70b-instruct",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
     "gpt-4o",
-    "claude-3-5-sonnet",
-    "meta-llama-3.1-70b-instruct"
+    "claude-3-5-sonnet"
 ];
 
 /**
@@ -181,9 +181,8 @@ async function callPuterSDK(system, prompt) {
         console.warn("[AI] Puter SDK non initialisé ou indisponible.");
         return null;
     }
-    // Prioritizing Gemini models as requested
-    // Added 'gemini' as a generic name in case versioned names fail
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini", "meta-llama-3.1-70b-instruct", "gpt-4o"];
+    // Prioritizing Llama 3.1 70B for Roleplay and stability on Puter Free
+    const models = ["meta-llama-3.1-70b-instruct", "gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o"];
 
     for (const model of models) {
         try {
@@ -192,24 +191,13 @@ async function callPuterSDK(system, prompt) {
             // Timeout wrapper for SDK call
             const chatPromise = (async () => {
                 try {
-                    // Try with options object
                     return await puter.ai.chat([
                         { role: "system", content: system },
                         { role: "user", content: prompt }
                     ], { model: model });
                 } catch (err) {
                     console.warn(`[AI] Puter SDK Chat Array/Options failed for ${model}, trying simplified call...`);
-                    try {
-                        // Some versions might prefer model as first or second arg
-                        return await puter.ai.chat(`${system}\n\n${prompt}`, { model: model });
-                    } catch (err2) {
-                         // Last ditch: no model specified, let Puter decide (might use a free one)
-                         if (model === "gemini") {
-                             console.warn("[AI] Puter SDK Gemini failed, trying default model...");
-                             return await puter.ai.chat(`${system}\n\n${prompt}`);
-                         }
-                         throw err2;
-                    }
+                    return await puter.ai.chat(`${system}\n\n${prompt}`, { model: model });
                 }
             })();
 
@@ -227,6 +215,16 @@ async function callPuterSDK(system, prompt) {
             continue;
         }
     }
+    // ULTIMATE FALLBACK: No model specified, let Puter decide (usually uses a free default)
+    try {
+        console.log("[AI] Puter SDK - Tentative finale sans modèle spécifié...");
+        const result = await puter.ai.chat(`${system}\n\n${prompt}`);
+        const content = parsePuterResponse(result);
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn("[AI] Puter SDK Ultimate Fallback failed:", e.message);
+    }
+
     return null;
 }
 
