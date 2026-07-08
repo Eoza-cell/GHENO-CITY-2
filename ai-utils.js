@@ -602,14 +602,15 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        // Prioritize Pollinations for free unlimited usage as requested
+        // Prioritize OpenRouter as requested by user (Keyed)
+        { name: 'OpenRouter', fn: callOpenRouter },
+        // Fallback to free unlimited Pollinations
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        // Fallbacks
+        // Other fallbacks
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: '9Router', fn: call9Router },
-        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Puter API (Keyed)', fn: callPuterAPI },
         { name: 'Blackbox', fn: callBlackbox },
         ...(options.skipWorldServer ? [] : [{ name: 'World Server (Local)', fn: callWorldServer }]),
