@@ -413,7 +413,7 @@ async function callPollinationsGET(system, prompt) {
  * Call a local Ollama instance if available.
  */
 async function callOllama(system, prompt) {
-    let ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    let ollamaUrl = process.env.OLLAMA_URL || "http://192.168.1.66:11434";
 
     // Robust sanitization of OLLAMA_URL
     if (!ollamaUrl.startsWith('http')) {
@@ -613,12 +613,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Ollama (Local)', fn: callOllama },
+        { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
