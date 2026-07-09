@@ -613,6 +613,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'Puter SDK', fn: callPuterSDK },
