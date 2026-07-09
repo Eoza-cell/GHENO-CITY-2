@@ -54,30 +54,20 @@ function isValidAIResponse(text) {
 
     const lower = cleaned.toLowerCase();
     const errorMarkers = [
+        '"error":',
+        '"message":"unauthorized"',
+        '"message":"invalid',
         'token_missing',
-        'missing authentication token',
-        'authentication error',
-        'no api key',
-        '"type":"error"',
-        'errortext',
-        'unauthorized',
-        'rate limit',
-        '401',
-        '404 not found',
-        '429',
-        'internal server error',
-        'queue full',
-        'too many requests',
-        'invalid_request_error',
         'insufficient_quota',
-        'bad gateway',
-        'service unavailable'
+        'rate_limit_exceeded',
+        'api_key_invalid',
+        'service_unavailable'
     ];
 
     // If it's a tiny response with an error marker, it's definitely an error
     if (cleaned.length < 200 && errorMarkers.some(m => lower.includes(m))) {
         // Double check it's not a valid small JSON action response
-        if (cleaned.startsWith('{') && cleaned.endsWith('}') && (lower.includes('"narrative"') || lower.includes('"actions"'))) return true;
+        if (cleaned.startsWith('{') && (lower.includes('"narrative"') || lower.includes('"actions"'))) return true;
         return false;
     }
 
@@ -202,8 +192,8 @@ async function callPuterSDK(system, prompt) {
         console.warn("[AI] Puter SDK non initialisé ou indisponible.");
         return null;
     }
-    // Prioritizing Llama 3.1 70B for Roleplay and stability on Puter Free
-    const models = ["meta-llama-3.1-70b-instruct", "gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o"];
+    // Prioritizing Gemini as requested by user
+    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
 
     for (const model of models) {
         try {
@@ -634,13 +624,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'MLVoca (Free)', fn: callMLVoca },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'World Server (Local)', fn: callWorldServer }
     ];
@@ -667,39 +657,52 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     return new Promise((resolve) => {
         let completed = false;
-        let errors = 0;
+        let launchedCount = 0;
+        let failedCount = 0;
+        const launched = new Set();
 
-        const attempt = (index) => {
-            if (index >= providers.length || completed) return;
+        const launchAtIndex = (index) => {
+            if (completed || index >= providers.length || launched.has(index)) return;
 
-            callProvider(providers[index]).then(res => {
+            launched.add(index);
+            launchedCount++;
+            const provider = providers[index];
+
+            callProvider(provider).then(res => {
                 if (!completed) {
                     completed = true;
                     timeouts.forEach(clearTimeout);
                     resolve(res);
                 }
-            }).catch(() => {
-                errors++;
-                if (errors >= providers.length) {
-                    if (depth < 1) {
-                        console.log("[AI] All failed. Retrying in 1s...");
-                        setTimeout(() => {
-                            resolve(callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 }));
-                        }, 1000);
-                    } else {
-                        resolve(callMJFallback(userPrompt));
+            }).catch(err => {
+                failedCount++;
+                console.warn(`[AI] Provider ${provider.name} (index ${index}) failed: ${err.message}`);
+
+                if (failedCount >= providers.length) {
+                    if (!completed) {
+                        completed = true;
+                        timeouts.forEach(clearTimeout);
+                        if (depth < 1) {
+                            console.log("[AI] All providers failed. Retrying depth 1...");
+                            setTimeout(() => {
+                                resolve(callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 }));
+                            }, 1000);
+                        } else {
+                            resolve(callMJFallback(userPrompt));
+                        }
                     }
+                } else {
+                    // Try the very next one immediately on failure
+                    launchAtIndex(index + 1);
                 }
-                // Try next immediately if current one failed
-                attempt(index + 1);
             });
 
-            // Schedule next attempt (staggered)
-            const nextDelay = index === 0 ? 5000 : 7000;
-            timeouts.push(setTimeout(() => attempt(index + 1), nextDelay));
+            // Schedule the next one in the sequence anyway (staggered)
+            const nextDelay = index === 0 ? 4000 : 8000;
+            timeouts.push(setTimeout(() => launchAtIndex(index + 1), nextDelay));
         };
 
-        attempt(0);
+        launchAtIndex(0);
     });
 }
 
