@@ -377,7 +377,7 @@ async function callPollinationsGen(system, prompt) {
 
 async function callPollinationsPOST(system, prompt) {
     // Rotating models to find one that works for free
-    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'unity', 'evil', 'p1'];
+    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'unity', 'evil', 'p1', 'searchgpt'];
 
     for (const model of models) {
         try {
@@ -634,14 +634,14 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'MLVoca (Free)', fn: callMLVoca },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
