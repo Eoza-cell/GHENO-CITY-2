@@ -136,6 +136,27 @@ function extractMessageContent(content) {
     return null;
 }
 
+async function callMLVoca(system, prompt) {
+    const models = ["deepseek-r1:1.5b", "tinyllama"];
+    for (const model of models) {
+        try {
+            console.log(`[AI] MLVoca - Tentative avec ${model}...`);
+            const resp = await axios.post("https://mlvoca.com/api/generate", {
+                model,
+                prompt: `SYSTEM: ${system}\n\nUSER: ${prompt}`,
+                stream: false,
+                format: "json"
+            }, { timeout: 25000 });
+
+            const content = resp.data?.response;
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] MLVoca Error (${model}):`, e.message);
+        }
+    }
+    return null;
+}
+
 /**
  * Call Puter's AI over its V1 OpenAI-compatible endpoint.
  */
@@ -614,6 +635,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     const providers = [
         { name: 'Ollama (Local)', fn: callOllama },
+        { name: 'MLVoca (Free)', fn: callMLVoca },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
