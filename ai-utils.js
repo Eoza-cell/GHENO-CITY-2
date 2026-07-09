@@ -613,44 +613,71 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Blackbox', fn: callBlackbox },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Blackbox', fn: callBlackbox },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
-    for (const provider of providers) {
+    // Staggered execution for speed and fallback handling
+    const timeouts = [];
+    const callProvider = async (provider) => {
         try {
-            const providerStart = Date.now();
-            console.log(`[AI] Tentative: ${provider.name}... (depth: ${depth})`);
-
+            const start = Date.now();
+            console.log(`[AI] Launching ${provider.name}...`);
             let activeSystem = sanitizedSystem;
-            if (depth >= 1) activeSystem = "MJ RPG. Style Manhwa/Anime. JSON: {\"narrative\": \"...\", \"actions\": []}";
+            if (depth >= 1) activeSystem = "MJ RPG. JSON: {\"narrative\": \"...\"}";
 
-            const result = await provider.fn(activeSystem, sanitizedUser, options);
-            const duration = (Date.now() - providerStart) / 1000;
-
-            if (isValidAIResponse(result)) {
-                console.log(`[AI] ✅ Succès: ${provider.name} en ${duration}s`);
-                return typeof result === 'object' ? JSON.stringify(result) : result;
+            const res = await provider.fn(activeSystem, sanitizedUser, options);
+            if (isValidAIResponse(res)) {
+                console.log(`[AI] ✅ ${provider.name} won in ${(Date.now() - start)/1000}s`);
+                return typeof res === 'object' ? JSON.stringify(res) : res;
             }
+            throw new Error("Invalid response");
         } catch (e) {
-            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
+            throw e;
         }
-    }
+    };
 
-    console.warn("[AI] Tous les providers ont échoué.");
-    if (depth < 1) {
-        console.log("[AI] Nouvelle tentative dans 1s avec jitter...");
-        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
-        return callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 });
-    }
+    return new Promise((resolve) => {
+        let completed = false;
+        let errors = 0;
 
-    // Ultimate fallback if even retry fails
-    return callMJFallback(userPrompt);
+        const attempt = (index) => {
+            if (index >= providers.length || completed) return;
+
+            callProvider(providers[index]).then(res => {
+                if (!completed) {
+                    completed = true;
+                    timeouts.forEach(clearTimeout);
+                    resolve(res);
+                }
+            }).catch(() => {
+                errors++;
+                if (errors >= providers.length) {
+                    if (depth < 1) {
+                        console.log("[AI] All failed. Retrying in 1s...");
+                        setTimeout(() => {
+                            resolve(callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 }));
+                        }, 1000);
+                    } else {
+                        resolve(callMJFallback(userPrompt));
+                    }
+                }
+                // Try next immediately if current one failed
+                attempt(index + 1);
+            });
+
+            // Schedule next attempt (staggered)
+            const nextDelay = index === 0 ? 5000 : 7000;
+            timeouts.push(setTimeout(() => attempt(index + 1), nextDelay));
+        };
+
+        attempt(0);
+    });
 }
 
 function parsePuterResponse(resp) {
