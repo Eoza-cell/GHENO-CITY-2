@@ -79,12 +79,29 @@ async function connectToWhatsApp() {
     }
   }
 
-  sock.ev.on('connection.update', (update) => {
+  sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
+      const statusCode = (lastDisconnect.error)?.output?.statusCode;
+      const isConflict = statusCode === 440 || lastDisconnect.error?.message?.includes('conflict');
+      const isLoggedOut = statusCode === 401;
+
+      console.log(`[CONN] Fermée. Code: ${statusCode}, Conflict: ${isConflict}, LoggedOut: ${isLoggedOut}`);
+
+      if (isConflict) {
+          console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+          console.error('!!! CONFLIT DE SESSION : Le bot est connecté ailleurs.     !!!');
+          console.error('!!! Déconnexion automatique pour éviter la boucle.         !!!');
+          console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+          // Optional: Cleanup credentials to force a new pairing
+          // await Creds.destroy({ where: {} });
+          return;
+      }
+
+      const shouldReconnect = !isLoggedOut;
       if (shouldReconnect) {
+        console.log('[CONN] Reconnexion dans 5s...');
+        await delay(5000);
         connectToWhatsApp();
       }
     } else if (connection === 'open') {
