@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "name": "gheno-city-bot",
+  "builds": [
+    {
+      "src": "skype-bot.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/health",
+      "dest": "skype-bot.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "skype-bot.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
