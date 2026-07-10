@@ -364,26 +364,27 @@ async function callBlackbox(system, prompt) {
 }
 
 async function callPollinationsGen(system, prompt) {
+    // Priority models on gen.pollinations.ai
+    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'searchgpt'];
     const key = process.env.POLLINATIONS_API_KEY;
-    if (!key) return null;
 
-    const models = ['openai', 'mistral', 'llama', 'qwen-coder'];
     for (const model of models) {
         try {
-            console.log(`[AI] Pollinations Gen (Keyed) - Tentative avec ${model}...`);
+            console.log(`[AI] Pollinations Gen - Tentative avec ${model}...`);
+            const headers = { 'Content-Type': 'application/json' };
+            if (key) headers['Authorization'] = `Bearer ${key}`;
+
             const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
                 model: model,
                 messages: [
-                    { role: "system", content: system + "\n\nIMPORTANT: Réponds UNIQUEMENT en JSON valide." },
+                    { role: "system", content: system },
                     { role: "user", content: prompt }
                 ],
-                response_format: { type: "json_object" }
+                jsonMode: true,
+                stream: false
             }, {
-                headers: {
-                    'Authorization': `Bearer ${key}`,
-                    'Content-Type': 'application/json'
-                },
-                timeout: 15000
+                headers,
+                timeout: 20000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
@@ -657,6 +658,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const providers = [
         { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Pollinations Gen', fn: callPollinationsGen },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Ollama (Local)', fn: callOllama },
