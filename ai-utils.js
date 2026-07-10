@@ -37,9 +37,9 @@ try {
 }
 
 const PUTER_MODELS = [
-    "meta-llama-3.1-70b-instruct",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
+    "meta-llama-3.1-70b-instruct",
     "gpt-4o",
     "claude-3-5-sonnet"
 ];
@@ -639,8 +639,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Puter API (V1)', fn: callPuterAPI },
+        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'MLVoca (Free)', fn: callMLVoca },
