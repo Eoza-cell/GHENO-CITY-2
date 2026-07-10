@@ -68,6 +68,8 @@ function isValidAIResponse(text) {
     if (cleaned.length < 200 && errorMarkers.some(m => lower.includes(m))) {
         // Double check it's not a valid small JSON action response
         if (cleaned.startsWith('{') && (lower.includes('"narrative"') || lower.includes('"actions"'))) return true;
+        // If it looks like a valid short sentence, allow it
+        if (cleaned.length > 10 && !cleaned.includes('{') && !cleaned.includes('"')) return true;
         return false;
     }
 
@@ -152,7 +154,10 @@ async function callMLVoca(system, prompt) {
  */
 async function callPuterAPI(system, prompt) {
     const key = process.env.PUTER_API_KEY || process.env.PUTER_TOKEN;
-    if (!key || key.length < 6 || key === 'test_key') return null;
+    if (!key || key.length < 6 || key === 'test_key') {
+        console.warn("[AI] Puter API (V1) : Clé manquante ou invalide.");
+        return null;
+    }
 
     const messages = [
         { role: "system", content: system },
@@ -177,7 +182,13 @@ async function callPuterAPI(system, prompt) {
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
         } catch (e) {
-            console.warn(`[AI] Puter V1 API Error (${model}):`, e.response?.data || e.message);
+            const errorBody = e.response?.data;
+            const status = e.response?.status;
+            console.warn(`[AI] Puter V1 API Error (${model}) [Status: ${status}]:`, errorBody || e.message);
+
+            if (status === 401 || (errorBody && JSON.stringify(errorBody).includes("Unauthorized"))) {
+                console.error("[AI] Puter API (V1) : Authentification échouée. Vérifiez votre PUTER_TOKEN.");
+            }
             continue;
         }
     }
@@ -624,8 +635,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter API (V1)', fn: callPuterAPI },
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Ollama (Local)', fn: callOllama },
