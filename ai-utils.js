@@ -46,8 +46,17 @@ const PUTER_MODELS = [
 /**
  * Detect responses that are not real narrative content.
  */
-function isValidAIResponse(text) {
-    if (!text || typeof text !== 'string') return false;
+function isValidAIResponse(input) {
+    if (!input) return false;
+
+    let text = "";
+    if (typeof input === 'object') {
+        text = JSON.stringify(input);
+    } else if (typeof input === 'string') {
+        text = input;
+    } else {
+        return false;
+    }
 
     const cleaned = text.trim();
     if (cleaned.length < 3) return false;
@@ -61,15 +70,24 @@ function isValidAIResponse(text) {
         'insufficient_quota',
         'rate_limit_exceeded',
         'api_key_invalid',
-        'service_unavailable'
+        'service_unavailable',
+        'invalid_request_error',
+        'permission_denied'
     ];
 
+    // Robust JSON detection
+    if (cleaned.startsWith('{')) {
+        const lowerText = cleaned.toLowerCase();
+        // If it's a JSON containing narrative or actions, it's almost certainly valid
+        if (lowerText.includes('"narrative"') || lowerText.includes('"actions"')) {
+            if (cleaned.length > 20) return true;
+        }
+    }
+
     // If it's a tiny response with an error marker, it's definitely an error
-    if (cleaned.length < 200 && errorMarkers.some(m => lower.includes(m))) {
-        // Double check it's not a valid small JSON action response
-        if (cleaned.startsWith('{') && (lower.includes('"narrative"') || lower.includes('"actions"'))) return true;
-        // If it looks like a valid short sentence, allow it
-        if (cleaned.length > 10 && !cleaned.includes('{') && !cleaned.includes('"')) return true;
+    if (cleaned.length < 300 && errorMarkers.some(m => lower.includes(m))) {
+        // Final check: is it actually just a person talking?
+        if (cleaned.length > 20 && !cleaned.includes('{') && !cleaned.includes('"')) return true;
         return false;
     }
 
@@ -155,7 +173,6 @@ async function callMLVoca(system, prompt) {
 async function callPuterAPI(system, prompt) {
     const key = process.env.PUTER_API_KEY || process.env.PUTER_TOKEN;
     if (!key || key.length < 6 || key === 'test_key') {
-        console.warn("[AI] Puter API (V1) : Clé manquante ou invalide.");
         return null;
     }
 
@@ -164,7 +181,10 @@ async function callPuterAPI(system, prompt) {
         { role: "user", content: prompt }
     ];
 
-    for (const model of PUTER_MODELS) {
+    // Priority to Flash for speed
+    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o"];
+
+    for (const model of models) {
         try {
             console.log(`[AI] Puter V1 API - Modèle: ${model}`);
             const resp = await axios.post("https://api.puter.com/v1/chat/completions", {

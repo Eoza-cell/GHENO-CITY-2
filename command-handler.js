@@ -1022,6 +1022,29 @@ commands.set('god', async (sock, message, args) => {
     };
 
     switch (subCommand) {
+        case 'settoken':
+            const newToken = args[0];
+            if (newToken) {
+                process.env.PUTER_TOKEN = newToken;
+                process.env.PUTER_API_KEY = newToken;
+                // We also need to update the Puter SDK if it's already loaded
+                const { JSDOM } = require('jsdom');
+                const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+                global.window = dom.window;
+                global.document = dom.window.document;
+
+                try {
+                    const puterLib = require('@heyputer/puter.js');
+                    const puter = puterLib.default || puterLib;
+                    if (typeof puter.setAuthToken === 'function') {
+                        puter.setAuthToken(newToken);
+                    }
+                    puter.authToken = newToken;
+                } catch(e) {}
+
+                await sock.sendMessage(replyJid, { text: "✅ [GOD] PUTER_TOKEN mis à jour pour cette session." });
+            }
+            break;
         case 'set':
             let stat = args[0]?.toLowerCase();
             stat = statNormalizationMap[stat] || stat;
