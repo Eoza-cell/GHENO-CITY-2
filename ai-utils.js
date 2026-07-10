@@ -589,6 +589,35 @@ async function callLlamafile(system, prompt) {
     return null;
 }
 
+async function callGPTOSS(system, prompt) {
+    const models = ["gpt-oss-120b", "gpt-oss-20b"];
+    for (const model of models) {
+        try {
+            console.log(`[AI] GPTOSS - Tentative avec ${model}...`);
+            const resp = await axios.post("https://broken-water-d859.junioralive.workers.dev/v1/chat/completions", {
+                model,
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: prompt }
+                ],
+                stream: false
+            }, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer dummy'
+                },
+                timeout: 20000
+            });
+
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn(`[AI] GPTOSS Error (${model}):`, e.response?.data || e.message);
+        }
+    }
+    return null;
+}
+
 async function callLMStudio(system, prompt) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -658,6 +687,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const providers = [
         { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'GPTOSS Proxy', fn: callGPTOSS },
         { name: 'Pollinations Gen', fn: callPollinationsGen },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
