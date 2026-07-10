@@ -1,6 +1,5 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
-const atrHeart = require('./atr-heart-logic');
 
 // Setup JSDOM for Puter SDK if needed
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -558,20 +557,6 @@ async function callLlamafile(system, prompt) {
     return null;
 }
 
-/**
- * Call the local ATR Heart engine.
- */
-async function callATRHeart(system, prompt, options = {}) {
-    try {
-        console.log(`[AI] ATR Heart - Consultation de l'âme locale...`);
-        const response = await atrHeart.process(system, prompt, options);
-        if (isValidAIResponse(response)) return response;
-    } catch (e) {
-        console.warn(`[AI] ATR Heart error:`, e.message);
-    }
-    return null;
-}
-
 async function callLMStudio(system, prompt) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -648,8 +633,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
-        { name: 'World Server (Local)', fn: callWorldServer },
-        { name: 'ATR Heart (Local Soul)', fn: callATRHeart }
+        { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
     // Staggered execution for speed and fallback handling

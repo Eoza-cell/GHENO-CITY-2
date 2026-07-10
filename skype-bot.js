@@ -16,8 +16,6 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 const { startModelServer } = require('./model-server');
-const atrHeart = require('./atr-heart-logic');
-const atrEngine = require('./atr-heart-engine');
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -108,9 +106,6 @@ async function connectToWhatsApp() {
       console.log('Connecté à WhatsApp');
       startDayNightCycle();
 
-      // Inculquer l'autonomie au Cœur ATR
-      atrHeart.startAutonomy(sock);
-
       // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
       if (!serverStarted) {
           server.listen(PORT, () => {
@@ -190,9 +185,6 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(async () => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
-
-    // Lancement du Cœur ATR (Local AI)
-    await atrEngine.init();
 
     // Démarre le 2ème serveur pour le modèle DARK LUST
     startModelServer();
