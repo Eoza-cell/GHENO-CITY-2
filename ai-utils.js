@@ -639,16 +639,16 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'ATR Heart (Local Soul)', fn: callATRHeart },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'MLVoca (Free)', fn: callMLVoca },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
-        { name: 'World Server (Local)', fn: callWorldServer }
+        { name: 'World Server (Local)', fn: callWorldServer },
+        { name: 'ATR Heart (Local Soul)', fn: callATRHeart }
     ];
 
     // Staggered execution for speed and fallback handling
@@ -714,7 +714,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             });
 
             // Schedule the next one in the sequence anyway (staggered)
-            const nextDelay = index === 0 ? 4000 : 8000;
+            const nextDelay = index === 0 ? 1000 : 4000;
             timeouts.push(setTimeout(() => launchAtIndex(index + 1), nextDelay));
         };
 
