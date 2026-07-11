@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
+const aether = require('./aether-weaver');
 
 // Setup JSDOM for Puter SDK if needed
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -618,6 +619,20 @@ async function callGPTOSS(system, prompt) {
     return null;
 }
 
+/**
+ * Call the local Aether engine.
+ */
+async function callAether(system, prompt, options = {}) {
+    try {
+        console.log(`[AI] Aether Local - Éveil de la conscience...`);
+        const response = await aether.weave(system, prompt, options);
+        if (isValidAIResponse(response)) return response;
+    } catch (e) {
+        console.warn(`[AI] Aether Local error:`, e.message);
+    }
+    return null;
+}
+
 async function callLMStudio(system, prompt) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -696,7 +711,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
-        { name: 'World Server (Local)', fn: callWorldServer }
+        { name: 'World Server (Local)', fn: callWorldServer },
+        { name: 'Aether Local (Beta)', fn: callAether }
     ];
 
     // Staggered execution for speed and fallback handling
