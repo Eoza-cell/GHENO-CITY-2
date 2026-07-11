@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
-const aether = require('./aether-weaver');
+const aether = require('./aether-brain');
 
 // Setup JSDOM for Puter SDK if needed
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -620,15 +620,15 @@ async function callGPTOSS(system, prompt) {
 }
 
 /**
- * Call the local Aether engine.
+ * Call the Aether Brain (Lightweight Soul).
  */
 async function callAether(system, prompt, options = {}) {
     try {
-        console.log(`[AI] Aether Local - Éveil de la conscience...`);
-        const response = await aether.weave(system, prompt, options);
+        console.log(`[AI] Aether Brain - Consultation de l'âme...`);
+        const response = await aether.think(system, prompt, options);
         if (isValidAIResponse(response)) return response;
     } catch (e) {
-        console.warn(`[AI] Aether Local error:`, e.message);
+        console.warn(`[AI] Aether Brain error:`, e.message);
     }
     return null;
 }

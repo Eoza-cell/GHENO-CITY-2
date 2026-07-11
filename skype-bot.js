@@ -16,7 +16,6 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 const { startModelServer } = require('./model-server');
-const aetherEngine = require('./aether-engine');
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -186,9 +185,6 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(async () => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
-
-    // Pre-load local AI core
-    aetherEngine.init().catch(e => console.warn("[AETHER] Init background failure:", e.message));
 
     // Démarre le 2ème serveur pour le modèle DARK LUST
     startModelServer();
