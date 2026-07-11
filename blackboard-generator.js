@@ -41,27 +41,29 @@ async function generateBlackboardImage(text, title = "LEÇON DU JOUR") {
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
             <filter id="chalkBlur">
-                <feGaussianBlur in="SourceGraphic" stdDeviation="1" />
+                <feGaussianBlur in="SourceGraphic" stdDeviation="0.8" />
+                <feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="2" result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="2" />
             </filter>
             <filter id="slateTexture">
-                <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="noise" />
-                <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.1 0" />
+                <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="4" result="noise" />
+                <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.15 0" />
             </filter>
         </defs>
 
         <!-- Blackboard Frame -->
-        <rect width="${width}" height="${height}" fill="#3e2723" />
+        <rect width="${width}" height="${height}" fill="#2b1d1a" />
 
         <!-- Slate Surface -->
-        <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="#1b2e26" />
-        <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="url(#slateTexture)" opacity="0.3" />
+        <rect x="15" y="15" width="${width - 30}" height="${height - 30}" fill="#16261e" />
+        <rect x="15" y="15" width="${width - 30}" height="${height - 30}" fill="url(#slateTexture)" opacity="0.4" />
 
-        <!-- Chalk Dust -->
-        <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="white" opacity="0.02" />
+        <!-- Chalk Dust Overlays -->
+        <rect x="15" y="15" width="${width - 30}" height="${height - 30}" fill="white" opacity="0.03" filter="url(#chalkBlur)" />
 
         <!-- Title -->
-        <text x="50%" y="80" font-family="monospace" font-size="45" fill="#ffffff" text-anchor="middle" font-weight="bold" opacity="0.8" style="filter: url(#chalkBlur);">${escapeXml(title)}</text>
-        <line x1="200" y1="100" x2="800" y2="100" stroke="white" stroke-width="2" opacity="0.5" stroke-dasharray="5,5" />
+        <text x="50%" y="85" font-family="monospace" font-size="48" fill="#ffffff" text-anchor="middle" font-weight="bold" opacity="0.9" style="filter: url(#chalkBlur);">${escapeXml(title)}</text>
+        <line x1="150" y1="110" x2="850" y2="110" stroke="white" stroke-width="3" opacity="0.4" stroke-dasharray="8,4" />
 
         <!-- Content -->
         ${textSvg}
@@ -87,11 +89,11 @@ async function generateMagicDetailBoard(skill) {
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
             <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#050510;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#101025;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#020208;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#0a0a1a;stop-opacity:1" />
             </linearGradient>
             <filter id="glow">
-                <feGaussianBlur stdDeviation="5" result="blur" />
+                <feGaussianBlur stdDeviation="3.5" result="blur" />
                 <feMerge>
                     <feMergeNode in="blur" />
                     <feMergeNode in="SourceGraphic" />

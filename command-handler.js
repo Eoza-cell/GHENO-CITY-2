@@ -206,6 +206,7 @@ const profileCommand = async (sock, message) => {
   }
 
   try {
+      await player.reload();
       const profileBuffer = await generateProfileCard(player);
       const healthBar = createStatusBar(player.health, player.maxHealth);
       const manaBar = createStatusBar(player.mana, player.maxMana);
@@ -963,12 +964,19 @@ commands.set('god', async (sock, message, args) => {
     }
 
     const subCommand = args.shift()?.toLowerCase();
+
+    if (!subCommand) {
+        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur] <stat> <valeur>\n/god give [@joueur] <item> <quantité>\n/god rank [@joueur] <rang>\n/god col [@joueur] <montant>\n/god pacte [@joueur] <entité>\n/god max [@joueur]\n/god settoken <key>\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
+        return;
+    }
+
+    let targetPlayer = null;
     let targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
 
     // Helper to find player by name if no mention or ID
     const findByAny = async (str) => {
         if (!str) return null;
-        const clean = str.replace('@', '');
+        const clean = str.replace('@', '').trim();
         return await Player.findOne({
             where: {
                 [Op.or]: [
@@ -980,26 +988,37 @@ commands.set('god', async (sock, message, args) => {
         });
     };
 
-    // If first arg is a potential target (mention or name)
-    let targetPlayer = null;
-    if (targetJid) {
-        targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
-    }
-
-    // If still no target and subcommand is present, check if subCommand itself is a player (for targetless calls)
-    // or if the next arg is a player.
-    // Actually, let's handle it inside the cases if needed, but standardizing here:
-
-    if (!subCommand) {
-        await sock.sendMessage(replyJid, { text: "Commandes Divines:\n/god set [@joueur/nom] <stat> <valeur>\n/god give [@joueur/nom] <item> <quantité>\n/god rank [@joueur/nom] <rang>\n/god col [@joueur/nom] <montant>\n/god pacte [@joueur/nom] <entité>\n/god max [@joueur/nom]\n\n(Si aucun joueur n'est mentionné, l'effet s'applique à toi-même)" });
+    // Subcommands that don't need a player target
+    if (subCommand === 'settoken') {
+        const newToken = args[0];
+        if (newToken) {
+            process.env.PUTER_TOKEN = newToken;
+            process.env.PUTER_API_KEY = newToken;
+            const { JSDOM } = require('jsdom');
+            const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+            global.window = dom.window;
+            global.document = dom.window.document;
+            try {
+                const puterLib = require('@heyputer/puter.js');
+                const puter = puterLib.default || puterLib;
+                if (typeof puter.setAuthToken === 'function') puter.setAuthToken(newToken);
+                puter.authToken = newToken;
+            } catch(e) {}
+            await sock.sendMessage(replyJid, { text: "✅ [GOD] PUTER_TOKEN mis à jour." });
+        }
         return;
     }
 
-    // If target not found by mention, check if args[0] is a name/ID for specific subcommands
-    const needsTargetShift = ['set', 'give', 'rank', 'col', 'pacte', 'max'].includes(subCommand);
-    if (!targetPlayer && needsTargetShift && args[0] && (args[0].startsWith('@') || isNaN(parseInt(args[0])))) {
-        targetPlayer = await findByAny(args[0]);
-        if (targetPlayer) args.shift();
+    // Logic to detect target
+    const needsTarget = ['set', 'give', 'rank', 'col', 'pacte', 'max'].includes(subCommand);
+    if (needsTarget) {
+        if (targetJid) {
+            targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
+        } else if (args[0] && (args[0].startsWith('@') || isNaN(parseInt(args[0])))) {
+            // Check if the next argument is a name/ID
+            targetPlayer = await findByAny(args[0]);
+            if (targetPlayer) args.shift(); // Consume the target name
+        }
     }
 
     // Default to self if still no target
@@ -1022,29 +1041,6 @@ commands.set('god', async (sock, message, args) => {
     };
 
     switch (subCommand) {
-        case 'settoken':
-            const newToken = args[0];
-            if (newToken) {
-                process.env.PUTER_TOKEN = newToken;
-                process.env.PUTER_API_KEY = newToken;
-                // We also need to update the Puter SDK if it's already loaded
-                const { JSDOM } = require('jsdom');
-                const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
-                global.window = dom.window;
-                global.document = dom.window.document;
-
-                try {
-                    const puterLib = require('@heyputer/puter.js');
-                    const puter = puterLib.default || puterLib;
-                    if (typeof puter.setAuthToken === 'function') {
-                        puter.setAuthToken(newToken);
-                    }
-                    puter.authToken = newToken;
-                } catch(e) {}
-
-                await sock.sendMessage(replyJid, { text: "✅ [GOD] PUTER_TOKEN mis à jour pour cette session." });
-            }
-            break;
         case 'set':
             let stat = args[0]?.toLowerCase();
             stat = statNormalizationMap[stat] || stat;
@@ -1845,23 +1841,40 @@ commands.set('checkai', async (sock, message) => {
 
     const startTime = Date.now();
     try {
-        const result = await callAI("Tu es un testeur.", "Réponds juste 'OK' si tu m'entends.");
+        const result = await callAI("Tu es un MJ.", "MJ TEST.");
         const duration = (Date.now() - startTime) / 1000;
 
         let status = "🟢 *OPÉRATIONNEL*";
-        if (result.includes("Le flux magique est instable")) status = "🔴 *LIMITE ATTEINTE*";
+        if (!result || result.includes("instable")) status = "🔴 *LIMITE ATTEINTE*";
 
         await sock.sendMessage(replyJid, {
             text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
                   `Statut: ${status}\n` +
                   `Latence: ${duration}s\n` +
-                  `Serveur Ollama: ${process.env.OLLAMA_URL || 'http://localhost:11434'}\n` +
-                  `Réponse: ${result.substring(0, 100)}...\n\n` +
-                  `_Si le statut est dégradé, vérifiez vos clés API ou la connexion Ollama._`
+                  `Provider: Puter/Gemini\n` +
+                  `Réponse brute: ${typeof result === 'string' ? result.substring(0, 60) : 'Obj'}\n\n` +
+                  `_Le MJ est prêt à tisser le destin._`
         });
     } catch (e) {
         await sock.sendMessage(replyJid, { text: "🔴 *ERREUR CRITIQUE*\nAucun flux magique n'a pu être établi. Contactez l'administrateur." });
     }
+});
+
+// Command: /status
+commands.set('status', async (sock, message) => {
+    const replyJid = message.key.remoteJid;
+    const uptime = Math.floor(process.uptime() / 60);
+    const mem = Math.round(process.memoryUsage().rss / 1024 / 1024);
+
+    let text = "⚙️ *SYSTÈME ARISE - ÉTAT ACTUEL*\n\n";
+    text += `🟢 Bot Opérationnel\n`;
+    text += `⏱️ Uptime: ${uptime} minutes\n`;
+    text += `💾 Mémoire: ${mem} MB\n`;
+    text += `🌍 Monde: Aetherys v2.0\n`;
+    text += `🤖 Core: MJ Noyau Flash\n\n`;
+    text += `_Système stable et synchronisé._`;
+
+    await sock.sendMessage(replyJid, { text });
 });
 
 // Command: /menu
