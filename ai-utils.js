@@ -700,6 +700,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'GPTOSS Proxy', fn: callGPTOSS },
@@ -711,8 +712,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
-        { name: 'World Server (Local)', fn: callWorldServer },
-        { name: 'Aether Local (Beta)', fn: callAether }
+        { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
     // Staggered execution for speed and fallback handling
