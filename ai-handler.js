@@ -669,16 +669,19 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
 
     const cleanupNarrative = (t) => {
         if (!t) return "";
-        // Clean markdown and common technical prefixes
+        // Clean markdown, common technical prefixes, and ChatML tags
         return t.replace(/```json/gi, '')
                 .replace(/```/g, '')
+                .replace(/<\|im_start\|>.*?<\|im_end\|>/gs, '') // Remove ChatML blocks
+                .replace(/<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>/g, '') // Remove loose tags
                 .replace(/^(json|JSON)/g, '')
                 .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
                 .replace(/(\n|^)[a-z_]+[cC]hange:.*(\n|$)/gi, '')
                 .replace(/\{[\s\S]*?\}/g, '') // Remove remaining JSON-like structures
                 .replace(/\[\s*\{[\s\S]*?\}\s*\]/g, '') // Remove remaining arrays of objects
-                .replace(/\b(?:imagePrompt|actions|narrative|notifications|broadcastMessage|status|message|pensee_mj)\b\s*:?.*(\n|$)/gi, '')
+                .replace(/\b(?:imagePrompt|actions|actionVisual|narrative|notifications|broadcastMessage|status|message|pensee_mj|luck_seed|critical_success|weather_impact|user|assistant|system)\b\s*:?.*(\n|$)/gi, '')
                 .replace(/\\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n') // Normalize multiple newlines
                 .trim();
     };
 
@@ -847,12 +850,9 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
       aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
 
-    // Live HUD Integration: Inject a concise status bar at the end of the narrative for immediate feedback
-    const hud = `\n\n📊 *STATUS* : [❤️ HP ${player.health}/${player.maxHealth} | 🌀 MP ${player.mana}/${player.maxMana} | 💰 Col ${player.col}]`;
-    aiResponse.narrative = `${aiResponse.narrative}${hud}`;
-
-    // Prepend World Clock Header
-    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
+    // Streamlined HUD and Header for cleaner responses
+    const hud = ` [❤️ ${player.health}/${player.maxHealth} | 🌀 ${player.mana}/${player.maxMana} | 💰 ${player.col}]`;
+    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}\n\n📊 *HUD*:${hud}`;
 
     // Send typing indicator (presencesUpdate is not always reliable but good to try)
     try {
@@ -862,22 +862,14 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
 
     await sendWithImage(sock, jid, aiResponse);
 
-    // LIVE-actualisation: Silent Database Update + Automatic Profile Delivery
-    // We send profile cards whenever a player's state has been modified.
+    // LIVE-actualisation: Silent Database Update (Profile cards disabled to reduce spam)
     if (playersToUpdate.size > 0) {
         for (const pId of playersToUpdate) {
             try {
                 const pToUpdate = await Player.findOne({ where: { whatsappId: pId } });
-                if (pToUpdate && shouldNotifyPlayer(pToUpdate)) {
-                    await pToUpdate.reload();
-                    const profileBuffer = await generateProfileCard(pToUpdate);
-                    await sock.sendMessage(pId, {
-                        image: profileBuffer,
-                        caption: `--- 🆔 PROFIL ACTUALISÉ : ${pToUpdate.name} ---`
-                    });
-                }
+                if (pToUpdate) await pToUpdate.reload();
             } catch (e) {
-                console.error(`[AI] Profile auto-update failed for ${pId}:`, e.message);
+                console.error(`[AI] Silent update failed for ${pId}:`, e.message);
             }
         }
     }
