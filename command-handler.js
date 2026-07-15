@@ -15,6 +15,7 @@ const { generateSkillListImage } = require('./action-visual-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
+const referee = require('./referee-logic');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -1875,6 +1876,67 @@ commands.set('status', async (sock, message) => {
     text += `_Système stable et synchronisé._`;
 
     await sock.sendMessage(replyJid, { text });
+});
+
+// Command: /arbitre
+commands.set('arbitre', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) return;
+
+    // We can judge:
+    // 1. A quoted message
+    // 2. Arguments provided directly
+    const quoted = message.message.extendedTextMessage?.contextInfo?.quotedMessage;
+    let actionText = args.join(' ');
+
+    if (quoted) {
+        actionText = quoted.conversation || quoted.extendedTextMessage?.text || quoted.imageMessage?.caption || actionText;
+    }
+
+    if (!actionText || actionText.length < 5) {
+        return await sock.sendMessage(replyJid, { text: "⚖️ *L'Arbitre attend du contenu.* Cite un pavé RP ou écris-le après la commande." });
+    }
+
+    await sock.sendMessage(replyJid, { text: "⚖️ *L'Arbitre Suprême analyse le flux des événements...*" });
+
+    // Try to find a potential defender (mention in quoted or current message)
+    let defender = null;
+    const mention = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] ||
+                    message.message.extendedTextMessage?.contextInfo?.quotedMessage?.participant;
+
+    if (mention) {
+        defender = await Player.findOne({ where: { whatsappId: mention } });
+    }
+
+    const verdict = await referee.judge(actionText, {
+        attacker: player,
+        defender: defender,
+        environment: player.location + " (" + player.subLocation + ")"
+    });
+
+    let resultText = `⚖️ *VERDICT DE L'ARBITRE SUPRÊME* ⚖️\n\n`;
+    resultText += `📢 *VERDICT :* ${verdict.verdict}\n`;
+    resultText += `🧠 *ANALYSE :* ${verdict.analyse_tactique}\n\n`;
+    resultText += `🎯 *INTENTION :* ${verdict.intentions_comprises}\n`;
+    resultText += `🔥 *CRÉATIVITÉ :* ${verdict.score_creativite}/100\n\n`;
+    resultText += `🩹 *CONSÉQUENCES :* ${verdict.consequences_directes}\n`;
+    resultText += `📜 *RAISONS :* ${verdict.raisons_du_verdict}\n\n`;
+
+    if (verdict.degats_estimes) {
+        const d = verdict.degats_estimes;
+        resultText += `📉 *IMPACT :* [❤️ ${d.pv || 0} PV | 🌀 ${d.pm || 0} PM | ⚡ ${d.stamina || 0} STAM]`;
+    }
+
+    try {
+        const { generateLorePoster } = require('./lore-generator');
+        const buffer = await generateLorePoster("VERDICT ARBITRAL", resultText, 'HISTORY');
+        await sock.sendMessage(replyJid, { image: buffer, caption: resultText });
+    } catch (e) {
+        await sock.sendMessage(replyJid, { text: resultText });
+    }
 });
 
 // Command: /menu
