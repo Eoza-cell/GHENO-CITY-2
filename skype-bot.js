@@ -16,11 +16,19 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 const { startModelServer } = require('./model-server');
+const tinySoul = require('./tiny-soul');
 
-// Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
+let isWhatsAppConnected = false;
+
+// Crée un serveur HTTP qui bloque le déploiement tant que WA n'est pas connecté
 const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Bot is running');
+    if (isWhatsAppConnected) {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Bot is operational and connected to WhatsApp');
+    } else {
+        res.writeHead(503, { 'Content-Type': 'text/plain' });
+        res.end('Bot is starting - Waiting for WhatsApp connection...');
+    }
 });
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
@@ -80,6 +88,7 @@ async function connectToWhatsApp() {
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
+      isWhatsAppConnected = false;
       const statusCode = (lastDisconnect.error)?.output?.statusCode;
       const isConflict = statusCode === 440 || lastDisconnect.error?.message?.includes('conflict');
       const isLoggedOut = statusCode === 401;
@@ -104,6 +113,7 @@ async function connectToWhatsApp() {
       }
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
+      isWhatsAppConnected = true;
       startDayNightCycle();
 
       // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
@@ -185,6 +195,9 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(async () => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
+
+    // Warm up the Tiny Soul (Local IA)
+    tinySoul.ignite().catch(e => console.warn("[TINY-SOUL] Background load failed:", e.message));
 
     // Démarre le 2ème serveur pour le modèle DARK LUST
     startModelServer();

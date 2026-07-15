@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { JSDOM } = require('jsdom');
 const aether = require('./aether-brain');
+const tinySoul = require('./tiny-soul');
 
 // Setup JSDOM for Puter SDK if needed
 const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', {
@@ -633,6 +634,20 @@ async function callAether(system, prompt, options = {}) {
     return null;
 }
 
+/**
+ * Call the local Tiny Soul (0.1B) engine.
+ */
+async function callTinySoul(system, prompt, options = {}) {
+    try {
+        console.log(`[AI] Tiny Soul - Éveil local...`);
+        const response = await tinySoul.think(system, prompt, options);
+        if (isValidAIResponse(response)) return response;
+    } catch (e) {
+        console.warn(`[AI] Tiny Soul error:`, e.message);
+    }
+    return null;
+}
+
 async function callLMStudio(system, prompt) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -700,6 +715,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Tiny Soul (0.1B)', fn: callTinySoul },
         { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
