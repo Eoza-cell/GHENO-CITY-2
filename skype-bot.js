@@ -129,9 +129,18 @@ async function connectToWhatsApp() {
 
     await requestAndShowCode();
 
+    // Repeat the CURRENT code in console every 20 seconds to keep it visible
+    const logInterval = setInterval(() => {
+        if (currentPairingCode) {
+            console.log(`\n[AUTH] CODE DE PAIRAGE : ${currentPairingCode} (WhatsApp > Appareils connectés)\n`);
+        } else if (!isWhatsAppConnected) {
+            console.warn('[AUTH] Toujours en attente de génération du code ou de connexion (60s+)...');
+        }
+    }, 20000);
+
     sock.ev.on('connection.update', (update) => {
         if (update.connection === 'open') {
-            clearInterval(pairingInterval);
+            clearInterval(logInterval);
             currentPairingCode = null;
         }
     });
