@@ -29,13 +29,15 @@ const server = http.createServer((req, res) => {
             <html>
                 <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #121b22; color: white;">
                     <h1>🔗 GHENO-CITY Pairing</h1>
-                    ${currentPairingCode ? `
+                    ${isWhatsAppConnected ? `
+                        <p style="color: #00a884; font-size: 24px;">✅ Connecté !</p>
+                    ` : currentPairingCode ? `
                         <div style="background: #00a884; padding: 20px; border-radius: 10px; font-size: 32px; font-weight: bold; letter-spacing: 5px;">
                             ${currentPairingCode}
                         </div>
                         <p>Entrez ce code dans WhatsApp > Appareils connectés</p>
                     ` : `
-                        <p>Attente du code... (Vérifiez si le bot n'est pas déjà connecté)</p>
+                        <p>Attente du code... (Génération en cours ou déjà connecté)</p>
                     `}
                     <script>setTimeout(() => location.reload(), 5000)</script>
                 </body>
@@ -43,13 +45,19 @@ const server = http.createServer((req, res) => {
         `);
     }
 
-    if (isWhatsAppConnected) {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Bot is operational and connected to WhatsApp');
-    } else {
-        res.writeHead(503, { 'Content-Type': 'text/plain' });
-        res.end('Bot is starting - Waiting for WhatsApp connection...');
+    if (req.url === '/health' || req.url === '/') {
+        if (isWhatsAppConnected) {
+            res.writeHead(200, { 'Content-Type': 'text/plain' });
+            res.end('OK');
+        } else {
+            res.writeHead(503, { 'Content-Type': 'text/plain' });
+            res.end('Initializing');
+        }
+        return;
     }
+
+    res.writeHead(404);
+    res.end();
 });
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
@@ -161,6 +169,13 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       isWhatsAppConnected = true;
+
+      // Notification de démarrage
+      try {
+          const botJid = jidNormalizedUser(sock.user.id);
+          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - Gheno-City est en ligne." });
+      } catch (e) {}
+
       startDayNightCycle();
 
       // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
