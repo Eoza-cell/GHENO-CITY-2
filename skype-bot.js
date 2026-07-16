@@ -4,7 +4,7 @@ require('dotenv').config();
 // Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const http = require('http');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -27,32 +27,46 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         return res.end(`
             <html>
-                <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #121b22; color: white;">
-                    <h1>🔗 GHENO-CITY Pairing</h1>
+                <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #121b22; color: white; margin: 0; padding: 20px; box-sizing: border-box; text-align: center;">
+                    <h1>🔗 GHENO-CITY : Connexion</h1>
+
                     ${isWhatsAppConnected ? `
-                        <p style="color: #00a884; font-size: 24px;">✅ Connecté !</p>
-                    ` : currentPairingCode ? `
-                        <div style="background: #00a884; padding: 20px; border-radius: 10px; font-size: 32px; font-weight: bold; letter-spacing: 5px;">
-                            ${currentPairingCode}
+                        <div style="border: 2px solid #00a884; padding: 40px; border-radius: 15px;">
+                            <p style="color: #00a884; font-size: 48px; margin: 0;">✅ CONNECTÉ</p>
+                            <p style="font-size: 18px; margin-top: 10px;">Le bot est en ligne et prêt à jouer.</p>
                         </div>
-                        <p>Entrez ce code dans WhatsApp > Appareils connectés</p>
+                    ` : currentPairingCode ? `
+                        <div style="background: #1d2a33; padding: 30px; border-radius: 15px; border: 1px solid #3b4a54; max-width: 500px;">
+                            <p style="font-size: 18px; margin-bottom: 20px;">Utilisez ce code sur votre téléphone :</p>
+                            <div style="background: #00a884; padding: 20px; border-radius: 10px; font-size: 42px; font-weight: bold; letter-spacing: 5px; color: #121b22; margin: 20px 0;">
+                                ${currentPairingCode}
+                            </div>
+                            <div style="text-align: left; font-size: 14px; color: #aebac1; line-height: 1.6;">
+                                <p><strong>Instructions :</strong></p>
+                                <ol>
+                                    <li>Ouvrez WhatsApp sur votre téléphone.</li>
+                                    <li>Allez dans <strong>Appareils connectés</strong>.</li>
+                                    <li>Appuyez sur <strong>Connecter un appareil</strong>.</li>
+                                    <li>Appuyez sur <strong>Lier avec le numéro de téléphone</strong>.</li>
+                                    <li>Entrez le code affiché ci-dessus.</li>
+                                </ol>
+                            </div>
+                        </div>
                     ` : `
-                        <p>Attente du code... (Génération en cours ou déjà connecté)</p>
+                        <div style="padding: 20px;">
+                            <p style="font-size: 20px;">⏳ Génération du code en cours...</p>
+                            <p style="color: #aebac1;">Si rien n'apparaît après 1 minute, vérifiez le numéro de téléphone dans vos variables d'environnement.</p>
+                        </div>
                     `}
-                    <script>setTimeout(() => location.reload(), 5000)</script>
+                    <script>setTimeout(() => location.reload(), 10000)</script>
                 </body>
             </html>
         `);
     }
 
     if (req.url === '/health' || req.url === '/') {
-        if (isWhatsAppConnected) {
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('OK');
-        } else {
-            res.writeHead(503, { 'Content-Type': 'text/plain' });
-            res.end('Initializing');
-        }
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(isWhatsAppConnected ? 'OPERATIONAL' : 'AWAITING_PAIRING');
         return;
     }
 
@@ -60,7 +74,11 @@ const server = http.createServer((req, res) => {
     res.end();
 });
 const PORT = process.env.PORT || 3000;
-let serverStarted = false;
+
+// Start server IMMEDIATELY to satisfy Render
+server.listen(PORT, () => {
+    console.log(`[SYSTEM] Serveur de santé actif sur le port ${PORT}`);
+});
 
 // Initialisation de la queue pour gérer la charge
 const messageQueue = new PQueue({ concurrency: 5 });
@@ -74,9 +92,13 @@ async function connectToWhatsApp() {
   // Session Reset Logic
   if (process.env.RESET_SESSION === 'true') {
       const { Creds } = require('./database');
-      console.log('⚠️ [AUTH] RESET_SESSION=true détecté. Nettoyage de la table Creds...');
-      await Creds.destroy({ where: {}, truncate: true });
-      console.log('✅ [AUTH] Session réinitialisée. Prêt pour un nouveau couplage.');
+      console.log('⚠️ [AUTH] RESET_SESSION=true détecté. Nettoyage complet de la session...');
+      try {
+          await Creds.destroy({ where: {}, truncate: true });
+          console.log('✅ [AUTH] Session réinitialisée avec succès.');
+      } catch (e) {
+          console.error('[AUTH] Erreur lors du nettoyage de la session:', e.message);
+      }
   }
 
   const { state, saveCreds } = await useDatabaseAuth();
@@ -85,10 +107,10 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false, // QR code is no longer needed
-    browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
+    printQRInTerminal: false,
+    browser: Browsers.ubuntu('Chrome'),
     version,
-    logger: pino({ level: 'silent' }), // Suppress verbose logging
+    logger: pino({ level: 'debug' }), // Set to debug for troubleshooting
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return { conversation: '🔄 Réessaye d\'envoyer ton message' };
@@ -98,6 +120,8 @@ async function connectToWhatsApp() {
   // Handle pairing code logic
   if (!sock.authState.creds.registered) {
     const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
+    console.log(`[AUTH] État de registration : non-enregistré. Numéro cible : ${phoneNumber}`);
+
     if (!phoneNumber) {
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
@@ -109,21 +133,32 @@ async function connectToWhatsApp() {
     await delay(2000); // Wait for socket to be ready
 
     let pairingInterval = null;
-    const requestAndShowCode = async () => {
+    const requestAndShowCode = async (retryCount = 0) => {
         try {
-            console.log(`[AUTH] Demande du code pour : ${phoneNumber}`);
+            console.log(`[AUTH] Demande du code pour : ${phoneNumber} (Tentative ${retryCount + 1})`);
             const code = await sock.requestPairingCode(phoneNumber);
             const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
             currentPairingCode = formattedCode;
 
-            console.log('\n\n\x1b[42m\x1b[30m' + ' '.repeat(62) + '\x1b[0m');
-            console.log('\x1b[42m\x1b[30m   VOTRE CODE DE PAIRAGE WHATSAPP (GHENO-CITY) :             \x1b[0m');
-            console.log('\x1b[42m\x1b[30m                                                              \x1b[0m');
-            console.log(`\x1b[42m\x1b[30m   ➡️➡️➡️   ${formattedCode}   ⬅️⬅️⬅️   \x1b[0m`);
-            console.log('\x1b[42m\x1b[30m                                                              \x1b[0m');
-            console.log('\x1b[42m\x1b[30m' + ' '.repeat(62) + '\x1b[0m\n\n');
+            console.log('\n' + '*'.repeat(65));
+            console.log('*   VOTRE CODE DE PAIRAGE WHATSAPP (GHENO-CITY) :');
+            console.log('*');
+            console.log(`*   ➡️➡️➡️   ${formattedCode}   ⬅️⬅️⬅️`);
+            console.log('*');
+            console.log('*   Entrez ce code dans WhatsApp > Appareils connectés');
+            console.log('*'.repeat(65) + '\n');
+
+            // Repeat in color for supported terminals
+            console.log('\x1b[42m\x1b[30m' + ' '.repeat(62) + '\x1b[0m');
+            console.log('\x1b[42m\x1b[30m   CODE PAIRING : ' + formattedCode + ' '.repeat(62 - 18 - formattedCode.length) + '\x1b[0m');
+            console.log('\x1b[42m\x1b[30m' + ' '.repeat(62) + '\x1b[0m\n');
         } catch (err) {
             console.error('[AUTH] Échec demande code pairing:', err.message);
+            if (retryCount < 3) {
+                console.log('[AUTH] Nouvelle tentative dans 5s...');
+                await delay(5000);
+                return requestAndShowCode(retryCount + 1);
+            }
         }
     };
 
@@ -250,14 +285,6 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(async () => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
-
-    // Start HTTP server immediately to prevent Render boot timeouts
-    if (!serverStarted) {
-        server.listen(PORT, () => {
-            console.log(`[HTTP] Server listening on port ${PORT}`);
-            serverStarted = true;
-        });
-    }
 
     // Warm up the Tiny Soul (Local IA)
     tinySoul.ignite().catch(e => console.warn("[TINY-SOUL] Background load failed:", e.message));
