@@ -129,9 +129,6 @@ async function connectToWhatsApp() {
 
     await requestAndShowCode();
 
-    // Repeat the code every 20 seconds to ensure it stays in logs
-    pairingInterval = setInterval(requestAndShowCode, 20000);
-
     sock.ev.on('connection.update', (update) => {
         if (update.connection === 'open') {
             clearInterval(pairingInterval);
@@ -151,40 +148,27 @@ async function connectToWhatsApp() {
       console.log(`[CONN] Fermée. Code: ${statusCode}, Conflict: ${isConflict}, LoggedOut: ${isLoggedOut}`);
 
       if (isConflict) {
-          console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-          console.error('!!! CONFLIT DE SESSION : Le bot est connecté ailleurs.     !!!');
-          console.error('!!! Déconnexion automatique pour éviter la boucle.         !!!');
-          console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-          // Optional: Cleanup credentials to force a new pairing
-          // await Creds.destroy({ where: {} });
+          console.error('!!! CONFLIT DE SESSION : Le bot est connecté ailleurs.');
           return;
       }
 
       const shouldReconnect = !isLoggedOut;
       if (shouldReconnect) {
-        console.log('[CONN] Reconnexion dans 5s...');
-        await delay(5000);
+        console.log('[CONN] Reconnexion dans 10s...');
+        await delay(10000);
         connectToWhatsApp();
       }
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       isWhatsAppConnected = true;
+      currentPairingCode = null;
 
-      // Notification de démarrage
       try {
           const botJid = jidNormalizedUser(sock.user.id);
           sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - Gheno-City est en ligne." });
       } catch (e) {}
 
       startDayNightCycle();
-
-      // Démarre le serveur HTTP uniquement si ce n'est pas déjà fait
-      if (!serverStarted) {
-          server.listen(PORT, () => {
-              console.log(`Server listening on port ${PORT} for Render health checks.`);
-              serverStarted = true;
-          });
-      }
     }
   });
 
@@ -257,6 +241,14 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(async () => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
+
+    // Start HTTP server immediately to prevent Render boot timeouts
+    if (!serverStarted) {
+        server.listen(PORT, () => {
+            console.log(`[HTTP] Server listening on port ${PORT}`);
+            serverStarted = true;
+        });
+    }
 
     // Warm up the Tiny Soul (Local IA)
     tinySoul.ignite().catch(e => console.warn("[TINY-SOUL] Background load failed:", e.message));
