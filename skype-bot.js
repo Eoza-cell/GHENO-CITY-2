@@ -22,6 +22,7 @@ let activeSocket = null;
 let reconnectionTimeout = null;
 let reconnectAttempts = 0;
 let isConnecting = false;
+let lastPairingCodeRequestTime = 0;
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -43,6 +44,40 @@ const server = http.createServer((req, res) => {
         } else {
             res.end("<h1>Code non généré.</h1><p>Vérifiez que le bot est en train de démarrer ou qu'il n'est pas déjà connecté.</p>");
         }
+        return;
+    }
+
+    if (req.url === '/reset-session') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        const { Creds } = require('./database');
+        Creds.destroy({ where: {} })
+            .then(() => {
+                pairingCode = null;
+                isWhatsAppConnected = false;
+                if (activeSocket) {
+                    try { activeSocket.end(); } catch (e) {}
+                    activeSocket = null;
+                }
+                isConnecting = false;
+                res.end(`
+                    <html>
+                        <body style="font-family: sans-serif; text-align: center; padding-top: 50px; background: #121212; color: white;">
+                            <h1 style="color: #FF3B30;">Session Réinitialisée avec Succès !</h1>
+                            <p style="font-size: 1.2em;">Toutes les données de session temporaires ont été effacées de la DB.</p>
+                            <p style="font-size: 1.1em; color: #ffd700;">Les données des joueurs et leur progression sont intactes.</p>
+                            <p>Le bot va régénérer un nouveau code de pairage d'ici quelques secondes.</p>
+                            <br/>
+                            <a href="/pairing" style="display: inline-block; padding: 10px 20px; background: #25D366; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Voir le Code de Pairage</a>
+                        </body>
+                    </html>
+                `);
+                setTimeout(() => {
+                    connectToWhatsApp();
+                }, 5000);
+            })
+            .catch(err => {
+                res.end(`<h1>Erreur de réinitialisation</h1><p>${err.message}</p>`);
+            });
         return;
     }
 
@@ -125,6 +160,15 @@ async function connectToWhatsApp() {
         phoneNumber = phoneNumber.slice(1); // Standard sanitize fallback
     }
 
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastPairingCodeRequestTime;
+    if (timeSinceLastRequest < 45000) {
+        const waitTime = 45000 - timeSinceLastRequest;
+        console.log(`[AUTH] Demande de code trop fréquente. En attente de ${Math.ceil(waitTime / 1000)}s pour éviter le rate-limit WhatsApp...`);
+        await delay(waitTime);
+    }
+
+    lastPairingCodeRequestTime = Date.now();
     await delay(6000); // Wait for the socket to be fully established before requesting
     console.log(`[AUTH] Tentative de connexion avec le numéro : ${phoneNumber}`);
 
