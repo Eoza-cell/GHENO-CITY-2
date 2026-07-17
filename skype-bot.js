@@ -21,6 +21,7 @@ let isWhatsAppConnected = false;
 let activeSocket = null;
 let reconnectionTimeout = null;
 let reconnectAttempts = 0;
+let isConnecting = false;
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -46,13 +47,13 @@ const server = http.createServer((req, res) => {
     }
 
     if (req.url === '/health') {
-        if (isWhatsAppConnected) {
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('OK');
-        } else {
-            res.writeHead(503, { 'Content-Type': 'text/plain' });
-            res.end('WhatsApp not connected');
-        }
+        // Return 200 even if pairing to prevent Render from restart-looping the container
+        // and triggering WhatsApp's 429 rate limit.
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: isWhatsAppConnected ? "connected" : "pairing",
+            pairingCode: pairingCode || null
+        }));
         return;
     }
 
@@ -65,11 +66,12 @@ const PORT = process.env.PORT || 3000;
 const messageQueue = new PQueue({ concurrency: 5 });
 
 async function connectToWhatsApp() {
-  if (activeSocket) {
+  if (activeSocket || isConnecting) {
       console.log('[CORE] Une tentative ou connexion active existe déjà. Ignoré pour éviter la concurrence.');
       return;
   }
 
+  isConnecting = true;
   console.log('[CORE] Initialisation de la connexion WhatsApp...');
   // Assure que le dossier des profils existe
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
@@ -103,6 +105,7 @@ async function connectToWhatsApp() {
   });
 
   activeSocket = sock;
+  isConnecting = false;
 
   // Handle pairing code logic
   if (!sock.authState.creds.registered) {
@@ -185,9 +188,11 @@ async function connectToWhatsApp() {
           console.log('Réinitialisation de la session dans la base de données...');
           const { Creds } = require('./database');
           await Creds.destroy({ where: {} });
-          console.log('Session effacée. Relancement pour nouveau pairage...');
+          console.log('Session effacée. Relancement pour nouveau pairage dans 15 secondes...');
           reconnectAttempts = 0;
-          connectToWhatsApp();
+          reconnectionTimeout = setTimeout(() => {
+              connectToWhatsApp();
+          }, 15000);
       } else if (shouldReconnect) {
           // Gestion du backoff exponentiel pour éviter les erreurs 429
           reconnectAttempts++;
