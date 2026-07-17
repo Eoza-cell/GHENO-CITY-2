@@ -476,13 +476,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     console.log(`[AI] Lancement de la Course Parallèle (depth: ${depth})...`);
 
-    // Priority race
-    // Pollinations is prioritized for zero-cost hosted inference on Render
+    // Pollinations AI is strictly required as primary provider
     const raceModels = [
-        { name: 'Aether-Matrix-V1', fn: (s, p) => callPollinationModel(s, p, "openai"), timeout: 20000 },
-        { name: 'Aether-Matrix-SDK', fn: (s, p) => callPollinationModel(s, p, "mistral"), timeout: 20000 },
-        { name: 'Gemma-3-Remote', fn: (s, p) => callOpenRouter(s, p), timeout: 30000 },
-        { name: 'Blackbox', fn: callBlackbox, timeout: 30000 }
+        { name: 'Pollinations-Matrix-Gemma', fn: (s, p) => callPollinationModel(s, p, "openai"), timeout: 25000 },
+        { name: 'Pollinations-Matrix-Mistral', fn: (s, p) => callPollinationModel(s, p, "mistral"), timeout: 25000 }
     ];
 
     // Create a promise for each model that resolves only on valid response

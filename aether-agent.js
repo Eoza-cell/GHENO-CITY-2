@@ -39,16 +39,7 @@ class AetherAgent {
             const updates = [playerUpdate];
             const actions = [];
 
-            // Command Bridge: Detect command-like intent in natural language
-            if (actionText.match(/profil|stat|fiche|qui suis-je/i)) {
-                actions.push({ type: 'execute_command', parameters: { command: 'profile' } });
-            }
-            if (actionText.match(/inventaire|sac|objets/i)) {
-                actions.push({ type: 'execute_command', parameters: { command: 'inventory' } });
-            }
-            if (actionText.match(/carte|map|monde|où suis-je/i)) {
-                actions.push({ type: 'execute_command', parameters: { command: 'map' } });
-            }
+            // Command Bridge disabled: AI responds only in action mode.
 
             // Power-based Logic: AI-driven world response
             if (intent.primaryIntent === 'COMBAT') {
