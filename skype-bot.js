@@ -207,14 +207,11 @@ async function connectToWhatsApp() {
       isWhatsAppConnected = true;
       reconnectAttempts = 0;
 
-      // Envoyer une notification de connexion au numéro du bot
-      try {
-          const botId = jidNormalizedUser(sock.user.id);
-          await sock.sendMessage(botId, { text: '✅ *SYSTÈME OPÉRATIONNEL* : Le Noyau Gemma 3 est maintenant en ligne et synchronisé avec WhatsApp.' });
-          console.log('[AUTH] Notification de connexion envoyée.');
-      } catch (e) {
-          console.error('[AUTH] Échec de l\'envoi de la notification de connexion :', e.message);
-      }
+      // Envoyer immédiatement la notification de connexion au numéro du bot sans bloquer le reste
+      const botId = jidNormalizedUser(sock.user.id);
+      sock.sendMessage(botId, { text: '✅ *SYSTÈME OPÉRATIONNEL* : Le Noyau Gemma 3 est maintenant en ligne et synchronisé avec WhatsApp.' })
+          .then(() => console.log('[AUTH] Notification de connexion envoyée immédiatement.'))
+          .catch(e => console.error('[AUTH] Échec de l\'envoi de la notification de connexion :', e.message));
 
       startDayNightCycle();
     }
