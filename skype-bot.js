@@ -109,7 +109,7 @@ async function connectToWhatsApp() {
 
   // Handle pairing code logic
   if (!sock.authState.creds.registered) {
-    const phoneNumber = (process.env.PHONE_NUMBER || "").replace(/\D/g, "").trim();
+    let phoneNumber = (process.env.PHONE_NUMBER || "").replace(/\D/g, "").trim();
     if (!phoneNumber) {
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
@@ -118,7 +118,14 @@ async function connectToWhatsApp() {
       process.exit(1);
     }
 
-    await delay(5000); // Increased delay to ensure socket is fully ready
+    // WhatsApp pairing code requires full international code format.
+    // If the number starts with 0 and has no country code, warn the user.
+    if (phoneNumber.startsWith('0')) {
+        console.warn(`[AUTH] Le numéro commence par "0" (${phoneNumber}). Pour le pairage Baileys/WhatsApp, vous devez inclure l'indicatif international (ex: 225... ou 33...) au début.`);
+        phoneNumber = phoneNumber.slice(1); // Standard sanitize fallback
+    }
+
+    await delay(6000); // Wait for the socket to be fully established before requesting
     console.log(`[AUTH] Tentative de connexion avec le numéro : ${phoneNumber}`);
 
     let retryCount = 0;
@@ -183,9 +190,9 @@ async function connectToWhatsApp() {
           clearTimeout(reconnectionTimeout);
       }
 
-      if (statusCode === 401) {
-          console.error('!!! SESSION INVALIDÉE (401) !!!');
-          console.log('Réinitialisation de la session dans la base de données...');
+      if (statusCode === 401 || (lastDisconnect.error?.message && lastDisconnect.error.message.includes('Unauthorized'))) {
+          console.error('!!! SESSION INVALIDÉE (401/Unauthorized) !!!');
+          console.log('Réinitialisation complète de la session dans la base de données...');
           const { Creds } = require('./database');
           await Creds.destroy({ where: {} });
           console.log('Session effacée. Relancement pour nouveau pairage dans 15 secondes...');
