@@ -18,6 +18,9 @@ const { startDayNightCycle } = require('./game-state');
 
 let pairingCode = null;
 let isWhatsAppConnected = false;
+let activeSocket = null;
+let reconnectionTimeout = null;
+let reconnectAttempts = 0;
 
 // Crée un serveur HTTP minimaliste pour répondre aux contrôles de santé de Render
 const server = http.createServer((req, res) => {
@@ -62,6 +65,11 @@ const PORT = process.env.PORT || 3000;
 const messageQueue = new PQueue({ concurrency: 5 });
 
 async function connectToWhatsApp() {
+  if (activeSocket) {
+      console.log('[CORE] Une tentative ou connexion active existe déjà. Ignoré pour éviter la concurrence.');
+      return;
+  }
+
   console.log('[CORE] Initialisation de la connexion WhatsApp...');
   // Assure que le dossier des profils existe
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
@@ -93,6 +101,8 @@ async function connectToWhatsApp() {
         return { conversation: '🔄 Réessaye d\'envoyer ton message' };
     }
   });
+
+  activeSocket = sock;
 
   // Handle pairing code logic
   if (!sock.authState.creds.registered) {
@@ -163,19 +173,34 @@ async function connectToWhatsApp() {
       console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
 
       isWhatsAppConnected = false;
+      activeSocket = null;
+
+      // Nettoyer les timeouts de reconnexion existants
+      if (reconnectionTimeout) {
+          clearTimeout(reconnectionTimeout);
+      }
+
       if (statusCode === 401) {
           console.error('!!! SESSION INVALIDÉE (401) !!!');
           console.log('Réinitialisation de la session dans la base de données...');
           const { Creds } = require('./database');
           await Creds.destroy({ where: {} });
           console.log('Session effacée. Relancement pour nouveau pairage...');
+          reconnectAttempts = 0;
           connectToWhatsApp();
       } else if (shouldReconnect) {
-        connectToWhatsApp();
+          // Gestion du backoff exponentiel pour éviter les erreurs 429
+          reconnectAttempts++;
+          const delayTime = Math.min(10000 * Math.pow(2, reconnectAttempts - 1), 60000); // Max 1 minute de délai
+          console.log(`[CORE] Planification de la reconnexion dans ${delayTime / 1000} secondes (tentative #${reconnectAttempts})...`);
+          reconnectionTimeout = setTimeout(() => {
+              connectToWhatsApp();
+          }, delayTime);
       }
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       isWhatsAppConnected = true;
+      reconnectAttempts = 0;
 
       // Envoyer une notification de connexion au numéro du bot
       try {
