@@ -157,7 +157,11 @@ async function setupDatabase() {
             { name: 'Chigiri Hyoma (Equipe Z)', shoot: 70, pass: 65, dribble: 75, defense: 60, speed: 95, power: 60, specialAbilities: ['Vitesse éclair', 'Sprint infini'], priceLock: 70, priceSpark: 3500 },
             { name: 'Barou Shoei', shoot: 90, pass: 50, dribble: 80, defense: 60, speed: 80, power: 92, specialAbilities: ['Coup franc de force', 'Mode Roi'], priceLock: 100, priceSpark: 5000 },
             { name: 'Itoshi Rin', shoot: 95, pass: 90, dribble: 90, defense: 85, speed: 88, power: 80, specialAbilities: ['Tir de marionnettiste', 'Vision spatiale'], priceLock: 200, priceSpark: 10000 },
-            { name: 'Nagi Seishiro', shoot: 88, pass: 80, dribble: 85, defense: 50, speed: 80, power: 75, specialAbilities: ['Contrôle parfait', 'Tir acrobatique'], priceLock: 150, priceSpark: 7500 }
+            { name: 'Nagi Seishiro', shoot: 88, pass: 80, dribble: 85, defense: 50, speed: 80, power: 75, specialAbilities: ['Contrôle parfait', 'Tir acrobatique'], priceLock: 150, priceSpark: 7500 },
+            { name: 'Mikage Reo', shoot: 78, pass: 82, dribble: 80, defense: 76, speed: 79, power: 74, specialAbilities: ['Copie Polyvalente', 'Caméléon'], priceLock: 110, priceSpark: 5500 },
+            { name: 'Shidou Ryusei', shoot: 96, pass: 45, dribble: 70, defense: 40, speed: 90, power: 85, specialAbilities: ['But Extrême', 'Instinct Animal'], priceLock: 190, priceSpark: 9500 },
+            { name: 'Itoshi Sae', shoot: 92, pass: 98, dribble: 94, defense: 75, speed: 86, power: 70, specialAbilities: ['Passe Chirurgicale', 'Dribble Esthétique'], priceLock: 250, priceSpark: 12500 },
+            { name: 'Michael Kaiser', shoot: 98, pass: 80, dribble: 88, defense: 55, speed: 92, power: 84, specialAbilities: ['Kaiser Impact', 'Meta-Vision'], priceLock: 300, priceSpark: 15000 }
         ]);
     }
 
