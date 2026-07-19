@@ -2,9 +2,9 @@
   "name": "app",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "gheno-city.js",
   "scripts": {
-    "start": "node skype-bot.js",
+    "start": "node gheno-city.js",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {
