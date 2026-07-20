@@ -679,7 +679,7 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par les brackets des impacts statutaires.`;
 
   try {
-    let content = await callAI(systemPrompt, fullPrompt);
+    let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false });
     if (!content) {
         content = "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...";
     }
