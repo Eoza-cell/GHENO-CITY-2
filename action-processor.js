@@ -581,6 +581,20 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
                     await target.increment(s, { by: v });
                 }
             }
+            await target.reload();
+            const rankCaps = { 'F': 30, 'E': 45, 'D': 60, 'C': 80, 'B': 100, 'A': 150, 'S': 300 };
+            const cap = rankCaps[target.rank] || 30;
+            const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck'];
+            let capChanged = false;
+            for (const s of stats) {
+                if (target[s] > cap) {
+                    target[s] = cap;
+                    capChanged = true;
+                }
+            }
+            if (capChanged) {
+                await target.save();
+            }
         }
         await target.reload();
         playersToUpdate.add(target.whatsappId);

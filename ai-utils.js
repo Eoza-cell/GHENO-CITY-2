@@ -476,7 +476,8 @@ async function callOllama(system, prompt, options = {}) {
         console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
 
         const payload = {
-            model: process.env.OLLAMA_MODEL || 'dark-lust',
+            // Default model is 'mistral' (creative writing and roleplay standard from https://ollama.com/library)
+            model: process.env.OLLAMA_MODEL || 'mistral',
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
