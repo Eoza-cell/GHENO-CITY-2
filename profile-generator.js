@@ -5,6 +5,67 @@ const fs = require('fs');
 const { escapeXml } = require('./utils');
 const { generate3DVisual } = require('./three-renderer');
 
+/**
+ * Evaluates active Conflicts and WorldJournal plot events to calculate dynamic story-driven stat modifiers and conditions.
+ * @param {Object} player - The player record
+ * @returns {Promise<Object>} An object containing plot effects, name, and stat modifications.
+ */
+async function calculatePlotImpact(player) {
+    const { Conflict, WorldJournal } = require('./database');
+
+    let plotName = "🌱 ÉVEIL DE L'HÉRITIER";
+    let plotDesc = "Vous commencez à ressentir le flux d'Ether d'Aetherys. Votre destin s'éveille.";
+    let modifiers = {};
+    let visualEffect = "light"; // 'light', 'fire', 'dark', 'void', 'war'
+
+    try {
+        // 1. Check for active conflicts involving player's current location
+        const activeConflicts = await Conflict.findAll({ where: { status: 'active' } });
+        const localConflict = activeConflicts.find(c => {
+            const kingdoms = Array.isArray(c.involvedKingdoms) ? c.involvedKingdoms : [];
+            return kingdoms.some(k => k.toLowerCase() === player.location.toLowerCase());
+        });
+
+        if (localConflict) {
+            plotName = "⚔️ MOBILISATION DE GUERRE";
+            plotDesc = `Conflit actif : ${localConflict.title}. La pression militaire est extrême dans votre région.`;
+            modifiers = { strength: 8, defense: 5, agility: -4 };
+            visualEffect = "war";
+            return { plotName, plotDesc, modifiers, visualEffect };
+        }
+
+        // 2. Check latest World Journal plot entries
+        const latestPlot = await WorldJournal.findOne({
+            where: { category: 'plot' },
+            order: [['id', 'DESC']]
+        });
+
+        if (latestPlot) {
+            const entryText = latestPlot.entry.toLowerCase();
+            if (entryText.includes('eclipse') || entryText.includes('griffith') || entryText.includes('apôtre')) {
+                plotName = "💀 MARQUE DE LA CAUSALITÉ";
+                plotDesc = "Griffith a ouvert l'Interstice. Vous êtes marqué par le Béhérit rouge. Force décuplée au prix de votre protection.";
+                modifiers = { strength: 18, luck: -12, defense: -6 };
+                visualEffect = "fire";
+            } else if (entryText.includes('convergence') || entryText.includes('vide') || entryText.includes('failles')) {
+                plotName = "🌀 INFLUENCE DE LA CONVERGENCE";
+                plotDesc = "Les failles de l'Interstice perturbent la réalité. Votre esprit s'aiguise mais le mana est instable.";
+                modifiers = { intelligence: 15, defense: -5, luck: 5 };
+                visualEffect = "dark";
+            } else if (entryText.includes('néant') || entryText.includes('void')) {
+                plotName = "🖤 OMBRE DU NÉANT";
+                plotDesc = "La corruption du Roi Vide rampe sur votre âme. Agilité décuplée au détriment de votre énergie vitale.";
+                modifiers = { agility: 14, strength: -4, intelligence: 6 };
+                visualEffect = "void";
+            }
+        }
+    } catch (err) {
+        console.warn("[Plot Impact] Failed to query plot impacts:", err.message);
+    }
+
+    return { plotName, plotDesc, modifiers, visualEffect };
+}
+
 async function generateProfileCard(player) {
     const width = 800;
     const height = 1100;
@@ -34,12 +95,12 @@ async function generateProfileCard(player) {
         if (fs.existsSync(templatePath)) {
             baseImg = await sharp(templatePath).resize(width, height).toBuffer();
         } else {
-        const svg = `
-            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-                <rect width="100%" height="100%" fill="#050510" />
-            </svg>
-        `;
-        baseImg = await sharp(Buffer.from(svg)).png().toBuffer();
+            const svg = `
+                <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="100%" height="100%" fill="#050510" />
+                </svg>
+            `;
+            baseImg = await sharp(Buffer.from(svg)).png().toBuffer();
         }
     }
 
@@ -92,6 +153,45 @@ async function addOverlay(baseImg, player, width, height) {
 
     const bioLines = wrapText(player.characterDescription || "Le destin se forge à chaque pas dans l'Interstice.", 35);
 
+    // Calculate dynamic plot impacts from the main story
+    const plotImpact = await calculatePlotImpact(player);
+    const plotLines = wrapText(plotImpact.plotDesc, 38);
+
+    // Dynamic graphical overlay theme based on the plot effect
+    let plotVisualOverlaySvg = '';
+    if (plotImpact.visualEffect === 'fire') {
+        plotVisualOverlaySvg = `
+            <!-- Red aura glow for Mark of causality (Eclipse) -->
+            <rect width="100%" height="100%" fill="none" stroke="#ff3300" stroke-width="4" opacity="0.35" filter="url(#glow)" />
+            <!-- Crimson bleeding brand brand mark -->
+            <g transform="translate(100, 480)" filter="url(#glow)">
+                <path d="M 0,0 L 25,40 L 50,0 Q 25,-10 0,0" fill="none" stroke="#ff0000" stroke-width="4.5" />
+                <line x1="25" y1="10" x2="25" y2="45" stroke="#ff0000" stroke-width="4.5" />
+                <circle cx="25" cy="5" r="4" fill="#ff0000" />
+                <text x="-40" y="-15" font-family="monospace" font-size="10" font-weight="bold" fill="#ff3333" letter-spacing="1">CAUSALITY BRANDED</text>
+            </g>
+        `;
+    } else if (plotImpact.visualEffect === 'dark') {
+        plotVisualOverlaySvg = `
+            <!-- Purple shadow miasma for Convergence -->
+            <rect width="100%" height="100%" fill="none" stroke="#bf00ff" stroke-width="4" opacity="0.25" filter="url(#glow)" />
+            <circle cx="200" cy="550" r="120" fill="none" stroke="#bf00ff" stroke-width="2" stroke-dasharray="10,15" opacity="0.4" />
+        `;
+    } else if (plotImpact.visualEffect === 'void') {
+        plotVisualOverlaySvg = `
+            <!-- Black fog for Void -->
+            <rect width="100%" height="100%" fill="none" stroke="#050515" stroke-width="8" opacity="0.8" />
+            <rect width="100%" height="100%" fill="none" stroke="#00ffff" stroke-width="2" opacity="0.3" filter="url(#glow)" />
+        `;
+    } else if (plotImpact.visualEffect === 'war') {
+        plotVisualOverlaySvg = `
+            <!-- War banners / crosshairs -->
+            <rect width="100%" height="100%" fill="none" stroke="#ffcc00" stroke-width="3" opacity="0.3" />
+            <line x1="15" y1="15" x2="60" y2="15" stroke="#ffcc00" stroke-width="4" />
+            <line x1="15" y1="15" x2="15" y2="60" stroke="#ffcc00" stroke-width="4" />
+        `;
+    }
+
     const overlaySvg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
             <style>
@@ -104,6 +204,9 @@ async function addOverlay(baseImg, player, width, height) {
                 .label { font-size: 16px; font-weight: bold; fill: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 3px; }
                 .stat-val { font-size: 19px; font-weight: bold; fill: #ffffff; filter: drop-shadow(0 0 5px rgba(255,255,255,0.3)); }
                 .about-header { font-size: 32px; font-weight: 900; fill: #ffffff; letter-spacing: 2px; }
+                .plot-title { font-size: 19px; font-weight: 900; fill: #ff4500; filter: drop-shadow(0 0 3px #ff4500); }
+                .plot-desc { font-size: 14px; fill: rgba(255,255,255,0.8); font-style: italic; line-height: 1.4; }
+                .plot-modifier { font-size: 13px; font-family: monospace; fill: #00ff66; font-weight: bold; }
             </style>
 
             <defs>
@@ -125,6 +228,9 @@ async function addOverlay(baseImg, player, width, height) {
 
             <!-- Dark glass background -->
             <rect width="100%" height="100%" fill="url(#mainGrad)" />
+
+            <!-- Dynamic Plot Overlay graphics -->
+            ${plotVisualOverlaySvg}
 
             <!-- Fake Navbar from reference image -->
             <g transform="translate(60, 50)">
@@ -183,14 +289,44 @@ async function addOverlay(baseImg, player, width, height) {
                 </g>
             </g>
 
+            <!-- EXTRA BOTTOM ROW: DYNAMIC IMPACT OF THE MAIN PLOT -->
+            <g transform="translate(480, 760)">
+                <rect x="-10" y="-10" width="280" height="260" fill="rgba(255,69,0,0.04)" stroke="rgba(255,69,0,0.15)" stroke-width="1.5" rx="10" />
+                <text x="10" y="20" class="label" style="fill:#ff8c00;">● TRAME PRINCIPALE</text>
+
+                <g transform="translate(10, 50)">
+                    <text x="0" y="0" class="plot-title">${escapeXml(plotImpact.plotName)}</text>
+
+                    <!-- Plot Description wrapped -->
+                    <g transform="translate(0, 20)">
+                        ${plotLines.slice(0, 3).map((line, i) => `
+                            <text x="0" y="${i * 18}" class="plot-desc">${escapeXml(line)}</text>
+                        `).join('')}
+                    </g>
+
+                    <!-- Plot Modifiers -->
+                    <g transform="translate(0, 100)">
+                        <text x="0" y="0" class="label" style="font-size:10px; fill:rgba(255,255,255,0.4)">MODIFICATEURS DE STATS :</text>
+                        ${Object.keys(plotImpact.modifiers).length > 0 ?
+                            Object.entries(plotImpact.modifiers).map(([stat, val], i) => `
+                                <text x="${(i%2)*120}" y="${18 + Math.floor(i/2)*20}" class="plot-modifier">
+                                    ${stat.toUpperCase()} : ${val >= 0 ? '+' : ''}${val}
+                                </text>
+                            `).join('') :
+                            `<text x="0" y="18" class="plot-desc" style="fill:rgba(255,255,255,0.4)">Aucune perturbation active.</text>`
+                        }
+                    </g>
+                </g>
+            </g>
+
             <!-- UI Decoration lines -->
             <line x1="60" y1="200" x2="300" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
             <line x1="480" y1="200" x2="740" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
 
             <!-- Bottom Section for 3D Model -->
-            <rect x="60" y="760" width="340" height="260" fill="rgba(255,255,255,0.05)" rx="10" stroke="rgba(255,255,255,0.1)" />
+            <rect x="60" y="760" width="370" height="260" fill="rgba(255,255,255,0.05)" rx="10" stroke="rgba(255,255,255,0.1)" />
             <text x="75" y="790" class="label" style="fill: #ffffff; font-size: 14px;">● LIVE_3D_MODEL_SCAN</text>
-            <text x="385" y="790" class="label" text-anchor="end" style="fill: #00ffff; font-size: 10px; font-weight: normal;">SYNC_STATUS: 100%</text>
+            <text x="415" y="790" class="label" text-anchor="end" style="fill: #00ffff; font-size: 10px; font-weight: normal;">SYNC_STATUS: 100%</text>
             <rect x="250" y="782" width="80" height="8" fill="rgba(0,255,255,0.1)" rx="2" />
             <rect x="250" y="782" width="80" height="8" fill="#00ffff" rx="2">
                 <animate attributeName="width" from="0" to="80" dur="2s" fill="freeze" />
@@ -204,7 +340,7 @@ async function addOverlay(baseImg, player, width, height) {
         // Generate 3D Character Model
         const modelType = (player.gender || "").toLowerCase().includes('f') ? 'female' : 'male';
         const threeBuffer = await generate3DVisual(modelType, 0x00ffff, outfitColor);
-        const threeResized = await sharp(threeBuffer).resize(300, 240, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
+        const threeResized = await sharp(threeBuffer).resize(330, 240, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
 
         const compositeOperations = [
             { input: Buffer.from(overlaySvg), top: 0, left: 0 },
@@ -240,4 +376,4 @@ async function addOverlay(baseImg, player, width, height) {
     }
 }
 
-module.exports = { generateProfileCard };
+module.exports = { generateProfileCard, calculatePlotImpact };

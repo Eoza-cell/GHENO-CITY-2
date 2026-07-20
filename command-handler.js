@@ -214,6 +214,9 @@ const profileCommand = async (sock, message) => {
       const xpNeeded = player.level * 100;
       const xpBar = createStatusBar(player.xp, xpNeeded);
 
+      const { calculatePlotImpact } = require('./profile-generator');
+      const plot = await calculatePlotImpact(player);
+
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *HÉRITIER:* ${player.name}\n` +
                           `⚧️ *SEXE:* ${player.gender}\n` +
@@ -235,7 +238,11 @@ const profileCommand = async (sock, message) => {
                           `💰 *COL:* ${player.col} 🪙\n` +
                           (player.masterId ? `🔗 *MAÎTRE:* ${player.masterId.substring(0, 8)}...\n` : '') +
                           (player.fusedWithId ? `🌀 *FUSION:* Sync ${Math.round(player.fusionSyncLevel * 100)}%\n` : '') +
-                          `📍 *LIEU:* ${player.location} (${player.subLocation})\n` +
+                          `📍 *LIEU:* ${player.location} (${player.subLocation})\n\n` +
+                          `--- 💥 IMPACT DE LA TRAME PRINCIPALE --- \n` +
+                          `📖 Effet : *${plot.plotName}*\n` +
+                          `└ ${plot.plotDesc}\n` +
+                          (Object.keys(plot.modifiers).length > 0 ? `📊 Modificateurs : ${Object.entries(plot.modifiers).map(([s,v]) => `${s.toUpperCase()} : ${v>=0?'+':''}${v}`).join(' • ')}\n` : '') +
                           `---------------------------`;
 
       await sock.sendMessage(replyJid, {
@@ -1980,7 +1987,7 @@ commands.set('menu', async (sock, message) => {
                    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
   try {
-    const menuImage = await generateMainMenuImage();
+    const menuImage = await generateMainMenuImage(player);
     await sock.sendMessage(message.key.remoteJid, {
         image: menuImage,
         caption: menuText
