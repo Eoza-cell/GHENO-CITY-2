@@ -16,7 +16,6 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 const { startModelServer } = require('./model-server');
-const tinySoul = require('./tiny-soul');
 
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
@@ -285,9 +284,6 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(async () => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
-
-    // Warm up the Tiny Soul (Local IA)
-    tinySoul.ignite().catch(e => console.warn("[TINY-SOUL] Background load failed:", e.message));
 
     // Démarre le 2ème serveur pour le modèle DARK LUST
     startModelServer();
