@@ -1,5 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+
+// Memory map to track the last 8 items shown to each player for easy index-based purchases
+const lastViewedItems = new Map();
 const axios = require('axios');
 const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
@@ -355,13 +358,29 @@ commands.set('acheter', async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
-    const itemName = args.join(' ');
+    const rawArg = args.join(' ').trim();
 
-    if (!player || !itemName) return;
+    if (!player || !rawArg) return;
 
-    const item = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
+    let item = null;
+
+    // Check if the argument is an index between 1 and 8
+    const parsedIndex = parseInt(rawArg);
+    if (!isNaN(parsedIndex) && parsedIndex >= 1 && parsedIndex <= 8) {
+        const viewed = lastViewedItems.get(jid);
+        if (viewed && viewed[parsedIndex - 1]) {
+            const targetName = viewed[parsedIndex - 1];
+            item = await Item.findOne({ where: { name: targetName } });
+        }
+    }
+
+    // Fallback to fuzzy match by name
     if (!item) {
-        return await sock.sendMessage(replyJid, { text: "❌ Cet objet n'est pas disponible en magasin." });
+        item = await Item.findOne({ where: { name: { [Op.like]: `%${rawArg}%` } } });
+    }
+
+    if (!item) {
+        return await sock.sendMessage(replyJid, { text: `❌ L'objet "${rawArg}" n'est pas disponible en magasin ou cet index n'a pas encore été affiché dans votre /boutique.` });
     }
 
     if (player.col < item.price) {
@@ -784,6 +803,10 @@ commands.set('boutique', async (sock, message, args) => {
         if (count === 0) {
             return await sock.sendMessage(replyJid, { text: `❌ Aucun article trouvé pour votre recherche "${searchKeyword || filterType || 'Boutique entière'}".` });
         }
+
+        // Save listed items to track for quick index-based purchase
+        const jid = getJid(message);
+        lastViewedItems.set(jid, items.map(i => i.name));
 
         const totalPages = Math.ceil(count / limit);
         if (page > totalPages) {
