@@ -51,6 +51,12 @@ async function generateMainMenuImage(player) {
     // Sub-locations for selection indicators
     const menuCommands = ['/action', '/profil', '/quests', '/map', '/bank', '/lore'];
 
+    // Check if Empire of Elion flag is available
+    const flagPath = path.join(__dirname, 'assets', 'empire_elion_flag.png');
+    const hasFlag = fs.existsSync(flagPath);
+    const bgOpacity = hasFlag ? "0.3" : "1.0";
+    const glowOpacity = hasFlag ? "0.55" : "1.0";
+
     const svg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -103,9 +109,9 @@ async function generateMainMenuImage(player) {
             </filter>
         </defs>
 
-        <!-- Base Background -->
-        <rect width="100%" height="100%" fill="#03030b" />
-        <rect width="100%" height="100%" fill="url(#backGlow)" />
+        <!-- Base Background with custom opacity to blend with Elion Flag -->
+        <rect width="100%" height="100%" fill="#03030b" opacity="${bgOpacity}" />
+        <rect width="100%" height="100%" fill="url(#backGlow)" opacity="${glowOpacity}" />
 
         <!-- Cinematic Energy Sparks and Gridlines -->
         <g stroke="rgba(255,255,255,0.03)" stroke-width="1">
@@ -266,7 +272,27 @@ async function generateMainMenuImage(player) {
     </svg>
     `;
 
-    return sharp(Buffer.from(svg)).png().toBuffer();
+    let menuSharpInstance;
+    if (hasFlag) {
+        try {
+            // Process the Empire of Elion Flag to serve as our luxurious backdrop
+            const dimmedFlag = await sharp(flagPath)
+                .resize(width, height, { fit: 'cover' })
+                .blur(3) // Subtle blur to merge perfectly with the UI styling
+                .linear(0.22, 0) // Moderated brightness for premium contrast
+                .toBuffer();
+
+            menuSharpInstance = sharp(dimmedFlag)
+                .composite([{ input: Buffer.from(svg), top: 0, left: 0 }]);
+        } catch (e) {
+            console.error("[Menu Generator] Error processing flag background:", e);
+            menuSharpInstance = sharp(Buffer.from(svg));
+        }
+    } else {
+        menuSharpInstance = sharp(Buffer.from(svg));
+    }
+
+    return menuSharpInstance.png().toBuffer();
 }
 
 module.exports = { generateMainMenuImage };

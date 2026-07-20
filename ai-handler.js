@@ -670,19 +670,17 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
     const cleanupNarrative = (t) => {
         if (!t) return "";
         // Clean markdown, common technical prefixes, and ChatML tags
-        return t.replace(/```json/gi, '')
+        let cleanText = t.replace(/```json/gi, '')
                 .replace(/```/g, '')
                 .replace(/<\|im_start\|>.*?<\|im_end\|>/gs, '') // Remove ChatML blocks
                 .replace(/<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>/g, '') // Remove loose tags
                 .replace(/^(json|JSON)/g, '')
                 .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
                 .replace(/(\n|^)[a-z_]+[cC]hange:.*(\n|$)/gi, '')
-                .replace(/\{[\s\S]*?\}/g, '') // Remove remaining JSON-like structures
-                .replace(/\[\s*\{[\s\S]*?\}\s*\]/g, '') // Remove remaining arrays of objects
-                .replace(/\b(?:imagePrompt|actions|actionVisual|narrative|notifications|broadcastMessage|status|message|pensee_mj|luck_seed|critical_success|weather_impact|user|assistant|system)\b\s*:?.*(\n|$)/gi, '')
                 .replace(/\\n/g, '\n')
                 .replace(/\n{3,}/g, '\n\n') // Normalize multiple newlines
                 .trim();
+        return cleanText;
     };
 
     if (typeof content === 'object') {
@@ -690,39 +688,58 @@ RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
         if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
     } else {
         // Robust JSON extraction
-        const jsonRegex = /\{[\s\S]*\}/g; // Greediest possible match for potential full object
-        const match = content.match(jsonRegex);
-
-        if (match) {
+        let parsedOk = false;
+        // First try standard regex for first curly brace to last curly brace
+        const startCurly = content.indexOf('{');
+        const endCurly = content.lastIndexOf('}');
+        if (startCurly !== -1 && endCurly !== -1 && endCurly > startCurly) {
+            const potentialJsonStr = content.substring(startCurly, endCurly + 1);
             try {
-                // Try parsing the largest block
-                const potential = JSON.parse(match[0]);
+                const potential = JSON.parse(potentialJsonStr);
                 aiResponse = { ...aiResponse, ...potential };
+                parsedOk = true;
             } catch (e) {
-                // If it fails, try finding individual small blocks
-                const smallBlocks = [...content.matchAll(/\{[\s\S]*?\}/g)];
-                for (const b of smallBlocks) {
-                    try {
-                        const parsed = JSON.parse(b[0]);
-                        if (parsed.narrative) aiResponse.narrative = parsed.narrative;
-                        if (parsed.actions) aiResponse.actions = [...(aiResponse.actions || []), ...parsed.actions];
-                        if (parsed.actionVisual) aiResponse.actionVisual = parsed.actionVisual;
-                    } catch(err) {}
-                }
+                console.log("[AI PARSING] Standard regex parse failed, attempting lazy repair parsing...");
             }
         }
 
-        // If narrative is empty, fallback to the text outside JSON
-        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+        if (!parsedOk) {
+            // Attempt small block fallback extraction
+            const smallBlocks = [...content.matchAll(/\{[\s\S]*?\}/g)];
+            for (const b of smallBlocks) {
+                try {
+                    const parsed = JSON.parse(b[0]);
+                    if (parsed.narrative) aiResponse.narrative = parsed.narrative;
+                    if (parsed.actions) aiResponse.actions = [...(aiResponse.actions || []), ...parsed.actions];
+                    if (parsed.actionVisual) aiResponse.actionVisual = parsed.actionVisual;
+                    parsedOk = true;
+                } catch(err) {}
+            }
+        }
+
+        // Clean narrative if extracted from JSON fields
+        if (aiResponse.narrative) {
+            aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
+        }
+
+        // If narrative is still empty or could not parse valid JSON at all, treat the whole response as text narrative
+        if (!parsedOk || !aiResponse.narrative || aiResponse.narrative.length < 5) {
             let plainText = content.replace(/\{[\s\S]*?\}/g, '').replace(/```[a-z]*\n?/gi, '').trim();
             if (plainText.length > 5) {
                 aiResponse.narrative = cleanupNarrative(plainText);
+            } else {
+                aiResponse.narrative = cleanupNarrative(content);
             }
         }
     }
 
-    // Ensure narrative is clean
-    aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
+    // Double check that there are no leftover JSON fragments in narration
+    if (aiResponse.narrative) {
+        aiResponse.narrative = aiResponse.narrative
+            .replace(/\{[\s\S]*?\}/g, '') // strip nested curly fragments
+            .replace(/["']?narrative["']?\s*:\s*/gi, '') // strip narrative keys
+            .trim();
+    }
 
     // Procedural Action Visual Logic
     if (aiResponse.actionVisual && !aiResponse.imagePrompt) {
