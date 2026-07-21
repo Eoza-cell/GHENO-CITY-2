@@ -21,27 +21,42 @@ global.Element = dom.window.Element;
 
 let puter = null;
 try {
-    const puterLib = require('@heyputer/puter.js');
-    puter = puterLib.default || puterLib;
-
-    const token = process.env.PUTER_TOKEN || process.env.PUTER_API_KEY;
+    const token = process.env.PUTER_TOKEN || process.env.PUTER_API_KEY || process.env.PUTER_AUTH_TOKEN;
     if (token) {
-        if (typeof puter.setAuthToken === 'function') {
-            puter.setAuthToken(token);
+        try {
+            const { init } = require('@heyputer/puter.js/src/init.cjs');
+            puter = init(token);
+            console.log("[AI] Puter SDK initialisé via init().");
+        } catch (initErr) {
+            console.warn("[AI] Puter SDK init() failed, falling back to require:", initErr.message);
+            const puterLib = require('@heyputer/puter.js');
+            puter = puterLib.default || puterLib;
+            if (typeof puter.setAuthToken === 'function') {
+                puter.setAuthToken(token);
+            }
+            puter.authToken = token;
         }
-        puter.authToken = token;
-        console.log("[AI] Puter SDK : Token configuré.");
+    } else {
+        const puterLib = require('@heyputer/puter.js');
+        puter = puterLib.default || puterLib;
     }
 } catch (e) {
     console.warn("[AI] Puter SDK could not be loaded:", e.message);
 }
 
 const PUTER_MODELS = [
+    "gemini-3.5-flash",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.5-pro",
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite",
+    "google/gemini-2.0-flash",
+    "google/gemini-1.5-flash",
+    "google/gemini-1.5-pro",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
     "meta-llama-3.1-70b-instruct",
-    "gpt-4o",
-    "claude-3-5-sonnet"
+    "gpt-4o"
 ];
 
 /**
@@ -172,7 +187,7 @@ async function callMLVoca(system, prompt) {
  * Call Puter's AI over its V1 OpenAI-compatible endpoint.
  */
 async function callPuterAPI(system, prompt) {
-    const key = process.env.PUTER_API_KEY || process.env.PUTER_TOKEN;
+    const key = process.env.PUTER_API_KEY || process.env.PUTER_TOKEN || process.env.PUTER_AUTH_TOKEN;
     if (!key || key.length < 6 || key === 'test_key') {
         return null;
     }
@@ -182,8 +197,20 @@ async function callPuterAPI(system, prompt) {
         { role: "user", content: prompt }
     ];
 
-    // Priority to Flash for speed
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o"];
+    // Priority to Gemini models for speed and cost-effectiveness
+    const models = [
+        "gemini-3.5-flash",
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-pro",
+        "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-lite",
+        "google/gemini-2.0-flash",
+        "google/gemini-1.5-flash",
+        "google/gemini-1.5-pro",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gpt-4o"
+    ];
 
     for (const model of models) {
         try {
@@ -220,12 +247,44 @@ async function callPuterAPI(system, prompt) {
  * Try Puter SDK.
  */
 async function callPuterSDK(system, prompt) {
+    const token = process.env.PUTER_TOKEN || process.env.PUTER_API_KEY || process.env.PUTER_AUTH_TOKEN;
+    if (!puter && token) {
+        try {
+            const { init } = require('@heyputer/puter.js/src/init.cjs');
+            puter = init(token);
+            console.log("[AI] Puter SDK ré-initialisé à la volée via init().");
+        } catch (e) {
+            const puterLib = require('@heyputer/puter.js');
+            puter = puterLib.default || puterLib;
+        }
+    }
+
+    if (puter && token) {
+        if (typeof puter.setAuthToken === 'function') {
+            puter.setAuthToken(token);
+        }
+        puter.authToken = token;
+    }
+
     if (!puter || !puter.ai) {
         console.warn("[AI] Puter SDK non initialisé ou indisponible.");
         return null;
     }
-    // Prioritizing Gemini as requested by user
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
+
+    // Prioritizing Gemini models as requested by user
+    const models = [
+        "gemini-3.5-flash",
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-pro",
+        "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-lite",
+        "google/gemini-2.0-flash",
+        "google/gemini-1.5-flash",
+        "google/gemini-1.5-pro",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gpt-4o"
+    ];
 
     for (const model of models) {
         try {
@@ -700,9 +759,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'GPTOSS Proxy', fn: callGPTOSS },
         { name: 'Pollinations Gen', fn: callPollinationsGen },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
