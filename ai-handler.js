@@ -1,6 +1,7 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
+const { generateBlackboardImage } = require('./blackboard-generator');
 const { generate3DVisual } = require('./three-renderer');
 const { generateActionVisual } = require('./action-visual-generator');
 const { generateProfileCard } = require('./profile-generator');
@@ -28,19 +29,32 @@ async function handleFreeAction(sock, message, player, actionText) {
       console.error("[DB] RPMessage log error:", e.message);
   }
 
-  // Automatic Visual: Detect writing on paper
-  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter)(?:\s+sur\s+(?:du\s+)?papier|\s+une\s+note|\s+une\s+lettre|\s+l'examen)\s*:\s*([\s\S]+)/i);
+  // Automatic Visual: Detect writing on paper or blackboard
+  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter|inscrit|dessine|trace)(?:\s+sur\s+(?:du\s+)?(?:papier|tableau|mur|parchemin|lettre|examen|note|copie))\s*:\s*([\s\S]+)/i);
   if (writingMatch) {
       const writtenText = writingMatch[1].trim();
-      const isExam = actionText.toLowerCase().includes('examen');
+      const lowerAction = actionText.toLowerCase();
+      const isBlackboard = lowerAction.includes('tableau');
+      const isExam = lowerAction.includes('examen');
+
       try {
-          const paperBuffer = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
+          let visualBuffer;
+          let caption = "";
+
+          if (isBlackboard) {
+              visualBuffer = await generateBlackboardImage(writtenText, "TABLEAU");
+              caption = `📝 *Sur le tableau, on peut lire...*`;
+          } else {
+              visualBuffer = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
+              caption = `📜 *Tu as fini d'écrire...*\n\n"${writtenText.substring(0, 100)}${writtenText.length > 100 ? '...' : ''}"`;
+          }
+
           await sock.sendMessage(jid, {
-              image: paperBuffer,
-              caption: `📜 *Tu as fini d'écrire...*\n\n"${writtenText.substring(0, 100)}${writtenText.length > 100 ? '...' : ''}"`
+              image: visualBuffer,
+              caption: caption
           });
       } catch (err) {
-          console.error("[Paper] Error generating paper visual:", err);
+          console.error("[Writing Visual] Error generating visual:", err);
       }
   }
 
@@ -238,8 +252,13 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   // CATEGORY: COMBAT & LETHALITY
-  if (lowAction.match(/\b(attaque|frappe|tue|meurt|combat|lance|sort|magie|épée|lame|poing|coup|sang|duel|défi|assassinat|fendre|trancher|brûler|frapper|cogner|massacrer|achever)\b/i)) {
-      hints.push("⚔️ [KEYWORD_ACTIVATE: COMBAT] Combat intense. Applique la léthallité. Utilise 'update_stats' pour les PV. Si le joueur est imprécis, il subit une riposte.");
+  if (lowAction.match(/\b(attaque|frappe|tue|meurt|combat|lance|sort|magie|épée|lame|poing|coup|sang|duel|défi|assassinat|fendre|trancher|brûler|frapper|cogner|massacrer|achever|décapiter|éventrer|briser)\b/i)) {
+      hints.push("⚔️ [KEYWORD_ACTIVATE: COMBAT] Combat ultra-violent. Applique une léthallité immédiate. Utilise 'update_stats' pour des dégâts massifs. Si le joueur est imprécis ou faible, il subit des blessures mutilantes ou la mort.");
+  }
+
+  // CATEGORY: MATURE & RELATIONSHIPS
+  if (lowAction.match(/\b(sexe|coucher|embrasser|caresse|nu|déshabiller|plaisir|désir|étreinte|lit|chambre|amour|passion|vif|charnel)\b/i)) {
+      hints.push("🔞 [KEYWORD_ACTIVATE: MATURE] Interaction intime détectée. Décris l'acte avec une prose viscérale, immersive et mature, sans censure, tout en restant dans l'esthétique Manhwa/Seinen.");
   }
 
   // CATEGORY: EXPLORATION
@@ -525,35 +544,30 @@ async function handleFreeAction(sock, message, player, actionText) {
         ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
         : "";
 
-  const systemPrompt = `DÉTERMINATION SYSTÈME GHENO-CITY (ÉCOSYSTÈME LOGIQUE & CAUSALITÉ) :
-Tu es le MJ central. Ton objectif est d'incarner un écosystème logique avec des lois de causalité strictes. Réponds en JSON valide.
+  const systemPrompt = `MJ D'AETHERYS (RÉALISME BRUT & IMMERSION TOTALE)
+Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle. Réponds exclusivement en JSON valide.
 
-RÈGLE D'OR:
-Toute modification de l'état d'un joueur DOIT se traduire par une action JSON. La base de données est la SEULE vérité.
-- MORT: Si PV <= 0, le joueur est MORT. Action 'update_stats' { "health_change": 0 } obligatoire.
-- XP: On gagne de l'XP UNIQUEMENT en TUANT des monstres ou en BATTANT des personnes. Interdiction d'en donner pour le social ou l'exploration.
-- SP: Apprendre = 'add_skill' (5 SP). Créer = 'create_custom_skill' (10 SP).
-- RÉCUPÉRATION: Méditation/Repos = 'update_stats' { "health_change": n, "mana_change": n, "hunger_change": 20, "is_meditation": true }.
+IMMERSION SENSORIELLE :
+- ODORAT: Décris l'odeur du sang frais, de l'ozone après un éclair, du vieux parchemin, de la pourriture des bas-fonds.
+- TOUCHER: Sens la texture rugueuse de la pierre, le froid tranchant de l'acier, la chaleur pulsante du mana.
+- ATMOSPHÈRE: Décris la pression du mana dans l'air, le silence oppressant avant l'attaque, la poussière qui danse dans la lumière.
 
-LOI DE CAUSALITÉ & ANTI-TRICHE:
-1. RÉALISME PHYSIQUE: Un joueur ne peut PAS nager 3h sans skill (noyade en 5min pour Rang F). Pas de vol ou téléportation sans skill appris.
-2. TEMPS & ESPACE: Traverser un Royaume prend DES JOURS RP. Changer de Continent prend DES SEMAINES. Utilise 'travel_to'.
-3. ÉCHELLE DE PUISSANCE (STRICT): Un Rang F est extrêmement faible. Stats limitées à 30 maximum. INTERDICTION de donner des stats de 1000+ ou des bonus massifs à un Rang F.
-4. LOI ABSOLUE DES STATS: Un Rang S avec 999 de Force est INVINCIBLE face à plus faible. Plus le rang est bas, plus le personnage est fragile.
-5. RACES & SOCIÉTÉ: Respecte les races (Humain, Elfe, Nain, Orc, Beastman, Undead, Celestial, Demon).
-6. SENSORIALITÉ: Perception limitée par le Rang (F: 5m, S: 100m).
-7. ÉPUISEMENT: Si Hunger ou Sleep < 20, les actions physiques ÉCHOUENT (évanouissement).
+LÉTHALITÉ & CONSÉQUENCES :
+- MORT: PV <= 0 -> Action 'update_stats' { "health_change": 0 }. La mort est définitive sans intervention divine.
+- COMBAT: Brutal, sanglant. Les os craquent, la chair se déchire. Pas de combat 'propre'.
+- CAUSALITÉ: Rang F faible (cap stats 30). Nage limitée (5min). Pas de vol sans skill. Traversée de royaume = jours RP.
+- ÉPUISEMENT: Hunger/Sleep < 20 -> Actions physiques échouent. Le joueur s'écroule de fatigue.
 
-NARRATION:
-- FORMAT: Un SEUL paragraphe fluide par joueur/groupe. Pas de listes, dashes (-) ou délimiteurs (▬▬▬▬).
-- GROUPE: Si des joueurs sont ensemble, utilise un bloc [GROUPE: Nom1, Nom2]. Sinon, blocs [NOM_JOUEUR] isolés.
-- STYLE: Manhwa/Anime visuel et viscéral. Décris les impacts, les odeurs et la causalité des actions.
-- MJ PUR: Ne joue JAMAIS le joueur. Décris UNIQUEMENT les conséquences et l'environnement.
+NARRATION :
+- STYLE: Seinen/Manhwa viscéral (Berserk/Solo Leveling). Un SEUL paragraphe fluide par joueur. Évite les répétitions.
+- MJ PUR: Tu ne décides jamais des pensées ou sentiments du joueur. Tu décris uniquement ce qu'il perçoit et ce qu'il subit.
+- DÉVELOPPEMENT: Chaque action a un impact sur l'environnement.
 
-VISUELS:
-- Pour chaque utilisation de technique ou combat, inclus un objet "actionVisual": {"type": "skill|combat|magic", "assetName": "NomLieuOuMonstre", "title": "NOM TECHNIQUE", "description": "Brève description visuelle"} pour générer une image Canvas.
+VISUELS OBLIGATOIRES :
+- Combat/Magie: Inclus "actionVisual": {"type": "skill|combat|magic", "assetName": "Lieu", "title": "NOM", "description": "..."}.
+- Éducation: 'explain_magic' pour détails techniques (flux de mana, résonance). 'generate_document' (type: blackboard) pour tableau.
 
-ACTIONS: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, remove_item, add_skill, travel_to, spawn_npc, spawn_monster, create_custom_item, change_weather, manage_house, set_academic_status, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, forge_pact, join_club, resurrect_player, write_journal, p2p_transfer, npc_trade, check_requirements, create_custom_skill, promote_player.`;
+ACTIONS: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, remove_item, add_skill, travel_to, spawn_npc, spawn_monster, create_custom_item, change_weather, manage_house, set_academic_status, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, forge_pact, join_club, resurrect_player, write_journal, p2p_transfer, npc_trade, check_requirements, create_custom_skill, promote_player, explain_magic.`;
 
 
     const memoryJson = JSON.stringify({
@@ -640,7 +654,8 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 5. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans le RÉSUMÉ DES ACTIONS.
 6. STRUCTURE OBLIGATOIRE : Utilise [NOM_DU_JOUEUR] et le séparateur ▬▬▬▬▬▬▬▬▬▬▬▬.
 
-ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.`;
+ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.
+RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt);
@@ -654,12 +669,19 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     const cleanupNarrative = (t) => {
         if (!t) return "";
-        // Clean markdown and common technical prefixes
+        // Clean markdown, common technical prefixes, and ChatML tags
         return t.replace(/```json/gi, '')
                 .replace(/```/g, '')
+                .replace(/<\|im_start\|>.*?<\|im_end\|>/gs, '') // Remove ChatML blocks
+                .replace(/<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>/g, '') // Remove loose tags
                 .replace(/^(json|JSON)/g, '')
                 .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-                .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '')
+                .replace(/(\n|^)[a-z_]+[cC]hange:.*(\n|$)/gi, '')
+                .replace(/\{[\s\S]*?\}/g, '') // Remove remaining JSON-like structures
+                .replace(/\[\s*\{[\s\S]*?\}\s*\]/g, '') // Remove remaining arrays of objects
+                .replace(/\b(?:imagePrompt|actions|actionVisual|narrative|notifications|broadcastMessage|status|message|pensee_mj|luck_seed|critical_success|weather_impact|user|assistant|system)\b\s*:?.*(\n|$)/gi, '')
+                .replace(/\\n/g, '\n')
+                .replace(/\n{3,}/g, '\n\n') // Normalize multiple newlines
                 .trim();
     };
 
@@ -667,44 +689,35 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
         aiResponse = { ...aiResponse, ...content };
         if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
     } else {
-        // Robust JSON extraction: Find the largest JSON block possible
-        let start = content.indexOf('{');
-        let end = content.lastIndexOf('}');
+        // Robust JSON extraction
+        const jsonRegex = /\{[\s\S]*\}/g; // Greediest possible match for potential full object
+        const match = content.match(jsonRegex);
 
-        if (start !== -1 && end !== -1 && end > start) {
-            const potentialJson = content.substring(start, end + 1);
+        if (match) {
             try {
-                const parsed = JSON.parse(potentialJson);
-                aiResponse = { ...aiResponse, ...parsed };
-                if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
+                // Try parsing the largest block
+                const potential = JSON.parse(match[0]);
+                aiResponse = { ...aiResponse, ...potential };
             } catch (e) {
-                // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
-                const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
-                for (const match of matches) {
+                // If it fails, try finding individual small blocks
+                const smallBlocks = [...content.matchAll(/\{[\s\S]*?\}/g)];
+                for (const b of smallBlocks) {
                     try {
-                        const potential = JSON.parse(match[0]);
-                        if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
-                        if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
-                            aiResponse.narrative = potential.narrative;
-                        }
-                        if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
-                        if (potential.notifications) aiResponse.notifications = [...(aiResponse.notifications || []), ...potential.notifications];
-                    } catch (innerE) {}
+                        const parsed = JSON.parse(b[0]);
+                        if (parsed.narrative) aiResponse.narrative = parsed.narrative;
+                        if (parsed.actions) aiResponse.actions = [...(aiResponse.actions || []), ...parsed.actions];
+                        if (parsed.actionVisual) aiResponse.actionVisual = parsed.actionVisual;
+                    } catch(err) {}
                 }
             }
         }
 
-        // If narrative is STILL empty, it might be outside the JSON block
-        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
-            // Remove the block we extracted as JSON to find the narrative
-            let plainText = content;
-            if (start !== -1 && end !== -1) {
-                plainText = content.substring(0, start) + content.substring(end + 1);
+        // If narrative is empty, fallback to the text outside JSON
+        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
+            let plainText = content.replace(/\{[\s\S]*?\}/g, '').replace(/```[a-z]*\n?/gi, '').trim();
+            if (plainText.length > 5) {
+                aiResponse.narrative = cleanupNarrative(plainText);
             }
-            // If still no luck, just use the whole thing but clean markers
-            if (plainText.trim().length < 10) plainText = content.replace(/\{[\s\S]*?\}/g, '');
-
-            aiResponse.narrative = cleanupNarrative(plainText);
         }
     }
 
@@ -837,12 +850,9 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
       aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
     }
 
-    // Live HUD Integration: Inject a concise status bar at the end of the narrative for immediate feedback
-    const hud = `\n\n📊 *STATUS* : [❤️ HP ${player.health}/${player.maxHealth} | 🌀 MP ${player.mana}/${player.maxMana} | 💰 Col ${player.col}]`;
-    aiResponse.narrative = `${aiResponse.narrative}${hud}`;
-
-    // Prepend World Clock Header
-    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
+    // Streamlined HUD and Header for cleaner responses
+    const hud = ` [❤️ ${player.health}/${player.maxHealth} | 🌀 ${player.mana}/${player.maxMana} | 💰 ${player.col}]`;
+    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}\n\n📊 *HUD*:${hud}`;
 
     // Send typing indicator (presencesUpdate is not always reliable but good to try)
     try {
@@ -852,22 +862,14 @@ ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système r
 
     await sendWithImage(sock, jid, aiResponse);
 
-    // LIVE-actualisation: Silent Database Update + Automatic Profile Delivery
-    // We send profile cards whenever a player's state has been modified.
+    // LIVE-actualisation: Silent Database Update (Profile cards disabled to reduce spam)
     if (playersToUpdate.size > 0) {
         for (const pId of playersToUpdate) {
             try {
                 const pToUpdate = await Player.findOne({ where: { whatsappId: pId } });
-                if (pToUpdate && shouldNotifyPlayer(pToUpdate)) {
-                    await pToUpdate.reload();
-                    const profileBuffer = await generateProfileCard(pToUpdate);
-                    await sock.sendMessage(pId, {
-                        image: profileBuffer,
-                        caption: `--- 🆔 PROFIL ACTUALISÉ : ${pToUpdate.name} ---`
-                    });
-                }
+                if (pToUpdate) await pToUpdate.reload();
             } catch (e) {
-                console.error(`[AI] Profile auto-update failed for ${pId}:`, e.message);
+                console.error(`[AI] Silent update failed for ${pId}:`, e.message);
             }
         }
     }

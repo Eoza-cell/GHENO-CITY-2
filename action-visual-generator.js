@@ -19,11 +19,11 @@ async function generateActionVisual(data) {
     // Determine primary color based on action
     let primaryColor = '#4fb3ff'; // Default Blue
     let secondaryColor = '#0055ff';
-    if (actionType === 'attack') { primaryColor = '#ff4444'; secondaryColor = '#880000'; }
-    if (actionType === 'defend') { primaryColor = '#44ff44'; secondaryColor = '#006600'; }
-    if (actionType === 'magic') { primaryColor = '#cc44ff'; secondaryColor = '#440066'; }
-    if (actionType === 'skill') { primaryColor = '#ffd700'; secondaryColor = '#aa8800'; }
-    if (actionType === 'travel') { primaryColor = '#00ffcc'; secondaryColor = '#006655'; }
+    if (actionType === 'attack') { primaryColor = '#ff3333'; secondaryColor = '#660000'; }
+    if (actionType === 'defend') { primaryColor = '#33ff33'; secondaryColor = '#004400'; }
+    if (actionType === 'magic') { primaryColor = '#bf00ff'; secondaryColor = '#2a0033'; }
+    if (actionType === 'skill') { primaryColor = '#ffcc00'; secondaryColor = '#554400'; }
+    if (actionType === 'travel') { primaryColor = '#00ffcc'; secondaryColor = '#003322'; }
 
     // Handle Elemental colors
     let elementalOverlay = '';
@@ -81,6 +81,11 @@ async function generateActionVisual(data) {
                         <feMergeNode in="SourceGraphic"/>
                     </feMerge>
                 </filter>
+                <linearGradient id="frameGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:${primaryColor};stop-opacity:1" />
+                    <stop offset="50%" style="stop-color:white;stop-opacity:0.8" />
+                    <stop offset="100%" style="stop-color:${secondaryColor};stop-opacity:1" />
+                </linearGradient>
             </defs>
 
             ${elementalOverlay}
@@ -88,8 +93,8 @@ async function generateActionVisual(data) {
             <!-- Bottom UI Area -->
             <rect x="0" y="${height * 0.5}" width="${width}" height="${height * 0.5}" fill="url(#textGrad)" />
 
-            <!-- Frame with Glow -->
-            <rect x="15" y="15" width="${width-30}" height="${height-30}" fill="none" stroke="${primaryColor}" stroke-width="4" rx="15" opacity="0.8" filter="url(#glow)" />
+            <!-- Frame with Gradient and Glow -->
+            <rect x="15" y="15" width="${width-30}" height="${height-30}" fill="none" stroke="url(#frameGrad)" stroke-width="5" rx="15" opacity="0.9" filter="url(#glow)" />
 
             <!-- Tech Name Box -->
             <path d="M 0 40 L 350 40 L 380 90 L 0 90 Z" fill="rgba(0,0,0,0.85)" stroke="${primaryColor}" stroke-width="2" />
