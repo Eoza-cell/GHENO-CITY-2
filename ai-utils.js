@@ -87,7 +87,6 @@ function isValidAIResponse(input) {
 
     // If it's a tiny response with an error marker, it's definitely an error
     if (cleaned.length < 300 && errorMarkers.some(m => lower.includes(m))) {
-        // Final check: is it actually just a person talking?
         if (cleaned.length > 20 && !cleaned.includes('{') && !cleaned.includes('"')) return true;
         return false;
     }
@@ -147,17 +146,21 @@ function extractMessageContent(content) {
     return null;
 }
 
-async function callMLVoca(system, prompt) {
+async function callMLVoca(system, prompt, options = {}) {
     const models = ["deepseek-r1:1.5b", "tinyllama"];
+    const jsonMode = options.jsonMode !== false;
     for (const model of models) {
         try {
             console.log(`[AI] MLVoca - Tentative avec ${model}...`);
-            const resp = await axios.post("https://mlvoca.com/api/generate", {
+            const payload = {
                 model,
                 prompt: `SYSTEM: ${system}\n\nUSER: ${prompt}`,
-                stream: false,
-                format: "json"
-            }, { timeout: 25000 });
+                stream: false
+            };
+            if (jsonMode) {
+                payload.format = "json";
+            }
+            const resp = await axios.post("https://mlvoca.com/api/generate", payload, { timeout: 25000 });
 
             const content = resp.data?.response;
             if (isValidAIResponse(content)) return content;
@@ -171,7 +174,7 @@ async function callMLVoca(system, prompt) {
 /**
  * Call Puter's AI over its V1 OpenAI-compatible endpoint.
  */
-async function callPuterAPI(system, prompt) {
+async function callPuterAPI(system, prompt, options = {}) {
     const key = process.env.PUTER_API_KEY || process.env.PUTER_TOKEN;
     if (!key || key.length < 6 || key === 'test_key') {
         return null;
@@ -182,7 +185,6 @@ async function callPuterAPI(system, prompt) {
         { role: "user", content: prompt }
     ];
 
-    // Priority to Flash for speed
     const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gpt-4o"];
 
     for (const model of models) {
@@ -219,19 +221,17 @@ async function callPuterAPI(system, prompt) {
 /**
  * Try Puter SDK.
  */
-async function callPuterSDK(system, prompt) {
+async function callPuterSDK(system, prompt, options = {}) {
     if (!puter || !puter.ai) {
         console.warn("[AI] Puter SDK non initialisé ou indisponible.");
         return null;
     }
-    // Prioritizing Gemini as requested by user
     const models = ["gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
 
     for (const model of models) {
         try {
             console.log(`[AI] Puter SDK - Tentative avec ${model}...`);
 
-            // Timeout wrapper for SDK call
             const chatPromise = (async () => {
                 try {
                     return await puter.ai.chat([
@@ -239,7 +239,6 @@ async function callPuterSDK(system, prompt) {
                         { role: "user", content: prompt }
                     ], { model: model });
                 } catch (err) {
-                    console.warn(`[AI] Puter SDK Chat Array/Options failed for ${model}, trying simplified call...`);
                     return await puter.ai.chat(`${system}\n\n${prompt}`, { model: model });
                 }
             })();
@@ -252,13 +251,11 @@ async function callPuterSDK(system, prompt) {
 
             const content = parsePuterResponse(result);
             if (isValidAIResponse(content)) return content;
-            else console.warn(`[AI] Puter SDK ${model} a renvoyé une réponse vide ou invalide.`);
         } catch (e) {
             console.warn(`[AI] Puter SDK Error (${model}):`, e.message);
             continue;
         }
     }
-    // ULTIMATE FALLBACK: No model specified, let Puter decide (usually uses a free default)
     try {
         console.log("[AI] Puter SDK - Tentative finale sans modèle spécifié...");
         const result = await puter.ai.chat(`${system}\n\n${prompt}`);
@@ -271,13 +268,12 @@ async function callPuterSDK(system, prompt) {
     return null;
 }
 
-async function callOpenRouter(system, prompt) {
+async function callOpenRouter(system, prompt, options = {}) {
     if (!process.env.OPENROUTER_API_KEY) {
         console.warn("[AI] OpenRouter: Clé API manquante (OPENROUTER_API_KEY).");
         return null;
     }
 
-    // Prioritizing extremely fast free models for speed
     const models = [
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
@@ -302,32 +298,29 @@ async function callOpenRouter(system, prompt) {
                     'X-Title': 'Arise RPG',
                     'Content-Type': 'application/json'
                 },
-                timeout: 15000 // Tight timeout for faster failover
+                timeout: 15000
             });
 
             const content = resp.data?.choices?.[0]?.message?.content;
             if (isValidAIResponse(content)) return content;
-            else console.warn(`[AI] OpenRouter ${model} a renvoyé une réponse invalide.`);
         } catch (e) {
             const errorMsg = e.response?.data?.error?.message || e.message;
             console.warn(`[AI] OpenRouter Error (${model}):`, errorMsg);
-            if (errorMsg.includes("credits")) {
-                console.warn("[AI] OpenRouter: Plus de crédits ou modèle non gratuit. Passage au suivant.");
-            }
             continue;
         }
     }
     return null;
 }
 
-async function callBlackbox(system, prompt) {
+async function callBlackbox(system, prompt, options = {}) {
     const models = ["deepseek-v3", "llama-3.1-70b", "gpt-4o", "gemini-pro"];
+    const jsonMode = options.jsonMode !== false;
     for (const model of models) {
         try {
             console.log(`[AI] Blackbox - Tentative avec ${model}...`);
             const resp = await axios.post("https://www.blackbox.ai/api/chat", {
                 messages: [
-                    { role: "user", content: `SYSTEM: ${system}\n\nUSER_ACTION: ${prompt}\n\nIMPORTANT: Réponds uniquement en JSON valide.` }
+                    { role: "user", content: `SYSTEM: ${system}\n\nUSER_ACTION: ${prompt}${jsonMode ? '\n\nIMPORTANT: Réponds uniquement en JSON valide.' : ''}` }
                 ],
                 model: model,
                 agentMode: {},
@@ -364,10 +357,10 @@ async function callBlackbox(system, prompt) {
     return null;
 }
 
-async function callPollinationsGen(system, prompt) {
-    // Priority models on gen.pollinations.ai
+async function callPollinationsGen(system, prompt, options = {}) {
     const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'searchgpt'];
     const key = process.env.POLLINATIONS_API_KEY;
+    const jsonMode = options.jsonMode !== false;
 
     for (const model of models) {
         try {
@@ -375,15 +368,19 @@ async function callPollinationsGen(system, prompt) {
             const headers = { 'Content-Type': 'application/json' };
             if (key) headers['Authorization'] = `Bearer ${key}`;
 
-            const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", {
+            const payload = {
                 model: model,
                 messages: [
                     { role: "system", content: system },
                     { role: "user", content: prompt }
                 ],
-                jsonMode: true,
                 stream: false
-            }, {
+            };
+            if (jsonMode) {
+                payload.jsonMode = true;
+            }
+
+            const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", payload, {
                 headers,
                 timeout: 20000
             });
@@ -398,32 +395,36 @@ async function callPollinationsGen(system, prompt) {
     return null;
 }
 
-async function callPollinationsPOST(system, prompt) {
-    // Rotating models to find one that works for free
+async function callPollinationsPOST(system, prompt, options = {}) {
     const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'unity', 'evil', 'p1', 'searchgpt'];
+    const jsonMode = options.jsonMode !== false;
 
     for (const model of models) {
         try {
             console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
-            const resp = await axios.post("https://text.pollinations.ai/", {
+            const payload = {
                 messages: [
                     { role: "system", content: system },
                     { role: "user", content: prompt }
                 ],
                 model: model,
-                jsonMode: true,
                 seed: Math.floor(Math.random() * 1000000),
                 cache: false
-            }, {
+            };
+            if (jsonMode) {
+                payload.jsonMode = true;
+            }
+
+            const resp = await axios.post("https://text.pollinations.ai/", payload, {
                 headers: {
                     'Content-Type': 'application/json',
                     'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
                 },
-            timeout: 30000
+                timeout: 30000
             });
 
-        const content = parsePuterResponse(resp.data);
-        if (isValidAIResponse(content)) return content;
+            const content = parsePuterResponse(resp.data);
+            if (isValidAIResponse(content)) return content;
         } catch (e) {
             console.warn(`[AI] Pollinations POST Error (${model}):`, e.response?.data || e.message);
             continue;
@@ -432,17 +433,21 @@ async function callPollinationsPOST(system, prompt) {
     return null;
 }
 
-async function callPollinationsGET(system, prompt) {
+async function callPollinationsGET(system, prompt, options = {}) {
     const models = ['openai', 'mistral', 'llama'];
+    const jsonMode = options.jsonMode !== false;
     for (const model of models) {
         try {
             console.log(`[AI] Pollinations GET - Tentative avec ${model}...`);
-            // GET API is very sensitive to length and encoding
             const cleanedPrompt = prompt.substring(prompt.length - 1000).replace(/["']/g, '');
             const fullPrompt = encodeURIComponent(cleanedPrompt);
             const systemEncoded = encodeURIComponent(system.substring(0, 800).replace(/["']/g, ''));
             const seed = Math.floor(Math.random() * 1000000);
-            const url = `https://text.pollinations.ai/${fullPrompt}?model=${model}&seed=${seed}&system=${systemEncoded}&json=true`;
+
+            let url = `https://text.pollinations.ai/${fullPrompt}?model=${model}&seed=${seed}&system=${systemEncoded}`;
+            if (jsonMode) {
+                url += `&json=true`;
+            }
 
             const resp = await axios.get(url, { timeout: 25000 });
             if (isValidAIResponse(resp.data)) return resp.data;
@@ -456,15 +461,14 @@ async function callPollinationsGET(system, prompt) {
 /**
  * Call a local Ollama instance if available.
  */
-async function callOllama(system, prompt) {
+async function callOllama(system, prompt, options = {}) {
     let ollamaUrl = process.env.OLLAMA_URL || "http://192.168.1.66:11434";
+    const jsonMode = options.jsonMode !== false;
 
-    // Robust sanitization of OLLAMA_URL
     if (!ollamaUrl.startsWith('http')) {
         ollamaUrl = 'http://' + ollamaUrl;
     }
 
-    // According to docs, the API is served at /api
     const apiBaseUrl = ollamaUrl.replace(/\/$/, '') + (ollamaUrl.includes('/api') ? '' : '/api');
     const isCloud = ollamaUrl.includes('ollama.com');
 
@@ -472,19 +476,22 @@ async function callOllama(system, prompt) {
         console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
 
         const payload = {
-            model: process.env.OLLAMA_MODEL || 'dark-lust',
+            // Default model is 'mistral' (creative writing and roleplay standard from https://ollama.com/library)
+            model: process.env.OLLAMA_MODEL || 'mistral',
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
             ],
             stream: false,
-            format: 'json',
             options: {
                 temperature: 0.2,
                 num_predict: 1024,
                 num_ctx: 8192
             }
         };
+        if (jsonMode) {
+            payload.format = 'json';
+        }
 
         const headers = { 'Content-Type': 'application/json' };
         if (isCloud && process.env.OLLAMA_API_KEY) {
@@ -504,10 +511,7 @@ async function callOllama(system, prompt) {
     return null;
 }
 
-/**
- * Call a local LM Studio instance if available.
- */
-async function call9Router(system, prompt) {
+async function call9Router(system, prompt, options = {}) {
     const baseUrl = process.env.NINEROUTER_URL || "http://localhost:20128/v1";
     const key = process.env.NINEROUTER_API_KEY || "9router";
 
@@ -547,7 +551,7 @@ async function call9Router(system, prompt) {
     return null;
 }
 
-async function callWorldServer(system, prompt) {
+async function callWorldServer(system, prompt, options = {}) {
     const url = "http://localhost:3001/v1/chat/completions";
     try {
         console.log(`[AI] World Server - Tentative...`);
@@ -568,7 +572,7 @@ async function callWorldServer(system, prompt) {
     return null;
 }
 
-async function callLlamafile(system, prompt) {
+async function callLlamafile(system, prompt, options = {}) {
     const url = process.env.LLAMAFILE_URL || "http://localhost:8080/v1/chat/completions";
     try {
         console.log(`[AI] Llamafile - Tentative sur ${url}`);
@@ -590,7 +594,7 @@ async function callLlamafile(system, prompt) {
     return null;
 }
 
-async function callGPTOSS(system, prompt) {
+async function callGPTOSS(system, prompt, options = {}) {
     const models = ["gpt-oss-120b", "gpt-oss-20b"];
     for (const model of models) {
         try {
@@ -633,7 +637,7 @@ async function callAether(system, prompt, options = {}) {
     return null;
 }
 
-async function callLMStudio(system, prompt) {
+async function callLMStudio(system, prompt, options = {}) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
         console.log(`[AI] LM Studio - Tentative sur ${url}`);
@@ -657,7 +661,6 @@ async function callLMStudio(system, prompt) {
 
 /**
  * Local MJ Fallback in case all AI providers fail.
- * Generates a simple but immersive response based on the action.
  */
 function callMJFallback(prompt) {
     console.log("[AI] Utilisation du MJ Fallback Local.");
@@ -674,18 +677,11 @@ function callMJFallback(prompt) {
     ];
 
     const narrative = responses[Math.floor(Math.random() * responses.length)];
-
-    return JSON.stringify({
-        narrative: `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._`,
-        actions: []
-    });
+    return `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._`;
 }
 
 /**
  * Main AI entry point.
- */
-/**
- * Race multiple provider attempts for speed.
  */
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
@@ -715,14 +711,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'World Server (Local)', fn: callWorldServer }
     ];
 
-    // Staggered execution for speed and fallback handling
     const timeouts = [];
     const callProvider = async (provider) => {
         try {
             const start = Date.now();
             console.log(`[AI] Launching ${provider.name}...`);
             let activeSystem = sanitizedSystem;
-            if (depth >= 1) activeSystem = "MJ RPG. JSON: {\"narrative\": \"...\"}";
+            if (depth >= 1 && options.jsonMode !== false) activeSystem = "MJ RPG. JSON: {\"narrative\": \"...\"}";
 
             const res = await provider.fn(activeSystem, sanitizedUser, options);
             if (isValidAIResponse(res)) {
@@ -772,12 +767,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                         }
                     }
                 } else {
-                    // Try the very next one immediately on failure
                     launchAtIndex(index + 1);
                 }
             });
 
-            // Schedule the next one in the sequence anyway (staggered)
             const nextDelay = index === 0 ? 1000 : 4000;
             timeouts.push(setTimeout(() => launchAtIndex(index + 1), nextDelay));
         };
@@ -788,10 +781,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
 function parsePuterResponse(resp) {
     if (!resp) return null;
-    // Puter SDK often returns an object with a .text property or a toString() that returns the content
     if (typeof resp === 'string') return resp;
 
-    // Handle SDK v2+ response objects
     if (resp.text && typeof resp.text === 'string') return resp.text;
     if (typeof resp.toString === 'function' && resp.toString() !== '[object Object]') {
         const ts = resp.toString();

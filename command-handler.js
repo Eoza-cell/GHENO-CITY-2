@@ -1,5 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+
+// Memory map to track the last 8 items shown to each player for easy index-based purchases
+const lastViewedItems = new Map();
 const axios = require('axios');
 const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
@@ -214,6 +217,9 @@ const profileCommand = async (sock, message) => {
       const xpNeeded = player.level * 100;
       const xpBar = createStatusBar(player.xp, xpNeeded);
 
+      const { calculatePlotImpact } = require('./profile-generator');
+      const plot = await calculatePlotImpact(player);
+
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *HÉRITIER:* ${player.name}\n` +
                           `⚧️ *SEXE:* ${player.gender}\n` +
@@ -235,7 +241,11 @@ const profileCommand = async (sock, message) => {
                           `💰 *COL:* ${player.col} 🪙\n` +
                           (player.masterId ? `🔗 *MAÎTRE:* ${player.masterId.substring(0, 8)}...\n` : '') +
                           (player.fusedWithId ? `🌀 *FUSION:* Sync ${Math.round(player.fusionSyncLevel * 100)}%\n` : '') +
-                          `📍 *LIEU:* ${player.location} (${player.subLocation})\n` +
+                          `📍 *LIEU:* ${player.location} (${player.subLocation})\n\n` +
+                          `--- 💥 IMPACT DE LA TRAME PRINCIPALE --- \n` +
+                          `📖 Effet : *${plot.plotName}*\n` +
+                          `└ ${plot.plotDesc}\n` +
+                          (Object.keys(plot.modifiers).length > 0 ? `📊 Modificateurs : ${Object.entries(plot.modifiers).map(([s,v]) => `${s.toUpperCase()} : ${v>=0?'+':''}${v}`).join(' • ')}\n` : '') +
                           `---------------------------`;
 
       await sock.sendMessage(replyJid, {
@@ -348,13 +358,29 @@ commands.set('acheter', async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
-    const itemName = args.join(' ');
+    const rawArg = args.join(' ').trim();
 
-    if (!player || !itemName) return;
+    if (!player || !rawArg) return;
 
-    const item = await Item.findOne({ where: { name: { [Op.like]: `%${itemName}%` } } });
+    let item = null;
+
+    // Check if the argument is an index between 1 and 8
+    const parsedIndex = parseInt(rawArg);
+    if (!isNaN(parsedIndex) && parsedIndex >= 1 && parsedIndex <= 8) {
+        const viewed = lastViewedItems.get(jid);
+        if (viewed && viewed[parsedIndex - 1]) {
+            const targetName = viewed[parsedIndex - 1];
+            item = await Item.findOne({ where: { name: targetName } });
+        }
+    }
+
+    // Fallback to fuzzy match by name
     if (!item) {
-        return await sock.sendMessage(replyJid, { text: "❌ Cet objet n'est pas disponible en magasin." });
+        item = await Item.findOne({ where: { name: { [Op.like]: `%${rawArg}%` } } });
+    }
+
+    if (!item) {
+        return await sock.sendMessage(replyJid, { text: `❌ L'objet "${rawArg}" n'est pas disponible en magasin ou cet index n'a pas encore été affiché dans votre /boutique.` });
     }
 
     if (player.col < item.price) {
@@ -639,23 +665,11 @@ commands.set('recuperer', async (sock, message, args) => {
 });
 
 // Command: /vetements
-const vetementsCommand = async (sock, message) => {
-    const replyJid = message.key.remoteJid;
-    const items = await Item.findAll({ where: { type: 'clothing' }, limit: 10 });
-
-    if (items.length === 0) {
-        return await sock.sendMessage(replyJid, { text: "La boutique de vêtements est vide." });
-    }
-
-    try {
-        const shopImageBuffer = await generateShopImage("MODE AETHERYS", items);
-        await sock.sendMessage(replyJid, {
-            image: shopImageBuffer,
-            caption: "👗 *CATALOGUE DE MODE*\nUtilisez `/acheter [nom]` pour commander."
-        });
-    } catch (err) {
-        console.error("Shop image error:", err);
-        await sock.sendMessage(replyJid, { text: "Erreur lors de la génération du catalogue visuel." });
+const vetementsCommand = async (sock, message, args) => {
+    const newArgs = ['clothing', ...args];
+    const boutiqueCmd = commands.get('boutique');
+    if (boutiqueCmd) {
+        await boutiqueCmd(sock, message, newArgs);
     }
 };
 commands.set('vetements', vetementsCommand);
@@ -734,28 +748,106 @@ commands.set('up', async (sock, message, args) => {
 });
 
 // Command: /boutique
-commands.set('boutique', async (sock, message) => {
+commands.set('boutique', async (sock, message, args) => {
     const replyJid = message.key.remoteJid;
-    const items = await Item.findAll({
-        where: { type: { [Op.ne]: 'clothing' } },
-        order: [['price', 'ASC']],
-        limit: 8
-    });
+    let page = 1;
+    let filterType = null; // 'weapon', 'clothing', or null (all)
+    let searchKeyword = null;
 
-    if (items.length === 0) {
-        await sock.sendMessage(replyJid, { text: "La boutique est vide pour le moment." });
-        return;
+    if (args && args.length > 0) {
+        // Try to parse last argument as page number
+        const lastArg = args[args.length - 1];
+        const parsedPage = parseInt(lastArg);
+        if (!isNaN(parsedPage) && parsedPage > 0) {
+            page = parsedPage;
+            args.pop(); // remove page from args to treat the rest as search/type
+        }
     }
 
+    if (args && args.length > 0) {
+        const fullKeyword = args.join(' ').toLowerCase().trim();
+        // Check if keyword is a type shortcut
+        if (['weapon', 'weapons', 'arme', 'armes', 'armement', 'forge', 'brokk'].includes(fullKeyword)) {
+            filterType = 'weapon';
+        } else if (['clothing', 'clothes', 'vetement', 'vêtement', 'vetements', 'vêtements', 'mode'].includes(fullKeyword)) {
+            filterType = 'clothing';
+        } else {
+            // General search keyword
+            searchKeyword = fullKeyword;
+        }
+    }
+
+    const whereClause = {};
+    if (filterType) {
+        whereClause.type = filterType;
+    }
+    if (searchKeyword) {
+        whereClause[Op.or] = [
+            { name: { [Op.like]: `%${searchKeyword}%` } },
+            { description: { [Op.like]: `%${searchKeyword}%` } },
+            { rarity: { [Op.like]: `%${searchKeyword}%` } }
+        ];
+    }
+
+    const limit = 8;
+    const offset = (page - 1) * limit;
+
     try {
-        const shopImageBuffer = await generateShopImage("FORGE DE BROKK", items);
+        const { count, rows: items } = await Item.findAndCountAll({
+            where: whereClause,
+            order: [['price', 'ASC']],
+            limit,
+            offset
+        });
+
+        if (count === 0) {
+            return await sock.sendMessage(replyJid, { text: `❌ Aucun article trouvé pour votre recherche "${searchKeyword || filterType || 'Boutique entière'}".` });
+        }
+
+        // Save listed items to track for quick index-based purchase
+        const jid = getJid(message);
+        lastViewedItems.set(jid, items.map(i => i.name));
+
+        const totalPages = Math.ceil(count / limit);
+        if (page > totalPages) {
+            return await sock.sendMessage(replyJid, { text: `❌ Page ${page} inexistante. Le catalogue contient un maximum de ${totalPages} pages pour cette recherche.` });
+        }
+
+        // Determine catalogue title
+        let catalogTitle = "FORGE DE BROKK";
+        if (filterType === 'clothing') {
+            catalogTitle = "MODE AETHERYS";
+        } else if (searchKeyword) {
+            catalogTitle = `RÉSULTATS : ${searchKeyword.toUpperCase()}`;
+        } else if (!filterType) {
+            catalogTitle = "CATALOGUE IMPÉRIAL";
+        }
+
+        const shopImageBuffer = await generateShopImage(catalogTitle, items);
+
+        // Build premium caption with pagination and navigation details
+        let caption = `🛒 *${catalogTitle}* (Page ${page}/${totalPages})\n`;
+        if (filterType) {
+            caption += `✨ Catégorie : *${filterType === 'weapon' ? 'Armes de Guerre' : 'Équipements & Vêtements'}*\n`;
+        } else if (searchKeyword) {
+            caption += `🔍 Recherche : *"${searchKeyword}"*\n`;
+        }
+        caption += `📊 Total : *${count.toLocaleString()}* articles légendaires dans la base de données !\n\n`;
+        caption += `💡 *Astuce de navigation :*\n`;
+        caption += `Utilisez \`/boutique [recherche/catégorie] [page]\` pour feuilleter les milliers d'armes.\n`;
+        caption += `├ Ex: \`/boutique arme 2\`\n`;
+        caption += `├ Ex: \`/boutique vetement 1\`\n`;
+        caption += `├ Ex: \`/boutique dague\`\n`;
+        caption += `└ Ex: \`/boutique legendary 1\`\n\n`;
+        caption += `👉 Tapez \`/acheter [nom de l'arme]\` pour commander.`;
+
         await sock.sendMessage(replyJid, {
             image: shopImageBuffer,
-            caption: "⚔️ *ÉQUIPEMENT ET ARMES*\nUtilisez `/acheter [nom]` pour acquérir un objet."
+            caption: caption
         });
     } catch (err) {
-        console.error("Shop image error:", err);
-        await sock.sendMessage(replyJid, { text: "Erreur lors de la génération du catalogue visuel." });
+        console.error("Shop pagination / image error:", err);
+        await sock.sendMessage(replyJid, { text: "❌ Erreur lors de la génération du catalogue visuel paginé." });
     }
 });
 
@@ -1980,7 +2072,7 @@ commands.set('menu', async (sock, message) => {
                    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 
   try {
-    const menuImage = await generateMainMenuImage();
+    const menuImage = await generateMainMenuImage(player);
     await sock.sendMessage(message.key.remoteJid, {
         image: menuImage,
         caption: menuText

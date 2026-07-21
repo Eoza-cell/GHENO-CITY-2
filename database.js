@@ -1202,6 +1202,27 @@ async function setupDatabase() {
         console.log("[SEED] 500+ quests ready.");
     }
 
+    // Restore/reset any exaggerated stats (like 1000+ strength in Rank F) to their proper rank caps
+    console.log('[DB] Normalizing all player stats to safeguard rank caps...');
+    const rankCaps = { 'F': 30, 'E': 45, 'D': 60, 'C': 80, 'B': 100, 'A': 150, 'S': 300 };
+    const players = await Player.findAll();
+    for (const p of players) {
+        const cap = rankCaps[p.rank] || 30;
+        let changed = false;
+
+        const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck'];
+        for (const s of stats) {
+            if (p[s] > cap) {
+                console.log(`[DB Normalization] Clamping ${p.name} (${p.rank}) ${s}: ${p[s]} ➔ ${cap}`);
+                p[s] = cap;
+                changed = true;
+            }
+        }
+        if (changed) {
+            await p.save();
+        }
+    }
+
   } catch (error) {
     console.error('Setup failed:', error);
   }

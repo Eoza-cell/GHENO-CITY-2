@@ -13,6 +13,110 @@ const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
 
+/**
+ * Robustly parses stat updates and save commands from pure-text AI narratives.
+ * Format examples: [SINGAM II: HP -18] [HP -18] [XP +50] [Col +100] /save HP -18
+ */
+async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
+    const updates = [];
+    const lowerText = text.toLowerCase();
+
+    // 1) Named stats inside brackets or pipes: [PlayerName: STAT +/- VALUE] or [foo | PlayerName: STAT +/- VALUE]
+    // e.g. [SINGAM II: HP -18] or [Impact | SINGAM II: HP -18 | 82/100]
+    const namedRegex = /(?:[\[|]|^|\s)([A-Za-z0-9\s]+)\s*:\s*(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    let match;
+    while ((match = namedRegex.exec(text)) !== null) {
+        const targetName = match[1].trim().toLowerCase();
+        const statName = match[2].trim().toUpperCase();
+        const value = parseInt(match[3].replace(/\s+/g, ''));
+
+        let targetPlayer = null;
+        if (player.name.toLowerCase() === targetName) {
+            targetPlayer = player;
+        } else {
+            targetPlayer = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
+        }
+
+        if (targetPlayer) {
+            updates.push({ player: targetPlayer, stat: statName, value });
+        }
+    }
+
+    // 2) Unnamed stats inside brackets: [STAT +/- VALUE]
+    // e.g. [HP -18] or [XP +50]
+    const unnamedRegex = /\[\s*(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    while ((match = unnamedRegex.exec(text)) !== null) {
+        const statName = match[1].trim().toUpperCase();
+        const value = parseInt(match[2].replace(/\s+/g, ''));
+
+        // Avoid double-counting if this was already captured as a named stat
+        const isDuplicate = updates.some(u => u.player.whatsappId === player.whatsappId && u.stat === statName && u.value === value);
+        if (!isDuplicate) {
+            updates.push({ player, stat: statName, value });
+        }
+    }
+
+    // 3) Support loose text-based "/save STAT +/- VALUE" commands
+    const saveRegex = /\/save\s+(?:([A-Za-z0-9\s]+?)\s*:\s*)?(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    while ((match = saveRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const statName = match[2].trim().toUpperCase();
+        const value = parseInt(match[3].replace(/\s+/g, ''));
+
+        let targetPlayer = player;
+        if (targetName) {
+            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
+            if (found) targetPlayer = found;
+        }
+
+        updates.push({ player: targetPlayer, stat: statName, value });
+    }
+
+    // Group updates by player and apply them to the DB
+    const playersToUpdate = new Set();
+    const feedbackList = [];
+
+    for (const update of updates) {
+        const p = update.player;
+        const val = update.value;
+        const s = update.stat;
+
+        if (s === 'HP' || s === 'PV') {
+            let newH = p.health + val;
+            if (newH < 0) newH = 0;
+            if (newH > p.maxHealth) newH = p.maxHealth;
+            await p.update({ health: newH });
+            feedbackList.push(`❤️ *${p.name}* : HP ${val >= 0 ? '+' : ''}${val} (➔ ${newH}/${p.maxHealth})`);
+        } else if (s === 'MP' || s === 'PM') {
+            let newM = p.mana + val;
+            if (newM < 0) newM = 0;
+            if (newM > p.maxMana) newM = p.maxMana;
+            await p.update({ mana: newM });
+            feedbackList.push(`🌀 *${p.name}* : MP ${val >= 0 ? '+' : ''}${val} (➔ ${newM}/${p.maxMana})`);
+        } else if (s === 'XP') {
+            let newX = p.xp + val;
+            await p.update({ xp: newX });
+            feedbackList.push(`✨ *${p.name}* : XP +${val}`);
+            // Check level up
+            const { checkLevelUp } = require('./level-utils');
+            await checkLevelUp(sock, jid, p);
+        } else if (s === 'COL') {
+            let newC = p.col + val;
+            if (newC < 0) newC = 0;
+            await p.update({ col: newC });
+            feedbackList.push(`🪙 *${p.name}* : Col ${val >= 0 ? '+' : ''}${val} (➔ ${newC})`);
+        } else if (s === 'SP') {
+            let newS = p.skillPoints + val;
+            if (newS < 0) newS = 0;
+            await p.update({ skillPoints: newS });
+            feedbackList.push(`📖 *${p.name}* : SP ${val >= 0 ? '+' : ''}${val}`);
+        }
+        playersToUpdate.add(p.whatsappId);
+    }
+
+    return { playersToUpdate, feedbackList };
+}
+
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
 
@@ -59,15 +163,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   // Scene Logic: Detect players in the same sub-location (Immediate view)
-  // and players in the same kingdom (Potential interaction/navigation)
   const sceneFilter = {
       location: player.location,
       subLocation: player.subLocation
   };
 
-  // AI Automation Logic:
-  // Solo Scene -> Immediate Response
-  // Multiplayer Scene -> Requires 'next' for sync
   const nearbyPlayers = await Player.findAll({
     where: {
         location: player.location,
@@ -160,7 +260,6 @@ async function handleFreeAction(sock, message, player, actionText) {
       where: { location: player.location },
       attributes: ['name', 'subLocation']
   });
-  const otherPlayerNamesInKingdom = playersInKingdom.map(p => p.name);
 
   let hasMovement = false;
   let hasInteraction = false;
@@ -194,7 +293,7 @@ async function handleFreeAction(sock, message, player, actionText) {
     : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde.)";
 
   const hints = [];
-  if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise 'update_location' et la description du nouveau lieu.");
+  if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise la description du nouveau lieu.");
   if (hasInteraction) {
       hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
       if (interactionTargetSubLocation) {
@@ -202,7 +301,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
   const otherActorsCount = activeOthersInScene.length;
-  if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue. Si l'un parle à l'autre, l'autre DOIT répondre ou subir les conséquences.");
+  if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue.");
 
   // Goldfish Memory Defense: Check if player just got a new item/skill in previous turns
   const recentGains = await WorldJournal.findAll({
@@ -211,99 +310,23 @@ async function handleFreeAction(sock, message, player, actionText) {
       order: [['id', 'DESC']]
   });
   if (recentGains.length > 0) {
-      hints.push(`⚠️ MÉMOIRE RÉCENTE : ${player.name} a récemment vécu : ${recentGains.map(g => g.entry).join(' | ')}. Intègre ces éléments pour éviter l'oubli.`);
+      hints.push(`⚠️ MÉMOIRE RÉCENTE : ${player.name} a récemment vécu : ${recentGains.map(g => g.entry).join(' | ')}.`);
   }
 
   const availableQuests = await Quest.findAll({
       where: {
           [Op.or]: [
               { rank_required: player.rank },
-              { rank_required: 'F' } // Always show basic quests
+              { rank_required: 'F' }
           ]
       },
       limit: 5
   });
 
-  // Keyword Detection for Quests & Intent
-  const lowAction = actionText.toLowerCase();
-
-  // CATEGORY: QUESTS (Keyword Activation)
-  if (lowAction.match(/\b(quête|mission|travail|besoin d'aide|contrat|recherche|objectif|prime|job|faire quelque chose|s'occuper|aider|aventure|aider|services|tâche|recrute|demander du travail|postuler|chercher une mission)\b/i)) {
-      hints.push("🎯 [KEYWORD_ACTIVATE: QUEST] Intention de mission détectée. Tu DOIS proposer une quête ou utiliser 'start_quest' si le joueur accepte.");
-
-      // Fuzzy matching for quest titles
-      for (const q of availableQuests) {
-          const title = q.title.toLowerCase();
-          const words = title.split(' ');
-          if (words.some(w => w.length > 3 && lowAction.includes(w))) {
-              hints.push(`🔥 [SYNC] Le joueur cible la quête : "${q.title}". Propose-lui de démarrer via 'start_quest'.`);
-          }
-      }
-  }
-
-  // CATEGORY: COMMERCE & MONEY
-  if (lowAction.match(/\b(vendre|acheter|marchand|boutique|prix|coûte|commerce|échanger|troc|magasin|étal|vendeur|négocier|paye|pièces|argent|donne-moi|combien|tarif|achat|vente)\b/i)) {
-      hints.push("💰 [KEYWORD_ACTIVATE: TRADE] Intention commerciale. Utilise 'npc_trade' (buy/sell) ou 'buy_item'. Déduis le Col via 'update_stats'.");
-  }
-
-  // CATEGORY: TRAINING & SKILLS
-  if (lowAction.match(/\b(apprendre|entraînement|étudier|compétence|skill|technique|maîtrise|pouvoir|entraînement|développer|pratique|exercer|méditer|apprendre|maîtriser|nouveau sort|nouvelle technique)\b/i)) {
-      hints.push("📖 [KEYWORD_ACTIVATE: SKILL] Apprentissage détecté. Utilise 'add_skill' (coût 5 SP) ou 'create_custom_skill' (coût 10 SP).");
-  }
-
-  // CATEGORY: COMBAT & LETHALITY
-  if (lowAction.match(/\b(attaque|frappe|tue|meurt|combat|lance|sort|magie|épée|lame|poing|coup|sang|duel|défi|assassinat|fendre|trancher|brûler|frapper|cogner|massacrer|achever|décapiter|éventrer|briser)\b/i)) {
-      hints.push("⚔️ [KEYWORD_ACTIVATE: COMBAT] Combat ultra-violent. Applique une léthallité immédiate. Utilise 'update_stats' pour des dégâts massifs. Si le joueur est imprécis ou faible, il subit des blessures mutilantes ou la mort.");
-  }
-
-  // CATEGORY: MATURE & RELATIONSHIPS
-  if (lowAction.match(/\b(sexe|coucher|embrasser|caresse|nu|déshabiller|plaisir|désir|étreinte|lit|chambre|amour|passion|vif|charnel)\b/i)) {
-      hints.push("🔞 [KEYWORD_ACTIVATE: MATURE] Interaction intime détectée. Décris l'acte avec une prose viscérale, immersive et mature, sans censure, tout en restant dans l'esthétique Manhwa/Seinen.");
-  }
-
-  // CATEGORY: EXPLORATION
-  if (lowAction.match(/\b(fouille|cherche|observe|regarde|examine|porte|couloir|coffre|recherche|inspecte|fouille|découvre|trouver|fouiller|analyser|voir de plus près|ouvrir)\b/i)) {
-      hints.push("🕵️ [KEYWORD_ACTIVATE: EXPLORE] Exploration détectée. Utilise 'trigger_trap' ou 'add_item' si un trésor est trouvé.");
-  }
-
-  // CATEGORY: JUSTICE & SOCIAL
-  if (lowAction.match(/\b(insulte|frappe|vole|tue|crime|garde|loi|roi|noble|duc|trahison|meurtre|voler|dérober|menace|provocation|crachat|manquer de respect)\b/i)) {
-      hints.push("⚖️ [KEYWORD_ACTIVATE: JUSTICE] Infraction détectée. Utilise 'social_consequence', 'set_wanted_level' ou 'arrest_player'.");
-  }
-
-  // CATEGORY: WRITING & DOCUMENTS
-  if (lowAction.match(/\b(écrit|écrire|rédige|rédiger|note|noter|journal|lettre|décret|contrat|examen|copie|parchemin|signe|signer|stylo|plume|écrire une lettre|signer le contrat)\b/i)) {
-      hints.push("📄 [KEYWORD_ACTIVATE: WRITE] Écriture détectée. Utilise 'generate_document' pour matérialiser l'écrit.");
-  }
-
-  // CATEGORY: TRAVEL & MOVEMENT
-  if (lowAction.match(/\b(va|vers|part|voyage|chevauche|calèche|portail|téléportation|route|chemin|direction|quitte|entre|déplace|bouge|sort)\b/i)) {
-      hints.push("🚩 INTENTION DE MOUVEMENT DÉTECTÉE. Si le joueur change de lieu important, utilise 'travel_to' ou 'update_location'. Décris le paysage et les rencontres durant le trajet.");
-  }
-
-  // CATEGORY: RELATIONSHIPS & BONDS
-  if (lowAction.match(/\b(fusion|fusionner|âme|lien|pacte|serviteur|maître|soumission|obéir|donner|partager|union|fusion d'âmes|pacte de servitude)\b/i)) {
-      hints.push("🔗 INTENTION DE LIEN DÉTECTÉE. Le joueur veut créer un lien puissant. Utilise 'request_servitude' ou 'request_fusion'.");
-  }
-
-  // CATEGORY: SURVIVAL & REST
-  if (lowAction.match(/\b(dort|repos|mange|bois|faim|soif|nourriture|sommeil|fatigue|épuisé|taverne|auberge|lit|repas|festin)\b/i)) {
-      hints.push("🍖 INTENTION DE SURVIE DÉTECTÉE. Le joueur cherche à se restaurer. Utilise 'update_stats' { \"hunger_change\": 20, \"sleep_change\": 20 } après un repas ou une nuit de sommeil.");
-  }
-
-  // CATEGORY: BANK & FINANCE
-  if (lowAction.match(/\b(banque|déposer|retirer|coffre-fort|compte|épargne|guichet|banquier|transfert|col)\b/i)) {
-      hints.push("🏦 INTENTION BANCAIRE DÉTECTÉE. Utilise 'bank_transaction' { \"type\": \"deposit|withdraw\", \"amount\": n }.");
-  }
-
-  hints.push("⚠️ LOIS DE CAUSALITÉ & ANTI-TRICHE : Le monde est un écosystème logique. Un joueur ne peut PAS nager 3h sans compétence spéciale (il se noie en 5min s'il est Rang F). Pas de vol ou téléportation sans skill appris. Chaque action consomme du Mana (si technique) ou de l'endurance (Faim/Sommeil).");
-  hints.push("⚠️ SENSORIALITÉ : Un joueur ne ressent pas les autres à distance sans compétence. Son rayon de perception naturelle dépend de son Rang (F: 5m, S: 100m).");
-  hints.push("⚠️ APPLIQUE LES LOIS DU ROYAUME. Si un joueur commet un crime ou manque de respect aux Ducs/Rois, déclenche une punition immédiate et sévère (jusqu'à la mort ou l'emprisonnement).");
-  hints.push("⚠️ RESTRICTION DE RANG & SKILLS : Un Rang F ne peut JAMAIS accomplir les prouesses d'un Rang B. Si un joueur tente une action sans avoir la compétence correspondante dans sa liste 'Skills', il ÉCHOUE bruyamment (maladresse, blessure, ridicule). Tu DOIS impérativement utiliser l'action 'check_requirements' pour valider toute tentative risquée ou technique.");
-  hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend DES JOURS RP. Changer de Continent prend DES SEMAINES (via 'travel_to'). Interdiction de changer de royaume/continent instantanément sans téléportation (Skill S).");
-  hints.push("⚠️ ÉPUISEMENT : Si Hunger ou Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement. Toute action physique exigeante ÉCHOUE ou entraîne un évanouissement immédiat.");
-  hints.push("🎁 RÉCOMPENSES : Récompense systématiquement les actions réussies, l'ingéniosité ou les victoires par 'update_stats' { \"xp_gain\": n, \"sp_change\": n, \"col_change\": n }.");
-  hints.push("🧠 GESTION DES SP : Chaque skill appris via 'add_skill' DOIT déduire 5 SP. Créer une compétence via 'create_custom_skill' coûte 10 SP. Si le joueur n'a plus de SP, l'action échoue.");
+  hints.push("⚠️ LOIS DE CAUSALITÉ & ANTI-TRICHE : Le monde est un écosystème logique. Un joueur ne peut PAS nager 3h sans compétence spéciale (il se noie en 5min s'il est Rang F).");
+  hints.push("⚠️ SENSORIALITÉ : Un joueur ne ressent pas les autres à distance sans compétence.");
+  hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend DES JOURS RP.");
+  hints.push("⚠️ ÉPUISEMENT : Si Hunger ou Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement.");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -312,8 +335,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const rpElapsedHours = (realElapsedMs * 9) / (1000 * 60 * 60);
 
   if (rpElapsedHours > 0.05) {
-      const hungerLoss = Math.floor(rpElapsedHours * 3); // -3 per RP hour
-      const sleepLoss = Math.floor(rpElapsedHours * 2);  // -2 per RP hour
+      const hungerLoss = Math.floor(rpElapsedHours * 3);
+      const sleepLoss = Math.floor(rpElapsedHours * 2);
 
       if (hungerLoss > 0) await player.decrement('hunger', { by: hungerLoss });
       if (sleepLoss > 0) await player.decrement('sleep', { by: sleepLoss });
@@ -325,7 +348,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       // Check if player is dead/unconscious
       const isDead = player.health <= 0;
       if (isDead) {
-          hints.push("⚠️ LE JOUEUR EST MORT OU INCONSCIENT (0 PV). Il ne peut RIEN faire à part observer ou parler brièvement à des entités de Nécropolis s'il y est. Toute tentative d'action physique ÉCHOUE automatiquement.");
+          hints.push("⚠️ LE JOUEUR EST MORT OU INCONSCIENT (0 PV).");
       }
 
       // Starvation damage
@@ -385,7 +408,6 @@ async function handleFreeAction(sock, message, player, actionText) {
       const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
       const pActions = recentActions.filter(a => a.senderName === p.name).map(a => a.content);
 
-      // Stat Calculation (Servitude/Fusion)
       let displayFor = p.strength;
       let displayAgi = p.agility;
       let displayInt = p.intelligence;
@@ -494,7 +516,6 @@ async function handleFreeAction(sock, message, player, actionText) {
   // Find current kingdom lore even if location is a city name
   let kingdom = allKingdoms.find(k => k.name === player.location);
   if (!kingdom) {
-      // Fallback: search if the current location is mentioned in any kingdom's description (as a city)
       kingdom = allKingdoms.find(k => k.description.toLowerCase().includes(player.location.toLowerCase()));
   }
   const subLocContext = kingdom ? `\nLORE_LIEU: ${kingdom.description}` : "";
@@ -505,7 +526,7 @@ async function handleFreeAction(sock, message, player, actionText) {
             {
                 [Op.or]: [
                     { location: { [Op.like]: `%${player.location}%` } },
-                    { powerLevel: { [Op.gte]: 95 } } // Only include absolute legends/bosses
+                    { powerLevel: { [Op.gte]: 95 } }
                 ]
             },
             { role: { [Op.notLike]: '%Garde%' } },
@@ -513,7 +534,7 @@ async function handleFreeAction(sock, message, player, actionText) {
         ]
     },
     order: sequelize.random(),
-    limit: 5 // Reduced to prevent AI from feeling forced to use them
+    limit: 5
   });
   const npcState = "PNJ_PRÉSENTS: " + npcs.map(n => `${n.name}(Rôle:${n.role}, Force:${n.powerLevel}, Spé:${n.specialty})`).join(' | ');
   const playerPacts = await player.getEntities();
@@ -538,14 +559,9 @@ async function handleFreeAction(sock, message, player, actionText) {
   const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
 
-    // Mini-Event Trigger (20% chance)
-    const triggerMiniEvent = Math.random() < 0.20;
-    const miniEventContext = triggerMiniEvent
-        ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
-        : "";
-
   const systemPrompt = `MJ D'AETHERYS (RÉALISME BRUT & IMMERSION TOTALE)
-Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle. Réponds exclusivement en JSON valide.
+Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle.
+RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
 
 IMMERSION SENSORIELLE :
 - ODORAT: Décris l'odeur du sang frais, de l'ozone après un éclair, du vieux parchemin, de la pourriture des bas-fonds.
@@ -553,22 +569,30 @@ IMMERSION SENSORIELLE :
 - ATMOSPHÈRE: Décris la pression du mana dans l'air, le silence oppressant avant l'attaque, la poussière qui danse dans la lumière.
 
 LÉTHALITÉ & CONSÉQUENCES :
-- MORT: PV <= 0 -> Action 'update_stats' { "health_change": 0 }. La mort est définitive sans intervention divine.
+- MORT: PV <= 0 -> Action de mort immédiate.
 - COMBAT: Brutal, sanglant. Les os craquent, la chair se déchire. Pas de combat 'propre'.
-- CAUSALITÉ: Rang F faible (cap stats 30). Nage limitée (5min). Pas de vol sans skill. Traversée de royaume = jours RP.
-- ÉPUISEMENT: Hunger/Sleep < 20 -> Actions physiques échouent. Le joueur s'écroule de fatigue.
+- CAUSALITÉ: Rang F faible (cap stats 30). Nage limitée (5min). Pas de vol sans skill.
 
 NARRATION :
 - STYLE: Seinen/Manhwa viscéral (Berserk/Solo Leveling). Un SEUL paragraphe fluide par joueur. Évite les répétitions.
 - MJ PUR: Tu ne décides jamais des pensées ou sentiments du joueur. Tu décris uniquement ce qu'il perçoit et ce qu'il subit.
 - DÉVELOPPEMENT: Chaque action a un impact sur l'environnement.
 
-VISUELS OBLIGATOIRES :
-- Combat/Magie: Inclus "actionVisual": {"type": "skill|combat|magic", "assetName": "Lieu", "title": "NOM", "description": "..."}.
-- Éducation: 'explain_magic' pour détails techniques (flux de mana, résonance). 'generate_document' (type: blackboard) pour tableau.
+STATUTS ET COMMANDES DE SAUVEGARDE :
+Pour mettre à jour le statut, tu ne dois plus utiliser de JSON. Tu dois simplement inclure des brackets à la fin de ta narration pour indiquer ce que le joueur a subi ou gagné, afin que notre parseur de sauvegarde mette à jour ses statistiques.
+Format de bracket obligatoire :
+- [Distance utile: X m]
+- [NOM_DU_JOUEUR: HP -X] ou [NOM_DU_JOUEUR: HP +X] (Ex: [SINGAM II: HP -18 | 82/100])
+- [NOM_DU_JOUEUR: MP -X] ou [NOM_DU_JOUEUR: MP +X]
+- [NOM_DU_JOUEUR: XP +X]
+- [NOM_DU_JOUEUR: Col +X] ou [NOM_DU_JOUEUR: Col -X]
+- [NOM_DU_JOUEUR: SP +X] ou [NOM_DU_JOUEUR: SP -X]
 
-ACTIONS: update_location, update_stats, update_player, bank_transaction, buy_item, use_item, add_item, remove_item, add_skill, travel_to, spawn_npc, spawn_monster, create_custom_item, change_weather, manage_house, set_academic_status, query_database, modify_reputation, generate_document, notify_player, broadcast, start_quest, advance_quest, complete_quest, arrest_player, set_wanted_level, forge_pact, join_club, resurrect_player, write_journal, p2p_transfer, npc_trade, check_requirements, create_custom_skill, promote_player, explain_magic.`;
-
+Exemple de réponse attendue de ta part :
+📅 An 23, 31 Mars | 🌙 04:44
+*AVENTURA* *📍 Eldoria (Place Centrale)*
+... (Texte narratif immersif d'un seul paragraphe) ...
+[Distance utile: 1 m → contact] [Impact au torse/flanc | SINGAM II: HP -18 | 82/100] [SINGAM II: XP +50]`;
 
     const memoryJson = JSON.stringify({
         monde: {
@@ -629,7 +653,6 @@ RÉALITÉ PHYSIQUE:
         .map(p => `[JOUEUR: ${p.nom}] ACTIONS: ${p.actions_recentes.join(' -> ')}`)
         .join('\n');
 
-    // Logic Bridge: Add a 'World Pulse' for luck/dice results
     const worldPulse = {
         luck_seed: Math.floor(Math.random() * 100),
         critical_success: Math.random() < 0.05,
@@ -646,231 +669,117 @@ RÉALITÉ PHYSIQUE:
 ${actionSummary}
 
 CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
-0. SYNCHRONISATION OBLIGATOIRE : Pour chaque tour, tu DOIS retourner les actions JSON nécessaires pour mettre à jour les fiches des joueurs. Pas de narration sans mise à jour technique si nécessaire.
 1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
-2. RÉGIS LEURS INTERACTIONS : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies dans le JSON.
+2. RÉGIS LEURS INTERACTIONS : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies.
 3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
 4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.
 5. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans le RÉSUMÉ DES ACTIONS.
 6. STRUCTURE OBLIGATOIRE : Utilise [NOM_DU_JOUEUR] et le séparateur ▬▬▬▬▬▬▬▬▬▬▬▬.
 
-ATTENTION : Si tu mélanges les fils narratifs ou les inventaires, le système rencontrera une erreur de segmentation. RESTE ÉTANCHE.
-RÉPONDS EXCLUSIVEMENT EN JSON VALIDE.`;
+ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par les brackets des impacts statutaires.`;
 
   try {
-    let content = await callAI(systemPrompt, fullPrompt);
+    let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false });
     if (!content) {
-        content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...", actions: [] });
+        content = "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...";
     }
-    console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : '[Object]'}`);
+    console.log(`[AI RAW] Contenu reçu:\n${content.substring(0, 1000)}`);
 
-    // Enhanced JSON & Narrative extraction
-    let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
+    // Extract dynamic statistics changes from the text
+    const { playersToUpdate, feedbackList } = await parseStatsFromText(content, player, nearbyPlayers, sock, jid);
 
-    const cleanupNarrative = (t) => {
-        if (!t) return "";
-        // Clean markdown, common technical prefixes, and ChatML tags
-        return t.replace(/```json/gi, '')
-                .replace(/```/g, '')
-                .replace(/<\|im_start\|>.*?<\|im_end\|>/gs, '') // Remove ChatML blocks
-                .replace(/<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>/g, '') // Remove loose tags
-                .replace(/^(json|JSON)/g, '')
-                .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
-                .replace(/(\n|^)[a-z_]+[cC]hange:.*(\n|$)/gi, '')
-                .replace(/\{[\s\S]*?\}/g, '') // Remove remaining JSON-like structures
-                .replace(/\[\s*\{[\s\S]*?\}\s*\]/g, '') // Remove remaining arrays of objects
-                .replace(/\b(?:imagePrompt|actions|actionVisual|narrative|notifications|broadcastMessage|status|message|pensee_mj|luck_seed|critical_success|weather_impact|user|assistant|system)\b\s*:?.*(\n|$)/gi, '')
-                .replace(/\\n/g, '\n')
-                .replace(/\n{3,}/g, '\n\n') // Normalize multiple newlines
-                .trim();
-    };
+    // Dynamic Action Visual Logic based on text content analysis
+    let visualBuffer = null;
+    const lowerContent = content.toLowerCase();
 
-    if (typeof content === 'object') {
-        aiResponse = { ...aiResponse, ...content };
-        if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
-    } else {
-        // Robust JSON extraction
-        const jsonRegex = /\{[\s\S]*\}/g; // Greediest possible match for potential full object
-        const match = content.match(jsonRegex);
+    // Automatically detect combat/skills to trigger action visuals
+    let actionType = null;
+    let visualTitle = "SÉQUENCE DE COMBAT";
+    let visualDesc = "Échange physique d'intensité maximale.";
 
-        if (match) {
-            try {
-                // Try parsing the largest block
-                const potential = JSON.parse(match[0]);
-                aiResponse = { ...aiResponse, ...potential };
-            } catch (e) {
-                // If it fails, try finding individual small blocks
-                const smallBlocks = [...content.matchAll(/\{[\s\S]*?\}/g)];
-                for (const b of smallBlocks) {
-                    try {
-                        const parsed = JSON.parse(b[0]);
-                        if (parsed.narrative) aiResponse.narrative = parsed.narrative;
-                        if (parsed.actions) aiResponse.actions = [...(aiResponse.actions || []), ...parsed.actions];
-                        if (parsed.actionVisual) aiResponse.actionVisual = parsed.actionVisual;
-                    } catch(err) {}
-                }
-            }
-        }
-
-        // If narrative is empty, fallback to the text outside JSON
-        if (!aiResponse.narrative || aiResponse.narrative.length < 5) {
-            let plainText = content.replace(/\{[\s\S]*?\}/g, '').replace(/```[a-z]*\n?/gi, '').trim();
-            if (plainText.length > 5) {
-                aiResponse.narrative = cleanupNarrative(plainText);
-            }
-        }
+    if (lowerContent.includes('attaque') || lowerContent.includes('frappe') || lowerContent.includes('combat') || lowerContent.includes('épée') || lowerContent.includes('lame') || lowerContent.includes('bâton') || lowerContent.includes('vrille') || lowerContent.includes('apôtre')) {
+        actionType = 'combat';
+    } else if (lowerContent.includes('magie') || lowerContent.includes('sort') || lowerContent.includes('mana') || lowerContent.includes('éther') || lowerContent.includes('lumière') || lowerContent.includes('bénit')) {
+        actionType = 'magic';
+        visualTitle = "FLUX ARCANIQUE";
+        visualDesc = "Manipulation active du mana spirituel.";
     }
 
-    // Ensure narrative is clean
-    aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
-
-    // Procedural Action Visual Logic
-    if (aiResponse.actionVisual && !aiResponse.imagePrompt) {
+    if (actionType) {
         try {
-            // Map location/monster to local assets
+            // Match location with assets
             const assetMap = {
                 'Eldoria': 'assets/locations/eldoria.jpg',
                 'Académie Impériale': 'assets/locations/academy.jpg',
                 'Nécropolis': 'assets/locations/necropolis.jpg',
-                'L\'Interstice': 'assets/locations/interstice.jpg',
-                'Empire Impérial d\'Elion': 'assets/locations/eldoria.jpg',
-                'Royaume de Valkyrr': 'assets/locations/academy.jpg',
-                'Terres Bestiales': 'assets/locations/interstice.jpg',
-                'Royaume Céleste': 'assets/locations/interstice.jpg',
-                'Dominion Noir de Vharos': 'assets/locations/necropolis.jpg',
-                'Gobelin': 'assets/monsters/goblin.jpg',
-                'Boss': 'assets/monsters/boss.jpg'
+                'L\'Interstice': 'assets/locations/interstice.jpg'
             };
-
-            let assetPath = assetMap[aiResponse.actionVisual.assetName] || assetMap[player.location] || 'assets/locations/eldoria.jpg';
-
-            // Skill specific asset overrides
-            if (aiResponse.actionVisual.type === 'skill') {
-                if (aiResponse.actionVisual.description.includes('[Feu]')) assetPath = 'assets/locations/interstice.jpg'; // Warm/Dynamic
-                if (aiResponse.actionVisual.description.includes('[Eau]')) assetPath = 'assets/locations/eldoria.jpg'; // Calm
-                if (aiResponse.actionVisual.description.includes('[Terre]')) assetPath = 'assets/locations/necropolis.jpg'; // Solid/Dark
-                if (aiResponse.actionVisual.description.includes('[Vent]')) assetPath = 'assets/locations/academy.jpg'; // Open/Breezy
-            }
-
-            const visualBuffer = await generateActionVisual({
-                actionType: aiResponse.actionVisual.type || 'combat',
-                title: aiResponse.actionVisual.title || 'SEQUENCE ACTIVE',
-                description: aiResponse.actionVisual.description || 'Analyse tactique en cours...',
-                assetPath: assetPath
+            const assetPath = assetMap[player.location] || 'assets/locations/eldoria.jpg';
+            visualBuffer = await generateActionVisual({
+                actionType,
+                title: visualTitle,
+                description: visualDesc,
+                assetPath
             });
-            aiResponse.imagePrompt = visualBuffer;
-        } catch (e) {
-            console.error("[Visual] Error generating action visual:", e);
+        } catch (vErr) {
+            console.error("[Visual Generator Error]", vErr);
         }
     }
 
-    // 3D Trigger Logic: If AI mentions "3D", "scan", or "hologramme"
-    if (aiResponse.narrative.match(/3D|scan|hologramme/i) && !aiResponse.imagePrompt) {
-        const types = ['cube', 'sphere', 'pyramid'];
-        const type = types.find(t => aiResponse.narrative.toLowerCase().includes(t)) || 'cube';
+    // 3D Trigger Logic if mentioned
+    if (lowerContent.match(/3d|scan|hologramme/i) && !visualBuffer) {
         try {
-            const threeBuffer = await generate3DVisual(type, 0x00ffff);
-            aiResponse.imagePrompt = threeBuffer;
-        } catch (e) {
-            console.error("[3D] Error:", e);
-        }
+            visualBuffer = await generate3DVisual('cube', 0x00ffff);
+        } catch (e) {}
     }
 
-    if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
-        aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";
-    }
-
-    console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
-    const actions = aiResponse.actions || [];
-
-    if (!aiResponse.narrative) {
-        aiResponse.narrative = "Il ne se passe rien de spécial.";
-    }
-
-    // Logic Verification: Ensure narrative intent matches triggered actions
-    const lowNarrative = aiResponse.narrative.toLowerCase();
-    if ((lowNarrative.includes("mort") || lowNarrative.includes("tue")) && !aiResponse.actions.some(a => a.type === 'update_stats')) {
-        console.log("[Logic] Detected unhandled death/damage intent. Injecting diagnostic note.");
-    }
-    if ((lowNarrative.includes("achète") || lowNarrative.includes("paye")) && !aiResponse.actions.some(a => ['buy_item', 'npc_trade', 'update_stats'].includes(a.type))) {
-        console.log("[Logic] Detected unhandled purchase intent. Injecting diagnostic note.");
-    }
-
-    // Save bot response to memory (Non-blocking)
-    RPMessage.create({
+    // Save bot response to memory
+    await RPMessage.create({
         senderJid: 'bot',
         senderName: 'Arise MJ',
-        content: aiResponse.narrative,
+        content: content,
         location: player.location,
         subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
 
-    // Process actions via unified logic engine
-    const { questFeedback, playersToUpdate, notifiedTargets } = await processActions(sock, jid, player, actions, aiResponse, nearbyPlayers);
-
-    // SYNC ABSOLUE : Recharger le joueur pour que le HUD affiche les PV exacts après les actions de l'IA
+    // Reload active player to sync the new stats
     await player.reload();
-
-    // Batch notifications to targets to avoid spam
-    for (const targetJid of notifiedTargets) {
-        const targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
-        if (targetPlayer && shouldNotifyPlayer(targetPlayer)) {
-            await sock.sendMessage(targetJid, {
-                text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
-            });
-        }
-    }
-
-    // Additional player notifications
-    if (Array.isArray(aiResponse.notifications)) {
-      for (const notice of aiResponse.notifications) {
-        if (!notice || !notice.target_name || !notice.message) continue;
-        const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: `%${notice.target_name}%` }, location: player.location } });
-        if (targetPlayer && targetPlayer.subLocation !== player.subLocation) continue;
-        if (targetPlayer && shouldNotifyPlayer(targetPlayer)) {
-          await sock.sendMessage(targetPlayer.whatsappId, {
-            text: `🔔 *Message de RP*\n\n${notice.message}`
-          });
-        }
-      }
-    }
-
-    if (aiResponse.broadcastMessage) {
-      for (const other of nearbyPlayers) {
-        if (other.whatsappId !== player.whatsappId && shouldNotifyPlayer(other)) {
-          await sock.sendMessage(other.whatsappId, {
-            text: `📣 *Annonce RP*\n\n${aiResponse.broadcastMessage}`
-          });
-        }
-      }
-    }
-
-    // Append quest progression feedback to the narrative.
-    if (questFeedback.length > 0) {
-      aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
-    }
 
     // Streamlined HUD and Header for cleaner responses
     const hud = ` [❤️ ${player.health}/${player.maxHealth} | 🌀 ${player.mana}/${player.maxMana} | 💰 ${player.col}]`;
-    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}\n\n📊 *HUD*:${hud}`;
 
-    // Send typing indicator (presencesUpdate is not always reliable but good to try)
+    // Check if the response already contains a time header, if not, prepend it
+    let finalMsg = content;
+    if (!content.includes(' An ') && !content.includes('📅')) {
+        finalMsg = `${getWorldHeader()}\n\n${finalMsg}`;
+    }
+
+    if (feedbackList.length > 0) {
+        finalMsg = `${finalMsg}\n\n💾 *SAUVEGARDE DES STATUT :*\n${feedbackList.map(f => `├ ${f}`).join('\n')}`;
+    }
+
+    finalMsg = `${finalMsg}\n\n📊 *HUD*:${hud}`;
+
+    // Send typing indicators
     try {
         await sock.sendPresenceUpdate('composing', jid);
-        await sock.sendPresenceUpdate('paused', jid);
     } catch (e) {}
 
-    await sendWithImage(sock, jid, aiResponse);
+    // Send the final immersive output
+    const messagePayload = { text: finalMsg };
+    if (visualBuffer) {
+        messagePayload.image = visualBuffer;
+        messagePayload.caption = finalMsg;
+    }
+    await sock.sendMessage(jid, messagePayload);
 
-    // LIVE-actualisation: Silent Database Update (Profile cards disabled to reduce spam)
+    // Silent reload of any changed players to keep cache synchronized
     if (playersToUpdate.size > 0) {
         for (const pId of playersToUpdate) {
             try {
                 const pToUpdate = await Player.findOne({ where: { whatsappId: pId } });
                 if (pToUpdate) await pToUpdate.reload();
-            } catch (e) {
-                console.error(`[AI] Silent update failed for ${pId}:`, e.message);
-            }
+            } catch (e) {}
         }
     }
 
