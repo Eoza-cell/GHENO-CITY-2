@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: aetherys-ai-api
+    env: docker
+    plan: starter # On recommande au moins le plan starter pour la RAM
+    region: frankfurt
+    envVars:
+      - key: MODEL_URL
+        value: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: model-storage
+      mountPath: /app/models
+      sizeGB: 1

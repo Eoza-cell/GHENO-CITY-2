@@ -1,0 +1,15 @@
+{
+  "name": "aetherys-ai-api",
+  "version": "1.0.0",
+  "description": "API d'IA légère pour Arise RPG utilisant llama.cpp",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.3.1"
+  }
+}
