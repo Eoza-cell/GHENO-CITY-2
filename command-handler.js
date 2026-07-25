@@ -231,6 +231,10 @@ const profileCommand = async (sock, message) => {
                           `❤️ *VIE:*  [${healthBar}] ${player.health}/${player.maxHealth}\n` +
                           `🔷 *MANA:* [${manaBar}] ${player.mana}/${player.maxMana}\n` +
                           `✨ *XP:*   [${xpBar}] ${player.xp}/${xpNeeded}\n\n` +
+                          `--- 👕 APPARENCE & TENUE --- \n` +
+                          `👔 Tenue: ${player.equippedOutfit || "Aucun vêtement"}\n` +
+                          `🔧 État: ${player.outfitDurability}% Durabilité\n` +
+                          `🧼 Propreté: *${(player.outfitCleanliness || 'propre').toUpperCase()}*\n\n` +
                           `--- ⚔️ STATISTIQUES --- \n` +
                           `💪 Force: ${player.strength}\n` +
                           `🏃 Agilité: ${player.agility}\n` +
@@ -666,6 +670,23 @@ commands.set('recuperer', async (sock, message, args) => {
 
 // Command: /vetements
 const vetementsCommand = async (sock, message, args) => {
+    if (args.length === 0) {
+        const jid = getJid(message);
+        const player = await Player.findOne({ where: { whatsappId: jid } });
+        let text = "👕 *MODE & VÊTEMENTS D'AETHERYS* 👕\n\n" +
+                   "Les vêtements et armures s'usent durant vos combats et se salissent selon vos aventures (boue, poussière, sang).\n" +
+                   "Les PNJ et la milice réagissent de manière changeante selon votre apparence !\n\n" +
+                   `🔧 *Votre tenue actuelle :* ${player?.equippedOutfit || "Aucune"}\n` +
+                   `🧼 *État :* ${player?.outfitDurability || 100}% Durabilité • Propreté: ${(player?.outfitCleanliness || 'propre').toUpperCase()}\n\n` +
+                   "🧼 *NETTOYER VOS HABITS :*\n" +
+                   "└ Tapez `/laver` (Gratuit près d'une rivière/lac, ou 10 Col en Taverne)\n\n" +
+                   "🔨 *RÉPARER VOS HABITS :*\n" +
+                   "└ Tapez `/reparer` (50 Col dans une Forge ou Cité)\n\n" +
+                   "🛒 *ACHETER DE NOUVELLES TENUES :*\n" +
+                   "└ Tapez `/vetements boutique` pour parcourir le catalogue de mode !";
+        await sock.sendMessage(message.key.remoteJid, { text });
+        return;
+    }
     const newArgs = ['clothing', ...args];
     const boutiqueCmd = commands.get('boutique');
     if (boutiqueCmd) {
@@ -2029,6 +2050,63 @@ commands.set('arbitre', async (sock, message, args) => {
     } catch (e) {
         await sock.sendMessage(replyJid, { text: resultText });
     }
+});
+
+// Command: /laver
+commands.set('laver', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  if (!player) {
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const locationLower = (player.subLocation || "").toLowerCase();
+  const isNearWater = ["source", "rivière", "lac", "cascade", "mer", "phare", "crique", "sources", "flot", "ruisseau"].some(w => locationLower.includes(w));
+
+  if (isNearWater) {
+    await player.update({ outfitCleanliness: 'propre' });
+    await sock.sendMessage(replyJid, { text: `🧼 *Nettoyage gratuit !* Tu laves tes vêtements dans l'eau fraîche de *${player.subLocation}*. Ta tenue est maintenant parfaitement *PROPRE* !` });
+  } else {
+    if (player.col < 10) {
+      await sock.sendMessage(replyJid, { text: "❌ Tu n'as pas assez de pièces (10 Col requis) pour laver tes vêtements à la taverne. Trouve une source d'eau naturelle !" });
+      return;
+    }
+    await player.decrement('col', { by: 10 });
+    await player.update({ outfitCleanliness: 'propre' });
+    await sock.sendMessage(replyJid, { text: `🧼 *Service de lavage !* Tu paies 10 Col à la tavernière locale. Tes vêtements sont lavés, repassés et sentent bon le propre !` });
+  }
+});
+
+// Command: /reparer
+commands.set('reparer', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  if (!player) {
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const locationLower = (player.subLocation || "").toLowerCase();
+  const hasForge = ["forge", "grand laboratoire", "marché", "taverne", "eldoria", "académie", "fort", "cité", "palais", "bastion", "atelier"].some(f => locationLower.includes(f));
+
+  if (!hasForge) {
+    await sock.sendMessage(replyJid, { text: `❌ Impossible de réparer tes vêtements ici (*${player.subLocation}*). Rends-toi dans une Cité, une Forge, une Taverne ou un Atelier !` });
+    return;
+  }
+
+  if (player.col < 50) {
+    await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de pièces (50 Col requis) pour faire réparer ton armure/vêtement par un tailleur ou forgeron.` });
+    return;
+  }
+
+  await player.decrement('col', { by: 50 });
+  await player.update({ outfitDurability: 100 });
+  await sock.sendMessage(replyJid, { text: `🔧 *Réparation effectuée !* Un artisan local raccommode tes vêtements et renforce les coutures pour 50 Col. Durabilité remontée à *100%* !` });
 });
 
 // Command: /menu

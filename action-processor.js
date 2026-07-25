@@ -436,6 +436,25 @@ async function handleUpdateStats(target, params, questFeedback, playersToUpdate,
         await target.increment('health', { by: params.health_change });
         await target.reload();
 
+        // Handle clothing durability and stains on damage in combat
+        if (params.health_change < 0) {
+            const damageAmt = Math.floor(Math.abs(params.health_change) * 0.4) || 2;
+            let newDur = (target.outfitDurability || 100) - damageAmt;
+            if (newDur < 0) newDur = 0;
+
+            let newClean = target.outfitCleanliness || 'propre';
+            if (Math.abs(params.health_change) >= 15) {
+                newClean = 'couvert de sang';
+            } else if (Math.abs(params.health_change) >= 5 && newClean === 'propre') {
+                newClean = 'taché de boue';
+            }
+
+            await target.update({
+                outfitDurability: newDur,
+                outfitCleanliness: newClean
+            });
+        }
+
         // Class-specific recovery bonus
         if (params.health_change > 0 && target.class === 'Moine' && params.is_meditation) {
             await target.increment('mana', { by: Math.floor(params.health_change * 1.5) });

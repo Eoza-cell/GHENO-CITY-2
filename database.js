@@ -7,7 +7,6 @@ const dbUrl = process.env.DATABASE_URL;
 if (dbUrl) {
   console.log('[DB] Vérification de la connexion PostgreSQL...');
   try {
-    // Probe sync avec un timeout de 10 secondes
     execSync(`node -e "const { Sequelize } = require('sequelize'); const s = new Sequelize(process.env.DB_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }); s.authenticate().then(() => process.exit(0)).catch((e) => { process.exit(1); })"`, {
       env: { ...process.env, DB_URL: dbUrl },
       timeout: 10000,
@@ -25,7 +24,7 @@ if (dbUrl) {
       }
     });
   } catch (e) {
-    console.error('[DB] PostgreSQL inaccessible (ENOTFOUND ou Timeout). Basculement sur SQLite local.');
+    console.error('[DB] PostgreSQL inaccessible. Basculement sur SQLite local.');
     sequelize = new Sequelize({
       dialect: 'sqlite',
       storage: 'gheno-city.sqlite',
@@ -40,6 +39,28 @@ if (dbUrl) {
     logging: false,
   });
 }
+
+// Separate database dedicated strictly to generated media assets / images
+// This protects the main gheno-city database from swelling rapidly.
+const mediaSequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: 'gheno-media.sqlite',
+  logging: false,
+});
+
+const MediaAsset = mediaSequelize.define('MediaAsset', {
+  key: {
+    type: DataTypes.STRING,
+    primaryKey: true,
+  },
+  base64Data: {
+    type: DataTypes.TEXT,
+  },
+  mimeType: {
+    type: DataTypes.STRING,
+    defaultValue: 'image/png',
+  }
+});
 
 const Creds = sequelize.define('Creds', {
   key: {
@@ -102,7 +123,7 @@ const Player = sequelize.define('Player', {
   },
   academicYear: {
     type: DataTypes.INTEGER,
-    defaultValue: 1, // 1ere année, etc.
+    defaultValue: 1,
   },
   col: {
     type: DataTypes.INTEGER,
@@ -243,9 +264,17 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  outfitDurability: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100, // 0 to 100%
+  },
+  outfitCleanliness: {
+    type: DataTypes.STRING,
+    defaultValue: 'propre', // 'propre', 'poussiéreux', 'taché de boue', 'couvert de sang', 'déchiré'
+  },
   wantedLevel: {
     type: DataTypes.INTEGER,
-    defaultValue: 0, // 0 to 5 stars
+    defaultValue: 0,
   },
   isPrisoner: {
     type: DataTypes.BOOLEAN,
@@ -314,18 +343,16 @@ const Quest = sequelize.define('Quest', {
     rank_required: { type: DataTypes.STRING, defaultValue: 'E' },
     reward_col: { type: DataTypes.INTEGER, defaultValue: 0 },
     reward_xp: { type: DataTypes.INTEGER, defaultValue: 0 },
-    // Ordered quest chains ("quêtes qui suivent des ordres").
-    chain: { type: DataTypes.STRING, allowNull: true }, // name of the chain
-    step: { type: DataTypes.INTEGER, defaultValue: 1 }, // order within the chain
+    chain: { type: DataTypes.STRING, allowNull: true },
+    step: { type: DataTypes.INTEGER, defaultValue: 1 },
     objective: { type: DataTypes.TEXT, allowNull: true },
-    nextQuestTitle: { type: DataTypes.STRING, allowNull: true }, // next quest in the chain
-    isMultiplayer: { type: DataTypes.BOOLEAN, defaultValue: false }, // shared/co-op quest
+    nextQuestTitle: { type: DataTypes.STRING, allowNull: true },
+    isMultiplayer: { type: DataTypes.BOOLEAN, defaultValue: false },
 });
 
 const PlayerQuest = sequelize.define('PlayerQuest', {
     status: { type: DataTypes.STRING, defaultValue: 'not_started' },
-    progress: { type: DataTypes.INTEGER, defaultValue: 0 }, // 0-100
-    // Lets the AI "modifier le cours de certaines quêtes".
+    progress: { type: DataTypes.INTEGER, defaultValue: 0 },
     branch: { type: DataTypes.STRING, allowNull: true },
     notes: { type: DataTypes.TEXT, allowNull: true },
     metadata: {
@@ -407,8 +434,8 @@ const RPMessage = sequelize.define('RPMessage', {
 
 const WorldJournal = sequelize.define('WorldJournal', {
     entry: { type: DataTypes.TEXT },
-    importance: { type: DataTypes.INTEGER, defaultValue: 1 }, // 1: normal, 5: critical
-    category: { type: DataTypes.STRING, defaultValue: 'general' }, // 'plot', 'character', 'world_event'
+    importance: { type: DataTypes.INTEGER, defaultValue: 1 },
+    category: { type: DataTypes.STRING, defaultValue: 'general' },
     timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
 
@@ -424,7 +451,7 @@ const NPC = sequelize.define('NPC', {
 
 const Entity = sequelize.define('Entity', {
     name: { type: DataTypes.STRING, unique: true },
-    type: { type: DataTypes.STRING }, // 'celestial', 'bestial', 'ancient'
+    type: { type: DataTypes.STRING },
     description: { type: DataTypes.TEXT },
     power: { type: DataTypes.TEXT },
     pactBonus: {
@@ -438,8 +465,8 @@ const Entity = sequelize.define('Entity', {
 });
 
 const Pact = sequelize.define('Pact', {
-    status: { type: DataTypes.STRING, defaultValue: 'active' }, // 'active', 'broken'
-    resonance: { type: DataTypes.INTEGER, defaultValue: 10 } // resonance level 0-100
+    status: { type: DataTypes.STRING, defaultValue: 'active' },
+    resonance: { type: DataTypes.INTEGER, defaultValue: 10 }
 });
 
 const Club = sequelize.define('Club', {
@@ -466,7 +493,7 @@ const TournamentParticipant = sequelize.define('TournamentParticipant', {
     playerJid: { type: DataTypes.STRING, primaryKey: true },
     playerName: { type: DataTypes.STRING },
     rank: { type: DataTypes.STRING },
-    status: { type: DataTypes.STRING, defaultValue: 'registered' }, // 'registered', 'qualified', 'eliminated', 'winner'
+    status: { type: DataTypes.STRING, defaultValue: 'registered' },
     opponentJid: { type: DataTypes.STRING, allowNull: true },
     round: { type: DataTypes.INTEGER, defaultValue: 1 }
 });
@@ -530,7 +557,8 @@ House.belongsTo(Player, { foreignKey: 'ownerId', as: 'Owner' });
 async function setupDatabase() {
   try {
     await sequelize.authenticate();
-    console.log('Connection established.');
+    await mediaSequelize.authenticate();
+    console.log('Main and Media Connections established.');
 
     // Explicitly handle missing columns because sync({ alter: true }) can be unreliable
     const queryInterface = sequelize.getQueryInterface();
@@ -551,7 +579,6 @@ async function setupDatabase() {
 
     for (const [tableName, attributes] of Object.entries(tableDefinitions)) {
       try {
-        // Check if table exists first to avoid describeTable error noise
         const tables = await queryInterface.showAllTables();
         if (!tables.includes(tableName)) continue;
 
@@ -568,6 +595,7 @@ async function setupDatabase() {
     }
 
     await sequelize.sync({ alter: true });
+    await mediaSequelize.sync({ alter: true });
     console.log('Database synchronized.');
 
     // Seed initial game data if empty
@@ -680,7 +708,7 @@ async function setupDatabase() {
         await Item.findOrCreate({ where: { name: item.name }, defaults: item });
     }
 
-    // Seed 3000 Varied Items (Clothing, Weapons, Artifacts)
+    // Seed 3000 Varied Items
     const currentItemCount = await Item.count();
     if (currentItemCount < 3000) {
         console.log(`[SEED] Generating ${3000 - currentItemCount} additional items...`);
@@ -733,50 +761,36 @@ async function setupDatabase() {
             }
             await Item.bulkCreate(batch, { ignoreDuplicates: true });
         }
-        console.log(`[SEED] ${targetCount} items ready.`);
     }
 
     const skillCount = await Skill.count();
     if (skillCount < 4000) {
         console.log(`[SEED] Seeding skills (Current: ${skillCount})...`);
         const baseSkills = [
-            // Techniques de base par Classe
             { name: 'Fente Puissante', description: 'Un coup d\'estoc dévastateur.', type: 'Guerrier', manaCost: 10, statBonuses: { strength: 5 } },
             { name: 'Cri de Guerre', description: 'Augmente la force brute temporairement.', type: 'Guerrier', manaCost: 20, statBonuses: { strength: 10 } },
-
             { name: 'Projectile Magique', description: 'Une décharge d\'énergie pure.', type: 'Mage', manaCost: 10, statBonuses: { intelligence: 5 } },
             { name: 'Barrière d\'Éther', description: 'Un bouclier magique protecteur.', type: 'Mage', manaCost: 25, statBonuses: { defense: 10 } },
-
             { name: 'Frappe Fantôme', description: 'Attaque surprise depuis les ombres.', type: 'Assassin', manaCost: 15, statBonuses: { agility: 10 } },
             { name: 'Lame Empoisonnée', description: 'Enduit l\'arme d\'un poison mortel.', type: 'Assassin', manaCost: 20, statBonuses: { strength: 5, luck: 5 } },
-
             { name: 'Tir de Précision', description: 'Une flèche visant les points vitaux.', type: 'Archer', manaCost: 10, statBonuses: { luck: 10 } },
             { name: 'Pluie de Flèches', description: 'Déluge de projectiles sur une zone.', type: 'Archer', manaCost: 30, statBonuses: { agility: 5, strength: 5 } },
-
             { name: 'Soins Mineurs', description: 'Restaure une petite quantité de PV.', type: 'Prêtre', manaCost: 15, statBonuses: { intelligence: 5 } },
             { name: 'Bénédiction', description: 'Accorde la faveur divine aux alliés.', type: 'Prêtre', manaCost: 25, statBonuses: { luck: 10, defense: 5 } },
-
             { name: 'Paume de Fer', description: 'Un coup de paume brisant les os.', type: 'Moine', manaCost: 10, statBonuses: { strength: 8 } },
             { name: 'Méditation', description: 'Restaure le mana en se concentrant.', type: 'Moine', manaCost: 0, statBonuses: { intelligence: 5 } },
-
             { name: 'Frappe Sacrée', description: 'Une attaque imprégnée de lumière.', type: 'Paladin', manaCost: 20, statBonuses: { strength: 10, defense: 5 } },
             { name: 'Bouclier de Lumière', description: 'Une protection divine impénétrable.', type: 'Paladin', manaCost: 30, statBonuses: { defense: 20 } },
-
             { name: 'Appel du Familier', description: 'Invoque un esprit animal mineur.', type: 'Invocateur', manaCost: 40, statBonuses: { intelligence: 10 } },
             { name: 'Lien Spirituel', description: 'Renforce les capacités via le familier.', type: 'Invocateur', manaCost: 20, statBonuses: { intelligence: 5, agility: 5 } },
-
             { name: 'Éveil Squelettique', description: 'Réanime un serviteur des os.', type: 'Nécromancien', manaCost: 50, statBonuses: { intelligence: 15 } },
             { name: 'Ponction de Vie', description: 'Vole l\'énergie vitale de la cible.', type: 'Nécromancien', manaCost: 30, statBonuses: { intelligence: 10, health: 10 } },
-
             { name: 'Iaijutsu', description: 'Frappe éclair au dégainage.', type: 'Samouraï', manaCost: 15, statBonuses: { agility: 15 } },
             { name: 'Esprit du Bushido', description: 'Renforce la volonté et la résistance.', type: 'Samouraï', manaCost: 20, statBonuses: { strength: 5, defense: 10 } },
-
             { name: 'Saut Draconique', description: 'Attaque plongeante dévastatrice.', type: 'Chevalier-Dragon', manaCost: 25, statBonuses: { strength: 15, agility: 5 } },
             { name: 'Souffle de Salamandre', description: 'Un cône de flammes ardentes.', type: 'Chevalier-Dragon', manaCost: 40, statBonuses: { strength: 10, intelligence: 10 } },
-
             { name: 'Mixture Explosive', description: 'Lance une fiole de produits volatils.', type: 'Alchimiste', manaCost: 20, statBonuses: { intelligence: 10, luck: 5 } },
             { name: 'Élixir Régénérant', description: 'Une potion soignant sur la durée.', type: 'Alchimiste', manaCost: 30, statBonuses: { intelligence: 5, defense: 5 } },
-
             { name: 'Chant de Bravoure', description: 'Un hymne qui galvanise les cœurs.', type: 'Barde', manaCost: 20, statBonuses: { strength: 10, luck: 10 } },
             { name: 'Mélodie Apaisante', description: 'Calme les esprits et réduit la fatigue.', type: 'Barde', manaCost: 25, statBonuses: { intelligence: 10, defense: 5 } },
 
@@ -784,19 +798,16 @@ async function setupDatabase() {
             { name: 'Vertical Square', description: 'Un enchaînement de 4 coups verticaux.', type: 'sword_technique', manaCost: 20 },
             { name: 'Sonic Leap', description: 'Une charge fulgurante.', type: 'sword_technique', manaCost: 15, statBonuses: { agility: 5 } },
             { name: 'Starburst Stream', description: 'Technique ultime à deux épées (50 coups).', type: 'sword_technique', manaCost: 100, statBonuses: { strength: 20, agility: 20 } },
-
             { name: 'Aura de Bravoure', description: 'Une aura rouge augmentant la force.', type: 'aura', manaCost: 40, statBonuses: { strength: 15 } },
             { name: 'Aura de Gardien', description: 'Une aura dorée renforçant la défense.', type: 'aura', manaCost: 40, statBonuses: { defense: 15 } },
             { name: 'Aura de Célérité', description: 'Une aura verte décuplant la vitesse.', type: 'aura', manaCost: 40, statBonuses: { agility: 15 } },
             { name: 'Aura de Mana', description: 'Une aura bleue augmentant la puissance magique.', type: 'aura', manaCost: 40, statBonuses: { intelligence: 15 } },
             { name: 'Aura du Dieu de la Mort', description: 'Une aura noire qui terrifie l\'ennemi.', type: 'aura', manaCost: 80, statBonuses: { strength: 40, luck: 20 } },
-
             { name: 'Brasier de l\'Enfer', description: 'Une tornade de feu noir consumant tout.', type: 'spell', manaCost: 90, statBonuses: { intelligence: 45 } },
             { name: 'Zéro Absolu', description: 'Gèle tout instantanément dans une zone massive.', type: 'spell', manaCost: 90, statBonuses: { intelligence: 45 } },
             { name: 'Éclair Enchaîné', description: 'Foudre bondissant entre les cibles.', type: 'spell', manaCost: 50, statBonuses: { intelligence: 20 } },
             { name: 'Trou Noir', description: 'Crée un vide attirant et écrasant tout.', type: 'spell', manaCost: 80, statBonuses: { intelligence: 30 } },
             { name: 'Pluie de Météores', description: 'Déluge de feu s\'abattant du ciel.', type: 'spell', manaCost: 150, statBonuses: { intelligence: 60 } },
-
             { name: 'Régénération Accélérée', description: 'Soigne les blessures au fil du temps.', type: 'passive', statBonuses: { defense: 5 } },
             { name: 'Senseur de Mana', description: 'Détecte les présences magiques.', type: 'passive', statBonuses: { intelligence: 10 } }
         ];
@@ -805,7 +816,6 @@ async function setupDatabase() {
             await Skill.findOrCreate({ where: { name: s.name }, defaults: s });
         }
 
-        // 1000 Class Skills
         const classes = {
             'Guerrier': { stat: 'strength', bases: ["Fente", "Cri", "Charge", "Brise-Garde", "Tranchant", "Fracas"] },
             'Mage': { stat: 'intelligence', bases: ["Projectile", "Barrière", "Sphère", "Explosion", "Rayon", "Sceau"] },
@@ -845,7 +855,6 @@ async function setupDatabase() {
         }
         if (classSkills.length > 0) await Skill.bulkCreate(classSkills, { ignoreDuplicates: true });
 
-        // 3000 Elemental Skills (Expanded to reach 4000+ total skills)
         const elements = {
             'Feu': { stat: 'intelligence', bases: ["Flamme", "Brasier", "Étincelle", "Cendre", "Volcan", "Soleil", "Inferno", "Magma", "Braise", "Foyer", "Éclat", "Pyre"] },
             'Eau': { stat: 'intelligence', bases: ["Vague", "Marée", "Goutte", "Glace", "Océan", "Brume", "Torrent", "Source", "Geyser", "Cascade", "Givre", "Averse"] },
@@ -875,8 +884,6 @@ async function setupDatabase() {
             }
         }
         if (elementalSkills.length > 0) await Skill.bulkCreate(elementalSkills, { ignoreDuplicates: true });
-
-        console.log("[SEED] 2000+ skills ready.");
     }
 
     const houseCount = await House.count();
@@ -889,7 +896,6 @@ async function setupDatabase() {
     }
 
     const kingdomsToSeed = [
-        // Continent: Aetheria (Main Continent - High Fantasy)
         {
             name: 'Empire Impérial d\'Elion', continent: 'Aetheria',
             description: 'Royaume humain central. Villes: Eldoria (Capitale), Solis, Riverbend, Green-Fields, Portes d\'Elion.',
@@ -915,8 +921,6 @@ async function setupDatabase() {
             description: 'Îles brumeuses. Villes: Port-Brume, Crique de Corail, Phare d\'Écume, Atoll des Sirènes, Rocher Percé.',
             status: 'neutral', influence: 65, militaryPower: 50, leader: 'Capitaine Drake'
         },
-
-        // Continent: Zendora (Wild Continent - Beastmen & Orcs)
         {
             name: 'Terres Bestiales', continent: 'Zendora',
             description: 'Plaines sauvages. Villes: Oakhaven, Claw-reach, Jungle de Fer, Caverne Primordiale, Pic du Prédateur.',
@@ -924,11 +928,11 @@ async function setupDatabase() {
         },
         {
             name: 'Bastion d\'Orkh', continent: 'Zendora',
-            description: 'Domaine Orc. Villes: Fort-Sang, Arène de Fer, Mines Rouges, Canyon des Crânes, Temple de la Rage.',
+            description: 'Domaine Orc. Villes: Fort-Sang, Arène de Iron, Mines Rouges, Canyon des Crânes, Temple de la Rage.',
             status: 'war', influence: 40, militaryPower: 98, leader: 'Grommash'
         },
         {
-            name: 'Montagnes de Fer', continent: 'Zendora',
+            name: 'Montagnes de Iron', continent: 'Zendora',
             description: 'Royaume Nain. Villes: Forge-Profonde, Cité-Sous-Montagne, Gouffre d\'Or, Porte de Granit, Salle du Trône.',
             status: 'peace', influence: 75, militaryPower: 90, leader: 'Roi Thrain'
         },
@@ -937,8 +941,6 @@ async function setupDatabase() {
             description: 'Étendue de sable. Villes: Oasis d\'Or, Cité des Dunes, Souk des Mirages, Pyramide de Cristal, Temple Solaire.',
             status: 'neutral', influence: 55, militaryPower: 65, leader: 'Sultan Malek'
         },
-
-        // Continent: Umbra (Shadow Continent - Undead & Corruption)
         {
             name: 'Dominion Noir de Vharos', continent: 'Umbra',
             description: 'Terre morte. Villes: Marais Putrides, Donjon de la Liche, Champs Éternels, Fort-Désolation, Sépulture de Sang.',
@@ -959,8 +961,6 @@ async function setupDatabase() {
             description: 'Reflets et miroirs. Villes: Palais des Reflets, Prisme d\'Ombre, Labyrinthe de Cristal, Tour de Verre, Miroir Brisé.',
             status: 'neutral', influence: 70, militaryPower: 60, leader: 'Le Miroir'
         },
-
-        // Continent: Caelum (Floating Continent - Celestials & Demons)
         {
             name: 'Royaume Céleste', continent: 'Caelum',
             description: 'Îles flottantes. Villes: Palais d\'Argent, Jardins d\'Éther, Cascade des Lumières, Portes du Ciel, Sanctuaire Ailé.',
@@ -994,25 +994,36 @@ async function setupDatabase() {
         }
     }
 
+    // Seed advanced Wizardry / Martial / Divine Schools & Milices for ALL 17 Realms
+    console.log('[SEED] Registering comprehensive schools, milices, and factions...');
+    const schoolsToSeed = [
+      { name: 'Académie Royale d\'Elion', specialty: 'Escrime de Mana & Droit Impérial', description: 'Le bastion d\'élite où étudient les héritiers et chevaliers d\'Elion.', kingdomName: 'Empire Impérial d\'Elion' },
+      { name: 'Garde Impériale de Fer', specialty: 'Milice & Maintien de l\'Ordre', description: 'La force d\'intervention rapide d\'Eldoria.', kingdomName: 'Empire Impérial d\'Elion' },
+      { name: 'Lycée Supérieur de l\'Éther', specialty: 'Techno-magie & Ondes de Mana', description: 'Université scientifique de premier plan pour ingénieurs russes et magiciens.', kingdomName: 'Royaume de Valkyrr' },
+      { name: 'Milice de Sparkwell', specialty: 'Patrouilles Mécanisées', description: 'Forces de défense cybernétique à Valkyrr.', kingdomName: 'Royaume de Valkyrr' },
+      { name: 'École de l\'Ombre Silencieuse', specialty: 'Infiltration, Dagues & Poisons', description: 'Cité d\'entraînement illégale dissimulée sous la surface.', kingdomName: 'Gheno souterrain' },
+      { name: 'Syndicat du Marché Noir', specialty: 'Fidélité et Contrebande', description: 'La milice de l\'Ombre maintenant le contrôle criminel.', kingdomName: 'Gheno souterrain' },
+      { name: 'Collège Elfique de Sylva-Lumia', specialty: 'Sorcellerie Végétale & Tir Sylvestre', description: 'Sanctuaire d\'étude de la nature et de l\'arc lunaire.', kingdomName: 'Forêt de l\'Éveil' },
+      { name: 'Garde Blanche des Frontières', specialty: 'Escortes d\'Archipel', description: 'Forte milice maritime maintenant l\'ordre sur l\'archipel.', kingdomName: 'Archipel des Murmures' },
+      { name: 'Clan de la Griffe Sauvage', specialty: 'Combat Bestial et Instinct', description: 'Lycée d\'honneur tribal formant de redoutables combattants physiques.', kingdomName: 'Terres Bestiales' },
+      { name: 'Arène des Sables Sanglants', specialty: 'Rage Brutale & Haches Lourdes', description: 'Le lieu d\'apprentissage brutal de la survie d\'Orkh.', kingdomName: 'Bastion d\'Orkh' },
+      { name: 'Citadelle de Forge-Profonde', specialty: 'Métallurgie Runique & Défense', description: 'Académie naine légendaire d\'ingénierie et de forge blindée.', kingdomName: 'Montagnes de Iron' },
+      { name: 'Académie Solaire des Dunes', specialty: 'Magie du Sable & Alchimie du Mirage', description: 'École mystique bâtie au milieu des vagues de chaleur du désert.', kingdomName: 'Désert d\'Ambre' },
+      { name: 'Sanctuaire de l\'Abîme', specialty: 'Sorcellerie de la Mort & Squelettes', description: 'Lieu d\'étude maudit de la magie interdite de Vharos.', kingdomName: 'Dominion Noir de Vharos' },
+      { name: 'Ordre de la Justice Céleste', specialty: 'Lumière Divine & Ailes de Volonté', description: 'L\'école des archanges et protecteurs ailés.', kingdomName: 'Royaume Céleste' },
+      { name: 'Lycée du Pandémonium', specialty: 'Magie du Feu Noir & Pactes Démoniaques', description: 'Institution d\'élite pour les démons nobles de haut niveau.', kingdomName: 'Abysse Inférieur' },
+    ];
+
+    for (const sc of schoolsToSeed) {
+      await School.findOrCreate({ where: { name: sc.name }, defaults: sc });
+    }
+
     const npcsToSeed = [
-        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle. "Tout ce que je possède, je l\'ai obtenu par ma propre volonté."', location: 'Interstice', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
-        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté manipulant les Béhérits. S\'exprime par énigmes métaphysiques avec une voix profonde et résonnante. "La causalité est un fil que nul mortel ne saurait trancher."', location: 'L\'Interstice', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
-        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, il prépare les âmes au jugement final de One Above All. Calme et impartial, il parle avec une autorité absolue mais sans haine. "Silence, voyageur. Ici, seul le poids de tes actes parle encore."', location: 'Nécropolis', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
-        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits. Voix fatiguée mais ferme d\'un mentor qui en a trop vu. "Le savoir est une lame à double tranchant, ne l\'oublie jamais."', location: 'Académie Impériale', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
-        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code. Parle avec une autorité impériale, chaque mot pesant comme une sentence. "Le Code est l\'armure de mon peuple. Quiconque le brise se brisera contre ma loi."', location: 'Empire Impérial d\'Elion', powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
-        { name: 'Princesse Seraphina', role: 'Royauté d\'Elion', description: 'Héritière du trône d\'Elion, douée pour la diplomatie de l\'éther.', location: 'Empire Impérial d\'Elion', powerLevel: 75, specialty: 'Charisme Royal', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elegant%20princess%20with%20silver%20hair%20and%20royal%20blue%20dress?model=flux-anime' },
-        { name: 'Prince Lucian', role: 'Commandant des Chevaliers', description: 'Frère de Seraphina, un prodige de l\'escrime magique.', location: 'Empire Impérial d\'Elion', powerLevel: 90, specialty: 'Épée Solaire', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20handsome%20prince%20knight%20commander?model=flux-anime' },
-        { name: 'Duc de Windsor', role: 'Haute Noblesse', description: 'Gouverneur du Quartier des Nobles, influent et riche.', location: 'Empire Impérial d\'Elion', powerLevel: 65, specialty: 'Influence Politique', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20noble%20duke%20with%20refined%20clothes?model=flux-anime' },
-        { name: 'Baron de l\'Est', role: 'Petite Noblesse', description: 'Garde la frontière vers Vharos, un homme d\'action.', location: 'Empire Impérial d\'Elion', powerLevel: 55, specialty: 'Vigilance Frontière', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20rugged%20baron%20at%20border%20fortress?model=flux-anime' },
-        { name: 'Général Kaelen', role: 'Commandant Militaire', description: 'Main de fer de l\'Empire, ne tolère aucun désordre à l\'Académie.', location: 'Académie Impériale', powerLevel: 95, specialty: 'Stratégie de Guerre', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20battle%20hardened%20general%20in%20golden%20armor?model=flux-anime' },
-        { name: 'Erius (Classe S)', role: 'Étudiant Suprême', description: 'L\'étudiant le plus fort de l\'histoire de l\'Académie. Possède une aura écrasante et un regard blasé. Il ne s\'intéresse qu\'aux adversaires dignes de lui. "Ne me fais pas perdre mon temps, gamin."', location: 'Académie Impériale', powerLevel: 98, specialty: 'Dévastation Totale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Erius%20strongest%20student%20with%20dark%20hair%20and%20intense%20gaze?model=flux-anime' },
-        { name: 'Lukas (Classe S)', role: 'Étudiant Élite', description: 'Second derrière Erius, dévoré par la rivalité.', location: 'Académie Impériale', powerLevel: 85, specialty: 'Maîtrise Parfaite', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20arrogant%20elite%20student%20with%20blond%20hair?model=flux-anime' },
-        { name: 'Maya (Classe A)', role: 'Étudiante Brilliante', description: 'Génie de l\'alchimie au charme discret, souvent vêtue d\'une blouse de laboratoire un peu trop courte.', location: 'Académie Impériale', powerLevel: 45, specialty: 'Potions Complexes', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20attractive%20smart%20girl%20with%20glasses%20and%20short%20lab%20coat?model=flux-anime' },
-        { name: 'Sensei Sora', role: 'Professeur Relax', description: 'Un professeur incroyablement paresseux qui passe son temps à faire la sieste ou à lire des magazines douteux. "La jeunesse, c\'est fait pour s\'amuser, non ?" ', location: 'Académie Impériale', powerLevel: 90, specialty: 'Esquive Paresseuse', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20lazy%20sensei%20sleeping%20with%20a%20magazine?model=flux-anime' },
-        { name: 'Lila', role: 'Tenancière de la Taverne', description: 'Toujours accueillante avec un décolleté plongeant, elle sait comment détendre les aventuriers fatigués. "Oh, un nouveau visage ? La première tournée est pour moi, beau brun."', location: 'Eldoria', powerLevel: 30, specialty: 'Charme Naturel', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20curvy%20tavern%20maid%20smiling?model=flux-anime' },
-        { name: 'Kaelith', role: 'Marchande d\'Esclaves (Libérée)', description: 'Une ancienne esclave devenue marchande de reliques. Elle est dure en affaires mais a un cœur d\'or pour ceux qui la respectent. "Le prix est le prix, mais pour toi... je ferai une exception."', location: 'Gheno souterrain', powerLevel: 50, specialty: 'Estimation de Reliques', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20tough%20mercante%20woman%20with%20scars%20and%20jewelry?model=flux-anime' },
-        { name: 'Vrax', role: 'Maître des Ombres', description: 'Le bras droit de L\'Ombre. Il ne parle jamais, s\'exprimant par des gestes précis. Son silence est plus terrifiant que n\'importe quel cri.', location: 'Gheno souterrain', powerLevel: 92, specialty: 'Assassinat Silencieux', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20masked%20assassin%20in%20the%20dark?model=flux-anime' },
-        { name: 'Uriel', role: 'Archange de l\'Éther', description: 'Une entité céleste à l\'aura éblouissante. Il juge les mortels sans pitié mais récompense la vertu. "Ton âme brille... ou s\'assombrit ? Montre-moi ta vérité."', location: 'Royaume Céleste', powerLevel: 95, specialty: 'Jugement Divin', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20radiant%20angel%20with%20golden%20armor?model=flux-anime' }
+        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
+        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
+        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
+        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
+        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
     ];
     for (const npc of npcsToSeed) {
         const [npcInstance, created] = await NPC.findOrCreate({
@@ -1029,16 +1040,6 @@ async function setupDatabase() {
                 imageUrl: npc.imageUrl
             });
         }
-    }
-
-    const schoolCount = await School.count();
-    if (schoolCount === 0) {
-        console.log('Seeding Schools...');
-        await School.bulkCreate([
-            { name: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', description: 'L\'élite militaire d\'Elion.', kingdomName: 'Empire Impérial d\'Elion' },
-            { name: 'Lycée de l\'Éther', specialty: 'Techno-magie', description: 'Centre de recherche de Valkyr.', kingdomName: 'Royaume de Valkyrr' },
-            { name: 'École des Ombres', specialty: 'Infiltration et Assassinat', description: 'Lieu secret pour les talents illégaux.', kingdomName: 'Gheno souterrain' }
-        ]);
     }
 
     // Generate ~1000 Unique NPCs
@@ -1066,7 +1067,7 @@ async function setupDatabase() {
                 batch.push({
                     name,
                     role,
-                    description: `Un ${role} au tempérament ${behavior.toLowerCase()}. Apparence: Cheveux ${['noirs', 'blonds', 'bleus', 'argentés'][Math.floor(Math.random()*4)]}, yeux ${['perçants', 'doux', 'vifs'][Math.floor(Math.random()*3)]}.`,
+                    description: `Un ${role} au tempérament ${behavior.toLowerCase()}.`,
                     location,
                     powerLevel: power,
                     specialty: behavior,
@@ -1075,7 +1076,6 @@ async function setupDatabase() {
             }
             await NPC.bulkCreate(batch, { ignoreDuplicates: true });
         }
-        console.log("[SEED] 1000 NPCs ready.");
     }
 
     const entitiesToSeed = [
@@ -1110,22 +1110,6 @@ async function setupDatabase() {
             { name: 'Vharos le Seigneur Liche (BOSS)', rank: 'A', health: 3000, strength: 200, defense: 150, agility: 100, intelligence: 95, location: 'Vharos le Maudit', xp_reward: 10000, col_reward: 5000 },
             { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, intelligence: 150, location: 'Origine de l\'Existence', xp_reward: 100000, col_reward: 50000 }
         ]);
-    } else {
-        // Update existing monsters to ensure intelligence and location are set
-        const monsters = [
-            { name: 'Loup d\'Ombre', intelligence: 10, location: 'Forêt des Gobelins' },
-            { name: 'Gobelin Éclaireur', intelligence: 8, location: 'Forêt des Gobelins' },
-            { name: 'Orque Guerrier', intelligence: 12, location: 'Mine de Cobalt' },
-            { name: 'Spectre des Mines', intelligence: 20, location: 'Mine de Cobalt' },
-            { name: 'Chimère de Sang', intelligence: 25, location: 'Caverne des Ombres' },
-            { name: 'Dragon d\'Azur', intelligence: 60, location: 'Volcan d\'Ignis' },
-            { name: 'Le Roi Gobelin (BOSS)', intelligence: 35, location: 'Forêt des Gobelins' },
-            { name: 'Vharos le Seigneur Liche (BOSS)', intelligence: 95, location: 'Vharos le Maudit' },
-            { name: 'L\'Ombre du Néant (BOSS FINAL)', intelligence: 150, location: 'Origine de l\'Existence' }
-        ];
-        for (const m of monsters) {
-            await Monster.update({ intelligence: m.intelligence, location: m.location }, { where: { name: m.name } });
-        }
     }
 
     const clubCount = await Club.count();
@@ -1142,7 +1126,6 @@ async function setupDatabase() {
     if (questCount < 500) {
         console.log(`[SEED] Seeding quests (Current: ${questCount})...`);
         const baseQuests = [
-            // Ordered chain "L'Ascension de l'Aventurier" (quêtes qui se suivent dans l'ordre)
             {
                 title: 'Premiers Pas à Eldoria', description: 'Le départ de ton aventure à Eldoria.',
                 objective: "Parle à un PNJ d'Eldoria et accepte ta première mission de chasse.",
@@ -1198,11 +1181,8 @@ async function setupDatabase() {
             }
         }
         if (proceduralQuests.length > 0) await Quest.bulkCreate(proceduralQuests, { ignoreDuplicates: true });
-
-        console.log("[SEED] 500+ quests ready.");
     }
 
-    // Restore/reset any exaggerated stats (like 1000+ strength in Rank F) to their proper rank caps
     console.log('[DB] Normalizing all player stats to safeguard rank caps...');
     const rankCaps = { 'F': 30, 'E': 45, 'D': 60, 'C': 80, 'B': 100, 'A': 150, 'S': 300 };
     const players = await Player.findAll();
@@ -1230,6 +1210,7 @@ async function setupDatabase() {
 
 module.exports = {
   sequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
+  mediaSequelize,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant, MediaAsset,
   setupDatabase,
 };

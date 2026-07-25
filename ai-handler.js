@@ -85,8 +85,30 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
             let newH = p.health + val;
             if (newH < 0) newH = 0;
             if (newH > p.maxHealth) newH = p.maxHealth;
-            await p.update({ health: newH });
-            feedbackList.push(`❤️ *${p.name}* : HP ${val >= 0 ? '+' : ''}${val} (➔ ${newH}/${p.maxHealth})`);
+
+            let extraFeedback = "";
+            if (val < 0) {
+                const damageAmt = Math.floor(Math.abs(val) * 0.4) || 2;
+                let newDur = (p.outfitDurability || 100) - damageAmt;
+                if (newDur < 0) newDur = 0;
+
+                let newClean = p.outfitCleanliness || 'propre';
+                if (Math.abs(val) >= 15) {
+                    newClean = 'couvert de sang';
+                } else if (Math.abs(val) >= 5 && newClean === 'propre') {
+                    newClean = 'taché de boue';
+                }
+
+                await p.update({
+                    health: newH,
+                    outfitDurability: newDur,
+                    outfitCleanliness: newClean
+                });
+                extraFeedback = ` (👕 Tenue: ${newDur}% • ${newClean.toUpperCase()})`;
+            } else {
+                await p.update({ health: newH });
+            }
+            feedbackList.push(`❤️ *${p.name}* : HP ${val >= 0 ? '+' : ''}${val} (➔ ${newH}/${p.maxHealth})${extraFeedback}`);
         } else if (s === 'MP' || s === 'PM') {
             let newM = p.mana + val;
             if (newM < 0) newM = 0;
@@ -380,7 +402,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Race:${player.race} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Race:${player.race} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | Tenue:${player.equippedOutfit || 'Aucun vêtement'} (Durabilité: ${player.outfitDurability}%, Propreté: ${player.outfitCleanliness}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
@@ -577,6 +599,7 @@ NARRATION :
 - STYLE: Seinen/Manhwa viscéral (Berserk/Solo Leveling). Un SEUL paragraphe fluide par joueur. Évite les répétitions.
 - MJ PUR: Tu ne décides jamais des pensées ou sentiments du joueur. Tu décris uniquement ce qu'il perçoit et ce qu'il subit.
 - DÉVELOPPEMENT: Chaque action a un impact sur l'environnement.
+- COMPORTEMENTS & APPARENCE (RÈGLE IMPORTANTE) : Fais réagir l'environnement et les PNJ de manière réaliste et changeante selon l'habillement du personnage. Si le joueur a une tenue 'couverte de sang', 'déchirée' ou 'tachée de boue' (ou une faible durabilité d'outfit), les gardes de la milice seront extrêmement méfiants, les marchands augmenteront leurs prix ou l'ignoreront, tandis que s'il porte un costume élégant, il recevra du respect. Les dégâts physiques reçus déchirent ou salissent sa tenue.
 
 STATUTS ET COMMANDES DE SAUVEGARDE :
 Pour mettre à jour le statut, tu ne dois plus utiliser de JSON. Tu dois simplement inclure des brackets à la fin de ta narration pour indiquer ce que le joueur a subi ou gagné, afin que notre parseur de sauvegarde mette à jour ses statistiques.

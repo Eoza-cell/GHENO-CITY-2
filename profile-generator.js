@@ -19,7 +19,6 @@ async function calculatePlotImpact(player) {
     let visualEffect = "light"; // 'light', 'fire', 'dark', 'void', 'war'
 
     try {
-        // 1. Check for active conflicts involving player's current location
         const activeConflicts = await Conflict.findAll({ where: { status: 'active' } });
         const localConflict = activeConflicts.find(c => {
             const kingdoms = Array.isArray(c.involvedKingdoms) ? c.involvedKingdoms : [];
@@ -34,7 +33,6 @@ async function calculatePlotImpact(player) {
             return { plotName, plotDesc, modifiers, visualEffect };
         }
 
-        // 2. Check latest World Journal plot entries
         const latestPlot = await WorldJournal.findOne({
             where: { category: 'plot' },
             order: [['id', 'DESC']]
@@ -73,7 +71,6 @@ async function generateProfileCard(player) {
 
     let baseImg;
 
-    // Use player's profile picture as background if available, otherwise template
     if (player.profilePicUrl) {
         try {
             if (player.profilePicUrl.startsWith('http')) {
@@ -122,18 +119,15 @@ async function addOverlay(baseImg, player, width, height) {
 
     const rankColor = player.rank === 'S' ? '#ffd700' : (player.rank === 'A' ? '#ff4fb3' : '#4fb3ff');
 
-    // Fetch equipped outfit details for silhouette (legacy support)
     let outfitColor = "rgba(255,255,255,0.2)";
-    let isTorn = false;
+    let isTorn = player.outfitDurability < 50;
     if (player.equippedOutfit) {
         const outfit = await Item.findOne({ where: { name: player.equippedOutfit } });
         if (outfit) {
             outfitColor = outfit.visualData?.color || "#ffffff";
-            isTorn = outfit.durability < 50;
         }
     }
 
-    // Helper for multi-line description
     const wrapText = (text, maxChars) => {
         if (!text) return [""];
         const words = text.split(' ');
@@ -153,17 +147,13 @@ async function addOverlay(baseImg, player, width, height) {
 
     const bioLines = wrapText(player.characterDescription || "Le destin se forge à chaque pas dans l'Interstice.", 35);
 
-    // Calculate dynamic plot impacts from the main story
     const plotImpact = await calculatePlotImpact(player);
     const plotLines = wrapText(plotImpact.plotDesc, 38);
 
-    // Dynamic graphical overlay theme based on the plot effect
     let plotVisualOverlaySvg = '';
     if (plotImpact.visualEffect === 'fire') {
         plotVisualOverlaySvg = `
-            <!-- Red aura glow for Mark of causality (Eclipse) -->
             <rect width="100%" height="100%" fill="none" stroke="#ff3300" stroke-width="4" opacity="0.35" filter="url(#glow)" />
-            <!-- Crimson bleeding brand brand mark -->
             <g transform="translate(100, 480)" filter="url(#glow)">
                 <path d="M 0,0 L 25,40 L 50,0 Q 25,-10 0,0" fill="none" stroke="#ff0000" stroke-width="4.5" />
                 <line x1="25" y1="10" x2="25" y2="45" stroke="#ff0000" stroke-width="4.5" />
@@ -173,19 +163,16 @@ async function addOverlay(baseImg, player, width, height) {
         `;
     } else if (plotImpact.visualEffect === 'dark') {
         plotVisualOverlaySvg = `
-            <!-- Purple shadow miasma for Convergence -->
             <rect width="100%" height="100%" fill="none" stroke="#bf00ff" stroke-width="4" opacity="0.25" filter="url(#glow)" />
             <circle cx="200" cy="550" r="120" fill="none" stroke="#bf00ff" stroke-width="2" stroke-dasharray="10,15" opacity="0.4" />
         `;
     } else if (plotImpact.visualEffect === 'void') {
         plotVisualOverlaySvg = `
-            <!-- Black fog for Void -->
             <rect width="100%" height="100%" fill="none" stroke="#050515" stroke-width="8" opacity="0.8" />
             <rect width="100%" height="100%" fill="none" stroke="#00ffff" stroke-width="2" opacity="0.3" filter="url(#glow)" />
         `;
     } else if (plotImpact.visualEffect === 'war') {
         plotVisualOverlaySvg = `
-            <!-- War banners / crosshairs -->
             <rect width="100%" height="100%" fill="none" stroke="#ffcc00" stroke-width="3" opacity="0.3" />
             <line x1="15" y1="15" x2="60" y2="15" stroke="#ffcc00" stroke-width="4" />
             <line x1="15" y1="15" x2="15" y2="60" stroke="#ffcc00" stroke-width="4" />
@@ -210,7 +197,6 @@ async function addOverlay(baseImg, player, width, height) {
             </style>
 
             <defs>
-                <!-- Dramatic dark gradient to separate UI from portrait -->
                 <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" style="stop-color:rgb(0,0,0);stop-opacity:0.9" />
                     <stop offset="40%" style="stop-color:rgb(0,0,0);stop-opacity:0.3" />
@@ -226,10 +212,8 @@ async function addOverlay(baseImg, player, width, height) {
                 </filter>
             </defs>
 
-            <!-- Dark glass background -->
             <rect width="100%" height="100%" fill="url(#mainGrad)" />
 
-            <!-- Dynamic Plot Overlay graphics -->
             ${plotVisualOverlaySvg}
 
             <!-- Fake Navbar from reference image -->
@@ -270,19 +254,22 @@ async function addOverlay(baseImg, player, width, height) {
                     <text x="0" y="140" class="label">RELATIONSHIPS</text>
                     <text x="0" y="165" class="stat-val">${escapeXml(player.family || "NONE")}</text>
 
-                    <text x="0" y="210" class="label">SKILLS</text>
-                    <text x="0" y="235" class="stat-val">${skillsList.length > 0 ? skillsList.join(' • ') : "AWAKENING..."}</text>
+                    <text x="0" y="210" class="label">OUTFIT ASPECT</text>
+                    <text x="0" y="235" class="stat-val" style="fill:#ffd700">${escapeXml(player.equippedOutfit || "Aucun vêtement")} (${player.outfitDurability}% • ${player.outfitCleanliness.toUpperCase()})</text>
+
+                    <text x="0" y="280" class="label">SKILLS</text>
+                    <text x="0" y="305" class="stat-val">${skillsList.length > 0 ? skillsList.join(' • ') : "AWAKENING..."}</text>
 
                     ${player.masterId || player.fusedWithId ? `
-                        <text x="0" y="280" class="label" style="fill:#00ffff">${player.masterId ? 'SERVITUDE BOND' : 'FUSION SYNC'}</text>
-                        <text x="0" y="305" class="stat-val" style="fill:#00ffff">${player.masterId ? 'ACTIVE' : (Math.round(player.fusionSyncLevel * 100) + '%')}</text>
+                        <text x="0" y="350" class="label" style="fill:#00ffff">${player.masterId ? 'SERVITUDE BOND' : 'FUSION SYNC'}</text>
+                        <text x="0" y="375" class="stat-val" style="fill:#00ffff">${player.masterId ? 'ACTIVE' : (Math.round(player.fusionSyncLevel * 100) + '%')}</text>
                     ` : ''}
 
-                    <text x="0" y="${player.masterId || player.fusedWithId ? 350 : 280}" class="label">FINANCES</text>
-                    <text x="0" y="305" class="stat-val">${player.col.toLocaleString()} COL • 🏦 ${bankBalance.toLocaleString()}</text>
+                    <text x="0" y="${player.masterId || player.fusedWithId ? 420 : 350}" class="label">FINANCES</text>
+                    <text x="0" y="375" class="stat-val">${player.col.toLocaleString()} COL • 🏦 ${bankBalance.toLocaleString()}</text>
 
-                    <text x="0" y="350" class="label">WEAPONS &amp; EQS</text>
-                    <g transform="translate(0, 375)">
+                    <text x="0" y="420" class="label">WEAPONS &amp; EQS</text>
+                    <g transform="translate(0, 445)">
                         ${weapons.map((w, i) => `<text y="${i * 25}" class="stat-val">⚔️ ${escapeXml(w.name)}</text>`).join('')}
                         ${equipment.map((e, i) => `<text y="${(weapons.length + i) * 25}" class="stat-val">🛡️ ${escapeXml(e.name)}</text>`).join('')}
                     </g>
@@ -297,14 +284,12 @@ async function addOverlay(baseImg, player, width, height) {
                 <g transform="translate(10, 50)">
                     <text x="0" y="0" class="plot-title">${escapeXml(plotImpact.plotName)}</text>
 
-                    <!-- Plot Description wrapped -->
                     <g transform="translate(0, 20)">
                         ${plotLines.slice(0, 3).map((line, i) => `
                             <text x="0" y="${i * 18}" class="plot-desc">${escapeXml(line)}</text>
                         `).join('')}
                     </g>
 
-                    <!-- Plot Modifiers -->
                     <g transform="translate(0, 100)">
                         <text x="0" y="0" class="label" style="font-size:10px; fill:rgba(255,255,255,0.4)">MODIFICATEURS DE STATS :</text>
                         ${Object.keys(plotImpact.modifiers).length > 0 ?
@@ -319,7 +304,6 @@ async function addOverlay(baseImg, player, width, height) {
                 </g>
             </g>
 
-            <!-- UI Decoration lines -->
             <line x1="60" y1="200" x2="300" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
             <line x1="480" y1="200" x2="740" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
 
@@ -337,7 +321,6 @@ async function addOverlay(baseImg, player, width, height) {
     `;
 
     try {
-        // Generate 3D Character Model
         const modelType = (player.gender || "").toLowerCase().includes('f') ? 'female' : 'male';
         const threeBuffer = await generate3DVisual(modelType, 0x00ffff, outfitColor);
         const threeResized = await sharp(threeBuffer).resize(330, 240, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
@@ -347,7 +330,6 @@ async function addOverlay(baseImg, player, width, height) {
             { input: threeResized, top: 780, left: 80 }
         ];
 
-        // Legacy Silhouette support if background image is missing
         const silhouettePath = path.join(__dirname, 'assets/silhouette.jpg');
         if (!player.profilePicUrl && fs.existsSync(silhouettePath)) {
             const silhouetteResized = await sharp(silhouettePath).resize(500, 800).toBuffer();

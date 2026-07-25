@@ -256,9 +256,10 @@ async function handleTutorialAction(sock, message, player, actionText) {
                     defense: 10 + familyBonus.defense
                 });
 
-                // Assign basic skills for the class
+                // Assign basic skills for the class (strictly capped at 5 starting techniques/skills)
                 const basicSkills = await Skill.findAll({ where: { type: chosenClass } });
-                for (const s of basicSkills) {
+                const startingSkills = basicSkills.slice(0, 5);
+                for (const s of startingSkills) {
                     await player.addSkill(s);
                     // Apply stat bonuses immediately
                     const bonuses = s.statBonuses || {};
