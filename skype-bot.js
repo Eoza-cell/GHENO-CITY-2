@@ -16,6 +16,7 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 const { startModelServer } = require('./model-server');
+const { startProactiveAIEngagement } = require('./proactive-engagement');
 
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
@@ -212,6 +213,7 @@ async function connectToWhatsApp() {
       } catch (e) {}
 
       startDayNightCycle();
+      startProactiveAIEngagement(sock);
     }
   });
 

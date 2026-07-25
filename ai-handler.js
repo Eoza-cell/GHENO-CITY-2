@@ -136,6 +136,105 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         playersToUpdate.add(p.whatsappId);
     }
 
+    // 4) Quest Starts: [START_QUEST: Quest Title] or [DEBUT_QUETE: Quest Title]
+    const questStartRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:START_QUEST|DEBUT_QUETE)\s*:\s*(.+?)\s*\]/gi;
+    while ((match = questStartRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const questTitle = match[2].trim();
+
+        let targetPlayer = player;
+        if (targetName) {
+            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
+            if (found) targetPlayer = found;
+        }
+
+        const logMsg = await questUtils.startQuest(targetPlayer, questTitle);
+        if (logMsg) {
+            feedbackList.push(logMsg);
+            playersToUpdate.add(targetPlayer.whatsappId);
+        }
+    }
+
+    // 5) Quest Progress: [PROGRESS_QUEST: Quest Title | 50] or [PROGRES_QUETE: Quest Title | 50]
+    const questProgressRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:PROGRESS_QUEST|PROGRES_QUETE)\s*:\s*(.+?)\s*\|\s*(\d+)\s*\]/gi;
+    while ((match = questProgressRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const questTitle = match[2].trim();
+        const progressVal = parseInt(match[3]);
+
+        let targetPlayer = player;
+        if (targetName) {
+            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
+            if (found) targetPlayer = found;
+        }
+
+        const logMsg = await questUtils.advanceQuest(targetPlayer, questTitle, progressVal);
+        if (logMsg) {
+            feedbackList.push(logMsg);
+            playersToUpdate.add(targetPlayer.whatsappId);
+        }
+    }
+
+    // 6) Quest Completion: [COMPLETED_QUEST: Quest Title] or [FIN_QUETE: Quest Title]
+    const questCompleteRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:COMPLETED_QUEST|FIN_QUETE)\s*:\s*(.+?)\s*\]/gi;
+    while ((match = questCompleteRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const questTitle = match[2].trim();
+
+        let targetPlayer = player;
+        if (targetName) {
+            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
+            if (found) targetPlayer = found;
+        }
+
+        const logMsg = await questUtils.completeQuest(targetPlayer, questTitle, sock);
+        if (logMsg) {
+            feedbackList.push(logMsg);
+            playersToUpdate.add(targetPlayer.whatsappId);
+        }
+    }
+
+    // 7) Learn/Unlock Skills: [LEARN_SKILL: Skill Name] or [APPRENDRE_COMPETENCE: Skill Name] or [TECHNIQUE: Skill Name]
+    const skillLearnRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:LEARN_SKILL|APPRENDRE_COMPETENCE|TECHNIQUE)\s*:\s*(.+?)\s*\]/gi;
+    while ((match = skillLearnRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const skillName = match[2].trim();
+
+        let targetPlayer = player;
+        if (targetName) {
+            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
+            if (found) targetPlayer = found;
+        }
+
+        // Query skill from database
+        const { Skill: ModelSkill } = require('./database');
+        const { Op } = require('sequelize');
+        const skill = await ModelSkill.findOne({
+            where: {
+                [Op.or]: [
+                    { name: skillName },
+                    { name: { [Op.like]: `%${skillName}%` } }
+                ]
+            }
+        });
+
+        if (skill) {
+            const hasSkill = await targetPlayer.hasSkill(skill);
+            if (!hasSkill) {
+                await targetPlayer.addSkill(skill);
+                // Apply stat bonuses immediately
+                const bonuses = skill.statBonuses || {};
+                for (const [stat, val] of Object.entries(bonuses)) {
+                    if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                        await targetPlayer.increment(stat, { by: val });
+                    }
+                }
+                feedbackList.push(`📖 *${targetPlayer.name}* a appris la technique : *${skill.name.toUpperCase()}* !`);
+                playersToUpdate.add(targetPlayer.whatsappId);
+            }
+        }
+    }
+
     return { playersToUpdate, feedbackList };
 }
 
@@ -314,7 +413,50 @@ async function handleFreeAction(sock, message, player, actionText) {
     }).join('\n')
     : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde.)";
 
+  // Query NPCs early to evaluate dynamic proactive events
+  const npcs = await NPC.findAll({
+    where: {
+        [Op.and]: [
+            {
+                [Op.or]: [
+                    { location: { [Op.like]: `%${player.location}%` } },
+                    { powerLevel: { [Op.gte]: 95 } }
+                ]
+            },
+            { role: { [Op.notLike]: '%Garde%' } },
+            { role: { [Op.notLike]: '%Policier%' } }
+        ]
+    },
+    order: sequelize.random(),
+    limit: 5
+  });
+
+  // Dynamic proactive passing NPC event logic
+  let passingNpcHook = "";
+  if (Math.random() < 0.40) { // 40% chance of a passing NPC event
+      const pNpc = npcs.length > 0 ? npcs[Math.floor(Math.random() * npcs.length)] : null;
+      const behaviors = [
+          "passe en ignorant superbement le joueur, plongé dans ses pensées ou très pressé par ses propres quêtes",
+          "s'arrête intrigué, observe le joueur (notamment l'état de ses vêtements) et engage brièvement la conversation ou lance un avertissement mystérieux",
+          "bloque le chemin du joueur avec suspicion, suspectant un vagabondage ou un acte suspect, et demande de s'identifier",
+          "bouscule le joueur par inadvertance dans la hâte, grommelle quelque chose sur les 'amateurs de l'Interstice' et continue rapidement sa route",
+          "observe le joueur de loin en souriant d'un air mystérieux, semblant en savoir long sur sa trame principale ou son destin"
+      ];
+      const behavior = behaviors[Math.floor(Math.random() * behaviors.length)];
+
+      if (pNpc) {
+          passingNpcHook = `⚠️ ÉVÉNEMENT PNJ PROACTIF DE PASSAGE : Le PNJ Important *${pNpc.name}* (Rôle: ${pNpc.role}, Force: ${pNpc.powerLevel}) traverse brusquement la scène ! Comportement : il/elle ${behavior}. Tu DOIS l'intégrer proactivement de manière majeure et viscérale dans ton paragraphe narratif.`;
+      } else {
+          const localRoles = ["Garde de la Milice Royale", "Étudiant de l'Académie", "Marchand ambulant de passage", "Voleur à la tire des Bas-fonds", "Citoyen suspect", "Prêtre de la Lumière"];
+          const role = localRoles[Math.floor(Math.random() * localRoles.length)];
+          const names = ["Gérard", "Lyanna", "Thorgar", "Vasco", "Kaelen", "Myra", "Darius"];
+          const name = names[Math.floor(Math.random() * names.length)];
+          passingNpcHook = `⚠️ ÉVÉNEMENT PNJ PROACTIF DE PASSAGE : Un PNJ Mineur de passage nommé *${name}* (Rôle: ${role}) traverse la scène ! Comportement : il/elle ${behavior}. Tu DOIS l'intégrer proactivement dans ton paragraphe narratif de manière viscérale.`;
+      }
+  }
+
   const hints = [];
+  if (passingNpcHook) hints.push(passingNpcHook);
   if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise la description du nouveau lieu.");
   if (hasInteraction) {
       hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
@@ -542,22 +684,6 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
   const subLocContext = kingdom ? `\nLORE_LIEU: ${kingdom.description}` : "";
 
-  const npcs = await NPC.findAll({
-    where: {
-        [Op.and]: [
-            {
-                [Op.or]: [
-                    { location: { [Op.like]: `%${player.location}%` } },
-                    { powerLevel: { [Op.gte]: 95 } }
-                ]
-            },
-            { role: { [Op.notLike]: '%Garde%' } },
-            { role: { [Op.notLike]: '%Policier%' } }
-        ]
-    },
-    order: sequelize.random(),
-    limit: 5
-  });
   const npcState = "PNJ_PRÉSENTS: " + npcs.map(n => `${n.name}(Rôle:${n.role}, Force:${n.powerLevel}, Spé:${n.specialty})`).join(' | ');
   const playerPacts = await player.getEntities();
   const pactState = playerPacts.length > 0 ? "Pactes: " + playerPacts.map(e => e.name).join(', ') : "Pas de pacte";
@@ -602,7 +728,7 @@ NARRATION :
 - COMPORTEMENTS & APPARENCE (RÈGLE IMPORTANTE) : Fais réagir l'environnement et les PNJ de manière réaliste et changeante selon l'habillement du personnage. Si le joueur a une tenue 'couverte de sang', 'déchirée' ou 'tachée de boue' (ou une faible durabilité d'outfit), les gardes de la milice seront extrêmement méfiants, les marchands augmenteront leurs prix ou l'ignoreront, tandis que s'il porte un costume élégant, il recevra du respect. Les dégâts physiques reçus déchirent ou salissent sa tenue.
 
 STATUTS ET COMMANDES DE SAUVEGARDE :
-Pour mettre à jour le statut, tu ne dois plus utiliser de JSON. Tu dois simplement inclure des brackets à la fin de ta narration pour indiquer ce que le joueur a subi ou gagné, afin que notre parseur de sauvegarde mette à jour ses statistiques.
+Pour mettre à jour le statut, tu ne dois plus utiliser de JSON. Tu dois simplement inclure des brackets à la fin de ta narration pour indiquer ce que le joueur a subi ou gagné, afin que notre parseur de sauvegarde mette à jour ses statistiques, ses techniques ou ses quêtes.
 Format de bracket obligatoire :
 - [Distance utile: X m]
 - [NOM_DU_JOUEUR: HP -X] ou [NOM_DU_JOUEUR: HP +X] (Ex: [SINGAM II: HP -18 | 82/100])
@@ -611,11 +737,17 @@ Format de bracket obligatoire :
 - [NOM_DU_JOUEUR: Col +X] ou [NOM_DU_JOUEUR: Col -X]
 - [NOM_DU_JOUEUR: SP +X] ou [NOM_DU_JOUEUR: SP -X]
 
+GUEST & COMPÉTENCE COMMANDES :
+- Pour lui faire commencer une quête : [NOM_DU_JOUEUR: START_QUEST: Nom Exact de la Quête] (Ex: [START_QUEST: La Chasse aux Gobelins] ou [SINGAM II: DEBUT_QUETE: La Chasse aux Gobelins])
+- Pour mettre à jour la progression d'une quête : [NOM_DU_JOUEUR: PROGRESS_QUEST: Nom de la Quête | ValeurEnPourcent] (Ex: [PROGRESS_QUEST: La Chasse aux Gobelins | 50])
+- Pour terminer/compléter une quête et distribuer les récompenses : [NOM_DU_JOUEUR: COMPLETED_QUEST: Nom de la Quête] (Ex: [COMPLETED_QUEST: La Chasse aux Gobelins] ou [FIN_QUETE: La Chasse aux Gobelins])
+- Pour lui débloquer/enseigner une nouvelle technique/sort : [NOM_DU_JOUEUR: LEARN_SKILL: Nom du sort] (Ex: [LEARN_SKILL: Starburst Stream] ou [APPRENDRE_COMPETENCE: Fente Puissante])
+
 Exemple de réponse attendue de ta part :
 📅 An 23, 31 Mars | 🌙 04:44
 *AVENTURA* *📍 Eldoria (Place Centrale)*
 ... (Texte narratif immersif d'un seul paragraphe) ...
-[Distance utile: 1 m → contact] [Impact au torse/flanc | SINGAM II: HP -18 | 82/100] [SINGAM II: XP +50]`;
+[Distance utile: 1 m → contact] [Impact au torse/flanc | SINGAM II: HP -18 | 82/100] [SINGAM II: XP +50] [START_QUEST: La Chasse aux Gobelins] [LEARN_SKILL: Fente Puissante]`;
 
     const memoryJson = JSON.stringify({
         monde: {
