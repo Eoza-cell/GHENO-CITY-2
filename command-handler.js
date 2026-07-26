@@ -220,6 +220,13 @@ const profileCommand = async (sock, message) => {
       const { calculatePlotImpact } = require('./profile-generator');
       const plot = await calculatePlotImpact(player);
 
+      const displayStrength = player.hasAura ? Math.round(player.strength * 1.5) : player.strength;
+      const displayAgility = player.hasAura ? Math.round(player.agility * 1.5) : player.agility;
+      const displayIntelligence = player.hasAura ? Math.round(player.intelligence * 1.5) : player.intelligence;
+      const displayDefense = player.hasAura ? Math.round(player.defense * 1.5) : player.defense;
+      const displayLuck = player.hasAura ? Math.round(player.luck * 1.5) : player.luck;
+      const auraTag = player.hasAura ? " ⚡ [AURA BOOST +50%]" : "";
+
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
                           `👤 *HÉRITIER:* ${player.name}\n` +
                           `⚧️ *SEXE:* ${player.gender}\n` +
@@ -236,11 +243,11 @@ const profileCommand = async (sock, message) => {
                           `🔧 État: ${player.outfitDurability}% Durabilité\n` +
                           `🧼 Propreté: *${(player.outfitCleanliness || 'propre').toUpperCase()}*\n\n` +
                           `--- ⚔️ STATISTIQUES --- \n` +
-                          `💪 Force: ${player.strength}\n` +
-                          `🏃 Agilité: ${player.agility}\n` +
-                          `🧠 Intelligence: ${player.intelligence}\n` +
-                          `🛡️ Défense: ${player.defense}\n` +
-                          `🍀 Chance: ${player.luck}\n` +
+                          `💪 Force: ${displayStrength}${auraTag}\n` +
+                          `🏃 Agilité: ${displayAgility}${auraTag}\n` +
+                          `🧠 Intelligence: ${displayIntelligence}${auraTag}\n` +
+                          `🛡️ Défense: ${displayDefense}${auraTag}\n` +
+                          `🍀 Chance: ${displayLuck}${auraTag}\n` +
                           `✨ *SP:* ${player.skillPoints}\n\n` +
                           `💰 *COL:* ${player.col} 🪙\n` +
                           (player.masterId ? `🔗 *MAÎTRE:* ${player.masterId.substring(0, 8)}...\n` : '') +
@@ -1128,10 +1135,18 @@ commands.set('god', async (sock, message, args) => {
     if (needsTarget) {
         if (targetJid) {
             targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
-        } else if (args[0] && (args[0].startsWith('@') || isNaN(parseInt(args[0])))) {
-            // Check if the next argument is a name/ID
-            targetPlayer = await findByAny(args[0]);
-            if (targetPlayer) args.shift(); // Consume the target name
+        } else {
+            // Try to find a player by joining progressive arguments to support names with spaces
+            // e.g. ["singam", "ii", "force", "100"]
+            for (let len = Math.min(args.length, 3); len >= 1; len--) {
+                const candidateName = args.slice(0, len).join(' ');
+                const candidate = await findByAny(candidateName);
+                if (candidate) {
+                    targetPlayer = candidate;
+                    args = args.slice(len); // Consume the resolved target name arguments
+                    break;
+                }
+            }
         }
     }
 
@@ -2050,6 +2065,27 @@ commands.set('arbitre', async (sock, message, args) => {
     } catch (e) {
         await sock.sendMessage(replyJid, { text: resultText });
     }
+});
+
+// Command: /aura
+commands.set('aura', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  if (!player) {
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const newState = !player.hasAura;
+  await player.update({ hasAura: newState });
+
+  if (newState) {
+    await sock.sendMessage(replyJid, { text: "🔥 *AURA ACTIVÉE !* Tu déploies une énergie phénoménale qui booste temporairement toutes tes statistiques de *+50%* ! Ton corps s'entoure d'une aura flamboyante et tes capacités s'éveillent !" });
+  } else {
+    await sock.sendMessage(replyJid, { text: "💤 *Aura dissipée.* Ton énergie se stabilise et retourne à son état normal." });
+  }
 });
 
 // Command: /laver

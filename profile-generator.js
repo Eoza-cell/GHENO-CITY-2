@@ -179,6 +179,16 @@ async function addOverlay(baseImg, player, width, height) {
         `;
     }
 
+    let auraSvgDecoration = '';
+    if (player.hasAura) {
+        auraSvgDecoration = `
+            <!-- Pulse glow aura effect representing Natsu/Dragon Slayer aura -->
+            <rect width="100%" height="100%" fill="none" stroke="#00f3ff" stroke-width="6" opacity="0.65" filter="url(#glow)" />
+            <ellipse cx="400" cy="550" rx="360" ry="500" fill="none" stroke="#aa00ff" stroke-width="2.5" stroke-dasharray="5,15" opacity="0.4" filter="url(#glow)" />
+            <text x="740" y="160" font-family="'Arial Black', sans-serif" font-size="12" font-weight="900" fill="#00f3ff" text-anchor="end" style="letter-spacing:4px; filter: drop-shadow(0 0 5px #00f3ff)">AURA ENERGIE BOOST ACTIVE</text>
+        `;
+    }
+
     const overlaySvg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
             <style>

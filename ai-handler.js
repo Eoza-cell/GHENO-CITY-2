@@ -544,6 +544,13 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
+  if (player.hasAura) {
+      mainFor = mainFor * 1.5;
+      mainAgi = mainAgi * 1.5;
+      mainInt = mainInt * 1.5;
+      mainBond += " [⚡ AURA ACTIVE (+50% STATS)]";
+  }
+
   const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Race:${player.race} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | Tenue:${player.equippedOutfit || 'Aucun vêtement'} (Durabilité: ${player.outfitDurability}%, Propreté: ${player.outfitCleanliness}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
 
   const inventory = player.inventory || [];
@@ -717,9 +724,12 @@ IMMERSION SENSORIELLE :
 - ATMOSPHÈRE: Décris la pression du mana dans l'air, le silence oppressant avant l'attaque, la poussière qui danse dans la lumière.
 
 LÉTHALITÉ & CONSÉQUENCES :
-- MORT: PV <= 0 -> Action de mort immédiate.
-- COMBAT: Brutal, sanglant. Les os craquent, la chair se déchire. Pas de combat 'propre'.
-- CAUSALITÉ: Rang F faible (cap stats 30). Nage limitée (5min). Pas de vol sans skill.
+- MORT & CRUAUTÉ : PV <= 0 -> Action de mort immédiate. Le monde d'Aetherys est sans pitié pour les rangs bas (Rang F, etc.). Les adversaires sont sanguinaires et cherchent activement à TUER le joueur sans hésitation si les statistiques et l'occasion le leur permettent.
+- COMBAT : Brutal, impitoyable, sanglant. Les os craquent, la chair se déchire. Les dégâts physiques et attaques ennemies sont mortels.
+- CAUSALITÉ : Rang F extrêmement faible (stat cap strictly 30). Le joueur ne peut pas survivre s'il affronte de puissants ennemis de rang élevé sans aide.
+
+LORE DES CLASSES (CHEVALIER-DRAGON) :
+- CHEVALIER-DRAGON (DRAGON SLAYER) : Les joueurs de la classe "Chevalier-Dragon" possèdent des facultés identiques aux Dragon Slayers de Fairy Tail (comme Natsu Dragnir). Ils ont des poumons de dragon (capables d'expirer des souffles élémentaires dévastateurs), peuvent dévorer leur propre élément magique pour restaurer instantanément leurs PM/PV, et sous l'effet de l'Aura, leur peau se couvre d'écailles draconiques denses et leur force brute devient divine.
 
 NARRATION :
 - STYLE: Seinen/Manhwa viscéral (Berserk/Solo Leveling). Un SEUL paragraphe fluide par joueur. Évite les répétitions.

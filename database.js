@@ -296,6 +296,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.FLOAT,
     defaultValue: 0,
   },
+  hasAura: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 });
 
 const Item = sequelize.define('Item', {
@@ -788,7 +792,10 @@ async function setupDatabase() {
             { name: 'Iaijutsu', description: 'Frappe éclair au dégainage.', type: 'Samouraï', manaCost: 15, statBonuses: { agility: 15 } },
             { name: 'Esprit du Bushido', description: 'Renforce la volonté et la résistance.', type: 'Samouraï', manaCost: 20, statBonuses: { strength: 5, defense: 10 } },
             { name: 'Saut Draconique', description: 'Attaque plongeante dévastatrice.', type: 'Chevalier-Dragon', manaCost: 25, statBonuses: { strength: 15, agility: 5 } },
-            { name: 'Souffle de Salamandre', description: 'Un cône de flammes ardentes.', type: 'Chevalier-Dragon', manaCost: 40, statBonuses: { strength: 10, intelligence: 10 } },
+            { name: 'Souffle de Salamandre', description: 'Un cône de flammes ardentes (poumons de dragon).', type: 'Chevalier-Dragon', manaCost: 40, statBonuses: { strength: 10, intelligence: 10 } },
+            { name: 'Poing de l\'Acier du Dragon', description: 'Un coup de poing enflammé dévastateur (type Dragon Slayer).', type: 'Chevalier-Dragon', manaCost: 20, statBonuses: { strength: 12 } },
+            { name: 'Consommation Élémentaire', description: 'Dévore de la magie élémentaire (feu, foudre...) pour restaurer instantanément ses PM.', type: 'Chevalier-Dragon', manaCost: 0, statBonuses: { intelligence: 5 } },
+            { name: 'Écailles du Dragon', description: 'Couvre le corps d\'écailles de dragon denses qui augmentent drastiquement la défense.', type: 'Chevalier-Dragon', manaCost: 35, statBonuses: { defense: 20 } },
             { name: 'Mixture Explosive', description: 'Lance une fiole de produits volatils.', type: 'Alchimiste', manaCost: 20, statBonuses: { intelligence: 10, luck: 5 } },
             { name: 'Élixir Régénérant', description: 'Une potion soignant sur la durée.', type: 'Alchimiste', manaCost: 30, statBonuses: { intelligence: 5, defense: 5 } },
             { name: 'Chant de Bravoure', description: 'Un hymne qui galvanise les cœurs.', type: 'Barde', manaCost: 20, statBonuses: { strength: 10, luck: 10 } },
