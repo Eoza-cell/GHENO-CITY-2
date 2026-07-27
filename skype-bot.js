@@ -113,7 +113,8 @@ async function connectToWhatsApp() {
     logger: pino({ level: 'debug' }), // Set to debug for troubleshooting
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
-        return { conversation: '🔄 Réessaye d\'envoyer ton message' };
+        // Return undefined to let Baileys handle the internal protocol retry without synthesizing fake user messages
+        return undefined;
     }
   });
 
