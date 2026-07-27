@@ -615,9 +615,33 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
                 await target.save();
             }
         }
+
+        // Apply dynamic Inebriation (drunkenness) and Poisoning side-effects based on item naming
+        const itemNameLower = params.itemName.toLowerCase();
+        let effectMsg = "";
+
+        const alcoholKeywords = ["bière", "vin", "alcool", "liqueur", "hydromel", "sake", "beverage", "rum", "whisky", "vodka", "grog", "champagne", "biere"];
+        const isAlcohol = alcoholKeywords.some(k => itemNameLower.includes(k));
+
+        const poisonKeywords = ["poison", "venin", "toxique", "potion maudite", "fiole de peste", "arsenic", "cyanure"];
+        const isPoison = poisonKeywords.some(k => itemNameLower.includes(k));
+
+        if (isAlcohol) {
+            const addedInebriation = 30;
+            let currentInebriation = (target.inebriationLevel || 0) + addedInebriation;
+            if (currentInebriation > 100) currentInebriation = 100;
+            await target.update({ inebriationLevel: currentInebriation });
+            effectMsg += ` 🥴 *IVRESSE* : +${addedInebriation}% d'alcoolémie (${currentInebriation}% - Soulé)`;
+        }
+
+        if (isPoison) {
+            await target.update({ isPoisoned: true });
+            effectMsg += ` 🤢 *EMPOISONNEMENT* : Un venin se répand dans ton corps !`;
+        }
+
         await target.reload();
         playersToUpdate.add(target.whatsappId);
-        questFeedback.push(`🎒 *OBJET* : ${target.name} utilise ${params.itemName}.`);
+        questFeedback.push(`🎒 *OBJET* : ${target.name} utilise ${params.itemName}.${effectMsg}`);
     }
 }
 

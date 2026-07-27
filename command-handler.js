@@ -375,9 +375,9 @@ commands.set('acheter', async (sock, message, args) => {
 
     let item = null;
 
-    // Check if the argument is an index between 1 and 8
+    // Check if the argument is an index between 1 and 50
     const parsedIndex = parseInt(rawArg);
-    if (!isNaN(parsedIndex) && parsedIndex >= 1 && parsedIndex <= 8) {
+    if (!isNaN(parsedIndex) && parsedIndex >= 1 && parsedIndex <= 50) {
         const viewed = lastViewedItems.get(jid);
         if (viewed && viewed[parsedIndex - 1]) {
             const targetName = viewed[parsedIndex - 1];
@@ -1242,6 +1242,16 @@ commands.set('god', async (sock, message, args) => {
                 rank: 'S'
             });
             await sock.sendMessage(replyJid, { text: `La puissance absolue a été accordée à ${targetPlayer.name}.` });
+            break;
+        case 'res':
+        case 'ressusciter':
+            await targetPlayer.update({
+                health: targetPlayer.maxHealth,
+                location: "Empire Impérial d'Elion",
+                subLocation: "Eldoria"
+            });
+            await targetPlayer.reload();
+            await sock.sendMessage(replyJid, { text: `👼 [GOD] *RESURRECTION !* ${targetPlayer.name} a été ressuscité et ramené à Eldoria par décret divin ! Ses points de vie sont entièrement restaurés.` });
             break;
     }
 });
@@ -2160,15 +2170,26 @@ commands.set('apotheose', async (sock, message, args) => {
     await targetNpc.destroy();
   }
 
-  // 5. Transform the player into an Apostle
+  // 5. Transform the player into an Apostle (Powered by custom AI narration of their exact mutation look)
   const originalDescription = player.characterDescription || "Un aventurier";
-  const grotesqueLooks = [
-      "une bête ailée colossale à la peau d'ébène et aux cornes de bouc acérées, dégageant une aura de pure terreur.",
-      "un prédateur arachnéen gigantesque doté de multiples yeux écarlates et de pinces d'acier tranchantes.",
-      "un titan de chair fusionnée aux plaques d'armure corrompues, dont le corps est parcouru de flammes noires.",
-      "un centaure draconique terrifiant aux écailles d'obsidienne et aux crocs suintants de venin d'Ether."
-  ];
-  const selectedLook = grotesqueLooks[Math.floor(Math.random() * grotesqueLooks.length)];
+  let selectedLook = "une abomination gigantesque aux yeux écarlates et plaques osseuses de démon.";
+
+  try {
+      const transformPrompt = `Génère une description ultra-sombre, viscérale et grotesque de la transformation de ${player.name} en Apôtre de l'Interstice.
+Sa description originale : "${originalDescription}"
+Sa classe : ${player.class} (${player.derivative})
+Victime sacrifiée : ${victimName}
+
+Consigne de style : Style Berserk / Seinen sombre. Décris en détail sa nouvelle apparence démoniaque (sa peau, ses cornes, ses membres distordus, son regard) qui reflète son caractère et sa classe de combat. Maximum 80 mots.`;
+
+      const { callAI } = require('./ai-utils');
+      const mutationDescription = await callAI(`Tu es le narrateur de l'Interstice d'Aetherys. Décris la mutation démoniaque terrifiante d'un nouvel Apôtre.`, transformPrompt, { jsonMode: false });
+      if (mutationDescription) {
+          selectedLook = mutationDescription.trim().replace(/\{[\s\S]*?\}/g, '');
+      }
+  } catch (e) {
+      console.error("[Eclipse AI] Failed to generate AI apostle look, falling back:", e.message);
+  }
 
   await player.update({
       class: "Apôtre de l'Interstice",
@@ -2176,7 +2197,7 @@ commands.set('apotheose', async (sock, message, args) => {
       strength: player.strength + 150,
       defense: player.defense + 150,
       agility: player.agility + 150,
-      characterDescription: `Anciennement ${player.name} (${originalDescription}). Désormais un Apôtre de la Main de Dieu, transformé en ${selectedLook}`
+      characterDescription: `Anciennement ${player.name} (${originalDescription}). Désormais un Apôtre de la Main de Dieu. Description : ${selectedLook}`
   });
 
   await player.reload();

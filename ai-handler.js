@@ -120,8 +120,7 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
             await p.update({ xp: newX });
             feedbackList.push(`✨ *${p.name}* : XP +${val}`);
             // Check level up
-            const { checkLevelUp } = require('./level-utils');
-            await checkLevelUp(sock, jid, p);
+            await checkLevelUp(p, sock);
         } else if (s === 'COL') {
             let newC = p.col + val;
             if (newC < 0) newC = 0;
@@ -505,6 +504,21 @@ async function handleFreeAction(sock, message, player, actionText) {
       if (hungerLoss > 0) await player.decrement('hunger', { by: hungerLoss });
       if (sleepLoss > 0) await player.decrement('sleep', { by: sleepLoss });
 
+      // Gradual sobriety over time (sobering up)
+      if (player.inebriationLevel > 0) {
+          const soberingAmount = Math.floor(rpElapsedHours * 15) || 5;
+          let newInebriation = player.inebriationLevel - soberingAmount;
+          if (newInebriation < 0) newInebriation = 0;
+          await player.update({ inebriationLevel: newInebriation });
+      }
+
+      // Poisoning damage over time (lose 5 HP per hour)
+      if (player.isPoisoned) {
+          const poisonDamage = Math.floor(rpElapsedHours * 5) || 2;
+          await player.decrement('health', { by: poisonDamage });
+          hints.push(`⚠️ EMPOISONNEMENT ACTIF : Le venin ronge tes PV (-${poisonDamage} PV). Consomme un antidote ou trouve un remède d'urgence !`);
+      }
+
       await player.reload();
       if (player.hunger < 0) await player.update({ hunger: 0 });
       if (player.sleep < 0) await player.update({ sleep: 0 });
@@ -732,8 +746,13 @@ LORE DES CLASSES (CHEVALIER-DRAGON) :
 - CHEVALIER-DRAGON (DRAGON SLAYER) : Les joueurs de la classe "Chevalier-Dragon" possèdent des facultés identiques aux Dragon Slayers de Fairy Tail (comme Natsu Dragnir). Ils ont des poumons de dragon (capables d'expirer des souffles élémentaires dévastateurs), peuvent dévorer leur propre élément magique pour restaurer instantanément leurs PM/PV, et sous l'effet de l'Aura, leur peau se couvre d'écailles draconiques denses et leur force brute devient divine.
 
 NARRATION :
-- STYLE DE JEU DIRECT & CONCIS : Rédige une narration ultra-fluide, rythmée et dynamique comme dans un anime à fort budget. Bannis les descriptions inutilement longues ou contemplatives. Reste percutant. Un SEUL paragraphe fluide et rapide.
-- ADVERSAIRES RÉACTIFS & COMBAT ANIMÉ : Les combats doivent être vivants, animés et fluides. Les monstres/opposants ne se laissent pas abattre passivement : ils doivent activement essayer de se défendre (bloquer, esquiver, parer, battre en retraite, frapper désespérément en retour) même s'ils sont totalement outclassés en statistiques.
+- CONCISION ANIME EXTRÊME (REGLE CRITIQUE) : Écris un paragraphe TRÈS COURT (MAXIMUM 80-120 MOTS). Ta narration doit être ultra-fluide, vive et rapide comme un plan d'anime de combat à fort budget. Les descriptions longues et contemplatives sont STRICTEMENT INTERDITES. Va droit au but, reste percutant et dynamique.
+- ADVERSAIRES ACTIFS, DIFFICULTÉ ÉLEVÉE & BATTLE IQ : Les combats d'Aetherys exigent un haut niveau d'intelligence de combat (Battle IQ). Les adversaires sont redoutables : ils esquivent, parent, contre-attaquent et se défendent désespérément même s'ils sont à l'agonie. Une victoire nécessite de la tactique (éléments, placement, timing).
+- RÉACTIVITÉ SOCIALE ET MILICE : Si un affrontement ou une attaque survient près de PNJ (élèves, citoyens, etc.), ils réagissent instantanément (cris, panique générale, fuite éperdue, ou appel d'urgence aux gardes de la milice locale qui interviennent pour appréhender les coupables).
+- ÉLÈVES ROAMING HORS COURS : Des élèves aux caractères très distincts (arrogants, paresseux sécheurs, érudits curieux) errent hors de l'école pendant les cours. Décris leurs traits uniques s'ils croisent le joueur.
+- ETATS D'IVRESSE ET POISON (🥴 & 🤢) :
+  - Si le statut 'InebriationLevel' du joueur est élevé, sa parole est obligatoirement pâteuse, ses réflexes sont lents, et il souffre d'hallucinations hilarantes ou de vertiges physiques dans la narration.
+  - S'il est empoisonné ('isPoisoned: true'), il grimace de douleur, crache du sang noir et double d'intensité de souffrance physique à chaque mouvement.
 - IMPACT DES BLESSURES : Les blessures reçues par le joueur ont un impact direct, immédiat et réaliste sur ses mouvements, sa vitesse de déplacement et son agilité narrative (ex: jambe entaillée = déplacement ralenti, bras brisé = maniement de l'épée impossible de ce côté).
 - JUSTIFICATION DE TOUTE DÉDUCTION : Ne retire JAMAIS de points de vie (HP) ou de Col (pièces) au joueur de manière arbitraire sans une raison logique, évidente et explicitée clairement dans le texte de la narration (ex: vol commis sous ses yeux, blessure directe infligée par une arme ou piège).
 - MJ PUR : Tu ne décides jamais des pensées, répliques ou sentiments du joueur. Tu décris uniquement ce qu'il perçoit et ce qu'il subit physiquement.

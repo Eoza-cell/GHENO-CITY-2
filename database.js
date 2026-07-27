@@ -300,6 +300,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  inebriationLevel: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0, // 0 to 100% drunk
+  },
+  isPoisoned: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 });
 
 const Item = sequelize.define('Item', {
