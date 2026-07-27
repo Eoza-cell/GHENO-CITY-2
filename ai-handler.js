@@ -857,7 +857,10 @@ ${actionSummary}
 
 CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
-2. RÉGIS LEURS INTERACTIONS : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies.
+2. RÉGIS LEURS INTERACTIONS AVEC UNE PRIO ABSOLUE : Si les joueurs s'adressent la parole, s'attaquent, coopèrent ou échangent des objets, décris l'action avec une extrême fluidité.
+   - DIALOGUES & COMMERCE : Décris l'échange de mots direct ou le transfert physique d'objets ou de Col.
+   - DUEL PVP : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies (FOR/AGI/DEF) pour arbitrer le choc. Décris des parades, esquives rapides, blessures réalistes et applique les dégâts correspondants.
+   - COOPÉRATION : S'ils unissent leurs forces (attaque synchronisée), décris un combo spectaculaire combinant leurs éléments (ex: feu + vent) provoquant d'immenses dégâts collatéraux.
 3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
 4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.
 5. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans le RÉSUMÉ DES ACTIONS.
