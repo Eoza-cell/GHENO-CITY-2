@@ -40,19 +40,22 @@ async function calculatePlotImpact(player) {
 
         if (latestPlot) {
             const entryText = latestPlot.entry.toLowerCase();
-            if (entryText.includes('eclipse') || entryText.includes('griffith') || entryText.includes('apôtre')) {
+            const playerNameLower = player.name.toLowerCase();
+            const isPlayerConcerned = entryText.includes(playerNameLower) || entryText.includes('griffith');
+
+            if (isPlayerConcerned && (entryText.includes('eclipse') || entryText.includes('apôtre'))) {
                 plotName = "💀 MARQUE DE LA CAUSALITÉ";
-                plotDesc = "Griffith a ouvert l'Interstice. Vous êtes marqué par le Béhérit rouge. Force décuplée au prix de votre protection.";
+                plotDesc = "Tu es marqué par l'Éclipse de l'Interstice. Ton âme appartient désormais aux Anges de la Causalité.";
                 modifiers = { strength: 18, luck: -12, defense: -6 };
                 visualEffect = "fire";
-            } else if (entryText.includes('convergence') || entryText.includes('vide') || entryText.includes('failles')) {
+            } else if (isPlayerConcerned && (entryText.includes('convergence') || entryText.includes('vide') || entryText.includes('failles'))) {
                 plotName = "🌀 INFLUENCE DE LA CONVERGENCE";
-                plotDesc = "Les failles de l'Interstice perturbent la réalité. Votre esprit s'aiguise mais le mana est instable.";
+                plotDesc = "Les failles de l'Interstice perturbent ton esprit. Ton mana est extrêmement instable.";
                 modifiers = { intelligence: 15, defense: -5, luck: 5 };
                 visualEffect = "dark";
-            } else if (entryText.includes('néant') || entryText.includes('void')) {
+            } else if (isPlayerConcerned && (entryText.includes('néant') || entryText.includes('void'))) {
                 plotName = "🖤 OMBRE DU NÉANT";
-                plotDesc = "La corruption du Roi Vide rampe sur votre âme. Agilité décuplée au détriment de votre énergie vitale.";
+                plotDesc = "La corruption du Roi Vide rampe sur ton âme. Agilité décuplée mais résistance vitale érodée.";
                 modifiers = { agility: 14, strength: -4, intelligence: 6 };
                 visualEffect = "void";
             }

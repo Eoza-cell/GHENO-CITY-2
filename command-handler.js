@@ -220,11 +220,30 @@ const profileCommand = async (sock, message) => {
       const { calculatePlotImpact } = require('./profile-generator');
       const plot = await calculatePlotImpact(player);
 
-      const displayStrength = player.hasAura ? Math.round(player.strength * 1.5) : player.strength;
-      const displayAgility = player.hasAura ? Math.round(player.agility * 1.5) : player.agility;
-      const displayIntelligence = player.hasAura ? Math.round(player.intelligence * 1.5) : player.intelligence;
-      const displayDefense = player.hasAura ? Math.round(player.defense * 1.5) : player.defense;
-      const displayLuck = player.hasAura ? Math.round(player.luck * 1.5) : player.luck;
+      let baseStrength = player.strength;
+      let baseAgility = player.agility;
+      let baseIntelligence = player.intelligence;
+      let baseDefense = player.defense;
+      let baseLuck = player.luck;
+      let fusionTag = "";
+
+      if (player.fusedWithId) {
+          const partner = await Player.findOne({ where: { whatsappId: player.fusedWithId } });
+          if (partner) {
+              baseStrength = Math.round((player.strength + partner.strength) * 1.30);
+              baseAgility = Math.round((player.agility + partner.agility) * 1.30);
+              baseIntelligence = Math.round((player.intelligence + partner.intelligence) * 1.30);
+              baseDefense = Math.round((player.defense + partner.defense) * 1.30);
+              baseLuck = Math.round((player.luck + partner.luck) * 1.30);
+              fusionTag = " 🌀 [FUSION +30%]";
+          }
+      }
+
+      const displayStrength = player.hasAura ? Math.round(baseStrength * 1.5) : baseStrength;
+      const displayAgility = player.hasAura ? Math.round(baseAgility * 1.5) : baseAgility;
+      const displayIntelligence = player.hasAura ? Math.round(baseIntelligence * 1.5) : baseIntelligence;
+      const displayDefense = player.hasAura ? Math.round(baseDefense * 1.5) : baseDefense;
+      const displayLuck = player.hasAura ? Math.round(baseLuck * 1.5) : baseLuck;
       const auraTag = player.hasAura ? " ⚡ [AURA BOOST +50%]" : "";
 
       const profileText = `--- 🆔 GHENO PHONE - PROFIL --- \n\n` +
@@ -243,11 +262,11 @@ const profileCommand = async (sock, message) => {
                           `🔧 État: ${player.outfitDurability}% Durabilité\n` +
                           `🧼 Propreté: *${(player.outfitCleanliness || 'propre').toUpperCase()}*\n\n` +
                           `--- ⚔️ STATISTIQUES --- \n` +
-                          `💪 Force: ${displayStrength}${auraTag}\n` +
-                          `🏃 Agilité: ${displayAgility}${auraTag}\n` +
-                          `🧠 Intelligence: ${displayIntelligence}${auraTag}\n` +
-                          `🛡️ Défense: ${displayDefense}${auraTag}\n` +
-                          `🍀 Chance: ${displayLuck}${auraTag}\n` +
+                          `💪 Force: ${displayStrength}${auraTag}${fusionTag}\n` +
+                          `🏃 Agilité: ${displayAgility}${auraTag}${fusionTag}\n` +
+                          `🧠 Intelligence: ${displayIntelligence}${auraTag}${fusionTag}\n` +
+                          `🛡️ Défense: ${displayDefense}${auraTag}${fusionTag}\n` +
+                          `🍀 Chance: ${displayLuck}${auraTag}${fusionTag}\n` +
                           `✨ *SP:* ${player.skillPoints}\n\n` +
                           `💰 *COL:* ${player.col} 🪙\n` +
                           (player.masterId ? `🔗 *MAÎTRE:* ${player.masterId.substring(0, 8)}...\n` : '') +
@@ -1131,7 +1150,7 @@ commands.set('god', async (sock, message, args) => {
     }
 
     // Logic to detect target
-    const needsTarget = ['set', 'give', 'rank', 'col', 'pacte', 'max'].includes(subCommand);
+    const needsTarget = ['set', 'give', 'rank', 'col', 'pacte', 'max', 'res', 'ressusciter'].includes(subCommand);
     if (needsTarget) {
         if (targetJid) {
             targetPlayer = await Player.findOne({ where: { whatsappId: targetJid } });
@@ -2222,6 +2241,94 @@ Consigne de style : Style Berserk / Seinen sombre. Décris en détail sa nouvell
       await sock.sendMessage(replyJid, { image: buffer, caption: announcement });
   } catch (e) {
       await sock.sendMessage(replyJid, { text: announcement });
+  }
+});
+
+// Command: /fusion
+commands.set('fusion', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  const targetStr = args.join(' ').trim();
+
+  if (!player) {
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  if (!targetStr) {
+    await sock.sendMessage(replyJid, { text: "⚠️ *Avec qui souhaites-tu fusionner ton corps et ton esprit ?* Indique le nom de l'autre joueur.\n\nUsage : `/fusion <nom_joueur>`" });
+    return;
+  }
+
+  // Find target player
+  const cleanTarget = targetStr.replace('@', '').trim();
+  const targetPlayer = await Player.findOne({
+    where: {
+        name: { [Op.like]: `%${cleanTarget}%` },
+        whatsappId: { [Op.ne]: jid } // Can't fuse with oneself
+    }
+  });
+
+  if (!targetPlayer) {
+    await sock.sendMessage(replyJid, { text: `❌ Impossible de trouver le joueur "${targetStr}" à proximité pour fusionner.` });
+    return;
+  }
+
+  if (player.fusedWithId || targetPlayer.fusedWithId) {
+    await sock.sendMessage(replyJid, { text: "❌ L'un des deux joueurs est déjà engagé dans une fusion ! Vous devez d'abord vous défusionner." });
+    return;
+  }
+
+  // Set fusion state
+  await player.update({ fusedWithId: targetPlayer.whatsappId, fusionSyncLevel: 1.30 });
+  await targetPlayer.update({ fusedWithId: player.whatsappId, fusionSyncLevel: 1.30 });
+
+  await player.reload();
+  await targetPlayer.reload();
+
+  const combinedName = `${player.name.substring(0, Math.floor(player.name.length/2))}${targetPlayer.name.substring(Math.floor(targetPlayer.name.length/2))}`.toUpperCase();
+  const announcement = `🌀 *FUSION SUPRÊME !* 🌀\n\n` +
+                       `« Deux corps, deux esprits, une seule et unique volonté absolue. »\n\n` +
+                       `*${player.name}* et *${targetPlayer.name}* ont harmonisé leurs flux d'Ether et fusionné dans une décharge d'énergie aveuglante !\n\n` +
+                       `👤 *NOUVEL HÉRITIER :* **${combinedName}**\n` +
+                       `📈 *PUISSANCE :* Leurs statistiques primaires sont combinées et décuplées de **+30% d'énergie synoptique** !\n` +
+                       `✨ Le monde tremble devant ce nouveau guerrier d'une puissance inouïe.`;
+
+  try {
+      const { generateLorePoster } = require('./lore-generator');
+      const buffer = await generateLorePoster("FUSION", announcement, 'HISTORY');
+      await sock.sendMessage(replyJid, { image: buffer, caption: announcement });
+      await sock.sendMessage(targetPlayer.whatsappId, { image: buffer, caption: announcement });
+  } catch (e) {
+      await sock.sendMessage(replyJid, { text: announcement });
+  }
+});
+
+// Command: /defusion
+commands.set('defusion', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  if (!player) return;
+
+  if (!player.fusedWithId) {
+    await sock.sendMessage(replyJid, { text: "❌ Tu n'es pas engagé dans une fusion actuellement." });
+    return;
+  }
+
+  const partner = await Player.findOne({ where: { whatsappId: player.fusedWithId } });
+
+  await player.update({ fusedWithId: null, fusionSyncLevel: 0 });
+  if (partner) {
+      await partner.update({ fusedWithId: null, fusionSyncLevel: 0 });
+  }
+
+  const msg = `💔 *DISSOLUTION !* La fusion spirituelle a pris fin. *${player.name}* et *${partner ? partner.name : "son partenaire"}* retrouvent leurs formes et esprits individuels distincts.`;
+  await sock.sendMessage(replyJid, { text: msg });
+  if (partner) {
+      await sock.sendMessage(partner.whatsappId, { text: msg });
   }
 });
 
