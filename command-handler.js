@@ -2088,6 +2088,122 @@ commands.set('aura', async (sock, message) => {
   }
 });
 
+// Command: /apotheose
+commands.set('apotheose', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  if (!player) {
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  // 1. Verify if the player has a Béhérit in their inventory
+  let inventory = player.inventory || [];
+  const beheritIndex = inventory.findIndex(i => i.name.toLowerCase().includes('béhérit') || i.name.toLowerCase().includes('beherit'));
+
+  if (beheritIndex === -1 && !player.isGod) {
+    await sock.sendMessage(replyJid, { text: "❌ *L'appel du Néant échoue...* Tu ne possèdes pas de Béhérit (l'œuf du conquérant extrêmement rare) pour ouvrir les portes de l'Interstice." });
+    return;
+  }
+
+  // 2. Validate sacrifice target
+  const targetStr = args.join(' ').trim();
+  if (!targetStr) {
+    await sock.sendMessage(replyJid, { text: "⚠️ *Qui souhaites-tu sacrifier ?* Indique le nom d'un autre joueur ou d'un PNJ proche à qui tu tiens ou avec qui tu as un lien.\n\nUsage : `/apotheose <nom_cible>`" });
+    return;
+  }
+
+  // Helper to find player or PNJ
+  const cleanTarget = targetStr.replace('@', '').trim();
+  const targetPlayer = await Player.findOne({
+    where: {
+        name: { [Op.like]: `%${cleanTarget}%` }
+    }
+  });
+
+  const { NPC } = require('./database');
+  const targetNpc = await NPC.findOne({
+    where: {
+        name: { [Op.like]: `%${cleanTarget}%` },
+        location: player.location
+    }
+  });
+
+  if (!targetPlayer && !targetNpc) {
+    await sock.sendMessage(replyJid, { text: `❌ Impossible de trouver la cible "${targetStr}" à sacrifier ici. Elle doit être à portée pour offrir son âme à l'Interstice.` });
+    return;
+  }
+
+  const victimName = targetPlayer ? targetPlayer.name : targetNpc.name;
+
+  // 3. Consume Beherit from inventory
+  if (!player.isGod) {
+    inventory.splice(beheritIndex, 1);
+    player.inventory = inventory;
+    await player.save();
+  }
+
+  // 4. Sacrifice the victim (Kill player or delete NPC)
+  if (targetPlayer) {
+    await targetPlayer.update({
+        health: 0,
+        location: 'Nécropolis',
+        subLocation: 'Le Seuil',
+        characterDescription: `${targetPlayer.name} a été sacrifié par ${player.name} lors de l'Éclipse pour ouvrir les portes de l'Interstice. Son âme erre éternellement.`
+    });
+    try {
+        await sock.sendMessage(targetPlayer.whatsappId, { text: `💀 *SACRIFICE DE L'ÉCLIPSE !* Tu as été sacrifié par *${player.name}* ! Ton âme est consumée et envoyée à Nécropolis.` });
+    } catch(e) {}
+  } else if (targetNpc) {
+    await targetNpc.destroy();
+  }
+
+  // 5. Transform the player into an Apostle
+  const originalDescription = player.characterDescription || "Un aventurier";
+  const grotesqueLooks = [
+      "une bête ailée colossale à la peau d'ébène et aux cornes de bouc acérées, dégageant une aura de pure terreur.",
+      "un prédateur arachnéen gigantesque doté de multiples yeux écarlates et de pinces d'acier tranchantes.",
+      "un titan de chair fusionnée aux plaques d'armure corrompues, dont le corps est parcouru de flammes noires.",
+      "un centaure draconique terrifiant aux écailles d'obsidienne et aux crocs suintants de venin d'Ether."
+  ];
+  const selectedLook = grotesqueLooks[Math.floor(Math.random() * grotesqueLooks.length)];
+
+  await player.update({
+      class: "Apôtre de l'Interstice",
+      rank: "S",
+      strength: player.strength + 150,
+      defense: player.defense + 150,
+      agility: player.agility + 150,
+      characterDescription: `Anciennement ${player.name} (${originalDescription}). Désormais un Apôtre de la Main de Dieu, transformé en ${selectedLook}`
+  });
+
+  await player.reload();
+
+  // 6. Log the Eclipse event in World Journal
+  const { WorldJournal } = require('./database');
+  await WorldJournal.create({
+      entry: `🩸 ÉCLIPSE MAJEURE : ${player.name} a sacrifié ${victimName} et est devenu un APÔTRE DE L'INTERSTICE !`,
+      importance: 5,
+      category: 'plot'
+  });
+
+  const announcement = `🩸 *APOTHÉOSE DE L'ÉCLIPSE !* 🩸\n\n` +
+                       `« Les portes de l'Interstice se sont ouvertes dans un geyser de sang et d'ombre. »\n\n` +
+                       `*${player.name}* a brandi le Béhérit et a offert l'âme de **${victimName}** en sacrifice aux cinq Anges de la Causalité !\n\n` +
+                       `✨ *TRANSFORMATION COMPLÈTE* : Sa classe est désormais **Apôtre de l'Interstice** (Rang S) ! Sa force brute et sa défense augmentent massivement de *+150* ! Son enveloppe charnelle a muté en une abomination terrifiante.\n\n` +
+                       `💀 **${victimName}** est mort, son âme consumée par le Vide éternel.`;
+
+  try {
+      const { generateLorePoster } = require('./lore-generator');
+      const buffer = await generateLorePoster("APOTHÉOSE", announcement, 'WAR');
+      await sock.sendMessage(replyJid, { image: buffer, caption: announcement });
+  } catch (e) {
+      await sock.sendMessage(replyJid, { text: announcement });
+  }
+});
+
 // Command: /laver
 commands.set('laver', async (sock, message) => {
   const jid = getJid(message);

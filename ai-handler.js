@@ -255,7 +255,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   }
 
   // Automatic Visual: Detect writing on paper or blackboard
-  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter|inscrit|dessine|trace)(?:\s+sur\s+(?:du\s+)?(?:papier|tableau|mur|parchemin|lettre|examen|note|copie))\s*:\s*([\s\S]+)/i);
+  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter|inscrit|dessine|trace|copie|copier)(?:\s+(?:sur|dans)\s+(?:du\s+|le\s+|la\s+)?(?:papier|tableau|mur|parchemin|lettre|examen|note|copie|tableau noir|ardoise))\s*:\s*([\s\S]+)/i);
   if (writingMatch) {
       const writtenText = writingMatch[1].trim();
       const lowerAction = actionText.toLowerCase();
@@ -732,9 +732,12 @@ LORE DES CLASSES (CHEVALIER-DRAGON) :
 - CHEVALIER-DRAGON (DRAGON SLAYER) : Les joueurs de la classe "Chevalier-Dragon" possèdent des facultés identiques aux Dragon Slayers de Fairy Tail (comme Natsu Dragnir). Ils ont des poumons de dragon (capables d'expirer des souffles élémentaires dévastateurs), peuvent dévorer leur propre élément magique pour restaurer instantanément leurs PM/PV, et sous l'effet de l'Aura, leur peau se couvre d'écailles draconiques denses et leur force brute devient divine.
 
 NARRATION :
-- STYLE: Seinen/Manhwa viscéral (Berserk/Solo Leveling). Un SEUL paragraphe fluide par joueur. Évite les répétitions.
-- MJ PUR: Tu ne décides jamais des pensées ou sentiments du joueur. Tu décris uniquement ce qu'il perçoit et ce qu'il subit.
-- DÉVELOPPEMENT: Chaque action a un impact sur l'environnement.
+- STYLE DE JEU DIRECT & CONCIS : Rédige une narration ultra-fluide, rythmée et dynamique comme dans un anime à fort budget. Bannis les descriptions inutilement longues ou contemplatives. Reste percutant. Un SEUL paragraphe fluide et rapide.
+- ADVERSAIRES RÉACTIFS & COMBAT ANIMÉ : Les combats doivent être vivants, animés et fluides. Les monstres/opposants ne se laissent pas abattre passivement : ils doivent activement essayer de se défendre (bloquer, esquiver, parer, battre en retraite, frapper désespérément en retour) même s'ils sont totalement outclassés en statistiques.
+- IMPACT DES BLESSURES : Les blessures reçues par le joueur ont un impact direct, immédiat et réaliste sur ses mouvements, sa vitesse de déplacement et son agilité narrative (ex: jambe entaillée = déplacement ralenti, bras brisé = maniement de l'épée impossible de ce côté).
+- JUSTIFICATION DE TOUTE DÉDUCTION : Ne retire JAMAIS de points de vie (HP) ou de Col (pièces) au joueur de manière arbitraire sans une raison logique, évidente et explicitée clairement dans le texte de la narration (ex: vol commis sous ses yeux, blessure directe infligée par une arme ou piège).
+- MJ PUR : Tu ne décides jamais des pensées, répliques ou sentiments du joueur. Tu décris uniquement ce qu'il perçoit et ce qu'il subit physiquement.
+- DÉVELOPPEMENT : Chaque action a un impact direct sur l'environnement.
 - COMPORTEMENTS & APPARENCE (RÈGLE IMPORTANTE) : Fais réagir l'environnement et les PNJ de manière réaliste et changeante selon l'habillement du personnage. Si le joueur a une tenue 'couverte de sang', 'déchirée' ou 'tachée de boue' (ou une faible durabilité d'outfit), les gardes de la milice seront extrêmement méfiants, les marchands augmenteront leurs prix ou l'ignoreront, tandis que s'il porte un costume élégant, il recevra du respect. Les dégâts physiques reçus déchirent ou salissent sa tenue.
 
 STATUTS ET COMMANDES DE SAUVEGARDE :
