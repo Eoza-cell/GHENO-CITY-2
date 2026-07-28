@@ -2096,6 +2096,173 @@ commands.set('arbitre', async (sock, message, args) => {
     }
 });
 
+// Command: /etudier
+commands.set('etudier', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  const skillName = args.join(' ').trim();
+
+  if (!player) {
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const subLower = (player.subLocation || "").toLowerCase();
+  const isAcademy = ["académie", "lycée", "école", "school", "collège", "sanctuaire", "citadelle", "bibliothèque", "temple"].some(sch => subLower.includes(sch));
+
+  if (!isAcademy && !player.isGod) {
+    await sock.sendMessage(replyJid, { text: `❌ Impossible d'étudier ici (*${player.subLocation}*). Rends-toi dans une Académie, une École, une Bibliothèque ou un Sanctuaire pour apprendre de nouvelles techniques !` });
+    return;
+  }
+
+  if (!skillName) {
+    // Show list of learnable skills matching class type or elemental
+    const { Skill } = require('./database');
+    const learnable = await Skill.findAll({
+        where: {
+            [Op.or]: [
+                { type: player.class },
+                { type: { [Op.like]: '%Élémentaire%' } }
+            ]
+        },
+        limit: 12
+    });
+
+    let listText = `📚 *BIBLIOTHÈQUE DE L'ACADÉMIE - TECHNIQUES DISPONIBLES* 📚\n` +
+                   `📍 Lieu : ${player.subLocation}\n` +
+                   `✨ Tes SP dispos : *${player.skillPoints} SP*\n\n` +
+                   `Pour apprendre une technique, tape \`/etudier [nom de la technique]\` (Coût: *5 SP* par technique) :\n\n`;
+
+    learnable.forEach(s => {
+        listText += `├ 📖 *${s.name.toUpperCase()}*\n`;
+        listText += `│  └ 📜 ${s.description}\n`;
+    });
+    listText += `\n└ _Chaque technique apprise augmente définitivement tes statistiques de base !_`;
+
+    await sock.sendMessage(replyJid, { text: listText });
+    return;
+  }
+
+  const { Skill } = require('./database');
+  const skill = await Skill.findOne({
+      where: {
+          name: { [Op.like]: `%${skillName}%` }
+      }
+  });
+
+  if (!skill) {
+      await sock.sendMessage(replyJid, { text: `❌ La technique "${skillName}" n'existe pas ou n'est pas répertoriée dans la bibliothèque.` });
+      return;
+  }
+
+  const hasSkill = await player.hasSkill(skill);
+  if (hasSkill) {
+      await sock.sendMessage(replyJid, { text: `❌ Tu maîtrises déjà la technique *${skill.name.toUpperCase()}* !` });
+      return;
+  }
+
+  if (player.skillPoints < 5 && !player.isGod) {
+      await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de Points de Compétence (5 SP requis, tu en as *${player.skillPoints} SP*). Complète des quêtes ou monte de niveau pour en gagner !` });
+      return;
+  }
+
+  // Study cost and learn skill
+  if (!player.isGod) {
+      await player.decrement('skillPoints', { by: 5 });
+  }
+  await player.addSkill(skill);
+
+  // Apply stat bonuses immediately
+  const bonuses = skill.statBonuses || {};
+  for (const [stat, val] of Object.entries(bonuses)) {
+      if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+          await player.increment(stat, { by: val });
+      }
+  }
+  await player.reload();
+
+  await sock.sendMessage(replyJid, { text: `📖 *APPRENTISSAGE RÉUSSI !* Tu as étudié avec succès la technique **${skill.name.toUpperCase()}** pour 5 SP !\n\n└ 📜 _Effet :_ ${skill.description}\n✨ Tes SP restants : *${player.skillPoints} SP*` });
+});
+
+// Command: /missions
+commands.set('missions', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid }, include: Quest });
+
+  if (!player) {
+    await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const actionSub = args[0]?.toLowerCase();
+
+  if (actionSub === 'accepter' || actionSub === 'accept') {
+    const questStr = args.slice(1).join(' ').trim();
+    if (!questStr) {
+        await sock.sendMessage(replyJid, { text: "⚠️ Indique l'index ou le nom de la mission secondaire à accepter (ex: `/missions accepter 3`)." });
+        return;
+    }
+
+    const { startQuest } = require('./quest-utils');
+    const { Quest: ModelQuest } = require('./database');
+    let questToAccept = null;
+
+    const parsedIndex = parseInt(questStr);
+    if (!isNaN(parsedIndex) && parsedIndex >= 1 && parsedIndex <= 15) {
+        const sideQuests = await ModelQuest.findAll({
+            where: { type: 'side', rank_required: player.rank },
+            limit: 15
+        });
+        if (sideQuests[parsedIndex - 1]) {
+            questToAccept = sideQuests[parsedIndex - 1];
+        }
+    }
+
+    if (!questToAccept) {
+        questToAccept = await ModelQuest.findOne({
+            where: { title: { [Op.like]: `%${questStr}%` }, type: 'side' }
+        });
+    }
+
+    if (!questToAccept) {
+        await sock.sendMessage(replyJid, { text: `❌ Impossible de trouver la mission secondaire "${questStr}".` });
+        return;
+    }
+
+    const logMsg = await startQuest(player, questToAccept.title);
+    if (logMsg) {
+        await sock.sendMessage(replyJid, { text: `✅ *Mission secondaire acceptée !*\n\n${logMsg}` });
+    } else {
+        await sock.sendMessage(replyJid, { text: `❌ Tu as déjà accepté ou terminé cette mission : "${questToAccept.title}".` });
+    }
+    return;
+  }
+
+  // Display available side quests of their rank
+  const { Quest: ModelQuest } = require('./database');
+  const sideQuests = await ModelQuest.findAll({
+      where: { type: 'side', rank_required: player.rank },
+      limit: 15
+  });
+
+  let boardText = `📜 *TABLEAU DES MISSIONS SECONDAIRES (RANG ${player.rank})* 📜\n` +
+                  `De nombreuses missions secondaires sont disponibles partout dans le monde pour gagner de l'XP et de l'argent !\n\n`;
+
+  sideQuests.forEach((q, i) => {
+      const isAlreadyAccepted = player.Quests.some(pq => pq.id === q.id);
+      const statusIcon = isAlreadyAccepted ? "⏳" : "💠";
+      boardText += `${i + 1}. [${statusIcon}] *${q.title}*\n`;
+      boardText += `   ├ 📝 ${q.description}\n`;
+      boardText += `   └ 🪙 Récompense : *${q.reward_col} Col* • ✨ *${q.reward_xp} XP*\n\n`;
+  });
+
+  boardText += `👉 Pour accepter une mission, tapez : \`/missions accepter [Numéro]\` (Ex: \`/missions accepter 2\`)`;
+
+  await sock.sendMessage(replyJid, { text: boardText });
+});
+
 // Command: /aura
 commands.set('aura', async (sock, message) => {
   const jid = getJid(message);

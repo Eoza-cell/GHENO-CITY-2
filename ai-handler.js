@@ -846,11 +846,35 @@ RÉALITÉ PHYSIQUE:
         weather_impact: weather === 'Pluvieux' ? "AGI malus" : "Normal"
     };
 
+    // Calculate infinite memory logs and timeline
+    const completedPlayerQuests = await player.getQuests({
+        where: { '$PlayerQuest.status$': 'completed' }
+    });
+    const completedQuestsState = completedPlayerQuests.length > 0
+      ? completedPlayerQuests.map(q => q.title).join(', ')
+      : "Aucune quête complétée pour le moment.";
+
+    const playerHistoryLogs = await WorldJournal.findAll({
+        where: {
+            entry: { [Op.like]: `%${player.name}%` }
+        },
+        order: [['id', 'ASC']]
+    });
+    const infiniteTimelineState = playerHistoryLogs.length > 0
+      ? playerHistoryLogs.map(l => `- ${l.entry}`).join('\n')
+      : "- Début récent de l'aventure dans l'Interstice d'Aetherys.";
+
     const fullPrompt = `### WORLD_PULSE (DICE/LUCK) ###\n${JSON.stringify(worldPulse)}
 
 ### MÉMOIRE_SYSTÈME_JSON (CONTEXTE DÉTAILLÉ PAR JOUEUR) ###\n${memoryJson}
 
 ### HISTORIQUE_NARRATIF_RÉCENT_PAR_JOUEUR ###\n${JSON.stringify(storyHooks, null, 2)}
+
+### HISTORIQUE DE TOUTE L'AVENTURE DE L'HÉRITIER (MÉMOIRE INFINIE - NE PAS OUBLIER !) ###
+Rappel de toutes les actions, accomplissements et passés historiques de ${player.name} :
+- QUÊTES TERMINÉES : ${completedQuestsState}
+- TIMELINE RP COMPLÈTE :
+${infiniteTimelineState}
 
 ### RÉSUMÉ DES ACTIONS À TRAITER ###
 ${actionSummary}
