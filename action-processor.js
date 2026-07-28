@@ -596,13 +596,16 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
         await target.save();
         if (item && item.statBonuses) {
             for (const [s, v] of Object.entries(item.statBonuses)) {
-                if (['health', 'mana', 'strength', 'agility', 'intelligence', 'luck', 'defense'].includes(s)) {
+                if (['health', 'mana', 'strength', 'agility', 'intelligence', 'luck', 'defense', 'hunger', 'sleep'].includes(s)) {
                     await target.increment(s, { by: v });
                 }
             }
             await target.reload();
-            const rankCaps = { 'F': 30, 'E': 45, 'D': 60, 'C': 80, 'B': 100, 'A': 150, 'S': 300 };
-            const cap = rankCaps[target.rank] || 30;
+            if (target.hunger > 100) await target.update({ hunger: 100 });
+            if (target.sleep > 100) await target.update({ sleep: 100 });
+            await target.reload();
+            const rankCaps = { 'F': 50, 'E': 100, 'D': 150, 'C': 250, 'B': 400, 'A': 600, 'S': 1000 };
+            const cap = rankCaps[target.rank] || 50;
             const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck'];
             let capChanged = false;
             for (const s of stats) {
@@ -625,6 +628,25 @@ async function handleUseItem(target, params, questFeedback, playersToUpdate) {
 
         const poisonKeywords = ["poison", "venin", "toxique", "potion maudite", "fiole de peste", "arsenic", "cyanure"];
         const isPoison = poisonKeywords.some(k => itemNameLower.includes(k));
+
+        // Dynamic hunger/sleep backup safeguards for intuitive items
+        let addedHunger = 0;
+        let addedSleep = 0;
+        if (["pain", "viande", "nourriture", "steak", "pomme", "biscuit", "gateau", "repas", "ration", "fraise"].some(f => itemNameLower.includes(f))) {
+            addedHunger = 45;
+        }
+        if (["café", "cafe", "sommeil", "dodo", "energy", "repos", "lit"].some(r => itemNameLower.includes(r))) {
+            addedSleep = 45;
+        }
+
+        if (addedHunger > 0) {
+            await target.increment('hunger', { by: addedHunger });
+            effectMsg += ` 🍖 *SATIÉTÉ* : +${addedHunger}% de nourriture (➔ ${Math.min(100, target.hunger + addedHunger)}/100)`;
+        }
+        if (addedSleep > 0) {
+            await target.increment('sleep', { by: addedSleep });
+            effectMsg += ` 💤 *ÉNERGIE* : +${addedSleep}% d'énergie restaurée (➔ ${Math.min(100, target.sleep + addedSleep)}/100)`;
+        }
 
         if (isAlcohol) {
             const addedInebriation = 30;

@@ -2096,6 +2096,35 @@ commands.set('arbitre', async (sock, message, args) => {
     }
 });
 
+// Command: /journal and /changelog
+const journalCommand = async (sock, message) => {
+  const replyJid = message.key.remoteJid;
+  const changelogText = `╔══════════════════════════╗\n` +
+                        `   📓  *JOURNAL DES MISES À JOUR*  \n` +
+                        `╚══════════════════════════╝\n\n` +
+                        `Chers Héritiers, voici les dernières fonctionnalités ajoutées au système d'Aetherys pour vous guider :\n\n` +
+                        `⚡ *1. AURA DE COMBAT* (Tapez \`/aura\`)\n` +
+                        `└ Activez votre Aura d'énergie pour booster instantanément toutes vos statistiques de *+50%* !\n\n` +
+                        `🌀 *2. FUSION CORPS ET ESPRIT* (Tapez \`/fusion <nom_joueur>\`)\n` +
+                        `└ Fusionnez avec un autre joueur à proximité pour former un guerrier suprême unique. Vos statistiques sont cumulées et boostées de *+30% d'énergie synoptique* ! Pour vous séparer, tapez \`/defusion\`.\n\n` +
+                        `🛒 *3. ACHATS SIMPLIFIÉS* (Tapez \`/acheter [Numéro]\`)\n` +
+                        `└ Plus besoin d'écrire des noms complexes ! Entrez simplement le numéro affiché de l'article dans la boutique pour l'acheter directement (ex: \`/acheter 3\`).\n\n` +
+                        `📚 *4. ACADÉMIE & TECHNIQUES* (Tapez \`/etudier\`)\n` +
+                        `└ Lorsque vous êtes dans une Académie ou École, tapez \`/etudier\` sans paramètre pour voir les sorts de votre classe, ou \`/etudier [nom]\` pour les apprendre en dépensant vos SP.\n\n` +
+                        `🎭 *5. APOTHÉOSE DE L'APÔTRE* (Tapez \`/apotheose <cible>\`)\n` +
+                        `└ Si vous possédez un Béhérit rare, offrez l'âme d'une victime en sacrifice pour muter en un Apôtre de Rang S avec un look grotesque personnalisé par l'IA et un bonus massif de *+150* aux statistiques.\n\n` +
+                        `🥴 *6. IVRESSE & EMPOISONNEMENT* (Objets consommables)\n` +
+                        `└ Boire de l'alcool vous rend soulé (l'IA adapte votre parole et vos réflexes). Utiliser du poison active le venin (dégâts réguliers de faim/vie).\n\n` +
+                        `🍗 *7. NOURRITURE ET SATIÉTÉ*\n` +
+                        `└ Consommer du pain ou de la viande remplit instantanément votre jauge de faim (satiété) pour vous éviter de mourir d'inanition.\n\n` +
+                        `👼 *8. RÉSURRECTION DIVINE* (Tapez \`/god res <nom_joueur>\`)\n` +
+                        `└ Les dieux peuvent désormais ressusciter les joueurs trépassés en restaurant tous leurs PV à Eldoria.`;
+
+  await sock.sendMessage(replyJid, { text: changelogText });
+};
+commands.set('journal', journalCommand);
+commands.set('changelog', journalCommand);
+
 // Command: /etudier
 commands.set('etudier', async (sock, message, args) => {
   const jid = getJid(message);
@@ -2593,6 +2622,7 @@ commands.set('menu', async (sock, message) => {
                    "└ `/tournoi` - Événements PVP\n\n" +
                    "⚙️ *SYSTÈME*\n" +
                    "├ `/help` - Aide complète\n" +
+                   "├ `/journal` - Mises à jour & News\n" +
                    "└ `/save` - Sauvegarder\n\n" +
                    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
 

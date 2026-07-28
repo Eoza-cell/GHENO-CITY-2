@@ -1199,10 +1199,10 @@ async function setupDatabase() {
     }
 
     console.log('[DB] Normalizing all player stats to safeguard rank caps...');
-    const rankCaps = { 'F': 30, 'E': 45, 'D': 60, 'C': 80, 'B': 100, 'A': 150, 'S': 300 };
+    const rankCaps = { 'F': 50, 'E': 100, 'D': 150, 'C': 250, 'B': 400, 'A': 600, 'S': 1000 };
     const players = await Player.findAll();
     for (const p of players) {
-        const cap = rankCaps[p.rank] || 30;
+        const cap = rankCaps[p.rank] || 50;
         let changed = false;
 
         const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck'];

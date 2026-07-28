@@ -468,6 +468,18 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const hints = [];
   if (passingNpcHook) hints.push(passingNpcHook);
+
+  // Inject active live rumors for PNJ bosses (such as the King attending Sovereign summits)
+  const pnjActiveLifeRumors = [
+      "L'Empereur Valerius II s'apprête à quitter Eldoria sous haute escorte militaire pour assister à la Rencontre d'Urgence des Souverains d'Aetherys à l'Origine de l'Existence.",
+      "Le Directeur Magnus a réuni les magiciens d'élite de l'Académie Impériale pour sceller une faille magique instable qui est apparue près des frontières.",
+      "La Princesse Seraphina mène actuellement des négociations diplomatiques confidentielles avec les diplomates elfes de la Forêt de l'Éveil.",
+      "Le Juge Orpheon prépare une convocation d'urgence à Nécropolis pour faire passer des jugements d'âmes corrompues.",
+      "L'Ombre organise une réunion secrète des chefs du Syndicat dans les bas-fonds de Gheno."
+  ];
+  const selectedNpcRumor = pnjActiveLifeRumors[Math.floor(Math.random() * pnjActiveLifeRumors.length)];
+  hints.push(`ℹ️ VIE ACTIVE DES PNJ ET RUMEURS D'AETHERYS (Les PNJ majeurs bougent et agissent) : ${selectedNpcRumor}`);
+
   if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise la description du nouveau lieu.");
   if (hasInteraction) {
       hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
