@@ -208,7 +208,7 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         // Query skill from database
         const { Skill: ModelSkill } = require('./database');
         const { Op } = require('sequelize');
-        const skill = await ModelSkill.findOne({
+        let skill = await ModelSkill.findOne({
             where: {
                 [Op.or]: [
                     { name: skillName },
@@ -216,6 +216,17 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
                 ]
             }
         });
+
+        if (!skill) {
+            // Dynamically create custom-invented skills/pacts so players actually learn them!
+            skill = await ModelSkill.create({
+                name: skillName,
+                description: `Une technique mystique unique de l'Interstice ou issue d'un pacte légendaire.`,
+                type: 'Unique',
+                manaCost: 15,
+                statBonuses: {}
+            });
+        }
 
         if (skill) {
             const hasSkill = await targetPlayer.hasSkill(skill);
@@ -239,6 +250,7 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
+  const survivalWarnings = [];
 
   // Logic: Always save the message first
   try {
@@ -512,11 +524,19 @@ async function handleFreeAction(sock, message, player, actionText) {
           await player.update({ inebriationLevel: newInebriation });
       }
 
+      if (hungerLoss > 0) {
+          survivalWarnings.push(`🍗 *${player.name}* : Faim -${hungerLoss} (➔ ${Math.max(0, player.hunger - hungerLoss)}/100)`);
+      }
+      if (sleepLoss > 0) {
+          survivalWarnings.push(`💤 *${player.name}* : Sommeil -${sleepLoss} (➔ ${Math.max(0, player.sleep - sleepLoss)}/100)`);
+      }
+
       // Poisoning damage over time (lose 5 HP per hour)
       if (player.isPoisoned) {
           const poisonDamage = Math.floor(rpElapsedHours * 5) || 2;
           await player.decrement('health', { by: poisonDamage });
           hints.push(`⚠️ EMPOISONNEMENT ACTIF : Le venin ronge tes PV (-${poisonDamage} PV). Consomme un antidote ou trouve un remède d'urgence !`);
+          survivalWarnings.push(`🤢 *${player.name}* : Poison -${poisonDamage} PV (➔ ${Math.max(0, player.health - poisonDamage)}/${player.maxHealth})`);
       }
 
       await player.reload();
@@ -532,6 +552,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       // Starvation damage
       if (player.hunger === 0 && rpElapsedHours > 0.5) {
           await player.decrement('health', { by: 5 });
+          survivalWarnings.push(`⚠️ *${player.name}* INANITION : -5 PV car ta jauge de faim est vide !`);
       }
       await player.update({ lastActivity: new Date() });
   }
@@ -901,6 +922,11 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
 
     // Extract dynamic statistics changes from the text
     const { playersToUpdate, feedbackList } = await parseStatsFromText(content, player, nearbyPlayers, sock, jid);
+
+    // Append survival decay warnings to the feedback list so they are clearly explained to the player
+    if (survivalWarnings.length > 0) {
+        feedbackList.unshift(...survivalWarnings);
+    }
 
     // Dynamic Action Visual Logic based on text content analysis
     let visualBuffer = null;

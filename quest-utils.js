@@ -99,7 +99,14 @@ async function modifyQuest(player, title, branch, notes) {
 async function completeQuest(player, title, sock) {
     const quest = await findQuest(title);
     if (!quest) return null;
-    const pq = await getPlayerQuest(player, quest);
+
+    let pq = await getPlayerQuest(player, quest);
+    if (!pq) {
+        // Idempotently add the quest first if they completed it spontaneously!
+        await player.addQuest(quest, { through: { status: 'in_progress', progress: 0 } });
+        pq = await getPlayerQuest(player, quest);
+    }
+
     if (!pq || pq.status === 'completed') return null;
 
     await pq.update({ status: 'completed', progress: 100 });
