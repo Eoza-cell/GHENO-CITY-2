@@ -11,7 +11,7 @@ const { generate3DVisual } = require('./three-renderer');
  * @returns {Promise<Object>} An object containing plot effects, name, and stat modifications.
  */
 async function calculatePlotImpact(player) {
-    const { Conflict, WorldJournal } = require('./database');
+    const { Conflict, WorldJournal, Quest } = require('./database');
 
     let plotName = "🌱 ÉVEIL DE L'HÉRITIER";
     let plotDesc = "Vous commencez à ressentir le flux d'Ether d'Aetherys. Votre destin s'éveille.";
@@ -19,6 +19,22 @@ async function calculatePlotImpact(player) {
     let visualEffect = "light"; // 'light', 'fire', 'dark', 'void', 'war'
 
     try {
+        // Fetch active main quests for this player
+        if (player && typeof player.getQuests === 'function') {
+            const activeQuests = await player.getQuests({
+                where: { type: 'main' },
+                through: { where: { status: 'in_progress' } }
+            });
+
+            if (activeQuests && activeQuests.length > 0) {
+                const mainQ = activeQuests[0];
+                plotName = `📖 ${mainQ.title.toUpperCase()}`;
+                plotDesc = `Trame principale en cours : ${mainQ.description}`;
+                modifiers = { strength: 4, defense: 4, luck: 2 };
+                visualEffect = "light";
+            }
+        }
+
         const activeConflicts = await Conflict.findAll({ where: { status: 'active' } });
         const localConflict = activeConflicts.find(c => {
             const kingdoms = Array.isArray(c.involvedKingdoms) ? c.involvedKingdoms : [];

@@ -4,98 +4,112 @@ const fs = require('fs');
 
 /**
  * Generates a visually stunning, dynamic main menu image using Sharp and SVG.
- * Inspired by Solo Leveling: Arise interface.
- * Features dark shadow Monarch gradients, glowing electric-blue gateways, lightning, and Hunter stats.
+ * Inspired by the high-contrast cinematic DBZ: Kakarot interface.
+ * Features neon orange/yellow energy auras, angular bracket panels, Ki sparks, and character stats.
  * @param {Object} player - The player object from the database (optional)
  */
 async function generateMainMenuImage(player) {
     const width = 1200;
     const height = 700;
 
-    // Default guest fallback if player is not logged in or doesn't exist
-    const pName = player?.name ? player.name.toUpperCase() : "HUNTER SUNG";
-    const pClass = player?.class ? player.class.toUpperCase() : "SHADOW MONARCH";
+    // Fallbacks and details
+    const pName = player?.name ? player.name.toUpperCase() : "HÉRITIER SANS NOM";
+    const pClass = player?.class ? player.class.toUpperCase() : "COMMENÇANT";
+    const pRace = player?.race ? player.race.toUpperCase() : "HUMAIN";
     const pRank = player?.rank ? player.rank : "F";
     const pLevel = player?.level ? player.level : 1;
-    const pLocation = player?.location ? player.location : "DUNGEON GATE";
-    const pSubLocation = player?.subLocation ? player.subLocation : "RE-AWAKENING ROOM";
+    const pLocation = player?.location ? player.location : "MONDE D'AETHERYS";
+    const pSubLocation = player?.subLocation ? player.subLocation : "ZONE INITIALE";
     const pHealth = player?.health != null ? player.health : 100;
     const pMaxHealth = player?.maxHealth != null ? player.maxHealth : 100;
     const pMana = player?.mana != null ? player.mana : 100;
     const pMaxMana = player?.maxMana != null ? player.maxMana : 100;
     const pCol = player?.col != null ? player.col : 100;
 
-    // Determine rank colors for custom theme accents
-    const rankColors = {
-        'S': { primary: '#ffd700', secondary: '#aa8800', glow: 'rgba(255,215,0,0.8)' },
-        'A': { primary: '#ff3366', secondary: '#990033', glow: 'rgba(255,51,102,0.8)' },
-        'B': { primary: '#bf00ff', secondary: '#5500aa', glow: 'rgba(191,0,255,0.8)' },
-        'C': { primary: '#00ffff', secondary: '#0088cc', glow: 'rgba(0,255,255,0.8)' },
-        'D': { primary: '#33ff33', secondary: '#006600', glow: 'rgba(51,255,51,0.8)' },
-        'E': { primary: '#4fb3ff', secondary: '#0044bb', glow: 'rgba(79,179,255,0.8)' },
-        'F': { primary: '#aaaaaa', secondary: '#444444', glow: 'rgba(170,170,170,0.8)' }
-    };
-    const accent = rankColors[pRank] || rankColors['F'];
+    const pStrength = player?.strength != null ? player.strength : 5;
+    const pAgility = player?.agility != null ? player.agility : 5;
+    const pIntelligence = player?.intelligence != null ? player.intelligence : 5;
+    const pDefense = player?.defense != null ? player.defense : 5;
+    const pLuck = player?.luck != null ? player.luck : 2;
 
-    // Generate random coordinates for shadow particles/electricity sparks
-    const particleCount = 70;
-    const particles = Array.from({ length: particleCount }).map((_, i) => {
-        const x = Math.floor((Math.sin(i * 13) * 0.5 + 0.5) * width);
-        const y = Math.floor((Math.cos(i * 17) * 0.5 + 0.5) * height);
-        const r = (i % 3 === 0) ? 3 : (i % 2 === 0 ? 1.5 : 2);
-        const opacity = (i % 4 === 0) ? 0.9 : (i % 3 === 0 ? 0.4 : 0.6);
-        const isLightning = i % 6 === 0;
-        return { x, y, r, opacity, isLightning };
+    // Determine Rank themed accent colors (using fiery high-contrast DBZ/Kakarot colors)
+    const rankThemes = {
+        'S': { primary: '#ff3c00', secondary: '#ffbb00', glow: 'rgba(255, 60, 0, 0.95)', aura: '#ffaa00' },
+        'A': { primary: '#ff8800', secondary: '#ffd000', glow: 'rgba(255, 136, 0, 0.85)', aura: '#ffea00' },
+        'B': { primary: '#e60067', secondary: '#ff779d', glow: 'rgba(230, 0, 103, 0.8)', aura: '#ff00aa' },
+        'C': { primary: '#00ccff', secondary: '#0055ff', glow: 'rgba(0, 204, 255, 0.8)', aura: '#00ffff' },
+        'D': { primary: '#00ff66', secondary: '#009933', glow: 'rgba(0, 255, 102, 0.8)', aura: '#33ffaa' },
+        'E': { primary: '#9d33ff', secondary: '#5e00b3', glow: 'rgba(157, 51, 255, 0.7)', aura: '#aa00ff' },
+        'F': { primary: '#9e9e9e', secondary: '#424242', glow: 'rgba(158, 158, 158, 0.6)', aura: '#ffffff' }
+    };
+    const theme = rankThemes[pRank] || rankThemes['F'];
+
+    // Generate Ki energy sparks / aura particle coordinates
+    const sparkCount = 80;
+    const sparks = Array.from({ length: sparkCount }).map((_, i) => {
+        const x = Math.floor((Math.sin(i * 19) * 0.5 + 0.5) * width);
+        const y = Math.floor((Math.cos(i * 23) * 0.5 + 0.5) * height);
+        const r = (i % 4 === 0) ? 3.5 : ((i % 3 === 0) ? 2 : 1.5);
+        const opacity = (i % 3 === 0) ? 0.9 : 0.65;
+        const isSpike = i % 5 === 0;
+        return { x, y, r, opacity, isSpike };
     });
 
     const menuCommands = ['/action', '/profil', '/quests', '/map', '/bank', '/lore'];
 
-    // Background flag fallback
-    const flagPath = path.join(__dirname, 'assets', 'empire_elion_flag.png');
-    const hasFlag = fs.existsSync(flagPath);
-    const bgOpacity = hasFlag ? "0.2" : "1.0";
-    const glowOpacity = hasFlag ? "0.7" : "1.0";
+    // Use kakarot-reference.png if it exists as a backdrop overlay
+    const kakarotRefPath = path.join(__dirname, 'assets', 'kakarot-reference.png');
+    const hasBackdrop = fs.existsSync(kakarotRefPath);
 
     const svg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
         <defs>
-            <!-- Electric Blue & Shadow Purple Gate Gradients -->
-            <linearGradient id="shadowPurple" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#0b021d;stop-opacity:1" />
-                <stop offset="50%" style="stop-color:#340d5c;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#010a15;stop-opacity:1" />
-            </linearGradient>
-            <linearGradient id="gateBlue" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#00ffff;stop-opacity:1" />
-                <stop offset="50%" style="stop-color:#0077ff;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#110033;stop-opacity:1" />
-            </linearGradient>
-            <linearGradient id="neonGlowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#00ffff;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#aa00ff;stop-opacity:1" />
+            <!-- DBZ Flame & Energy Gradients -->
+            <linearGradient id="kakarotOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#ff3c00;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#ff9000;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ffcc00;stop-opacity:1" />
             </linearGradient>
 
-            <!-- Accent specific gradient based on character Rank -->
-            <linearGradient id="rankAccentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:${accent.primary};stop-opacity:1" />
-                <stop offset="100%" style="stop-color:${accent.secondary};stop-opacity:1" />
+            <linearGradient id="darkSpace" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#050201;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#140803;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#000000;stop-opacity:1" />
             </linearGradient>
 
-            <radialGradient id="portalGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" style="stop-color:#aa00ff;stop-opacity:0.3" />
-                <stop offset="40%" style="stop-color:#00ffff;stop-opacity:0.15" />
-                <stop offset="100%" style="stop-color:transparent;stop-opacity:0" />
-            </radialGradient>
+            <linearGradient id="glowGold" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#ffcc00;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ff3c00;stop-opacity:1" />
+            </linearGradient>
 
-            <filter id="neonGlow">
-                <feGaussianBlur stdDeviation="5" result="blur" />
+            <linearGradient id="hpGreen" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#39ff14;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#00aa00;stop-opacity:1" />
+            </linearGradient>
+
+            <linearGradient id="mpCyan" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#00f3ff;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#0055ff;stop-opacity:1" />
+            </linearGradient>
+
+            <linearGradient id="kiAura" x1="0%" y1="100%" x2="0%" y2="0%">
+                <stop offset="0%" style="stop-color:#ff3c00;stop-opacity:0" />
+                <stop offset="50%" style="stop-color:#ffbb00;stop-opacity:0.25" />
+                <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+            </linearGradient>
+
+            <!-- Filters for high-energy glowing elements -->
+            <filter id="kakarotGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="6" result="blur" />
                 <feMerge>
                     <feMergeNode in="blur" />
                     <feMergeNode in="SourceGraphic" />
                 </feMerge>
             </filter>
-            <filter id="ultraGlow">
-                <feGaussianBlur stdDeviation="12" result="blur" />
+
+            <filter id="auraIntense" x="-100%" y="-100%" width="300%" height="300%">
+                <feGaussianBlur stdDeviation="16" result="blur" />
+                <feColorMatrix type="matrix" values="1 0 0 0 1  0 1 0 0 0.5  0 0 1 0 0  0 0 0 2 -0.1" />
                 <feMerge>
                     <feMergeNode in="blur" />
                     <feMergeNode in="SourceGraphic" />
@@ -103,176 +117,198 @@ async function generateMainMenuImage(player) {
             </filter>
         </defs>
 
-        <!-- Base Background -->
-        <rect width="100%" height="100%" fill="#020108" opacity="${bgOpacity}" />
-        <rect width="100%" height="100%" fill="url(#portalGlow)" opacity="${glowOpacity}" />
+        <!-- Base Dark Cinematic Space Background -->
+        <rect width="100%" height="100%" fill="url(#darkSpace)" />
 
-        <!-- Cinematic Gate Grid & Vertical Shadow Rays -->
-        <g stroke="rgba(0, 255, 255, 0.04)" stroke-width="1.2">
-            <line x1="0" y1="80" x2="${width}" y2="80" />
-            <line x1="0" y1="220" x2="${width}" y2="220" />
-            <line x1="0" y1="360" x2="${width}" y2="360" />
-            <line x1="0" y1="500" x2="${width}" y2="500" />
-            <line x1="150" y1="0" x2="150" y2="${height}" />
-            <line x1="450" y1="0" x2="450" y2="${height}" />
-            <line x1="750" y1="0" x2="750" y2="${height}" />
-            <line x1="1050" y1="0" x2="1050" y2="${height}" />
+        <!-- Fiery Radial Aura (Middle background glow) -->
+        <circle cx="600" cy="350" r="450" fill="url(#kiAura)" opacity="0.8" />
+
+        <!-- Cinematic Angled Grid Lines and Tech/Ki lines -->
+        <g stroke="rgba(255, 140, 0, 0.05)" stroke-width="1.2">
+            <line x1="0" y1="100" x2="${width}" y2="100" />
+            <line x1="0" y1="250" x2="${width}" y2="250" />
+            <line x1="0" y1="400" x2="${width}" y2="400" />
+            <line x1="0" y1="550" x2="${width}" y2="550" />
+
+            <line x1="200" y1="0" x2="200" y2="${height}" />
+            <line x1="500" y1="0" x2="500" y2="${height}" />
+            <line x1="800" y1="0" x2="800" y2="${height}" />
+            <line x1="1100" y1="0" x2="1100" y2="${height}" />
         </g>
 
-        <!-- Shadow Portal Gate (Solo Leveling Central Gate) -->
-        <ellipse cx="600" cy="350" rx="380" ry="240" fill="none" stroke="url(#neonGlowGrad)" stroke-width="2" filter="url(#ultraGlow)" opacity="0.45" />
-        <ellipse cx="600" cy="350" rx="400" ry="260" fill="none" stroke="#00ffff" stroke-width="0.8" opacity="0.2" />
+        <!-- Dynamic Diagonals representing Ki cuts -->
+        <path d="M-100,550 L1300,100 L1300,120 L-100,570 Z" fill="url(#glowGold)" opacity="0.12" filter="url(#kakarotGlow)" />
+        <path d="M-100,200 L1300,-150 L1300,-130 L-100,220 Z" fill="#ff3c00" opacity="0.08" filter="url(#kakarotGlow)" />
 
-        <!-- Diagonal Slash Lines representing the Hunter's dagger/shadow strike -->
-        <path d="M-50,600 L1250,150 L1250,180 L-50,630 Z" fill="url(#gateBlue)" opacity="0.25" filter="url(#neonGlow)" />
-        <path d="M-50,200 L1250,-150 L1250,-120 L-50,230 Z" fill="url(#neonGlowGrad)" opacity="0.15" filter="url(#neonGlow)" />
-
-        <!-- Lightning Sparks & Particles -->
+        <!-- Sparkles & Aura lightning effects -->
         <g>
-            ${particles.map(p => `
-                <circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="${p.isLightning ? '#00ffff' : '#aa00ff'}" opacity="${p.opacity}" ${p.isLightning ? 'filter="url(#neonGlow)"' : ''} />
-                ${p.isLightning ? `
-                    <path d="M ${p.x},${p.y} L ${p.x - 12},${p.y + 18} L ${p.x + 8},${p.y + 25} L ${p.x - 4},${p.y + 40}" stroke="#00ffff" stroke-width="1.2" fill="none" opacity="0.5" filter="url(#neonGlow)" />
+            ${sparks.map(s => `
+                <circle cx="${s.x}" cy="${s.y}" r="${s.r}" fill="${s.isSpike ? '#ffbb00' : '#ffffff'}" opacity="${s.opacity}" ${s.isSpike ? 'filter="url(#kakarotGlow)"' : ''} />
+                ${s.isSpike ? `
+                    <path d="M ${s.x},${s.y} L ${s.x - 15},${s.y + 12} L ${s.x + 5},${s.y + 20} L ${s.x - 10},${s.y + 35}" stroke="#ffaa00" stroke-width="1.5" fill="none" opacity="0.7" filter="url(#kakarotGlow)" />
                 ` : ''}
             `).join('')}
         </g>
 
-        <!-- Dynamic Game Title Group: SOLO LEVELING Style Bold Typography -->
-        <g transform="translate(110, 100)">
-            <!-- Decorative shadow glow gate background -->
-            <path d="M -50,-50 L 520,-50 L 470,45 L -100,45 Z" fill="url(#neonGlowGrad)" filter="url(#ultraGlow)" opacity="0.3" />
-            <path d="M -40,-45 L 510,-45 L 465,40 L -90,40 Z" fill="#05030f" />
-            <path d="M -40,-45 L 40,-45 L 0,40 L -80,40 Z" fill="#aa00ff" opacity="0.7" />
+        <!-- GAME LOGO: KAKAROT inspired Bold Title -->
+        <g transform="translate(120, 110)">
+            <!-- Backdrop banner under title -->
+            <path d="M -70,-55 L 530,-55 L 480,50 L -120,50 Z" fill="url(#kakarotOrange)" filter="url(#auraIntense)" opacity="0.22" />
+            <path d="M -60,-50 L 520,-50 L 475,45 L -110,45 Z" fill="#0c0402" stroke="#ff5500" stroke-width="1.5" />
+            <path d="M -60,-50 L 30,-50 L -10,45 L -100,45 Z" fill="#ff3c00" opacity="0.85" />
 
-            <text x="15" y="15" font-family="'Impact', 'Arial Black', sans-serif" font-size="68" fill="#ffffff" letter-spacing="4" style="filter: drop-shadow(0px 0px 15px #00ffff);">ARISE II</text>
-            <text x="355" y="12" font-family="'Courier New', monospace" font-size="28" fill="#aa00ff" font-weight="900" style="letter-spacing:6px; filter:url(#neonGlow)">HUNTER</text>
-            <text x="355" y="-24" font-family="Arial, sans-serif" font-size="14" fill="rgba(255,255,255,0.5)" font-weight="bold" style="letter-spacing:8px;">SHADOW GATE</text>
+            <text x="5" y="18" font-family="'Impact', 'Arial Black', sans-serif" font-size="62" fill="#ffffff" letter-spacing="4" style="filter: drop-shadow(0px 0px 12px #ffbb00); text-shadow: 3px 3px 0px #000;">AETHERYS</text>
+            <text x="355" y="15" font-family="'Impact', Arial, sans-serif" font-size="34" fill="#ffbb00" style="letter-spacing:4px; filter:url(#kakarotGlow); text-shadow: 2px 2px 0px #000;">EVOLUTION</text>
+            <text x="355" y="-18" font-family="'Courier New', monospace" font-size="14" fill="rgba(255,255,255,0.6)" font-weight="bold" style="letter-spacing:6px;">NOYAU GEMMA 3</text>
 
-            <line x1="-30" y1="28" x2="445" y2="28" stroke="url(#neonGlowGrad)" stroke-width="3" filter="url(#neonGlow)" />
+            <line x1="-50" y1="32" x2="455" y2="32" stroke="url(#glowGold)" stroke-width="3" filter="url(#kakarotGlow)" />
         </g>
 
-        <!-- NAVIGATION MENU (Sleek Angled Glassmorphic Bars) -->
-        <g transform="translate(100, 250)">
+        <!-- COMMAND NAVIGATION SYSTEM (Fiery Angled Bars with cyber brackets) -->
+        <g transform="translate(100, 260)">
             ${menuCommands.map((cmd, i) => {
                 const isActive = (i === 0);
-                const itemAccent = isActive ? 'url(#neonGlowGrad)' : 'rgba(255,255,255,0.03)';
-                const textColor = isActive ? '#ffffff' : '#a2a7b8';
-                const buttonWidth = 350 - i * 15;
-                const bevel = 35;
+                const barWidth = 360 - i * 14;
+                const heightBar = 46;
+                const slant = 24;
+
+                const plateFill = isActive ? 'url(#kakarotOrange)' : 'rgba(255, 255, 255, 0.03)';
+                const strokeColor = isActive ? '#ffcc00' : 'rgba(255, 140, 0, 0.25)';
+                const textColor = isActive ? '#ffffff' : '#e0a080';
+                const shadow = isActive ? 'filter: drop-shadow(0px 0px 8px #ff6600);' : '';
 
                 return `
-                <g transform="translate(${i * 20}, ${i * 64})" style="cursor: pointer;">
-                    <!-- Sleek angled plate -->
-                    <path d="M 0,-30 L ${buttonWidth},-30 L ${buttonWidth - bevel},25 L ${-bevel},25 Z" fill="${itemAccent}" stroke="${isActive ? '#00ffff' : 'rgba(255,255,255,0.1)'}" stroke-width="${isActive ? '2' : '0.8'}" style="${isActive ? 'filter: drop-shadow(0 0 10px rgba(0,255,255,0.5))' : ''}" />
+                <g transform="translate(${i * 18}, ${i * 62})" style="${shadow}">
+                    <!-- Outer bracket frame -->
+                    <path d="M -15,-22 L ${barWidth + 10},-22 L ${barWidth + 10 - slant},22 L -15 -22" fill="none" stroke="${strokeColor}" stroke-width="0.5" opacity="0.5" />
 
-                    <!-- Cyber highlight on the side -->
-                    <path d="M ${-bevel},-30 L ${-bevel + 12},-30 L ${-bevel + 12 - 5},25 L ${-bevel - 5},25 Z" fill="${isActive ? '#aa00ff' : 'rgba(255,255,255,0.15)'}" />
+                    <!-- Main Angled Glassmorphic bar -->
+                    <path d="M 0,-20 L ${barWidth},-20 L ${barWidth - slant},20 L ${-slant},20 Z" fill="${plateFill}" stroke="${strokeColor}" stroke-width="${isActive ? '2.5' : '1'}" />
 
-                    <!-- Selection Indicator Dot -->
-                    <circle cx="${-bevel - 25}" cy="-2" r="14" fill="${isActive ? '#ffffff' : 'rgba(0,0,0,0.5)'}" stroke="${isActive ? '#00ffff' : 'rgba(255,255,255,0.2)'}" stroke-width="2.5" />
-                    ${isActive ? `<circle cx="${-bevel - 25}" cy="-2" r="6" fill="#00ffff" filter="url(#neonGlow)"><animate attributeName="r" values="4;7;4" dur="1.2s" repeatCount="indefinite" /></circle>` : ''}
+                    <!-- Cyber brackets decor on the edges -->
+                    <path d="M ${-slant},-20 L ${-slant + 10},-20 L ${-slant + 5},20 L ${-slant - 5},20 Z" fill="${isActive ? '#ffffff' : '#ff5500'}" opacity="0.8" />
 
-                    <!-- Menu Command text -->
-                    <text x="35" y="7" font-family="'Arial Black', sans-serif" font-size="26" font-weight="900" fill="${textColor}" style="letter-spacing: 2px; ${isActive ? 'text-shadow: 0 0 10px #00ffff, 2px 2px 4px black;' : 'text-shadow: 1px 1px 2px black;'}">${cmd.toUpperCase()}</text>
+                    <!-- Selection Indicator Light -->
+                    <circle cx="${-slant - 30}" cy="0" r="13" fill="${isActive ? '#ffffff' : '#0a0301'}" stroke="${strokeColor}" stroke-width="2" />
+                    ${isActive ? `<circle cx="${-slant - 30}" cy="0" r="6" fill="#ffcc00" filter="url(#kakarotGlow)" />` : ''}
 
-                    ${isActive ? `<path d="M ${buttonWidth - 65},-10 L ${buttonWidth - 50},-2 L ${buttonWidth - 65},6 Z" fill="#ffffff" />` : ''}
+                    <!-- Command text -->
+                    <text x="25" y="8" font-family="'Impact', 'Arial Black', sans-serif" font-size="24" fill="${textColor}" letter-spacing="1.5" style="text-shadow: 2px 2px 3px rgba(0,0,0,0.9);">${cmd.toUpperCase()}</text>
+
+                    ${isActive ? `<polygon points="${barWidth - slant - 25},-6 ${barWidth - slant - 15},0 ${barWidth - slant - 25},6" fill="#ffffff" />` : ''}
                 </g>
                 `;
             }).join('')}
         </g>
 
-        <!-- RIGHT SIDE: PREMIUM HUNTER DASHBOARD (Solo Leveling Arise style card) -->
-        <g transform="translate(720, 100)">
-            <!-- Glassmorphic Card Panel -->
-            <rect x="0" y="0" width="380" height="500" fill="rgba(5, 3, 15, 0.9)" stroke="url(#neonGlowGrad)" stroke-width="2.5" rx="20" filter="url(#neonGlow)" />
-            <rect x="8" y="8" width="364" height="484" fill="none" stroke="rgba(0,255,255,0.1)" stroke-width="1.2" rx="14" />
+        <!-- KAKAROT-STYLE CHARACTER STATUS BOARD (Sleek Glassmorphic card with bracket frames) -->
+        <g transform="translate(710, 110)">
+            <!-- Main Board Backdrop -->
+            <rect x="0" y="0" width="390" height="500" fill="rgba(8, 4, 2, 0.92)" stroke="url(#kakarotOrange)" stroke-width="2.5" rx="16" filter="url(#kakarotGlow)" />
+            <rect x="8" y="8" width="374" height="484" fill="none" stroke="rgba(255, 140, 0, 0.15)" stroke-width="1.2" rx="10" />
 
-            <!-- Sub-header accent panel -->
-            <path d="M 10,10 L 370,10 L 370,45 L 10,45 Z" fill="url(#rankAccentGrad)" opacity="0.25" />
-            <text x="190" y="32" font-family="Arial, sans-serif" font-size="14" fill="#00ffff" text-anchor="middle" font-weight="bold" style="letter-spacing:5px;">HUNTER STATUS PANEL</text>
+            <!-- Corner Angular Cyber Brackets (Authentic Kakarot Detail) -->
+            <path d="M -5,25 L -5,-5 L 25,-5" fill="none" stroke="#ffbb00" stroke-width="4.5" />
+            <path d="M 395,25 L 395,-5 L 365,-5" fill="none" stroke="#ffbb00" stroke-width="4.5" />
+            <path d="M -5,475 L -5,505 L 25,505" fill="none" stroke="#ffbb00" stroke-width="4.5" />
+            <path d="M 395,475 L 395,505 L 365,505" fill="none" stroke="#ffbb00" stroke-width="4.5" />
 
-            <!-- Character Profile Info -->
-            <g transform="translate(30, 90)">
-                <!-- Giant Glowing Rank Badge -->
-                <circle cx="270" cy="15" r="42" fill="rgba(2, 1, 8, 0.85)" stroke="${accent.primary}" stroke-width="3" filter="url(#neonGlow)" />
-                <text x="270" y="32" font-family="Impact, Arial Black, sans-serif" font-size="52" fill="${accent.primary}" text-anchor="middle" font-style="italic" style="filter: drop-shadow(0 0 5px ${accent.glow});">${pRank}</text>
-                <text x="270" y="-35" font-family="Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.5)" font-weight="bold" text-anchor="middle" style="letter-spacing: 2px;">HUNTER RANK</text>
+            <!-- Sub Header Title banner -->
+            <path d="M 12,12 L 378,12 L 360,48 L 30,48 Z" fill="url(#kakarotOrange)" opacity="0.3" />
+            <text x="195" y="34" font-family="'Impact', sans-serif" font-size="16" fill="#ffbb00" text-anchor="middle" letter-spacing="4" style="text-shadow: 1px 1px 2px #000;">CARACTÉRISTIQUES DE L'HÉRITIER</text>
 
-                <!-- Name & Title -->
-                <text x="0" y="-5" font-family="'Arial Black', sans-serif" font-size="28" font-weight="900" fill="#ffffff" style="letter-spacing: -0.5px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">${pName}</text>
-                <text x="0" y="18" font-family="Arial, sans-serif" font-size="13" fill="#aa00ff" font-weight="bold" style="letter-spacing: 3px;">LVL ${pLevel} // ${pClass}</text>
+            <!-- Character Profile Header Details -->
+            <g transform="translate(30, 95)">
+                <!-- Giant glowing Level Badge -->
+                <polygon points="300,-15 345,15 300,45 255,15" fill="#000000" stroke="${theme.primary}" stroke-width="3.5" filter="url(#kakarotGlow)" />
+                <text x="300" y="8" font-family="'Impact', Arial Black, sans-serif" font-size="12" fill="#ffaa00" text-anchor="middle" style="letter-spacing: 1px;">LEVEL</text>
+                <text x="300" y="32" font-family="'Impact', Arial Black, sans-serif" font-size="28" fill="#ffffff" text-anchor="middle" style="text-shadow: 2px 2px 0px #000;">${pLevel}</text>
+
+                <!-- Name & Subtitles -->
+                <text x="0" y="-12" font-family="'Impact', sans-serif" font-size="32" fill="#ffffff" style="letter-spacing: 1px; text-shadow: 3px 3px 0px #000; fill: url(#glowGold);">${pName}</text>
+                <text x="0" y="14" font-family="Arial, sans-serif" font-size="14" fill="#ff5500" font-weight="900" letter-spacing="1.5">${pClass} • ${pRace}</text>
+                <text x="0" y="32" font-family="'Courier New', monospace" font-size="12" fill="rgba(255,255,255,0.5)">GHENO ID: ${(player?.whatsappId || 'GUEST').substring(0, 12)}</text>
             </g>
 
-            <!-- Stats & Progress Gauges (Neon Solo Leveling Interface) -->
-            <g transform="translate(30, 180)">
+            <!-- HP, MP/Ki & Stats display -->
+            <g transform="translate(30, 185)">
                 <!-- HP Gauge -->
                 <g transform="translate(0, 0)">
-                    <text x="0" y="0" font-family="Arial, sans-serif" font-size="12" fill="#ff2a6d" font-weight="bold" style="letter-spacing: 1.5px;">HUNTER HEALTH (HP)</text>
-                    <text x="320" y="0" font-family="monospace" font-size="13" fill="#ffffff" font-weight="bold" text-anchor="end">${pHealth}/${pMaxHealth}</text>
-                    <!-- Background bar -->
-                    <rect x="0" y="8" width="320" height="8" fill="rgba(255,255,255,0.08)" rx="4" />
-                    <!-- Active bar -->
-                    <rect x="0" y="8" width="${Math.max(10, Math.min(100, (pHealth / pMaxHealth) * 100)) * 3.2}" height="8" fill="#ff2a6d" rx="4" filter="url(#neonGlow)" />
+                    <text x="0" y="0" font-family="'Impact', sans-serif" font-size="14" fill="#39ff14" letter-spacing="1">POINTS DE VIE (HP)</text>
+                    <text x="330" y="0" font-family="monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="end">${pHealth} / ${pMaxHealth}</text>
+                    <rect x="0" y="8" width="330" height="10" fill="rgba(255,255,255,0.06)" rx="5" />
+                    <rect x="0" y="8" width="${Math.max(10, Math.min(100, (pHealth / pMaxHealth) * 100)) * 3.3}" height="10" fill="url(#hpGreen)" rx="5" filter="url(#kakarotGlow)" />
                 </g>
 
-                <!-- MP Gauge -->
-                <g transform="translate(0, 42)">
-                    <text x="0" y="0" font-family="Arial, sans-serif" font-size="12" fill="#00f3ff" font-weight="bold" style="letter-spacing: 1.5px;">MANA ESSENCE (MP)</text>
-                    <text x="320" y="0" font-family="monospace" font-size="13" fill="#ffffff" font-weight="bold" text-anchor="end">${pMana}/${pMaxMana}</text>
-                    <!-- Background bar -->
-                    <rect x="0" y="8" width="320" height="8" fill="rgba(255,255,255,0.08)" rx="4" />
-                    <!-- Active bar -->
-                    <rect x="0" y="8" width="${Math.max(10, Math.min(100, (pMana / pMaxMana) * 100)) * 3.2}" height="8" fill="#00f3ff" rx="4" filter="url(#neonGlow)" />
+                <!-- MP/KI Gauge -->
+                <g transform="translate(0, 46)">
+                    <text x="0" y="0" font-family="'Impact', sans-serif" font-size="14" fill="#00f3ff" letter-spacing="1">RÉSERVE DE KI (MP)</text>
+                    <text x="330" y="0" font-family="monospace" font-size="14" fill="#ffffff" font-weight="bold" text-anchor="end">${pMana} / ${pMaxMana}</text>
+                    <rect x="0" y="8" width="330" height="10" fill="rgba(255,255,255,0.06)" rx="5" />
+                    <rect x="0" y="8" width="${Math.max(10, Math.min(100, (pMana / pMaxMana) * 100)) * 3.3}" height="10" fill="url(#mpCyan)" rx="5" filter="url(#kakarotGlow)" />
+                </g>
+
+                <!-- Stats values aligned with Kakarot numerical scaling -->
+                <g transform="translate(0, 104)">
+                    <rect x="-10" y="0" width="350" height="142" fill="rgba(255, 140, 0, 0.02)" stroke="rgba(255, 140, 0, 0.15)" rx="8" />
+                    <text x="10" y="22" font-family="'Impact', sans-serif" font-size="13" fill="#ffaa00" letter-spacing="2">STATISTIQUES DE COMBAT</text>
+
+                    <!-- Grid of stats -->
+                    <g transform="translate(15, 45)" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#ffffff">
+                        <text x="0" y="0">💪 FORCE :</text>
+                        <text x="110" y="0" fill="#ffcc00">${pStrength}</text>
+                        <text x="160" y="0">🛡️ DÉFENSE :</text>
+                        <text x="270" y="0" fill="#ffcc00">${pDefense}</text>
+
+                        <text x="0" y="32">🏃 AGILITÉ :</text>
+                        <text x="110" y="32" fill="#ffcc00">${pAgility}</text>
+                        <text x="160" y="32">🧠 INTEL :</text>
+                        <text x="270" y="32" fill="#ffcc00">${pIntelligence}</text>
+
+                        <text x="0" y="64">🍀 CHANCE :</text>
+                        <text x="110" y="64" fill="#ffcc00">${pLuck}</text>
+                        <text x="160" y="64">🎖️ SYNC :</text>
+                        <text x="270" y="64" fill="#39ff14">${player?.fusedWithId ? 'FUSÉ' : 'STABLE'}</text>
+                    </g>
                 </g>
 
                 <!-- Location Panel -->
-                <g transform="translate(0, 95)">
-                    <rect x="-10" y="0" width="340" height="70" fill="rgba(170,0,255,0.04)" stroke="rgba(170,0,255,0.15)" rx="8" />
-                    <text x="10" y="22" font-family="Arial, sans-serif" font-size="10" fill="rgba(255,255,255,0.4)" font-weight="bold" style="letter-spacing: 2px;">ACTIVE GATE LOCATION</text>
-                    <text x="10" y="44" font-family="'Arial Black', sans-serif" font-size="16" fill="#ffffff" font-weight="900" style="letter-spacing: 0.5px;">${pLocation}</text>
-                    <text x="10" y="60" font-family="Arial, sans-serif" font-size="12" fill="#00ffff" font-weight="bold" style="letter-spacing: 1px;">⚡ ${pSubLocation}</text>
-                </g>
-
-                <!-- Wallet Panel -->
-                <g transform="translate(0, 185)">
-                    <rect x="-10" y="0" width="160" height="60" fill="rgba(255,215,0,0.03)" stroke="rgba(255,215,0,0.15)" rx="8" />
-                    <text x="10" y="20" font-family="Arial, sans-serif" font-size="10" fill="rgba(255,215,0,0.6)" font-weight="bold" style="letter-spacing: 2px;">GOLD COL</text>
-                    <text x="10" y="45" font-family="'Arial Black', sans-serif" font-size="20" fill="#ffd700" style="letter-spacing: 1px;">🪙 ${pCol.toLocaleString()}</text>
-
-                    <rect x="165" y="0" width="165" height="60" fill="rgba(0,255,255,0.03)" stroke="rgba(0,255,255,0.15)" rx="8" />
-                    <text x="180" y="20" font-family="Arial, sans-serif" font-size="10" fill="rgba(0,255,255,0.6)" font-weight="bold" style="letter-spacing: 2px;">SYSTEM_SYNC</text>
-                    <text x="180" y="45" font-family="'Arial Black', sans-serif" font-size="16" fill="#00ffaa" font-weight="900" style="letter-spacing: 1px;">OPERATIONAL</text>
+                <g transform="translate(0, 260)">
+                    <rect x="-10" y="0" width="350" height="42" fill="rgba(255,60,0,0.04)" stroke="rgba(255,60,0,0.2)" rx="6" />
+                    <text x="10" y="16" font-family="'Courier New', monospace" font-size="9" fill="rgba(255,255,255,0.4)" font-weight="bold" letter-spacing="2">SECTEUR ET COORDONNÉES</text>
+                    <text x="10" y="32" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#ffffff" letter-spacing="0.5">📍 ${pLocation} // ${pSubLocation}</text>
                 </g>
             </g>
 
-            <!-- Bottom dynamic status key -->
+            <!-- Bottom system diagnostic status keys -->
             <g transform="translate(30, 465)">
-                <line x1="-10" y1="-10" x2="330" y2="-10" stroke="rgba(255,255,255,0.08)" stroke-width="0.8" />
-                <text x="0" y="8" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.3)">MONARCH_SYSTEM v7.11 // SHADOW_REALM: OPEN</text>
-                <text x="320" y="8" font-family="monospace" font-size="10" fill="#00ffff" font-weight="bold" text-anchor="end">READY TO ARISE</text>
+                <line x1="-10" y1="-10" x2="340" y2="-10" stroke="rgba(255,255,255,0.08)" stroke-width="0.8" />
+                <text x="0" y="8" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.3)">MATRIX CORE v3.21 // EMULATED SYSTEM: OK</text>
+                <text x="330" y="8" font-family="monospace" font-size="10" fill="#ffaa00" font-weight="bold" text-anchor="end">🪙 ${pCol.toLocaleString()} COL</text>
             </g>
         </g>
 
-        <!-- Footer copyright -->
-        <g transform="translate(60, ${height - 40})">
-            <text font-family="'Arial Black', sans-serif" font-size="12" fill="rgba(255,255,255,0.25)" style="letter-spacing: 4px;">© 2026 SOLO LEVELING ARISE // MONARCH ENGINE II</text>
+        <!-- Footer watermark -->
+        <g transform="translate(60, ${height - 35})">
+            <text font-family="'Arial Black', sans-serif" font-size="11" fill="rgba(255,255,255,0.25)" letter-spacing="4">© DBZ: KAKAROT CORE ADAPTATION // AETHERYS EVOLUTION ENGINE 2026</text>
         </g>
     </svg>
     `;
 
     let menuSharpInstance;
-    if (hasFlag) {
+    if (hasBackdrop) {
         try {
-            const dimmedFlag = await sharp(flagPath)
+            // Composite custom design on top of reference background
+            const dimmedBackdrop = await sharp(kakarotRefPath)
                 .resize(width, height, { fit: 'cover' })
-                .blur(4)
-                .linear(0.18, 0) // Highly dimmed and deep contrast for Solo Leveling purple shadows
+                .blur(3)
+                .linear(0.25, 0) // dim back for heavy readable text
                 .toBuffer();
 
-            menuSharpInstance = sharp(dimmedFlag)
+            menuSharpInstance = sharp(dimmedBackdrop)
                 .composite([{ input: Buffer.from(svg), top: 0, left: 0 }]);
         } catch (e) {
-            console.error("[Menu Generator] Error processing backdrop flag:", e);
+            console.error("[Menu Generator] Error compositing reference backdrop:", e);
             menuSharpInstance = sharp(Buffer.from(svg));
         }
     } else {

@@ -9,9 +9,10 @@ const { escapeXml } = require('./utils');
  * @param {string} rarity - common, rare, epic, legendary
  * @param {string} element - Feu, Eau, Terre, Vent, Light, Dark, None
  * @param {Object} stats - statBonuses (strength, agility, defense, intelligence, etc.)
+ * @param {number} scale - scaling factor for detailed views
  * @returns {string} SVG string group containing the weapon drawings.
  */
-function drawItemDesign(name, type, rarity, element, stats) {
+function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
     // Normalization of variables
     const str = stats.strength || 0;
     const agi = stats.agility || 0;
@@ -67,7 +68,7 @@ function drawItemDesign(name, type, rarity, element, stats) {
     // Start drawing! We center the drawing inside a 200x200 box (cx=100, cy=100)
     let drawingSvg = '';
 
-    // Draw unique design paths based on subtype
+    // Start drawing based on subtype
     switch (weaponSubtype) {
         case 'dagger': {
             // Dagger: shorter blade, curved, high agility theme
@@ -186,7 +187,7 @@ function drawItemDesign(name, type, rarity, element, stats) {
             break;
         }
         case 'clothing': {
-            // Clothing: protective wizard coat or plate chest, high defense/intel theme
+            // Clothing: protective coat or plate chest, high defense/intel theme
             drawingSvg = `
                 <!-- Shoulders and Coat -->
                 <path d="M 65,55 L 80,45 L 120,45 L 135,55 L 140,85 L 125,95 L 135,175 L 65,175 L 75,95 L 60,85 Z" fill="#1b1c2e" stroke="${mainColor}" stroke-width="2" />
@@ -261,7 +262,7 @@ function drawItemDesign(name, type, rarity, element, stats) {
 
     // Embed all vectors into a clean self-contained group
     return `
-    <g transform="translate(10, 0)">
+    <g transform="scale(${scale}) translate(${(1 - scale) * 100}, ${(1 - scale) * 100}) translate(10, 0)">
         <defs>
             <linearGradient id="bladeGlowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
@@ -468,4 +469,185 @@ async function generateShopImage(title, items) {
         .toBuffer();
 }
 
-module.exports = { generateShopImage };
+/**
+ * Generates an extremely detailed single card image for any individual item.
+ * Perfect for a full design visualization of the player's custom or legendary weapon.
+ * @param {Object} item - Detailed Item object
+ * @returns {Promise<Buffer>} PNG image buffer
+ */
+async function generateDetailedItemCard(item) {
+    const width = 600;
+    const height = 850;
+
+    const colors = {
+        common: '#9e9e9e',
+        rare: '#1e90ff',
+        epic: '#bf00ff',
+        legendary: '#ffd700'
+    };
+    const rarityColor = colors[item.rarity] || '#ffffff';
+
+    const str = item.statBonuses?.strength || 0;
+    const agi = item.statBonuses?.agility || 0;
+    const def = item.statBonuses?.defense || 0;
+    const int = item.statBonuses?.intelligence || 0;
+    const luk = item.statBonuses?.luck || 0;
+
+    const statSum = str + agi + def + int + luk;
+    let stars = 1;
+    if (statSum > 45) stars = 5;
+    else if (statSum > 25) stars = 4;
+    else if (statSum > 12) stars = 3;
+    else if (statSum > 5) stars = 2;
+
+    const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+
+    // Radar coordinate calculations for visual stats diagram
+    const cx = 300;
+    const cy = 630;
+    const rMax = 110;
+    const getPointStr = (statVal) => Math.min(1.0, statVal / 50.0);
+
+    // Points directions: STR (0 deg, top), AGI (72 deg), INT (144 deg), DEF (216 deg), LUK (288 deg)
+    const pStrX = cx + 0 * rMax * Math.sin(0);
+    const pStrY = cy - getPointStr(str) * rMax * Math.cos(0);
+
+    const pAgiX = cx + getPointStr(agi) * rMax * Math.sin(72 * Math.PI / 180);
+    const pAgiY = cy - getPointStr(agi) * rMax * Math.cos(72 * Math.PI / 180);
+
+    const pIntX = cx + getPointStr(int) * rMax * Math.sin(144 * Math.PI / 180);
+    const pIntY = cy - getPointStr(int) * rMax * Math.cos(144 * Math.PI / 180);
+
+    const pDefX = cx + getPointStr(def) * rMax * Math.sin(216 * Math.PI / 180);
+    const pDefY = cy - getPointStr(def) * rMax * Math.cos(216 * Math.PI / 180);
+
+    const pLukX = cx + getPointStr(luk) * rMax * Math.sin(288 * Math.PI / 180);
+    const pLukY = cy - getPointStr(luk) * rMax * Math.cos(288 * Math.PI / 180);
+
+    const itemElement = item.name.includes('[Feu]') ? 'Feu' :
+                        (item.name.includes('[Eau]') ? 'Eau' :
+                        (item.name.includes('[Terre]') ? 'Terre' :
+                        (item.name.includes('[Vent]') ? 'Vent' : 'None')));
+
+    const svg = `
+        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="cyberBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#ff4500;stop-opacity:1" />
+                    <stop offset="50%" style="stop-color:#ffd700;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#110033;stop-opacity:1" />
+                </linearGradient>
+
+                <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#07050f;stop-opacity:1" />
+                    <stop offset="50%" style="stop-color:#0d0a1d;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#020108;stop-opacity:1" />
+                </linearGradient>
+
+                <filter id="premiumGlow">
+                    <feGaussianBlur stdDeviation="10" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+            </defs>
+
+            <!-- Card Background -->
+            <rect width="100%" height="100%" fill="url(#cardGrad)" rx="24" />
+
+            <!-- Outer cybernetic neon border -->
+            <rect x="12" y="12" width="${width - 24}" height="${height - 24}" fill="none" stroke="url(#cyberBorder)" stroke-width="2.5" rx="20" style="filter: drop-shadow(0 0 8px rgba(255, 69, 0, 0.45))" />
+            <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.2" rx="16" />
+
+            <!-- Corner brackets design -->
+            <path d="M 5,45 L 5,5 L 45,5" fill="none" stroke="${rarityColor}" stroke-width="4" transform="translate(15, 15)" />
+            <path d="M 555,45 L 555,5 L 515,5" fill="none" stroke="${rarityColor}" stroke-width="4" transform="translate(15, 15)" />
+            <path d="M 5,785 L 5,825 L 45,825" fill="none" stroke="${rarityColor}" stroke-width="4" transform="translate(15, -5)" />
+            <path d="M 555,785 L 555,825 L 515,825" fill="none" stroke="${rarityColor}" stroke-width="4" transform="translate(15, -5)" />
+
+            <!-- Header -->
+            <g transform="translate(50, 65)">
+                <text x="0" y="10" font-family="'Impact', 'Arial Black', sans-serif" font-size="32" fill="#ffffff" style="letter-spacing: 1px; fill: url(#cyberBorder);">${escapeXml(item.name.toUpperCase())}</text>
+                <text x="0" y="32" font-family="monospace" font-size="12" fill="${rarityColor}" font-weight="bold" letter-spacing="3">${item.rarity.toUpperCase()} ${item.type.toUpperCase()}</text>
+                <text x="500" y="12" font-family="'Impact', sans-serif" font-size="28" fill="#ffd700" text-anchor="end">🪙 ${item.price.toLocaleString()}</text>
+            </g>
+
+            <!-- Giant Canvas View of Custom Weapon (scale=2.2x) -->
+            <g transform="translate(150, 110)">
+                <!-- Background visual portal circles -->
+                <circle cx="150" cy="180" r="140" fill="rgba(255,255,255,0.01)" stroke="rgba(255,255,255,0.04)" stroke-width="1.5" />
+                <circle cx="150" cy="180" r="115" fill="none" stroke="${rarityColor}" stroke-dasharray="4,8" opacity="0.3" />
+
+                <!-- Ornate technical brackets surrounding portal -->
+                <path d="M 25,180 A 125,125 0 0,1 275,180" fill="none" stroke="${rarityColor}" stroke-width="1" opacity="0.15" />
+                <path d="M 25,180 A 125,125 0 0,0 275,180" fill="none" stroke="${rarityColor}" stroke-width="1" opacity="0.15" />
+
+                <!-- Nested drawn item design -->
+                <g transform="translate(50, 80)">
+                    ${drawItemDesign(item.name, item.type, item.rarity, itemElement, item.statBonuses || {}, 1.6)}
+                </g>
+            </g>
+
+            <!-- Mid Section Info (Lore description) -->
+            <g transform="translate(50, 485)">
+                <rect width="500" height="65" fill="rgba(255,255,255,0.01)" stroke="rgba(255,255,255,0.05)" rx="8" />
+                <text x="15" y="24" font-family="'Segoe UI', sans-serif" font-size="13" font-style="italic" fill="#c1c2d0">${escapeXml(item.description)}</text>
+                <text x="15" y="46" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.4)">ELEMENTAL ATTRIBUTE : ${itemElement.toUpperCase()} • DURABILITY: ${item.durability}/100</text>
+                <text x="485" y="46" font-family="Arial" font-size="13" fill="#ffd700" font-weight="bold" text-anchor="end">${starStr}</text>
+            </g>
+
+            <!-- Stats diagram & numerical tables -->
+            <!-- Left Panel: Pentagon Radar Diagram -->
+            <g>
+                <!-- Pentagon background grids -->
+                ${[0.2, 0.4, 0.6, 0.8, 1.0].map((step, idx) => {
+                    const r = rMax * step;
+                    const p1x = cx; const p1y = cy - r;
+                    const p2x = cx + r * Math.sin(72*Math.PI/180); const p2y = cy - r * Math.cos(72*Math.PI/180);
+                    const p3x = cx + r * Math.sin(144*Math.PI/180); const p3y = cy - r * Math.cos(144*Math.PI/180);
+                    const p4x = cx + r * Math.sin(216*Math.PI/180); const p4y = cy - r * Math.cos(216*Math.PI/180);
+                    const p5x = cx + r * Math.sin(288*Math.PI/180); const p5y = cy - r * Math.cos(288*Math.PI/180);
+                    return `<polygon points="${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y} ${p4x},${p4y} ${p5x},${p5y}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1" />`;
+                }).join('')}
+
+                <!-- Center Spoke Lines -->
+                ${Array.from({length: 5}).map((_, i) => {
+                    const angle = i * 72 * Math.PI / 180;
+                    const targetX = cx + rMax * Math.sin(angle);
+                    const targetY = cy - rMax * Math.cos(angle);
+                    return `<line x1="${cx}" y1="${cy}" x2="${targetX}" y2="${targetY}" stroke="rgba(255,255,255,0.06)" stroke-width="1" />`;
+                }).join('')}
+
+                <!-- Polygon Stat overlay -->
+                <polygon points="${pStrX},${pStrY} ${pAgiX},${pAgiY} ${pIntX},${pIntY} ${pDefX},${pDefY} ${pLukX},${pLukY}" fill="rgba(255, 69, 0, 0.25)" stroke="#ff4500" stroke-width="2.5" style="filter: drop-shadow(0 0 3px #ff4500);" />
+
+                <!-- Diagram Text Labels -->
+                <text x="${cx}" y="${cy - rMax - 10}" font-family="monospace" font-size="11" fill="#ff4d4d" font-weight="bold" text-anchor="middle">FOR [${str}]</text>
+                <text x="${cx + rMax * Math.sin(72*Math.PI/180) + 12}" y="${cy - rMax * Math.cos(72*Math.PI/180)}" font-family="monospace" font-size="11" fill="#33ff33" font-weight="bold" text-anchor="start">AGI [${agi}]</text>
+                <text x="${cx + rMax * Math.sin(144*Math.PI/180) + 12}" y="${cy - rMax * Math.cos(144*Math.PI/180) + 10}" font-family="monospace" font-size="11" fill="#00ffff" font-weight="bold" text-anchor="start">INT [${int}]</text>
+                <text x="${cx + rMax * Math.sin(216*Math.PI/180) - 12}" y="${cy - rMax * Math.cos(216*Math.PI/180) + 10}" font-family="monospace" font-size="11" fill="#ffcc00" font-weight="bold" text-anchor="end">DEF [${def}]</text>
+                <text x="${cx + rMax * Math.sin(288*Math.PI/180) - 12}" y="${cy - rMax * Math.cos(288*Math.PI/180)}" font-family="monospace" font-size="11" fill="#da70d6" font-weight="bold" text-anchor="end">LUK [${luk}]</text>
+
+                <!-- Anchor points -->
+                <circle cx="${pStrX}" cy="${pStrY}" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="1.5" />
+                <circle cx="${pAgiX}" cy="${pAgiY}" r="4" fill="#ffffff" stroke="#33ff33" stroke-width="1.5" />
+                <circle cx="${pIntX}" cy="${pIntY}" r="4" fill="#ffffff" stroke="#00ffff" stroke-width="1.5" />
+                <circle cx="${pDefX}" cy="${pDefY}" r="4" fill="#ffffff" stroke="#ffcc00" stroke-width="1.5" />
+                <circle cx="${pLukX}" cy="${pLukY}" r="4" fill="#ffffff" stroke="#da70d6" stroke-width="1.5" />
+            </g>
+
+            <!-- Bottom watermark/signoff -->
+            <g transform="translate(300, 805)">
+                <line x1="-150" y1="-10" x2="150" y2="-10" stroke="rgba(255,255,255,0.06)" stroke-width="0.8" />
+                <text font-family="monospace" font-size="9" fill="rgba(255,255,255,0.3)" text-anchor="middle">AETHERYS DEFENSE LABS V2 // UNIQUE CATALOG REGISTRY CODE #${Math.floor(Math.random() * 900000 + 100000)}</text>
+            </g>
+        </svg>
+    `;
+
+    return await sharp(Buffer.from(svg))
+        .png()
+        .toBuffer();
+}
+
+module.exports = { generateShopImage, generateDetailedItemCard };

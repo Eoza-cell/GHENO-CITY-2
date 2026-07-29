@@ -513,7 +513,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   hints.push("⚠️ LOIS DE CAUSALITÉ & ANTI-TRICHE : Le monde est un écosystème logique. Un joueur ne peut PAS nager 3h sans compétence spéciale (il se noie en 5min s'il est Rang F).");
   hints.push("⚠️ SENSORIALITÉ : Un joueur ne ressent pas les autres à distance sans compétence.");
   hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend DES JOURS RP.");
-  hints.push("⚠️ ÉPUISEMENT : Si Hunger ou Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement.");
+  hints.push("⚠️ ÉPUISEMENT : Si Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement.");
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -522,10 +522,8 @@ async function handleFreeAction(sock, message, player, actionText) {
   const rpElapsedHours = (realElapsedMs * 9) / (1000 * 60 * 60);
 
   if (rpElapsedHours > 0.05) {
-      const hungerLoss = Math.floor(rpElapsedHours * 3);
       const sleepLoss = Math.floor(rpElapsedHours * 2);
 
-      if (hungerLoss > 0) await player.decrement('hunger', { by: hungerLoss });
       if (sleepLoss > 0) await player.decrement('sleep', { by: sleepLoss });
 
       // Gradual sobriety over time (sobering up)
@@ -536,9 +534,6 @@ async function handleFreeAction(sock, message, player, actionText) {
           await player.update({ inebriationLevel: newInebriation });
       }
 
-      if (hungerLoss > 0) {
-          survivalWarnings.push(`🍗 *${player.name}* : Faim -${hungerLoss} (➔ ${Math.max(0, player.hunger - hungerLoss)}/100)`);
-      }
       if (sleepLoss > 0) {
           survivalWarnings.push(`💤 *${player.name}* : Sommeil -${sleepLoss} (➔ ${Math.max(0, player.sleep - sleepLoss)}/100)`);
       }
@@ -552,7 +547,6 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
 
       await player.reload();
-      if (player.hunger < 0) await player.update({ hunger: 0 });
       if (player.sleep < 0) await player.update({ sleep: 0 });
 
       // Check if player is dead/unconscious
@@ -561,11 +555,6 @@ async function handleFreeAction(sock, message, player, actionText) {
           hints.push("⚠️ LE JOUEUR EST MORT OU INCONSCIENT (0 PV).");
       }
 
-      // Starvation damage
-      if (player.hunger === 0 && rpElapsedHours > 0.5) {
-          await player.decrement('health', { by: 5 });
-          survivalWarnings.push(`⚠️ *${player.name}* INANITION : -5 PV car ta jauge de faim est vide !`);
-      }
       await player.update({ lastActivity: new Date() });
   }
 

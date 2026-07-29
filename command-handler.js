@@ -13,7 +13,7 @@ const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
 const { generateMissionBoard } = require('./paper-generator');
 const { generateMainMenuImage } = require('./menu-generator');
-const { generateShopImage } = require('./shop-generator');
+const { generateShopImage, generateDetailedItemCard } = require('./shop-generator');
 const { generateSkillListImage } = require('./action-visual-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
@@ -427,7 +427,16 @@ commands.set('acheter', async (sock, message, args) => {
     player.inventory = inventory;
     await player.save();
 
-    await sock.sendMessage(replyJid, { text: `🛒 *Achat réussi !* Tu as acheté ${item.name} pour ${item.price} Col.` });
+    try {
+        const cardBuffer = await generateDetailedItemCard(item);
+        await sock.sendMessage(replyJid, {
+            image: cardBuffer,
+            caption: `🛒 *ACHAT RÉUSSI !* Tu as acquis *${item.name.toUpperCase()}* pour *${item.price} Col* !\n\nL'arme a été ajoutée à ton inventaire (/inventory). Équipe-la via la description ou l'interface de combat.`
+        });
+    } catch (err) {
+        console.error("[ACHETER] Card render error:", err);
+        await sock.sendMessage(replyJid, { text: `🛒 *Achat réussi !* Tu as acheté ${item.name} pour ${item.price} Col.` });
+    }
 });
 
 // Command: /equiper
@@ -2124,6 +2133,96 @@ const journalCommand = async (sock, message) => {
 };
 commands.set('journal', journalCommand);
 commands.set('changelog', journalCommand);
+
+// Command: /voyager
+commands.set('voyager', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  const destination = args.join(' ').trim();
+
+  if (!player) {
+    await sock.sendMessage(replyJid, { text: "Tu devez d'abord commencer le jeu avec /start." });
+    return;
+  }
+
+  const subLower = (player.subLocation || "").toLowerCase();
+  const locLower = (player.location || "").toLowerCase();
+  const isAtPort = ["port", "quai", "atoll", "embarcadère", "crique", "mer", "phare"].some(p => subLower.includes(p) || locLower.includes(p));
+
+  if (!isAtPort && !player.isGod) {
+    await sock.sendMessage(replyJid, { text: `❌ Impossible d'embarquer ici (*${player.subLocation}*). Rends-toi à un Port, un Quai ou un Embarcadère pour voyager en bateau !` });
+    return;
+  }
+
+  const destinations = {
+      'valkyrr': { kingdom: 'Royaume de Valkyrr', port: 'Port-Sparkwell', days: 2, price: 50 },
+      'archipel': { kingdom: 'Archipel des Murmures', port: 'Port-Brume', days: 3, price: 80 },
+      'bestiales': { kingdom: 'Terres Bestiales', port: 'Claw-reach', days: 5, price: 120 },
+      'vharos': { kingdom: 'Dominion Noir de Vharos', port: 'Marais Putrides', days: 6, price: 200 },
+      'celeste': { kingdom: 'Royaume Céleste', port: 'Portes du Ciel', days: 7, price: 350 },
+      'elion': { kingdom: 'Empire Impérial d\'Elion', port: 'Eldoria', days: 2, price: 50 }
+  };
+
+  const keys = Object.keys(destinations);
+  const targetKey = keys.find(k => destination.toLowerCase().includes(k) || destinations[k].kingdom.toLowerCase().includes(destination.toLowerCase()));
+
+  if (!destination || !targetKey) {
+      let list = "🚢 *LIGNES DE VOYAGE MARITIME DISPONIBLES* 🚢\n\n";
+      list += `Tu es actuellement à : *${player.subLocation}* (${player.location})\n\n`;
+      list += "Pour voyager par la mer, tape \`/voyager [royaume]\` :\n\n";
+      for (const [k, d] of Object.entries(destinations)) {
+          list += `├ 🗺️ *${d.kingdom}* (Port : ${d.port})\n`;
+          list += `│  └ ⏳ Durée : *${d.days} jours RP* • 💰 Prix : *${d.price} Col*\n\n`;
+      }
+      list += "└ _Note : Traverser les océans d'Aetherys prend plusieurs jours RP selon la distance, au milieu de tempêtes et de créatures marines !_";
+      await sock.sendMessage(replyJid, { text: list });
+      return;
+  }
+
+  const dest = destinations[targetKey];
+
+  if (player.col < dest.price && !player.isGod) {
+      await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de pièces pour acheter un billet de bateau pour ${dest.kingdom} (${dest.price} Col requis, tu en as *${player.col}*).` });
+      return;
+  }
+
+  // Deduct fee and move player
+  if (!player.isGod) {
+      await player.decrement('col', { by: dest.price });
+  }
+
+  await player.update({
+      location: dest.kingdom,
+      subLocation: dest.port
+  });
+
+  // Advance time: each day adds 24 action counts to trigger clock forward
+  const { WorldJournal } = require('./database');
+  const journalLog = `🚢 VOYAGE MARITIME : ${player.name} a navigué pendant ${dest.days} jours de tempête pour rejoindre ${dest.kingdom}.`;
+  await WorldJournal.create({
+      entry: journalLog,
+      importance: 3,
+      category: 'plot'
+  });
+
+  await player.reload();
+
+  const voyageText = `🚢 *VOYAGE EN MER TERMINÉ !* 🚢\n\n` +
+                     `« Les voiles se gonflent, le bois craque sous la force des vagues d'Éther... »\n\n` +
+                     `Tu as navigué durant **${dest.days} jours entiers** à travers les océans instables d'Aetherys, évitant de justesse des bancs de spectres aquatiques et des tempêtes de mana.\n\n` +
+                     `📍 *Nouveau Lieu d'ancrage :* **${dest.kingdom}** (${dest.port})\n` +
+                     `💰 *Prix du voyage :* -${dest.price} Col (Reste: ${player.col} Col)\n` +
+                     `⏳ Le temps s'est écoulé de **${dest.days} jours** dans le monde d'Aetherys.`;
+
+  try {
+      const { generateLorePoster } = require('./lore-generator');
+      const buffer = await generateLorePoster("VOYAGE MARITIME", voyageText, 'HISTORY');
+      await sock.sendMessage(replyJid, { image: buffer, caption: voyageText });
+  } catch (e) {
+      await sock.sendMessage(replyJid, { text: voyageText });
+  }
+});
 
 // Command: /etudier
 commands.set('etudier', async (sock, message, args) => {

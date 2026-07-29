@@ -626,93 +626,134 @@ async function setupDatabase() {
 
     const itemsToSeed = [
             {
-                name: 'Uniforme de l\'Académie',
-                description: 'L\'uniforme standard de l\'Académie Impériale, symbole de discipline.',
+                name: 'Uniforme de la Seconde',
+                description: 'L\'uniforme réglementaire pour les élèves de seconde (2nd) à l\'Académie.',
                 price: 500,
                 type: 'clothing',
                 rarity: 'common',
                 slot: 'chest',
-                statBonuses: { intelligence: 2, defense: 1 },
+                statBonuses: { intelligence: 2, defense: 2 },
                 imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_034.jpg'
             },
             {
-                name: 'Costume de Héritier Élégant',
-                description: 'Un costume moderne infusé de fibres de mana.',
-                price: 1200,
+                name: 'Uniforme de la Première',
+                description: 'L\'uniforme réglementaire pour les élèves de première (1ere) à l\'Académie.',
+                price: 700,
+                type: 'clothing',
+                rarity: 'common',
+                slot: 'chest',
+                statBonuses: { intelligence: 5, defense: 3 },
+                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_034.jpg'
+            },
+            {
+                name: 'Uniforme de la Terminale',
+                description: 'L\'uniforme réglementaire pour les élèves de terminale (Tle) à l\'Académie.',
+                price: 1000,
                 type: 'clothing',
                 rarity: 'rare',
                 slot: 'chest',
-                statBonuses: { luck: 5, intelligence: 2 },
-                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_010.jpg'
-            },
-            {
-                name: 'Uniforme de l\'Académie (1ère Année)',
-                description: 'L\'uniforme standard pour les nouveaux étudiants.',
-                price: 500,
-                type: 'clothing',
-                rarity: 'common',
-                slot: 'chest',
-                statBonuses: { intelligence: 5 },
+                statBonuses: { intelligence: 10, defense: 5 },
                 imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_034.jpg'
             },
             {
-                name: 'Elucidator',
-                description: 'Une épée noire obsidienne d\'une puissance incroyable.',
-                price: 5000,
+                name: 'Seven-Star Sword',
+                description: 'Une épée de lumière légendaire (Revenant Weapon) de Granblue Fantasy.',
+                price: 8000,
                 type: 'weapon',
                 rarity: 'legendary',
                 slot: 'weapon',
-                statBonuses: { strength: 25, agility: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/5/53/Elucidator.png'
+                statBonuses: { strength: 40, defense: 20 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/3/30/Seven-Star_Sword.png'
             },
             {
-                name: 'Dark Repulser',
-                description: 'Une épée forgée à partir d\'un cristal rare.',
+                name: 'Chevalier Axe Magna',
+                description: 'Une hache scintillante imprégnée du pouvoir divin du Chevalier.',
                 price: 4500,
                 type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { strength: 25, defense: 15 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/e/ef/Chevalier_Axe_Magna.png'
+            },
+            {
+                name: 'Tiamat Bolt Omega',
+                description: 'Un arc/arbalète de vent capable de déchaîner des tempêtes foudroyantes.',
+                price: 4200,
+                type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { agility: 28, luck: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/e/e0/Tiamat_Bolt_Omega.png'
+            },
+            {
+                name: 'Leviathan Muzzle Magna',
+                description: 'Une dague rituelle de l\'océan imprégnée d\'une puissance liquide intense.',
+                price: 3800,
+                type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { agility: 22, strength: 10 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/c/c2/Leviathan_Muzzle_Magna.png'
+            },
+            {
+                name: 'Colossus Cane Magna',
+                description: 'Un bâton de mage enflammé brûlant d\'une fureur volcanique.',
+                price: 3500,
+                type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { intelligence: 30, defense: 5 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/c/c3/Colossus_Cane_Magna.png'
+            },
+            {
+                name: 'Bahamut Dagger',
+                description: 'Une dague maudite forgée à partir de la corne du Dragon de l\'Origine.',
+                price: 12000,
+                type: 'weapon',
                 rarity: 'legendary',
                 slot: 'weapon',
-                statBonuses: { strength: 20, agility: 15 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/8/82/Dark_Repulser.png'
+                statBonuses: { strength: 50, agility: 30 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/b/b2/Bahamut_Dagger.png'
             },
             {
-                name: 'Excalibur',
-                description: 'L\'épée la plus puissante d\'ALfheim Online.',
+                name: 'Purifying Thunderbolt',
+                description: 'Une lance sacrée étincelante libérant des torrents de foudre sacrée.',
                 price: 15000,
                 type: 'weapon',
+                rarity: 'legendary',
                 slot: 'weapon',
-                statBonuses: { strength: 50, intelligence: 30, agility: 20 },
-                imageUrl: 'https://static.wikia.nocookie.net/swordartonline/images/4/4e/Excalibur.png'
+                statBonuses: { strength: 60, intelligence: 30 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/a/ab/Purifying_Thunderbolt.png'
             },
             {
-                name: 'Manteau de l\'Exilé',
-                description: 'Un long manteau en cuir sombre, idéal pour la discrétion.',
-                price: 800,
-                type: 'clothing',
-                rarity: 'rare',
-                slot: 'chest',
-                statBonuses: { agility: 8, luck: 3 },
-                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_060.jpg'
+                name: 'Murgleis',
+                description: 'Une épée fine étincelante imprégnée de l\'élément Eau.',
+                price: 14000,
+                type: 'weapon',
+                rarity: 'legendary',
+                slot: 'weapon',
+                statBonuses: { strength: 55, defense: 25 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/e/ef/Murgleis.png'
             },
             {
-                name: 'Robe d\'Enchanteur Lunaire',
-                description: 'Tissée avec des fils d\'argent qui brillent sous la lune.',
-                price: 2500,
-                type: 'clothing',
-                rarity: 'epic',
-                slot: 'chest',
-                statBonuses: { intelligence: 15, mana: 100 },
-                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_122.jpg'
+                name: 'Benedia',
+                description: 'Un fusil de feu précis d\'une valeur inestimable.',
+                price: 11000,
+                type: 'weapon',
+                rarity: 'legendary',
+                slot: 'weapon',
+                statBonuses: { agility: 45, luck: 25 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/b/b0/Benedia.png'
             },
             {
-                name: 'Armure de Plate d\'Orgueil',
-                description: 'Une armure étincelante imposante.',
-                price: 3000,
-                type: 'clothing',
-                rarity: 'rare',
-                slot: 'chest',
-                statBonuses: { defense: 20, strength: 5 },
-                imageUrl: 'https://gamesfashionarchive.net/viewer/images/large/Girls_Side_1st_Love/1st_Love_210.jpg'
+                name: 'Ichigo Hitofuri',
+                description: 'Un katana d\'une finesse et d\'un tranchant incomparables.',
+                price: 13500,
+                type: 'weapon',
+                rarity: 'legendary',
+                slot: 'weapon',
+                statBonuses: { strength: 50, agility: 25 },
+                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/b/b9/Ichigo_Hitofuri.png'
             }
         ];
 
