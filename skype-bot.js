@@ -284,16 +284,18 @@ async function connectToWhatsApp() {
   });
 }
 
-setupDatabase()
-  .then(async () => {
-    console.log('[CORE] Base de données prête. Lancement du bot...');
+if (require.main === module) {
+  setupDatabase()
+    .then(async () => {
+      console.log('[CORE] Base de données prête. Lancement du bot...');
 
-    // Démarre le 2ème serveur pour le modèle DARK LUST
-    startModelServer();
+      // Démarre le 2ème serveur pour le modèle DARK LUST
+      startModelServer();
 
-    connectToWhatsApp();
-  })
-  .catch(err => {
-    console.error('[CRITICAL] Échec du démarrage de la base de données:', err);
-    process.exit(1);
-  });
+      connectToWhatsApp();
+    })
+    .catch(err => {
+      console.error('[CRITICAL] Échec du démarrage de la base de données:', err);
+      process.exit(1);
+    });
+}
