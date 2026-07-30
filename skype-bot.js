@@ -64,6 +64,29 @@ const server = http.createServer((req, res) => {
         `);
     }
 
+    if (req.url === '/reset-session') {
+        const { Creds } = require('./database');
+        Creds.destroy({ where: {}, truncate: true })
+            .then(() => {
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end(`
+                    <html>
+                        <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #121b22; color: white; text-align: center;">
+                            <h1>✅ Session Réinitialisée !</h1>
+                            <p>La table d'authentification a été nettoyée. Redémarrage du serveur et génération d'un nouveau code...</p>
+                            <p><a href="/pairing" style="color: #00a884; font-weight: bold; font-size: 18px;">Accéder à la page de pairage</a></p>
+                        </body>
+                    </html>
+                `);
+                setTimeout(() => process.exit(0), 1000);
+            })
+            .catch(err => {
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end(`Erreur lors du reset: ${err.message}`);
+            });
+        return;
+    }
+
     if (req.url === '/health' || req.url === '/') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end(isWhatsAppConnected ? 'OPERATIONAL' : 'AWAITING_PAIRING');
