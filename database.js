@@ -308,6 +308,10 @@ const Player = sequelize.define('Player', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  territoryExtension: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 });
 
 const Item = sequelize.define('Item', {
@@ -1075,7 +1079,6 @@ async function setupDatabase() {
     }
 
     const npcsToSeed = [
-        { name: 'Erius', role: 'Éminence de l\'Interstice', description: 'Un être légendaire et craint dont la présence oppressante et le regard de stardust bleue se font ressentir dans l\'air à chaque duel ou action décisive.', location: 'L\'Interstice', powerLevel: 100, specialty: 'Omniprésence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20ghostly%20ancient%20mysterious%20wizard%20Erius%20Aetherys?model=flux-anime' },
         { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
         { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
         { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },

@@ -14,6 +14,64 @@ const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
 
 /**
+ * Searches Google Images for an anime representation of a technique name,
+ * with a high-speed Pollinations AI image generation fallback if blocked or unsuccessful.
+ */
+async function fetchTechniqueImage(techniqueName) {
+    const axios = require('axios');
+    const query = encodeURIComponent(`${techniqueName} anime skill visual effect`);
+    const fallbackGoogleUrl = `https://www.google.com/search?q=${query}&tbm=isch`;
+
+    const userAgents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+    ];
+
+    try {
+        console.log(`[Google Images] Searching for technique: ${techniqueName}`);
+        const response = await axios.get(fallbackGoogleUrl, {
+            headers: {
+                'User-Agent': userAgents[Math.floor(Math.random() * userAgents.length)],
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+            },
+            timeout: 5000
+        });
+
+        const html = response.data;
+        const imgRegex = /src="([^"]+)"/g;
+        let match;
+        const urls = [];
+        while ((match = imgRegex.exec(html)) !== null) {
+            const url = match[1];
+            if (url.startsWith('http') && !url.includes('googlelogo') && !url.includes('gif')) {
+                urls.push(url);
+            }
+        }
+
+        if (urls.length > 0) {
+            const targetUrl = urls[Math.min(urls.length - 1, 1)];
+            console.log(`[Google Images] Found URL: ${targetUrl}`);
+            const imgBuf = await axios.get(targetUrl, { responseType: 'arraybuffer', timeout: 5000 });
+            return Buffer.from(imgBuf.data);
+        }
+    } catch (err) {
+        console.error(`[Google Images] Error scraping images for ${techniqueName}:`, err.message);
+    }
+
+    try {
+        console.log(`[Google Images Fallback] Generating image for "${techniqueName}" via Pollinations...`);
+        const cleanPrompt = encodeURIComponent(`high resolution epic anime illustration of the technique called "${techniqueName}", glowing energy, spectacular visual effects, dramatic combat stance, masterpiece art`);
+        const pollinationsUrl = `https://image.pollinations.ai/p/${cleanPrompt}?width=800&height=500&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+        const imgBuf = await axios.get(pollinationsUrl, { responseType: 'arraybuffer', timeout: 12000 });
+        return Buffer.from(imgBuf.data);
+    } catch (pErr) {
+        console.error(`[Google Images Fallback] Pollinations generation failed:`, pErr.message);
+    }
+
+    return null;
+}
+
+/**
  * Robustly parses stat updates and save commands from pure-text AI narratives.
  * Format examples: [SINGAM II: HP -18] [HP -18] [XP +50] [Col +100] /save HP -18
  */
@@ -265,6 +323,16 @@ async function handleFreeAction(sock, message, player, actionText) {
       console.error("[DB] RPMessage log error:", e.message);
   }
 
+  // Technique detection: find any text written in bold (wrapped in single asterisks like *technique*)
+  let techniqueImageBuffer = null;
+  let techniqueDetectedName = null;
+  const boldMatch = actionText.match(/\*([A-Za-zÀ-ÖØ-öø-ÿ0-9\s'-]{3,40})\*/);
+  if (boldMatch) {
+      techniqueDetectedName = boldMatch[1].trim();
+      console.log(`[Technique Detector] Detected technique in bold: "${techniqueDetectedName}"`);
+      techniqueImageBuffer = await fetchTechniqueImage(techniqueDetectedName);
+  }
+
   // Automatic Visual: Detect writing on paper or blackboard
   const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter|inscrit|dessine|trace|copie|copier)(?:\s+(?:sur|dans)\s+(?:du\s+|le\s+|la\s+)?(?:papier|tableau|mur|parchemin|lettre|examen|note|copie|tableau noir|ardoise))\s*:\s*([\s\S]+)/i);
   if (writingMatch) {
@@ -475,8 +543,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       "Le Directeur Magnus a réuni les magiciens d'élite de l'Académie Impériale pour sceller une faille magique instable qui est apparue près des frontières.",
       "La Princesse Seraphina mène actuellement des négociations diplomatiques confidentielles avec les diplomates elfes de la Forêt de l'Éveil.",
       "Le Juge Orpheon prépare une convocation d'urgence à Nécropolis pour faire passer des jugements d'âmes corrompues.",
-      "L'Ombre organise une réunion secrète des chefs du Syndicat dans les bas-fonds de Gheno.",
-      "Plusieurs témoins affirment avoir senti le froid glacial caractéristique d'Erius, l'Éminence de l'Interstice, planer silencieusement lors de combats récents."
+      "L'Ombre organise une réunion secrète des chefs du Syndicat dans les bas-fonds de Gheno."
   ];
   const selectedNpcRumor = pnjActiveLifeRumors[Math.floor(Math.random() * pnjActiveLifeRumors.length)];
   hints.push(`ℹ️ VIE ACTIVE DES PNJ ET RUMEURS D'AETHERYS (Les PNJ majeurs bougent et agissent) : ${selectedNpcRumor}`);
@@ -642,12 +709,17 @@ async function handleFreeAction(sock, message, player, actionText) {
           }
       }
 
+      const { getDistanceInMeters } = require('./utils');
+      const distToActive = getDistanceInMeters(player, p);
+
       return {
           nom: p.name,
           est_god: p.isGod,
           lieu_precis: p.subLocation,
           est_proche: p.subLocation === player.subLocation,
           est_acteur: (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
+          distance_en_metres_de_l_acteur: distToActive,
+          extension_du_territoire: p.territoryExtension || "Non éveillée ou non configurée.",
           etat: `Race:${p.race} | Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${Math.round(displayFor)} AGI:${Math.round(displayAgi)} INT:${Math.round(displayInt)} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}${bondInfo}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
@@ -769,8 +841,9 @@ INDÉPENDANCE ET LIBERTÉ D'ACTION DES JOUEURS :
 - INDÉPENDANCE ABSOLUE DES HISTOIRES : Tu ne dois JAMAIS mélanger, fusionner ou confondre les histoires individuelles, les objectifs, les quêtes ou les récits personnels des différents joueurs présents. Chaque joueur est un être à part entière, totalement autonome, libre et indépendant. Leurs destins ne sont pas liés de force.
 - INTERACTION LIBRE : Les joueurs interagissent entre eux de leur plein gré (dialogues, alliances temporaires, trahisons, duels PVP). Arbitre uniquement les conséquences physiques locales et immédiates de leurs interactions (transfert d'objets, dégâts physiques subis) sans jamais inventer de liens scénaristiques ou narratifs forcés ou artificiels entre leurs vécus respectifs.
 
-PRÉSENCES MYSTIQUES LOOMING :
-- LA PRÉSENCE D'ERIUS (L'ÉMINENCE) : Fais régulièrement ressentir de manière subtile, froide et divine la présence invisible mais oppressante d'Erius (l'Éminence de l'Interstice) qui observe silencieusement les combats, les duels PVP et les choix cruciaux depuis la lisière des ombres, ses yeux azurs scintillants brillant brièvement dans la pénombre.
+MÉCANIQUE DE DISTANCE ET EXTENSION DU TERRITOIRE (RANG S) :
+- DISTANCE ENTRE JOUEURS : Les joueurs sont séparés par une distance réelle et calculée en mètres (fournie dans la clé "distance_en_metres_de_l_acteur" pour chaque personnage). Décris et respecte rigoureusement cette distance physique lors des déplacements et actions physiques.
+- EXTENSION DU TERRITOIRE : L'Extension du Territoire est la technique ultime réservée aux combattants de Rang S. Elle possède une portée de 5 mètres. Si un joueur de Rang S déploie son Extension, seuls les joueurs et ennemis situés à 5 mètres ou moins sont emprisonnés dans ce domaine mystique et subissent ses effets uniques (fournis dans "extension_du_territoire"). Si les cibles sont à plus de 5 mètres, elles restent à l'extérieur. Décris les reflets, les barrières infranchissables et l'esthétique du domaine personnalisé de manière viscérale.
 
 LORE DES CLASSES (CHEVALIER-DRAGON) :
 - CHEVALIER-DRAGON (DRAGON SLAYER) : Les joueurs de la classe "Chevalier-Dragon" possèdent des facultés identiques aux Dragon Slayers de Fairy Tail (comme Natsu Dragnir). Ils ont des poumons de dragon (capables d'expirer des souffles élémentaires dévastateurs), peuvent dévorer leur propre élément magique pour restaurer instantanément leurs PM/PV, et sous l'effet de l'Aura, leur peau se couvre d'écailles draconiques denses et leur force brute devient divine.
@@ -938,40 +1011,42 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     }
 
     // Dynamic Action Visual Logic based on text content analysis
-    let visualBuffer = null;
+    let visualBuffer = techniqueImageBuffer || null;
     const lowerContent = content.toLowerCase();
 
-    // Automatically detect combat/skills to trigger action visuals
-    let actionType = null;
-    let visualTitle = "SÉQUENCE DE COMBAT";
-    let visualDesc = "Échange physique d'intensité maximale.";
+    // If a custom technique image is NOT detected, fallback to automatic combat/magic action visuals
+    if (!visualBuffer) {
+        let actionType = null;
+        let visualTitle = "SÉQUENCE DE COMBAT";
+        let visualDesc = "Échange physique d'intensité maximale.";
 
-    if (lowerContent.includes('attaque') || lowerContent.includes('frappe') || lowerContent.includes('combat') || lowerContent.includes('épée') || lowerContent.includes('lame') || lowerContent.includes('bâton') || lowerContent.includes('vrille') || lowerContent.includes('apôtre')) {
-        actionType = 'combat';
-    } else if (lowerContent.includes('magie') || lowerContent.includes('sort') || lowerContent.includes('mana') || lowerContent.includes('éther') || lowerContent.includes('lumière') || lowerContent.includes('bénit')) {
-        actionType = 'magic';
-        visualTitle = "FLUX ARCANIQUE";
-        visualDesc = "Manipulation active du mana spirituel.";
-    }
+        if (lowerContent.includes('attaque') || lowerContent.includes('frappe') || lowerContent.includes('combat') || lowerContent.includes('épée') || lowerContent.includes('lame') || lowerContent.includes('bâton') || lowerContent.includes('vrille') || lowerContent.includes('apôtre')) {
+            actionType = 'combat';
+        } else if (lowerContent.includes('magie') || lowerContent.includes('sort') || lowerContent.includes('mana') || lowerContent.includes('éther') || lowerContent.includes('lumière') || lowerContent.includes('bénit')) {
+            actionType = 'magic';
+            visualTitle = "FLUX ARCANIQUE";
+            visualDesc = "Manipulation active du mana spirituel.";
+        }
 
-    if (actionType) {
-        try {
-            // Match location with assets
-            const assetMap = {
-                'Eldoria': 'assets/locations/eldoria.jpg',
-                'Académie Impériale': 'assets/locations/academy.jpg',
-                'Nécropolis': 'assets/locations/necropolis.jpg',
-                'L\'Interstice': 'assets/locations/interstice.jpg'
-            };
-            const assetPath = assetMap[player.location] || 'assets/locations/eldoria.jpg';
-            visualBuffer = await generateActionVisual({
-                actionType,
-                title: visualTitle,
-                description: visualDesc,
-                assetPath
-            });
-        } catch (vErr) {
-            console.error("[Visual Generator Error]", vErr);
+        if (actionType) {
+            try {
+                // Match location with assets
+                const assetMap = {
+                    'Eldoria': 'assets/locations/eldoria.jpg',
+                    'Académie Impériale': 'assets/locations/academy.jpg',
+                    'Nécropolis': 'assets/locations/necropolis.jpg',
+                    'L\'Interstice': 'assets/locations/interstice.jpg'
+                };
+                const assetPath = assetMap[player.location] || 'assets/locations/eldoria.jpg';
+                visualBuffer = await generateActionVisual({
+                    actionType,
+                    title: visualTitle,
+                    description: visualDesc,
+                    assetPath
+                });
+            } catch (vErr) {
+                console.error("[Visual Generator Error]", vErr);
+            }
         }
     }
 

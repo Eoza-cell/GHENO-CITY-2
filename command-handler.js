@@ -119,6 +119,18 @@ commands.set('competences', async (sock, message, args) => {
         if (passiveSkills.length > 10) skillText += `_... et ${passiveSkills.length - 10} autres passifs._\n\n`;
     }
 
+    if (player.rank === 'S') {
+        skillText += "🌌 *EXTENSION DU TERRITOIRE (RANG S):*\n";
+        if (player.territoryExtension) {
+            skillText += `├ 🔮 Description & Effets Rebalancés:\n`;
+            skillText += `└ ${player.territoryExtension}\n\n`;
+            skillText += `_Utilise "/extension <effets>" pour redéfinir ton extension._\n\n`;
+        } else {
+            skillText += `❌ Aucune extension configurée.\n`;
+            skillText += `_Utilise "/extension <votre description et vos effets>" pour éveiller ton extension unique ! L'IA supprimera les effets jugés trop "cheatés"._\n\n`;
+        }
+    }
+
     skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pactes._";
 
     try {
@@ -324,6 +336,63 @@ commands.set('profil', profileCommand);
 commands.set('techniques', (...args) => commands.get('competences')(...args));
 commands.set('skills', (...args) => commands.get('competences')(...args));
 commands.set('skill', (...args) => commands.get('competences')(...args));
+
+commands.set('extension', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
+
+    if (player.rank !== 'S') {
+        await sock.sendMessage(replyJid, { text: "❌ *Seuls les puissants guerriers et mages de Rang S* peuvent s'éveiller et personnaliser l'Extension du Territoire ! Progressez jusqu'au Rang S pour débloquer ce pouvoir ultime." });
+        return;
+    }
+
+    const userInput = args.join(' ').trim();
+    if (!userInput) {
+        await sock.sendMessage(replyJid, { text: "❌ *Usage:* `/extension <description et effets de votre extension du territoire>`\n\nExemple:\n`/extension Une sphère de ténèbres infinies où mon agilité est doublée et les ennemis perdent leur défense.`" });
+        return;
+    }
+
+    await sock.sendMessage(replyJid, { text: "🌌 *L'Éther vibre... MJ d'AETHERYS analyse et rebalance ton Extension du Territoire pour éliminer les effets cheatés...*" });
+
+    try {
+        const { callAI } = require('./ai-utils');
+        const systemPrompt = `Tu es le MJ d'Aetherys. Le joueur propose une personnalisation pour son "Extension du Territoire" (Technique suprême de Rang S).
+Ton rôle est de réécrire cette extension dans un style Seinen/Shonen ultra-immersif, épique et viscéral, TOUT EN SUPPRIMANT ET REBALANÇANT tout effet abusif ("trop cheaté") comme :
+- Mort instantanée (auto-win / OS)
+- Invincibilité, immortalité ou immunité totale
+- Annulation inconditionnelle des pouvoirs de l'adversaire sans contrepartie majeure
+- Stats augmentées au-delà de +30% ou boosts infinis
+
+Tu dois impérativement rebalancer ces abus en effets épiques mais sains pour le jeu de rôle : ex. bonus de combat plafonné à max +30% aux stats clés du lanceur, malus de 15% aux ennemis proches, ou dégâts de zone magiques équilibrés, avec un coût requis de 80 PM.
+Garde l'essence thématique et l'esthétique spectaculaire voulue par le joueur (ténèbres, feu, glace, miroirs, etc.), mais rends le gameplay juste et équilibré.
+Écris la description finale en français de manière fluide, immersive et directe. Ne mets AUCUN commentaire méta, seulement la description finale de l'extension avec ses effets rebalancés.`;
+
+        const processedText = await callAI(systemPrompt, `Joueur: ${player.name}\nProposition d'extension:\n${userInput}`, { jsonMode: false });
+
+        if (processedText && processedText.trim()) {
+            player.territoryExtension = processedText.trim();
+            await player.save();
+
+            const responseMsg = `🌌 *ÉVEIL DE L'EXTENSION DU TERRITOIRE :*\n\n` +
+                                `_Votre extension a été purifiée de tout abus de puissance par le MJ d'Aetherys et gravée dans votre âme._\n\n` +
+                                `🔮 *Description & Effets Rebalancés:*\n${player.territoryExtension}\n\n` +
+                                `_Portée de l'extension: 5 mètres. Pour piéger un autre joueur, vous devez être à moins de 5m d'écart (vérifiable via la commande /joueurs ou la distance affichée lors des actions)._`;
+
+            await sock.sendMessage(replyJid, { text: responseMsg });
+        } else {
+            await sock.sendMessage(replyJid, { text: "❌ Une erreur est survenue lors de l'analyse par le MJ d'Aetherys. Veuillez réessayer avec une description différente." });
+        }
+    } catch (err) {
+        console.error("[Extension] Error:", err);
+        await sock.sendMessage(replyJid, { text: "❌ Impossible de formuler l'extension pour le moment. Veuillez réessayer." });
+    }
+});
 
 // Command: /background
 commands.set('background', async (sock, message, args) => {
@@ -962,9 +1031,14 @@ commands.set('joueurs', async (sock, message) => {
         return;
     }
 
+    const { getDistanceInMeters } = require('./utils');
+
     let playersText = `--- 👥 HÉRITIERS À PROXIMITÉ --- \n\n`;
     otherPlayers.forEach(p => {
+        const dist = getDistanceInMeters(player, p);
+        const canTerritory = dist <= 5;
         playersText += `*${p.name}*\n`;
+        playersText += `├ 📏 Distance: *${dist} mètres* ${canTerritory ? '🟢 (Assez proche pour une Extension du Territoire !)' : '🔴 (Trop loin pour l\'Extension du Territoire, max 5m)'}\n`;
         playersText += `├ 📍 ${p.subLocation}\n`;
         playersText += `├ 👪 Famille: ${p.family}\n`;
         playersText += `├ 🎭 Classe: ${p.class} | 📊 Niveau: ${p.level}\n`;
