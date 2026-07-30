@@ -1088,18 +1088,13 @@ commands.set('examens', async (sock, message) => {
 
     if (!player) return;
 
-    const yearNames = {
-        1: "Seconde (2nd)",
-        2: "Première (1ere)",
-        3: "Terminale (Tle)"
-    };
-    const currentClass = yearNames[player.academicYear] || `${player.academicYear}ème Année`;
+    const academicSuffix = player.academicYear === 1 ? 'ère' : 'ème';
     let text = "--- 📝 DOSSIER ACADÉMIQUE --- \n\n";
     text += `👤 *Élève:* ${player.name}\n`;
-    text += `🎓 *Classe:* ${currentClass}\n`;
+    text += `🎓 *Année:* ${player.academicYear}${academicSuffix} Année\n`;
     text += `🏫 *École:* ${player.schoolName}\n`;
     text += `📊 *Moyenne Générale:* ${player.academicGrade}/100\n\n`;
-    text += `_Les examens de la classe de ${currentClass} se passent via /action (écriture sur copie d'examen)._`;
+    text += `_Les examens de ${player.academicYear}${academicSuffix} année se passent via /action (écriture sur copie)._`;
 
     await sock.sendMessage(replyJid, { text: text });
 });

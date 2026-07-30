@@ -17,7 +17,6 @@ TES CRITÈRES D'ANALYSE :
 2. EXÉCUTION (La qualité du pavé) : La précision technique, le réalisme des mouvements, la fluidité narrative.
 3. LOGIQUE STATISTIQUE : Utilise les stats fournies comme base de probabilité, mais laisse la créativité surpasser un écart de stats si l'action est brillante.
 4. CONSÉQUENCES : Déduis les dommages physiques, psychologiques et environnementaux.
-5. DIFFICULTÉ INTENSE & RIGUEUR (PAS DE FACILITÉ) : Aetherys est impitoyable. Si le joueur prend des risques, attaque sans plan, ou affronte des adversaires de haut rang, inflige des blessures graves et des dégâts SÉVÈRES (-20 à -50 PV). Les blessures physiques doivent être handicapantes et laisser des marques durables.
 
 FORMAT DE RÉPONSE JSON :
 {

@@ -558,28 +558,6 @@ async function handleFreeAction(sock, message, player, actionText) {
       await player.update({ lastActivity: new Date() });
   }
 
-  // 45% Pop Quiz chance in educational locations
-  const subLower = (player.subLocation || "").toLowerCase();
-  const locLower = (player.location || "").toLowerCase();
-  const actLower = (actionText || "").toLowerCase();
-  const isAcademy = ["académie", "lycée", "école", "school", "collège", "salle", "cours", "classe", "étude"].some(sch => subLower.includes(sch) || locLower.includes(sch));
-  const isStudying = ["étude", "étudier", "cours", "classe", "écouter", "réviser", "livre", "apprendre", "professeur", "salle", "banc"].some(keyword => actLower.includes(keyword));
-
-  if (isAcademy && isStudying && !player.isGod) {
-      const rollQuiz = Math.random() < 0.45;
-      if (rollQuiz) {
-          const yearNames = { 1: "Seconde (2nd)", 2: "Première (1ere)", 3: "Terminale (Tle)" };
-          const currentClass = yearNames[player.academicYear] || `${player.academicYear}ème Année`;
-
-          hints.push(`⚠️ INTERROGATION SURPRISE TRIGGERED (45% CHANCE) !
-Le professeur annonce une interrogation surprise difficile pour la classe de ${currentClass} !
-RÈGLES DU QUIZ :
-1. Crée une question académique difficile, portant sur la magie, l'histoire d'Aetherys, la circulation du mana ou l'utilisation des éléments.
-2. Ordonne explicitement au joueur d'écrire sa réponse sous la forme : "Je réponds sur ma copie d'examen : [leur réponse]".
-3. Dis-lui que ses notes académiques dépendront de la précision de sa réponse !`);
-      }
-  }
-
   // Final Stat Calculation for Main Player
   let mainFor = player.strength;
   let mainAgi = player.agility;
@@ -791,7 +769,7 @@ LORE DES CLASSES (CHEVALIER-DRAGON) :
 
 NARRATION :
 - CONCISION ANIME EXTRÊME (REGLE CRITIQUE) : Écris un paragraphe TRÈS COURT (MAXIMUM 80-120 MOTS). Ta narration doit être ultra-fluide, vive et rapide comme un plan d'anime de combat à fort budget. Les descriptions longues et contemplatives sont STRICTEMENT INTERDITES. Va droit au but, reste percutant et dynamique.
-- ADVERSAIRES ACTIFS, DIFFICULTÉ ÉLEVÉE & BATTLE IQ : Les combats d'Aetherys exigent un haut niveau d'intelligence de combat (Battle IQ). Les adversaires sont redoutables et extrêmement denses : ils esquivent, parent, contre-attaquent et se défendent désespérément même s'ils sont à l'agonie. Une victoire nécessite de la tactique (éléments, placement, timing). LE NIVEAU DE DÉGÂTS EST TRÈS ÉLEVÉ : un seul coup direct d'une créature ou d'un ennemi de rang équivalent ou supérieur doit infliger des pertes massives de points de vie (-15 à -45 HP) au joueur. Les combats ne doivent pas être faciles.
+- ADVERSAIRES ACTIFS, DIFFICULTÉ ÉLEVÉE & BATTLE IQ : Les combats d'Aetherys exigent un haut niveau d'intelligence de combat (Battle IQ). Les adversaires sont redoutables : ils esquivent, parent, contre-attaquent et se défendent désespérément même s'ils sont à l'agonie. Une victoire nécessite de la tactique (éléments, placement, timing).
 - RÉACTIVITÉ SOCIALE ET MILICE : Si un affrontement ou une attaque survient près de PNJ (élèves, citoyens, etc.), ils réagissent instantanément (cris, panique générale, fuite éperdue, ou appel d'urgence aux gardes de la milice locale qui interviennent pour appréhender les coupables).
 - ÉLÈVES ROAMING HORS COURS : Des élèves aux caractères très distincts (arrogants, paresseux sécheurs, érudits curieux) errent hors de l'école pendant les cours. Décris leurs traits uniques s'ils croisent le joueur.
 - ETATS D'IVRESSE ET POISON (🥴 & 🤢) :
