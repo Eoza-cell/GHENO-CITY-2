@@ -25,6 +25,76 @@ function convertWikiaToGbfWikiUrl(url) {
 }
 
 /**
+ * Maps any item to a deterministic, beautiful, and working gbf.wiki weapon image
+ * based on its name keywords to fulfill the user's gbf.wiki mandate for all shop weapons.
+ * @param {Object} item - Item object
+ * @returns {string} Robust gbf.wiki URL
+ */
+function getDeterministicGbfImage(item) {
+    const name = (item.name || '').toLowerCase();
+
+    // 1. Swords / Blades / Katanas
+    if (name.includes('sabre') || name.includes('épée') || name.includes('sword') || name.includes('katana') || name.includes('lame') || name.includes('blade') || name.includes('rapière')) {
+        const swords = [
+            'https://gbf.wiki/images/thumb/7/71/Seven-Star_Sword.png/200px-Seven-Star_Sword.png',
+            'https://gbf.wiki/images/thumb/e/e1/Luminiera_Sword_Omega.png/200px-Luminiera_Sword_Omega.png',
+            'https://gbf.wiki/images/thumb/f/ff/Murgleis.png/200px-Murgleis.png',
+            'https://gbf.wiki/images/thumb/1/19/Ichigo_Hitofuri.png/200px-Ichigo_Hitofuri.png'
+        ];
+        const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return swords[hash % swords.length];
+    }
+
+    // 2. Daggers / Knives / Melee
+    if (name.includes('dague') || name.includes('dagger') || name.includes('stylet') || name.includes('griffes') || name.includes('gantelet')) {
+        const daggers = [
+            'https://gbf.wiki/images/thumb/a/aa/Bahamut_Dagger.png/200px-Bahamut_Dagger.png',
+            'https://gbf.wiki/images/thumb/e/e9/Leviathan_Gaze_Omega.png/200px-Leviathan_Gaze_Omega.png'
+        ];
+        const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return daggers[hash % daggers.length];
+    }
+
+    // 3. Staves / Wands / Sceptres
+    if (name.includes('bâton') || name.includes('staff') || name.includes('sceptre') || name.includes('wand')) {
+        return 'https://gbf.wiki/images/thumb/7/75/Colossus_Cane_Omega.png/200px-Colossus_Cane_Omega.png';
+    }
+
+    // 4. Bows / Crossbows / Guns / Rifles
+    if (name.includes('arc') || name.includes('bow') || name.includes('fusil') || name.includes('gun') || name.includes('benedia')) {
+        const bows = [
+            'https://gbf.wiki/images/thumb/b/ba/Tiamat_Bolt_Omega.png/200px-Tiamat_Bolt_Omega.png',
+            'https://gbf.wiki/images/thumb/f/f5/Benedia.png/200px-Benedia.png'
+        ];
+        const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return bows[hash % bows.length];
+    }
+
+    // 5. Spears / Lances / Glaives
+    if (name.includes('lance') || name.includes('spear') || name.includes('vouge') || name.includes('glaive')) {
+        return 'https://gbf.wiki/images/thumb/6/64/Purifying_Thunderbolt.png/200px-Purifying_Thunderbolt.png';
+    }
+
+    // 6. Axes / Hammers / Shields
+    if (name.includes('hache') || name.includes('axe') || name.includes('marteau') || name.includes('hammer') || name.includes('bouclier') || name.includes('shield')) {
+        return 'https://gbf.wiki/images/thumb/d/d4/Certificus.png/200px-Certificus.png';
+    }
+
+    // 7. Clothing / Armors / Capes / Accessories (Fell back to beautiful light and water weapons from GBF)
+    if (name.includes('armure') || name.includes('uniforme') || name.includes('cape') || name.includes('lin') || name.includes('gilet') || name.includes('kimonos') || name.includes('vêtement')) {
+        const armors = [
+            'https://gbf.wiki/images/thumb/e/e1/Luminiera_Sword_Omega.png/200px-Luminiera_Sword_Omega.png',
+            'https://gbf.wiki/images/thumb/7/71/Seven-Star_Sword.png/200px-Seven-Star_Sword.png'
+        ];
+        const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return armors[hash % armors.length];
+    }
+
+    // Default fallback
+    return 'https://gbf.wiki/images/thumb/7/71/Seven-Star_Sword.png/200px-Seven-Star_Sword.png';
+}
+
+/**
  * Helper to fetch and resize wikipedia / gbf.wiki weapon images with a strict timeout.
  * Returns a PNG buffer with transparency or null on failure.
  * @param {string} url - Wiki image URL
@@ -337,8 +407,14 @@ async function generateShopImage(title, items) {
         legendary: '#f1c40f'
     };
 
+    // Assign deterministic GBF image URLs to any items that lack one, to fulfill the user's gbf.wiki mandate
+    items.forEach(item => {
+        if (!item.imageUrl || !item.imageUrl.startsWith('http')) {
+            item.imageUrl = getDeterministicGbfImage(item);
+        }
+    });
+
     let itemsSvg = '';
-    const resolvedImages = [];
 
     // Pre-fetch gbf.wiki images in parallel (resized specifically to match portal size)
     const imagePromises = items.map(async (item, i) => {
@@ -346,7 +422,8 @@ async function generateShopImage(title, items) {
             const buf = await fetchWikiImageBuffer(item.imageUrl, 90);
             if (buf) {
                 const y = headerHeight + i * (cardHeight + margin);
-                return { input: buf, left: 30 + 15, top: y + 12 };
+                // Center the image exactly inside the portal
+                return { input: buf, left: 30 + 10 + 12, top: y + 12 };
             }
         }
         return null;
@@ -392,9 +469,9 @@ async function generateShopImage(title, items) {
                     <!-- Centered inner decorative target ring -->
                     <circle cx="57.5" cy="47.5" r="35" fill="none" stroke="${rarityColor}" stroke-dasharray="3,5" opacity="0.15" />
 
-                    <!-- Vector drawing if wiki image load fails -->
+                    <!-- Vector drawing if wiki image load fails - math-corrected translation to avoid overflow -->
                     ${!hasWikiImage ? `
-                    <g transform="translate(-40, -50) scale(0.95)">
+                    <g transform="translate(15.5, 5.5) scale(0.42)">
                         ${drawItemDesign(item.name, item.type, item.rarity, itemElement, item.statBonuses || {})}
                     </g>
                     ` : ''}
