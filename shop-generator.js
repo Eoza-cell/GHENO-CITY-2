@@ -65,14 +65,12 @@ async function fetchWikiImageBuffer(url, size = 100) {
  * @returns {string} SVG string group containing the weapon drawings.
  */
 function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
-    // Normalization of variables
     const str = stats.strength || 0;
     const agi = stats.agility || 0;
     const def = stats.defense || 0;
     const int = stats.intelligence || 0;
     const luk = stats.luck || 0;
 
-    // Determine primary color of design based on element or rarity
     let mainColor = '#ffffff';
     let energyColor = 'rgba(255,255,255,0.4)';
     if (element === 'Feu' || name.includes('[Feu]') || name.includes('flamme') || name.includes('brasier')) {
@@ -98,7 +96,6 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
         energyColor = '#00bfff';
     }
 
-    // Determine star rating based on sum of stats (Logical progression)
     const statSum = str + agi + def + int + luk;
     let stars = 1;
     if (statSum > 45) stars = 5;
@@ -106,7 +103,6 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
     else if (statSum > 12) stars = 3;
     else if (statSum > 5) stars = 2;
 
-    // Detect weapon sub-type by name keywords
     const lowerName = name.toLowerCase();
     let weaponSubtype = 'sword'; // default
     if (lowerName.includes('dague') || lowerName.includes('dagger') || lowerName.includes('stylet')) weaponSubtype = 'dagger';
@@ -117,10 +113,8 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
     else if (lowerName.includes('bouclier') || lowerName.includes('shield')) weaponSubtype = 'shield';
     else if (type === 'clothing') weaponSubtype = 'clothing';
 
-    // Start drawing! We center the drawing inside a 200x200 box (cx=100, cy=100)
     let drawingSvg = '';
 
-    // Start drawing based on subtype
     switch (weaponSubtype) {
         case 'dagger': {
             const bladeCurve = agi > 10 ? 'Q 110,60 100,20 Q 90,60' : 'L 105,40 L 100,25 L 95,40';
@@ -260,7 +254,6 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
         }
     }
 
-    // Dynamic environmental aura effects based on elements
     let auraOverlay = '';
     if (element === 'Feu' || name.includes('[Feu]') || name.includes('flamme') || name.includes('brasier')) {
         auraOverlay = `
@@ -322,58 +315,49 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
 }
 
 /**
- * Generates an ultra-premium visual catalog for weapon items using SVG and Sharp.
- * Includes custom drawn vector items, rarity border gradients, stats bars and progress indicators.
+ * Generates an ultra-premium visual catalog for weapons in a compact HORIZONTAL list layout
+ * matching gbf.wiki/Weapon_Lists exactly. No giant progress bars, extremely clean.
  * @param {string} title - Catalog title
  * @param {Array} items - List of item records
  */
 async function generateShopImage(title, items) {
-    const cardWidth = 370;
-    const cardHeight = 230;
-    const margin = 20;
-    const cols = 2;
-    const rows = Math.ceil(items.length / cols);
-    const headerHeight = 130;
+    const cardWidth = 740;
+    const cardHeight = 115;
+    const margin = 15;
+    const headerHeight = 135;
     const footerHeight = 70;
 
     const width = 800;
-    const height = headerHeight + (rows * (cardHeight + margin)) + footerHeight;
+    const height = headerHeight + (items.length * (cardHeight + margin)) + footerHeight;
 
     const colors = {
-        common: '#aaaaaa',
-        rare: '#1e90ff',
-        epic: '#bf00ff',
-        legendary: '#ffd700'
+        common: '#95a5a6',
+        rare: '#2980b9',
+        epic: '#8e44ad',
+        legendary: '#f1c40f'
     };
 
     let itemsSvg = '';
-    const compositeOperations = [];
+    const resolvedImages = [];
 
-    // Trigger Wikipedia images pre-fetching in parallel
+    // Pre-fetch gbf.wiki images in parallel (resized specifically to match portal size)
     const imagePromises = items.map(async (item, i) => {
         if (item.imageUrl && item.imageUrl.startsWith('http')) {
-            const buf = await fetchWikiImageBuffer(item.imageUrl, 110);
+            const buf = await fetchWikiImageBuffer(item.imageUrl, 90);
             if (buf) {
-                const row = Math.floor(i / cols);
-                const col = i % cols;
-                const x = margin + 15 + col * (cardWidth + margin);
-                const y = headerHeight + row * (cardHeight + margin);
-                // Center precisely inside the card portal region (absolute coordinates)
-                return { input: buf, left: x + 30, top: y + 60 };
+                const y = headerHeight + i * (cardHeight + margin);
+                return { input: buf, left: 30 + 15, top: y + 12 };
             }
         }
         return null;
     });
 
-    const resolvedImages = await Promise.all(imagePromises);
+    const resolved = await Promise.all(imagePromises);
 
     items.forEach((item, i) => {
-        const row = Math.floor(i / cols);
-        const col = i % cols;
-        const x = margin + 15 + col * (cardWidth + margin);
-        const y = headerHeight + row * (cardHeight + margin);
-
+        const y = headerHeight + i * (cardHeight + margin);
         const rarityColor = colors[item.rarity] || '#ffffff';
+
         const str = item.statBonuses?.strength || 0;
         const agi = item.statBonuses?.agility || 0;
         const def = item.statBonuses?.defense || 0;
@@ -389,78 +373,92 @@ async function generateShopImage(title, items) {
 
         const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
 
-        const maxStatVisual = 50;
-        const strBarWidth = Math.min(100, (str / maxStatVisual) * 100);
-        const agiBarWidth = Math.min(100, (agi / maxStatVisual) * 100);
-        const defBarWidth = Math.min(100, (def / maxStatVisual) * 100);
-        const intBarWidth = Math.min(100, (int / maxStatVisual) * 100);
-
         const itemElement = item.name.includes('[Feu]') ? 'Feu' :
                             (item.name.includes('[Eau]') ? 'Eau' :
                             (item.name.includes('[Terre]') ? 'Terre' :
                             (item.name.includes('[Vent]') ? 'Vent' : 'None')));
 
-        // Check if we successfully fetched the real Wikipedia / GBF Wikia image for this card
-        const hasWikiImage = !!resolvedImages[i];
+        const hasWikiImage = !!resolved[i];
 
         itemsSvg += `
-            <g transform="translate(${x}, ${y})">
-                <!-- Glowing glass card base -->
-                <rect width="${cardWidth}" height="${cardHeight}" fill="rgba(8,10,25,0.85)" stroke="${rarityColor}" stroke-width="${item.rarity === 'legendary' ? 2.5 : 1.2}" rx="12" style="${item.rarity === 'legendary' || item.rarity === 'epic' ? `filter: drop-shadow(0 0 5px ${rarityColor})` : ''}" />
-                <rect x="5" y="5" width="${cardWidth - 10}" height="${cardHeight - 10}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1" rx="8" />
+            <g transform="translate(30, ${y})">
+                <!-- Glowing glass horizontal card body -->
+                <rect width="${cardWidth}" height="${cardHeight}" fill="rgba(10,12,24,0.85)" stroke="${rarityColor}" stroke-width="${item.rarity === 'legendary' ? 2 : 1.2}" rx="12" style="${item.rarity === 'legendary' || item.rarity === 'epic' ? `filter: drop-shadow(0 0 4px ${rarityColor})` : ''}" />
+                <rect x="4" y="4" width="${cardWidth - 8}" height="${cardHeight - 8}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1" rx="9" />
 
-                <!-- Left Panel: Portal holding design -->
-                <g transform="translate(10, 15)">
-                    <!-- Portal Backdrop circle -->
-                    <circle cx="75" cy="100" r="60" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
-                    <circle cx="75" cy="100" r="50" fill="none" stroke="${rarityColor}" stroke-dasharray="3,6" opacity="0.25" />
+                <!-- Left Portal: Weapon Art Frame -->
+                <g transform="translate(10, 10)">
+                    <rect width="115" height="95" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.08)" stroke-width="1" rx="8" />
+                    <!-- Centered inner decorative target ring -->
+                    <circle cx="57.5" cy="47.5" r="35" fill="none" stroke="${rarityColor}" stroke-dasharray="3,5" opacity="0.15" />
 
-                    <!-- Nested drawn vector design (only visible if Wikipedia image fetch failed or is absent) -->
+                    <!-- Vector drawing if wiki image load fails -->
                     ${!hasWikiImage ? `
-                    <g transform="translate(-25, 0)">
+                    <g transform="translate(-40, -50) scale(0.95)">
                         ${drawItemDesign(item.name, item.type, item.rarity, itemElement, item.statBonuses || {})}
                     </g>
                     ` : ''}
                 </g>
 
-                <!-- Right Panel: Weapon Info & Stats Bars -->
-                <g transform="translate(160, 20)">
-                    <!-- Name -->
-                    <text x="0" y="10" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="900" fill="#ffffff" style="letter-spacing: -0.2px;">${escapeXml(item.name.toUpperCase().substring(0, 18))}</text>
+                <!-- Middle Left Panel: Weapon Name, Element & Stars -->
+                <g transform="translate(145, 18)">
+                    <!-- Name (bold, crisp, clean) -->
+                    <text x="0" y="12" font-family="'Segoe UI', sans-serif" font-size="16" font-weight="900" fill="#ffffff" letter-spacing="0.2">${escapeXml(item.name.toUpperCase())}</text>
 
-                    <!-- Stars & Rarity Badge -->
-                    <text x="0" y="28" font-family="Arial" font-size="12" fill="#ffd700" font-weight="bold">${starStr}</text>
-                    <rect x="110" y="18" width="80" height="14" fill="rgba(255,255,255,0.05)" stroke="${rarityColor}" stroke-width="0.8" rx="3" />
-                    <text x="150" y="29" font-family="monospace" font-size="9" fill="${rarityColor}" font-weight="bold" text-anchor="middle">${item.rarity.toUpperCase()}</text>
+                    <!-- Stars string -->
+                    <text x="0" y="32" font-family="Arial" font-size="12" fill="#f1c40f" font-weight="bold">${starStr}</text>
 
-                    <!-- Price -->
-                    <text x="0" y="52" font-family="Impact, Arial" font-size="18" fill="#ffd700" font-weight="bold" style="text-shadow: 1px 1px 2px black;">💰 ${item.price.toLocaleString()} COL</text>
+                    <!-- Element and Rarity pill badges -->
+                    <g transform="translate(0, 44)">
+                        <!-- Rarity Pill -->
+                        <rect x="0" y="0" width="75" height="15" fill="rgba(255,255,255,0.04)" stroke="${rarityColor}" stroke-width="0.8" rx="4" />
+                        <text x="37.5" y="11" font-family="monospace" font-size="8.5" font-weight="bold" fill="${rarityColor}" text-anchor="middle">${item.rarity.toUpperCase()}</text>
 
-                    <!-- Stat Bars -->
-                    <g transform="translate(0, 65)">
-                        <!-- STR -->
-                        <text x="0" y="10" font-family="monospace" font-size="10" fill="#ff4d4d" font-weight="bold">FOR [${str}]</text>
-                        <rect x="55" y="2" width="135" height="6" fill="rgba(255,255,255,0.1)" rx="3" />
-                        <rect x="55" y="2" width="${Math.max(2, (strBarWidth / 100) * 135)}" height="6" fill="#ff4d4d" rx="3" />
-
-                        <!-- AGI -->
-                        <text x="0" y="25" font-family="monospace" font-size="10" fill="#33ff33" font-weight="bold">AGI [${agi}]</text>
-                        <rect x="55" y="17" width="135" height="6" fill="rgba(255,255,255,0.1)" rx="3" />
-                        <rect x="55" y="17" width="${Math.max(2, (agiBarWidth / 100) * 135)}" height="6" fill="#33ff33" rx="3" />
-
-                        <!-- INT -->
-                        <text x="0" y="40" font-family="monospace" font-size="10" fill="#00ffff" font-weight="bold">INT [${int}]</text>
-                        <rect x="55" y="32" width="135" height="6" fill="rgba(255,255,255,0.1)" rx="3" />
-                        <rect x="55" y="32" width="${Math.max(2, (intBarWidth / 100) * 135)}" height="6" fill="#00ffff" rx="3" />
-
-                        <!-- DEF -->
-                        <text x="0" y="55" font-family="monospace" font-size="10" fill="#ffcc00" font-weight="bold">DEF [${def}]</text>
-                        <rect x="55" y="47" width="135" height="6" fill="rgba(255,255,255,0.1)" rx="3" />
-                        <rect x="55" y="47" width="${Math.max(2, (defBarWidth / 100) * 135)}" height="6" fill="#ffcc00" rx="3" />
+                        <!-- Element Pill -->
+                        ${itemElement !== 'None' ? `
+                        <rect x="82" y="0" width="45" height="15" fill="rgba(255,255,255,0.04)" stroke="${itemElement === 'Feu' ? '#e74c3c' : (itemElement === 'Eau' ? '#3498db' : (itemElement === 'Terre' ? '#d35400' : '#2ecc71'))}" stroke-width="0.8" rx="4" />
+                        <text x="104.5" y="11" font-family="monospace" font-size="8.5" font-weight="bold" fill="${itemElement === 'Feu' ? '#e74c3c' : (itemElement === 'Eau' ? '#3498db' : (itemElement === 'Terre' ? '#d35400' : '#2ecc71'))}" text-anchor="middle">${itemElement.toUpperCase()}</text>
+                        ` : ''}
                     </g>
+                </g>
 
-                    <!-- Durability -->
-                    <text x="0" y="140" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.4)">DURABILITÉ : ${item.durability || 100}/100</text>
+                <!-- Middle Right Panel: Stats Grid (Sleek side-by-side capsule indicators) -->
+                <g transform="translate(385, 26)">
+                    <!-- Compact 2x2 statistics grid layout -->
+                    <!-- Row 1 -->
+                    ${str > 0 ? `
+                    <g transform="translate(0, 0)">
+                        <rect width="80" height="22" fill="rgba(231,76,60,0.07)" stroke="#e74c3c" stroke-width="0.8" rx="5" />
+                        <text x="40" y="15" font-family="monospace" font-size="10.5" font-weight="900" fill="#ff4d4d" text-anchor="middle">⚔️ FOR +${str}</text>
+                    </g>
+                    ` : ''}
+                    ${agi > 0 ? `
+                    <g transform="translate(90, 0)">
+                        <rect width="80" height="22" fill="rgba(46,204,113,0.07)" stroke="#2ecc71" stroke-width="0.8" rx="5" />
+                        <text x="40" y="15" font-family="monospace" font-size="10.5" font-weight="900" fill="#2ecc71" text-anchor="middle">⚡ AGI +${agi}</text>
+                    </g>
+                    ` : ''}
+
+                    <!-- Row 2 -->
+                    ${int > 0 ? `
+                    <g transform="translate(0, 28)">
+                        <rect width="80" height="22" fill="rgba(52,152,219,0.07)" stroke="#3498db" stroke-width="0.8" rx="5" />
+                        <text x="40" y="15" font-family="monospace" font-size="10.5" font-weight="900" fill="#00e5ff" text-anchor="middle">🔮 INT +${int}</text>
+                    </g>
+                    ` : ''}
+                    ${def > 0 ? `
+                    <g transform="translate(90, 28)">
+                        <rect width="80" height="22" fill="rgba(241,196,15,0.07)" stroke="#f1c40f" stroke-width="0.8" rx="5" />
+                        <text x="40" y="15" font-family="monospace" font-size="10.5" font-weight="900" fill="#ffaa00" text-anchor="middle">🛡️ DEF +${def}</text>
+                    </g>
+                    ` : ''}
+                </g>
+
+                <!-- Right Panel: Buy Price in Coins -->
+                <g transform="translate(580, 32)">
+                    <text x="135" y="18" font-family="Impact, sans-serif" font-size="20" fill="#f1c40f" font-weight="bold" text-anchor="end" style="text-shadow: 0 0 5px rgba(241,196,15,0.45);">🪙 ${item.price.toLocaleString()} COL</text>
+                    <!-- Durability tag -->
+                    <text x="135" y="38" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.3)" text-anchor="end">DURABILITÉ : ${item.durability || 100}/100</text>
                 </g>
             </g>
         `;
@@ -481,57 +479,51 @@ async function generateShopImage(title, items) {
             </defs>
 
             <!-- Base Premium Background -->
-            <rect width="100%" height="100%" fill="#03030b" />
+            <rect width="100%" height="100%" fill="#04040a" />
             <rect width="100%" height="${headerHeight}" fill="url(#headerBackGlow)" />
 
             <!-- Tech Gridlines Overlay -->
-            <g stroke="rgba(255,255,255,0.02)" stroke-width="1">
-                ${Array.from({length: 15}).map((_, i) => `<line x1="0" y1="${i * 60}" x2="${width}" y2="${i * 60}" />`).join('')}
-                ${Array.from({length: 20}).map((_, i) => `<line x1="${i * 60}" y1="0" x2="${i * 60}" y2="${height}" />`).join('')}
+            <g stroke="rgba(255,255,255,0.015)" stroke-width="1">
+                ${Array.from({length: 20}).map((_, i) => `<line x1="0" y1="${i * 55}" x2="${width}" y2="${i * 55}" />`).join('')}
+                ${Array.from({length: 20}).map((_, i) => `<line x1="${i * 55}" y1="0" x2="${i * 55}" y2="${height}" />`).join('')}
             </g>
 
-            <!-- Dynamic Header Header -->
-            <g transform="translate(40, 50)">
-                <path d="M -20,25 L 350,25" stroke="url(#cyberGoldGrad)" stroke-width="2" />
+            <!-- Title Header -->
+            <g transform="translate(30, 50)">
+                <path d="M 0,25 L 350,25" stroke="url(#cyberGoldGrad)" stroke-width="2.2" />
                 <circle cx="350" cy="25" r="3" fill="#ffffff" />
-                <text x="0" y="15" font-family="'Segoe UI', Arial, sans-serif" font-size="34" font-weight="900" fill="#ffffff" style="letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,140,0,0.5);">${escapeXml(title.toUpperCase())}</text>
-                <text x="0" y="38" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.4)" style="letter-spacing: 2px;">BOUTIQUE D'ÉLITE // ANALYSE TACTIQUE DES ARMES EN DIRECT</text>
-                <text x="720" y="15" font-family="monospace" font-size="14" fill="#ffd700" font-weight="bold" text-anchor="end">MATRIX_V2.0</text>
+                <text x="0" y="15" font-family="'Segoe UI', sans-serif" font-size="34" font-weight="900" fill="#ffffff" style="letter-spacing: 1.5px; text-shadow: 0 0 10px rgba(255,140,0,0.45);">${escapeXml(title.toUpperCase())}</text>
+                <text x="0" y="38" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.4)" style="letter-spacing: 2px;">BOUTIQUE D'ÉLITE // LISTE DES ARMES D'AETHERYS</text>
+                <text x="740" y="15" font-family="monospace" font-size="13" fill="#ffd700" font-weight="bold" text-anchor="end">MATRIX_V2.5</text>
             </g>
 
-            <!-- Rendered list of weapon grids -->
+            <!-- List of horizontal weapons -->
             ${itemsSvg}
 
             <!-- Footer Section -->
             <g transform="translate(400, ${height - 25})">
-                <rect x="-240" y="-18" width="480" height="24" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.05)" rx="5" />
-                <text font-family="monospace" font-size="10" fill="rgba(255,255,255,0.4)" text-anchor="middle">UTILISEZ /ACHETER [NOM DE L'ARME] POUR COMMANDER • LES STATS DIRECTEMENT SYNC AVEC VOTRE PROFIL</text>
+                <rect x="-240" y="-18" width="480" height="24" fill="rgba(255,255,255,0.01)" stroke="rgba(255,255,255,0.04)" rx="5" />
+                <text font-family="monospace" font-size="10" fill="rgba(255,255,255,0.45)" text-anchor="middle">UTILISEZ /ACHETER [NOM DE L'ARME] POUR COMMANDER • BASE DE DONNÉES SYNCHRONISÉE</text>
             </g>
         </svg>
     `;
 
-    // Construct sharp composition array
-    const baseSharp = sharp(Buffer.from(svg));
-    const finalComposites = [{ input: Buffer.from(svg), top: 0, left: 0 }];
-
-    resolvedImages.forEach(img => {
-        if (img) {
-            finalComposites.push(img);
-        }
-    });
-
-    // Resolve combined layout beautifully
     const emptyBg = await sharp({
         create: {
             width,
             height,
             channels: 4,
-            background: { r: 3, g: 3, b: 11, alpha: 1 }
+            background: { r: 4, g: 4, b: 10, alpha: 1 }
         }
     }).png().toBuffer();
 
+    const composites = [{ input: Buffer.from(svg), top: 0, left: 0 }];
+    resolved.forEach(img => {
+        if (img) composites.push(img);
+    });
+
     return await sharp(emptyBg)
-        .composite(finalComposites)
+        .composite(composites)
         .png()
         .toBuffer();
 }
@@ -595,7 +587,6 @@ async function generateDetailedItemCard(item) {
                         (item.name.includes('[Terre]') ? 'Terre' :
                         (item.name.includes('[Vent]') ? 'Vent' : 'None')));
 
-    // Try to fetch Wikipedia/Granblue Fantasy Wiki image
     const wikiImageBuf = await fetchWikiImageBuffer(item.imageUrl, 220);
     const hasWikiImage = !!wikiImageBuf;
 
@@ -623,37 +614,29 @@ async function generateDetailedItemCard(item) {
                 </filter>
             </defs>
 
-            <!-- Card Background -->
             <rect width="100%" height="100%" fill="url(#cardGrad)" rx="24" />
 
-            <!-- Outer cybernetic neon border -->
             <rect x="12" y="12" width="${width - 24}" height="${height - 24}" fill="none" stroke="url(#cyberBorder)" stroke-width="2.5" rx="20" style="filter: drop-shadow(0 0 8px rgba(255, 69, 0, 0.45))" />
             <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.2" rx="16" />
 
-            <!-- Corner brackets design -->
             <path d="M 5,45 L 5,5 L 45,5" fill="none" stroke="${rarityColor}" stroke-width="4" transform="translate(15, 15)" />
             <path d="M 555,45 L 555,5 L 515,5" fill="none" stroke="${rarityColor}" stroke-width="4" transform="translate(15, 15)" />
             <path d="M 5,785 L 5,825 L 45,825" fill="none" stroke="${rarityColor}" stroke-width="4" transform="translate(15, -5)" />
             <path d="M 555,785 L 555,825 L 515,825" fill="none" stroke="${rarityColor}" stroke-width="4" transform="translate(15, -5)" />
 
-            <!-- Header -->
             <g transform="translate(50, 65)">
                 <text x="0" y="10" font-family="'Impact', 'Arial Black', sans-serif" font-size="32" fill="#ffffff" style="letter-spacing: 1px; fill: url(#cyberBorder);">${escapeXml(item.name.toUpperCase())}</text>
                 <text x="0" y="32" font-family="monospace" font-size="12" fill="${rarityColor}" font-weight="bold" letter-spacing="3">${item.rarity.toUpperCase()} ${item.type.toUpperCase()}</text>
                 <text x="500" y="12" font-family="'Impact', sans-serif" font-size="28" fill="#ffd700" text-anchor="end">🪙 ${item.price.toLocaleString()}</text>
             </g>
 
-            <!-- Giant Canvas View of Custom Weapon (scale=2.2x) -->
             <g transform="translate(150, 110)">
-                <!-- Background visual portal circles -->
                 <circle cx="150" cy="180" r="140" fill="rgba(255,255,255,0.01)" stroke="rgba(255,255,255,0.04)" stroke-width="1.5" />
                 <circle cx="150" cy="180" r="115" fill="none" stroke="${rarityColor}" stroke-dasharray="4,8" opacity="0.3" />
 
-                <!-- Ornate technical brackets surrounding portal -->
                 <path d="M 25,180 A 125,125 0 0,1 275,180" fill="none" stroke="${rarityColor}" stroke-width="1" opacity="0.15" />
                 <path d="M 25,180 A 125,125 0 0,0 275,180" fill="none" stroke="${rarityColor}" stroke-width="1" opacity="0.15" />
 
-                <!-- Nested drawn item design (fallback if no wiki image is fetched) -->
                 ${!hasWikiImage ? `
                 <g transform="translate(50, 80)">
                     ${drawItemDesign(item.name, item.type, item.rarity, itemElement, item.statBonuses || {}, 1.6)}
@@ -661,7 +644,6 @@ async function generateDetailedItemCard(item) {
                 ` : ''}
             </g>
 
-            <!-- Mid Section Info -->
             <g transform="translate(50, 485)">
                 <rect width="500" height="65" fill="rgba(255,255,255,0.01)" stroke="rgba(255,255,255,0.05)" rx="8" />
                 <text x="15" y="24" font-family="'Segoe UI', sans-serif" font-size="13" font-style="italic" fill="#c1c2d0">${escapeXml(item.description)}</text>
@@ -669,7 +651,6 @@ async function generateDetailedItemCard(item) {
                 <text x="485" y="46" font-family="Arial" font-size="13" fill="#ffd700" font-weight="bold" text-anchor="end">${starStr}</text>
             </g>
 
-            <!-- Pentagon Radar Diagram -->
             <g>
                 ${[0.2, 0.4, 0.6, 0.8, 1.0].map((step) => {
                     const r = rMax * step;
@@ -719,7 +700,6 @@ async function generateDetailedItemCard(item) {
 
     const composites = [{ input: Buffer.from(svg), top: 0, left: 0 }];
     if (wikiImageBuf) {
-        // Overlay the real GBF Wiki/Wikipedia image inside the large portal
         composites.push({ input: wikiImageBuf, left: 190, top: 180 });
     }
 
