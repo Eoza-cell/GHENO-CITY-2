@@ -220,6 +220,20 @@ async function connectToWhatsApp() {
           return;
       }
 
+      if (isLoggedOut) {
+          console.log('[CONN] 401 Unauthorized / Déconnexion détectée. Nettoyage automatique des credentials...');
+          const { Creds } = require('./database');
+          try {
+              await Creds.destroy({ where: {}, truncate: true });
+              console.log('[CONN] Session réinitialisée. Attente de 15 secondes avant de regénérer un code...');
+              await delay(15000);
+              connectToWhatsApp();
+          } catch (e) {
+              console.error('[CONN] Erreur lors du nettoyage de la session deconnexion:', e.message);
+          }
+          return;
+      }
+
       const shouldReconnect = !isLoggedOut;
       if (shouldReconnect) {
         console.log('[CONN] Reconnexion dans 10s...');
