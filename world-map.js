@@ -5,29 +5,29 @@ const WORLD_NAME = 'AETHERYS';
 
 const KINGDOMS = [
     // --- AETHERIA (High Fantasy Coast) ---
-    { name: "Empire Impérial d'Elion", short: "ELION", continent: "Aetheria", color: '#f4c542', fill: 'rgba(244,197,66,0.15)', labelPos: [430, 440], polygon: [[380, 360], [450, 340], [540, 370], [560, 480], [510, 540], [390, 530], [360, 450], [350, 380]] },
-    { name: 'Royaume de Valkyrr', short: 'VALKYRR', continent: "Aetheria", color: '#9fd8ff', fill: 'rgba(159,216,255,0.12)', labelPos: [450, 240], polygon: [[380, 180], [480, 160], [550, 200], [540, 340], [450, 340], [380, 310], [360, 250]] },
-    { name: 'Gheno souterrain', short: 'GHENO', continent: "Aetheria", color: '#2c3e50', fill: 'rgba(44,62,80,0.25)', labelPos: [290, 340], polygon: [[260, 310], [340, 300], [360, 380], [270, 390], [250, 350]] },
-    { name: 'Forêt de l\'Éveil', short: 'SYLVA', continent: "Aetheria", color: '#2ecc71', fill: 'rgba(46,204,113,0.15)', labelPos: [240, 460], polygon: [[180, 380], [340, 370], [370, 540], [200, 560], [160, 480], [150, 420]] },
-    { name: 'Archipel des Murmures', short: 'MURMURES', continent: "Aetheria", color: '#1abc9c', fill: 'rgba(26,188,156,0.15)', labelPos: [180, 240], polygon: [[120, 180], [260, 170], [300, 280], [140, 320], [100, 250]] },
+    { name: "Empire Impérial d'Elion", short: "ELION", continent: "Aetheria", color: '#f4c542', fill: 'rgba(244,197,66,0.11)', labelPos: [430, 440], polygon: [[380, 360], [450, 340], [540, 370], [560, 480], [510, 540], [390, 530], [360, 450], [350, 380]] },
+    { name: 'Royaume de Valkyrr', short: 'VALKYRR', continent: "Aetheria", color: '#9fd8ff', fill: 'rgba(159,216,255,0.09)', labelPos: [450, 245], polygon: [[380, 180], [480, 160], [550, 200], [540, 340], [450, 340], [380, 310], [360, 250]] },
+    { name: 'Gheno souterrain', short: 'GHENO', continent: "Aetheria", color: '#cf7fff', fill: 'rgba(207,127,255,0.11)', labelPos: [290, 340], polygon: [[260, 310], [340, 300], [360, 380], [270, 390], [250, 350]] },
+    { name: 'Forêt de l\'Éveil', short: 'SYLVA', continent: "Aetheria", color: '#2ecc71', fill: 'rgba(46,204,113,0.10)', labelPos: [240, 460], polygon: [[180, 380], [340, 370], [370, 540], [200, 560], [160, 480], [150, 420]] },
+    { name: 'Archipel des Murmures', short: 'MURMURES', continent: "Aetheria", color: '#1abc9c', fill: 'rgba(26,188,156,0.11)', labelPos: [180, 240], polygon: [[120, 180], [260, 170], [300, 280], [140, 320], [100, 250]] },
 
     // --- ZENDORA (The Wild Lands) ---
-    { name: 'Terres Bestiales', short: 'BESTIALIA', continent: "Zendora", color: '#e67e22', fill: 'rgba(230,126,34,0.15)', labelPos: [960, 740], polygon: [[880, 680], [1020, 660], [1060, 780], [1010, 860], [890, 840], [860, 760], [850, 720]] },
-    { name: 'Bastion d\'Orkh', short: 'ORKH', continent: "Zendora", color: '#c0392b', fill: 'rgba(192,57,43,0.15)', labelPos: [1160, 760], polygon: [[1080, 680], [1220, 670], [1260, 820], [1180, 880], [1070, 850], [1060, 750]] },
-    { name: 'Montagnes de Fer', short: 'IRON', continent: "Zendora", color: '#7f8c8d', fill: 'rgba(127,140,141,0.15)', labelPos: [1060, 920], polygon: [[980, 870], [1140, 870], [1160, 980], [1050, 990], [970, 950], [960, 900]] },
-    { name: 'Désert d\'Ambre', short: 'AMBRE', continent: "Zendora", color: '#f1c40f', fill: 'rgba(241,196,15,0.15)', labelPos: [1140, 590], polygon: [[1070, 530], [1240, 540], [1260, 650], [1150, 680], [1060, 640], [1050, 580]] },
+    { name: 'Terres Bestiales', short: 'BESTIALIA', continent: "Zendora", color: '#e67e22', fill: 'rgba(230,126,34,0.11)', labelPos: [960, 740], polygon: [[880, 680], [1020, 660], [1060, 780], [1010, 860], [890, 840], [860, 760], [850, 720]] },
+    { name: 'Bastion d\'Orkh', short: 'ORKH', continent: "Zendora", color: '#c0392b', fill: 'rgba(192,57,43,0.11)', labelPos: [1160, 760], polygon: [[1080, 680], [1220, 670], [1260, 820], [1180, 880], [1070, 850], [1060, 750]] },
+    { name: 'Montagnes de Fer', short: 'IRON', continent: "Zendora", color: '#bdc3c7', fill: 'rgba(189,195,199,0.11)', labelPos: [1060, 920], polygon: [[980, 870], [1140, 870], [1160, 980], [1050, 990], [970, 950], [960, 900]] },
+    { name: 'Désert d\'Ambre', short: 'AMBRE', continent: "Zendora", color: '#f1c40f', fill: 'rgba(241,196,15,0.11)', labelPos: [1140, 590], polygon: [[1070, 530], [1240, 540], [1260, 650], [1150, 680], [1060, 640], [1050, 580]] },
 
     // --- UMBRA (The Shadow Continent) ---
-    { name: 'Dominion Noir de Vharos', short: 'VHAROS', continent: "Umbra", color: '#8e44ad', fill: 'rgba(142,68,173,0.15)', labelPos: [240, 760], polygon: [[170, 680], [330, 670], [360, 820], [280, 870], [160, 840], [150, 750]] },
-    { name: 'Nécropolis', short: 'NÉCROPOLIS', continent: "Umbra", color: '#34495e', fill: 'rgba(52,73,94,0.25)', labelPos: [460, 770], polygon: [[370, 680], [530, 690], [560, 840], [450, 880], [360, 830], [350, 750]] },
-    { name: 'L\'Interstice', short: 'INTERSTICE', continent: "Umbra", color: '#000000', fill: 'rgba(0,0,0,0.4)', labelPos: [360, 930], polygon: [[280, 880], [440, 880], [460, 990], [350, 980], [270, 940], [260, 900]] },
-    { name: 'Cité de Verre', short: 'VERRE', continent: "Umbra", color: '#ecf0f1', fill: 'rgba(236,240,241,0.15)', labelPos: [110, 740], polygon: [[30, 680], [160, 670], [180, 820], [80, 860], [20, 800], [10, 740]] },
+    { name: 'Dominion Noir de Vharos', short: 'VHAROS', continent: "Umbra", color: '#9b59b6', fill: 'rgba(155,89,182,0.11)', labelPos: [240, 760], polygon: [[170, 680], [330, 670], [360, 820], [280, 870], [160, 840], [150, 750]] },
+    { name: 'Nécropolis', short: 'NÉCROPOLIS', continent: "Umbra", color: '#34495e', fill: 'rgba(52,73,94,0.15)', labelPos: [460, 770], polygon: [[370, 680], [530, 690], [560, 840], [450, 880], [360, 830], [350, 750]] },
+    { name: 'L\'Interstice', short: 'INTERSTICE', continent: "Umbra", color: '#ffffff', fill: 'rgba(0,0,0,0.3)', labelPos: [360, 930], polygon: [[280, 880], [440, 880], [460, 990], [350, 980], [270, 940], [260, 900]] },
+    { name: 'Cité de Verre', short: 'VERRE', continent: "Umbra", color: '#00eeee', fill: 'rgba(0,238,238,0.11)', labelPos: [110, 740], polygon: [[30, 680], [160, 670], [180, 820], [80, 860], [20, 800], [10, 740]] },
 
     // --- CAELUM (The Floating Continent) ---
-    { name: 'Royaume Céleste', short: 'CELESTIA', continent: "Caelum", color: '#ffffff', fill: 'rgba(255,255,255,0.3)', labelPos: [940, 240], polygon: [[870, 170], [1030, 160], [1060, 320], [960, 380], [860, 340], [850, 250]] },
-    { name: 'Abysse Inférieur', short: 'ABYSSE', continent: "Caelum", color: '#e74c3c', fill: 'rgba(231,76,60,0.2)', labelPos: [1160, 260], polygon: [[1070, 180], [1230, 170], [1260, 330], [1170, 390], [1060, 350], [1050, 250]] },
-    { name: 'Origine de l\'Existence', short: 'ORIGINE', continent: "Caelum", color: '#f39c12', fill: 'rgba(243,156,18,0.2)', labelPos: [1060, 90], polygon: [[970, 20], [1140, 10], [1160, 140], [1050, 170], [960, 130], [950, 70]] },
-    { name: 'Cité de l\'Aube', short: 'AURORE', continent: "Caelum", color: '#d35400', fill: 'rgba(211,84,0,0.2)', labelPos: [1140, 460], polygon: [[1070, 370], [1240, 360], [1260, 520], [1150, 560], [1060, 510], [1050, 440]] }
+    { name: 'Royaume Céleste', short: 'CELESTIA', continent: "Caelum", color: '#ffffff', fill: 'rgba(255,255,255,0.22)', labelPos: [940, 240], polygon: [[870, 170], [1030, 160], [1060, 320], [960, 380], [860, 340], [850, 250]] },
+    { name: 'Abysse Inférieur', short: 'ABYSSE', continent: "Caelum", color: '#e74c3c', fill: 'rgba(231,76,60,0.15)', labelPos: [1160, 260], polygon: [[1070, 180], [1230, 170], [1260, 330], [1170, 390], [1060, 350], [1050, 250]] },
+    { name: 'Origine de l\'Existence', short: 'ORIGINE', continent: "Caelum", color: '#f39c12', fill: 'rgba(243,156,18,0.15)', labelPos: [1060, 90], polygon: [[970, 20], [1140, 10], [1160, 140], [1050, 170], [960, 130], [950, 70]] },
+    { name: 'Cité de l\'Aube', short: 'AURORE', continent: "Caelum", color: '#e67e22', fill: 'rgba(230,126,34,0.15)', labelPos: [1140, 460], polygon: [[1070, 370], [1240, 360], [1260, 520], [1150, 560], [1060, 510], [1050, 440]] }
 ];
 
 const CONTINENTS_SHAPES = [
@@ -94,6 +94,58 @@ const DUNGEONS = [
     { name: 'Portes du Temps', rank: 'S', x: 1050, y: 120, glyph: 'tower' }
 ];
 
+/**
+ * Procedural helper to draw detailed 3D shaded cartographic mountain peaks.
+ * Mimics high-end fantasy map generator aesthetics.
+ */
+function drawMountainPeak(x, y, scale = 1.0) {
+    const w = 24 * scale;
+    const h = 20 * scale;
+    return `
+        <!-- Shaded left slope -->
+        <polygon points="${x},${y - h} ${x - w},${y} ${x},${y}" fill="#b8a178" stroke="#332715" stroke-width="1.2" />
+        <!-- Illuminated right slope -->
+        <polygon points="${x},${y - h} ${x + w},${y} ${x},${y}" fill="#e8dec3" stroke="#332715" stroke-width="1.2" />
+        <!-- Ridge line -->
+        <line x1="${x}" y1="${y - h}" x2="${x}" y2="${y}" stroke="#332715" stroke-width="1.5" />
+        <!-- Ridge shadow highlights -->
+        <line x1="${x}" y1="${y - h}" x2="${x - w * 0.3}" y2="${y - h * 0.3}" stroke="#332715" stroke-width="1" />
+    `;
+}
+
+/**
+ * Procedural helper to draw overlapping tree crown symbols.
+ * Mimics hand-drawn fantasy forest layouts.
+ */
+function drawForestCluster(cx, cy, count = 7, r = 13) {
+    let svg = '';
+    const points = [
+        { dx: 0, dy: 0 },
+        { dx: -12, dy: -6 },
+        { dx: 12, dy: -4 },
+        { dx: -6, dy: 8 },
+        { dx: 8, dy: 8 },
+        { dx: -16, dy: 4 },
+        { dx: 16, dy: 6 }
+    ];
+
+    points.slice(0, count).forEach(p => {
+        const x = cx + p.dx;
+        const y = cy + p.dy;
+        const radius = r * (0.85 + Math.random() * 0.3);
+        svg += `
+            <!-- Shadow ellipse under tree crown -->
+            <ellipse cx="${x}" cy="${y + radius * 0.8}" rx="${radius}" ry="${radius * 0.3}" fill="rgba(0,0,0,0.12)" />
+            <!-- Little tree trunk -->
+            <line x1="${x}" y1="${y + radius * 0.5}" x2="${x}" y2="${y + radius * 1.3}" stroke="#132414" stroke-width="2.2" />
+            <!-- Overlapping vibrant green tree crown -->
+            <circle cx="${x}" cy="${y}" r="${radius}" fill="#335c36" stroke="#132414" stroke-width="1.2" />
+            <circle cx="${x - radius * 0.25}" cy="${y - radius * 0.25}" r="${radius * 0.4}" fill="#4a7d4d" opacity="0.65" />
+        `;
+    });
+    return svg;
+}
+
 function getGlyphSvg(glyph, x, y, color) {
     const s = 11;
     if (glyph === 'tree') return `<path d="M ${x},${y - s} L ${x + s * 0.7},${y + s * 0.4} L ${x - s * 0.7},${y + s * 0.4} Z" fill="${color}" stroke="#2a2118" stroke-width="1.5" />`;
@@ -113,30 +165,46 @@ function getGlyphSvg(glyph, x, y, color) {
 async function generateWorldMapImage() {
     const W = 1400, H = 1000;
 
+    // Compass Rose Coordinates and Grid details
+    const compassX = 720;
+    const compassY = 480;
+
     let continentsSvg = '';
     CONTINENTS_SHAPES.forEach(c => {
         const path = `M ${c.polygon.map(p => p.join(',')).join(' L ')} Z`;
         continentsSvg += `
-            <!-- Land Glow -->
-            <path d="${path}" fill="none" stroke="${c.name === 'Umbra' ? '#4a0082' : '#c9a24a'}" stroke-width="12" opacity="0.2" style="filter: blur(10px);" />
-            <!-- Land Surface -->
-            <path d="${path}" fill="url(#landGrad)" stroke="#4a3b22" stroke-width="3" style="filter: url(#roughEdge) drop-shadow(0 0 10px rgba(0,0,0,0.5));" />
-            <!-- Continent Name -->
-            <text x="${c.polygon[0][0] + 80}" y="${c.polygon[0][1] + 80}" font-family="serif" font-weight="900" font-size="35" fill="#4a3b22" opacity="0.15" letter-spacing="15" transform="rotate(-5, ${c.polygon[0][0]}, ${c.polygon[0][1]})">${c.name.toUpperCase()}</text>
+            <!-- MULTIPLE NAUTICAL SHORELINE/COASTLINE ECHOES (Azgaar / Historical Map Style) -->
+            <path d="${path}" fill="none" stroke="#223e59" stroke-width="3" opacity="0.6" />
+            <path d="${path}" fill="none" stroke="#284a6b" stroke-width="8" opacity="0.35" />
+            <path d="${path}" fill="none" stroke="#2f587d" stroke-width="15" opacity="0.22" stroke-dasharray="8,4" />
+            <path d="${path}" fill="none" stroke="#35668f" stroke-width="25" opacity="0.10" stroke-dasharray="4,8" />
+
+            <!-- Sublayered Terrain Contour / Altitude Shading (Lowland, Highland, Alpine) -->
+            <path d="${path}" fill="url(#lowlandGrad)" stroke="#3e311a" stroke-width="2" style="filter: url(#roughEdge) drop-shadow(0 4px 15px rgba(0,0,0,0.6));" />
+
+            <!-- Inset contour for Highland elevation -->
+            <path d="${path}" transform="translate(${(c.name === 'Aetheria' || c.name === 'Umbra' ? 5 : -5)}, 5) scale(0.97)" fill="url(#highlandGrad)" opacity="0.45" />
+            <path d="${path}" transform="translate(${(c.name === 'Aetheria' || c.name === 'Umbra' ? 12 : -12)}, 12) scale(0.93)" fill="url(#alpineGrad)" opacity="0.25" />
+
+            <!-- Large continent text banner -->
+            <text x="${c.polygon[0][0] + 120}" y="${c.polygon[0][1] + 100}" font-family="Georgia, serif" font-weight="900" font-size="44" fill="#312613" opacity="0.16" letter-spacing="22" transform="rotate(-6, ${c.polygon[0][0] + 120}, ${c.polygon[0][1] + 100})">${c.name.toUpperCase()}</text>
         `;
     });
 
     let kingdomsSvg = '';
     KINGDOMS.forEach(k => {
         const polyPath = `M ${k.polygon.map(p => p.join(',')).join(' L ')} Z`;
-        kingdomsSvg += `<path d="${polyPath}" fill="${k.fill}" stroke="${k.color}" stroke-width="1.5" stroke-dasharray="4,4" />`;
+        // Beautiful fine region outlines with contrasting colors
+        kingdomsSvg += `<path d="${polyPath}" fill="${k.fill}" stroke="${k.color}" stroke-width="2" stroke-dasharray="5,6" style="filter: drop-shadow(0 0 3px ${k.color});" />`;
     });
 
     let labelsSvg = '';
     KINGDOMS.forEach(k => {
         const cx = k.labelPos[0], cy = k.labelPos[1];
         labelsSvg += `
-            <text x="${cx}" y="${cy}" text-anchor="middle" font-family="serif" font-weight="bold" font-size="16" fill="${k.color}" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.8));">${k.short}</text>
+            <!-- Tech-fantasy banner background for region label -->
+            <rect x="${cx - 65}" y="${cy - 12}" width="130" height="24" fill="rgba(15,10,5,0.72)" stroke="${k.color}" stroke-width="1.2" rx="4" />
+            <text x="${cx}" y="${cy + 5}" text-anchor="middle" font-family="'Courier New', Courier, monospace" font-weight="900" font-size="14" fill="${k.color}" letter-spacing="1">${k.short}</text>
         `;
     });
 
@@ -145,9 +213,12 @@ async function generateWorldMapImage() {
         const color = RANK_COLORS[d.rank];
         dungeonsSvg += `
             ${getGlyphSvg(d.glyph, d.x, d.y - 16, color)}
-            <path d="M ${d.x},${d.y - 9} L ${d.x + 9},${d.y} L ${d.x},${d.y + 9} L ${d.x - 9},${d.y} Z" fill="${color}" stroke="#2a2118" stroke-width="1.5" style="filter: drop-shadow(0 0 5px ${color});" />
-            <text x="${d.x}" y="${d.y}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-weight="bold" font-size="11" fill="#1a1410">${d.rank}</text>
-            <text x="${d.x}" y="${d.y + 12}" text-anchor="middle" dominant-baseline="hanging" font-family="serif" font-size="13" fill="#2a2118">${d.name}</text>
+            <path d="M ${d.x},${d.y - 9} L ${d.x + 9},${d.y} L ${d.x},${d.y + 9} L ${d.x - 9},${d.y} Z" fill="${color}" stroke="#100b05" stroke-width="1.5" style="filter: drop-shadow(0 0 5px ${color});" />
+            <text x="${d.x}" y="${d.y}" text-anchor="middle" dominant-baseline="middle" font-family="'Segoe UI', sans-serif" font-weight="900" font-size="11" fill="#100b05">${d.rank}</text>
+
+            <!-- Sleek background card for dungeon labels to ensure 100% legibility -->
+            <rect x="${d.x - 70}" y="${d.y + 11}" width="140" height="15" fill="rgba(245,238,215,0.85)" stroke="#3e311a" stroke-width="0.8" rx="2" />
+            <text x="${d.x}" y="${d.y + 19}" text-anchor="middle" dominant-baseline="middle" font-family="Georgia, serif" font-weight="bold" font-size="11" fill="#100b05">${d.name}</text>
         `;
     });
 
@@ -155,115 +226,237 @@ async function generateWorldMapImage() {
     CITIES.forEach(c => {
         if (c.capital) {
             citiesSvg += `
-                <path d="M ${c.x},${c.y - 13} L ${c.x + 3},${c.y - 6} L ${c.x + 10},${c.y - 6} L ${c.x + 5},${c.y} L ${c.x + 7},${c.y + 7} L ${c.x},${c.y + 3} L ${c.x - 7},${c.y + 7} L ${c.x - 5},${c.y} L ${c.x - 10},${c.y - 6} L ${c.x - 3},${c.y - 6} Z" fill="#f4c542" stroke="#5c4a2a" stroke-width="1.5" style="filter: drop-shadow(0 0 8px #f4c542);" />
+                <!-- Capital Star -->
+                <path d="M ${c.x},${c.y - 14} L ${c.x + 4},${c.y - 5} L ${c.x + 13},${c.y - 5} L ${c.x + 6},${c.y + 1} L ${c.x + 8},${c.y + 10} L ${c.x},${c.y + 4} L ${c.x - 8},${c.y + 10} L ${c.x - 6},${c.y + 1} L ${c.x - 13},${c.y - 5} L ${c.x - 4},${c.y - 5} Z" fill="#ffd700" stroke="#100b05" stroke-width="1.8" style="filter: drop-shadow(0 0 8px #ffd700);" />
             `;
         } else {
             citiesSvg += `
-                <circle cx="${c.x}" cy="${c.y}" r="7" fill="#f6f1e3" stroke="#8a2b22" stroke-width="3" />
-                <circle cx="${c.x}" cy="${c.y}" r="3" fill="#8a2b22" />
+                <circle cx="${c.x}" cy="${c.y}" r="8" fill="#fcf9f2" stroke="#bd3c30" stroke-width="2.5" style="filter: drop-shadow(0 0 3px rgba(189,60,48,0.4));" />
+                <circle cx="${c.x}" cy="${c.y}" r="3" fill="#bd3c30" />
             `;
         }
         citiesSvg += `
-            <text x="${c.x + 14}" y="${c.y - 2}" dominant-baseline="middle" font-family="serif" font-weight="bold" font-size="${c.capital ? 18 : 16}" fill="#1a1410">${c.name}</text>
-            <text x="${c.x + 14}" y="${c.y + 13}" dominant-baseline="middle" font-family="serif" font-style="italic" font-size="12" fill="#5c4a2a">${c.sub}</text>
+            <text x="${c.x + 16}" y="${c.y - 4}" dominant-baseline="middle" font-family="Georgia, serif" font-weight="900" font-size="${c.capital ? 18 : 15}" fill="#0d0803" style="text-shadow: 0 0 3px white, 0 0 3px white;">${c.name}</text>
+            <text x="${c.x + 16}" y="${c.y + 10}" dominant-baseline="middle" font-family="Georgia, serif" font-style="italic" font-size="11" fill="#4d3a1f" style="text-shadow: 0 0 2px white;">${c.sub}</text>
         `;
+    });
+
+    // Generate procedural mountain and forest clusters for 100% immersive detail
+    let proceduralReliefSvg = '';
+
+    // Mountain ridges along the mountain ranges
+    const ranges = [
+        // Aetheria Range
+        { x: 410, y: 200 }, { x: 430, y: 195 }, { x: 450, y: 190 }, { x: 470, y: 195 }, { x: 490, y: 200 },
+        // Zendora Range
+        { x: 990, y: 810 }, { x: 1015, y: 805 }, { x: 1040, y: 800 }, { x: 1065, y: 805 }, { x: 1090, y: 810 },
+        // Umbra Range
+        { x: 230, y: 890 }, { x: 250, y: 885 }, { x: 270, y: 880 }, { x: 290, y: 885 }, { x: 310, y: 890 }
+    ];
+    ranges.forEach(pt => {
+        proceduralReliefSvg += drawMountainPeak(pt.x, pt.y, 1.15);
+    });
+
+    // Forest clusters
+    proceduralReliefSvg += drawForestCluster(250, 450, 7, 14); // Aetheria Forest
+    proceduralReliefSvg += drawForestCluster(960, 750, 7, 15); // Zendora Jungle
+
+    // Generate latitude / longitude graticule overlay
+    let graticuleSvg = '';
+    const lats = [150, 300, 450, 600, 750, 900];
+    const lons = [200, 400, 600, 800, 1000, 1200];
+
+    lats.forEach((lat, idx) => {
+        graticuleSvg += `
+            <line x1="0" y1="${lat}" x2="${W}" y2="${lat}" stroke="rgba(44,92,117,0.18)" stroke-width="0.8" stroke-dasharray="6,8" />
+            <text x="15" y="${lat - 5}" font-family="'Courier New', monospace" font-size="10" fill="#3c657a" opacity="0.6">${(60 - idx * 15)}° N</text>
+            <text x="${W - 45}" y="${lat - 5}" font-family="'Courier New', monospace" font-size="10" fill="#3c657a" opacity="0.6">${(60 - idx * 15)}° N</text>
+        `;
+    });
+    lons.forEach((lon, idx) => {
+        graticuleSvg += `
+            <line x1="${lon}" y1="0" x2="${lon}" y2="${H}" stroke="rgba(44,92,117,0.18)" stroke-width="0.8" stroke-dasharray="6,8" />
+            <text x="${lon + 5}" y="20" font-family="'Courier New', monospace" font-size="10" fill="#3c657a" opacity="0.6">${(idx * 20)}° E</text>
+            <text x="${lon + 5}" y="${H - 15}" font-family="'Courier New', monospace" font-size="10" fill="#3c657a" opacity="0.6">${(idx * 20)}° E</text>
+        `;
+    });
+
+    // Compass Rose directional lines (rhumb lines)
+    let rhumbLines = '';
+    const angles = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
+    angles.forEach(angle => {
+        const rad = angle * Math.PI / 180;
+        const x2 = compassX + 1600 * Math.cos(rad);
+        const y2 = compassY + 1600 * Math.sin(rad);
+        rhumbLines += `<line x1="${compassX}" y1="${compassY}" x2="${x2}" y2="${y2}" stroke="rgba(44,92,117,0.11)" stroke-width="0.6" />`;
     });
 
     const svg = `
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         <defs>
+            <!-- Water & Land Elevation Shading Gradients -->
             <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#152b3e;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#091520;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#122333;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#06101c;stop-opacity:1" />
             </linearGradient>
-            <linearGradient id="landGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" style="stop-color:#d4c294;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#bca876;stop-opacity:1" />
+
+            <linearGradient id="lowlandGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#d7c399;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#c8b386;stop-opacity:1" />
             </linearGradient>
-            <pattern id="paperPattern" x="0" y="0" width="100" height="100" patternUnits="userSpaceOnUse">
-                <path d="M 0 0 L 100 0 L 100 100 L 0 100 Z" fill="url(#landGrad)" />
-                <circle cx="20" cy="20" r="1" fill="#a69466" opacity="0.3" />
-                <circle cx="80" cy="40" r="1" fill="#a69466" opacity="0.3" />
-                <circle cx="50" cy="70" r="1" fill="#a69466" opacity="0.3" />
-            </pattern>
+
+            <linearGradient id="highlandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#bfa87a;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ab945a;stop-opacity:1" />
+            </linearGradient>
+
+            <linearGradient id="alpineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#a8966b;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#857551;stop-opacity:1" />
+            </linearGradient>
+
             <filter id="parchmentFilter">
-                <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="5" result="noise" />
-                <feDiffuseLighting in="noise" lighting-color="#fff5e6" surfaceScale="2">
-                    <feDistantLight azimuth="45" elevation="60" />
+                <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="noise" />
+                <feDiffuseLighting in="noise" lighting-color="#fff5e6" surfaceScale="1.5">
+                    <feDistantLight azimuth="45" elevation="65" />
                 </feDiffuseLighting>
             </filter>
+
             <filter id="roughEdge">
-                <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G" />
+                <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G" />
             </filter>
+
+            <!-- Compass Rose Gradient -->
+            <linearGradient id="compassGold" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#9a7b0c;stop-opacity:1" />
+            </linearGradient>
         </defs>
 
-        <!-- Ocean with texture -->
+        <!-- Ocean with immersive antique parchment texture -->
         <rect width="100%" height="100%" fill="url(#oceanGrad)" />
-        <rect width="100%" height="100%" fill="#ffffff" opacity="0.03" style="filter: url(#parchmentFilter);" />
+        <rect width="100%" height="100%" fill="#ffffff" opacity="0.035" style="filter: url(#parchmentFilter);" />
 
-        <!-- Waves -->
-        <g opacity="0.2" fill="none" stroke="#2c5364" stroke-width="1.5">
-            <path d="M 100,200 Q 120,180 140,200 T 180,200" />
-            <path d="M 400,100 Q 420,80 440,100 T 480,100" />
-            <path d="M 1100,600 Q 1120,580 1140,600 T 1180,600" />
-            <path d="M 800,800 Q 820,780 840,800 T 880,800" />
+        <!-- Compass Rose Wind Directional Lines -->
+        ${rhumbLines}
+
+        <!-- Graticule lines -->
+        ${graticuleSvg}
+
+        <!-- Nautical Ocean waves -->
+        <g opacity="0.25" fill="none" stroke="#254d66" stroke-width="1.5">
+            <path d="M 120,240 Q 140,225 160,240 T 200,240" />
+            <path d="M 450,120 Q 470,105 490,120 T 530,120" />
+            <path d="M 1120,640 Q 1140,625 1160,640 T 1200,640" />
+            <path d="M 820,840 Q 840,825 860,840 T 900,840" />
+            <path d="M 680,180 Q 700,165 720,180 T 760,180" />
         </g>
 
-        <!-- Landmasses -->
+        <!-- Landmasses & Altitudes -->
         ${continentsSvg}
 
+        <!-- Regions, Boundaries & Kingdoms -->
         <g>
             ${kingdomsSvg}
-
-            <!-- Geographical Features -->
-            <g opacity="0.25" fill="none" stroke="#5c4a2a" stroke-width="2">
-                <!-- Mountains Aetheria -->
-                <path d="M 400,200 L 420,170 L 440,200 M 420,170 L 430,185" />
-                <path d="M 440,220 L 460,190 L 480,220 M 460,190 L 470,205" />
-                <!-- Mountains Zendora -->
-                <path d="M 1000,800 L 1020,770 L 1040,800" />
-                <path d="M 1040,820 L 1060,790 L 1080,820" />
-            </g>
-
-            <!-- Forests -->
-            <g opacity="0.2" fill="#2d5a27">
-                <!-- Aetheria Forest -->
-                <circle cx="250" cy="450" r="30" />
-                <circle cx="280" cy="430" r="25" />
-                <circle cx="220" cy="470" r="20" />
-                <!-- Zendora Jungle -->
-                <circle cx="950" cy="750" r="40" />
-                <circle cx="980" cy="730" r="35" />
-            </g>
+            ${proceduralReliefSvg}
         </g>
 
+        <!-- Compass Rose (Windrose - Azgaar Signature Style) -->
+        <g transform="translate(${compassX}, ${compassY})">
+            <!-- Outer compass rings -->
+            <circle cx="0" cy="0" r="55" fill="none" stroke="#2f587d" stroke-width="2.5" opacity="0.75" />
+            <circle cx="0" cy="0" r="50" fill="none" stroke="#1d3852" stroke-width="1" stroke-dasharray="3,3" opacity="0.8" />
+            <circle cx="0" cy="0" r="10" fill="none" stroke="#ffd700" stroke-width="1.2" />
+
+            <!-- Rhumb Directions Star Points -->
+            <!-- N / S -->
+            <polygon points="0,-68 -4,-10 0,0" fill="url(#compassGold)" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="0,-68 4,-10 0,0" fill="#ffffff" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="0,68 -4,10 0,0" fill="#ffffff" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="0,68 4,10 0,0" fill="url(#compassGold)" stroke="#1d3852" stroke-width="0.8" />
+
+            <!-- E / W -->
+            <polygon points="68,0 10,-4 0,0" fill="url(#compassGold)" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="68,0 10,4 0,0" fill="#ffffff" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="-68,0 -10,-4 0,0" fill="#ffffff" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="-68,0 -10,4 0,0" fill="url(#compassGold)" stroke="#1d3852" stroke-width="0.8" />
+
+            <!-- NE / SW -->
+            <polygon points="48,-48 3,-7 0,0" fill="url(#compassGold)" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="48,-48 7,-3 0,0" fill="#ffffff" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="-48,48 -3,7 0,0" fill="#ffffff" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="-48,48 -7,3 0,0" fill="url(#compassGold)" stroke="#1d3852" stroke-width="0.8" />
+
+            <!-- NW / SE -->
+            <polygon points="-48,-48 -7,-3 0,0" fill="url(#compassGold)" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="-48,-48 -3,-7 0,0" fill="#ffffff" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="48,48 7,3 0,0" fill="#ffffff" stroke="#1d3852" stroke-width="0.8" />
+            <polygon points="48,48 3,7 0,0" fill="url(#compassGold)" stroke="#1d3852" stroke-width="0.8" />
+
+            <!-- Directional Labels -->
+            <text x="0" y="-76" text-anchor="middle" dominant-baseline="middle" font-family="Georgia, serif" font-weight="bold" font-size="14" fill="#ffd700" style="text-shadow: 0 0 3px black;">N</text>
+            <text x="76" y="0" text-anchor="middle" dominant-baseline="middle" font-family="Georgia, serif" font-weight="bold" font-size="13" fill="#ffd700" style="text-shadow: 0 0 3px black;">E</text>
+            <text x="0" y="78" text-anchor="middle" dominant-baseline="middle" font-family="Georgia, serif" font-weight="bold" font-size="13" fill="#ffd700" style="text-shadow: 0 0 3px black;">S</text>
+            <text x="-78" y="0" text-anchor="middle" dominant-baseline="middle" font-family="Georgia, serif" font-weight="bold" font-size="13" fill="#ffd700" style="text-shadow: 0 0 3px black;">W</text>
+        </g>
+
+        <!-- Cities, Dungeons, and Labels -->
         ${labelsSvg}
         ${dungeonsSvg}
         ${citiesSvg}
 
-        <!-- Title -->
-        <rect x="${W/2 - 320}" y="24" width="640" height="78" fill="rgba(20,12,6,0.72)" stroke="#c9a24a" stroke-width="3" />
-        <text x="${W/2}" y="64" text-anchor="middle" font-family="serif" font-weight="bold" font-size="44" fill="#f4e3b0">CARTE DU MONDE — ${WORLD_NAME}</text>
-        <text x="${W/2}" y="90" text-anchor="middle" font-family="serif" font-style="italic" font-size="18" fill="#cbb682">Aetheria, Zendora, Umbra et Caelum</text>
+        <!-- Grand Vintage Title Shield -->
+        <g transform="translate(${W/2 - 320}, 24)">
+            <!-- Double-lined classic frame -->
+            <rect width="640" height="85" fill="rgba(15,10,5,0.85)" stroke="#ffd700" stroke-width="2.5" rx="6" style="filter: drop-shadow(0 6px 15px rgba(0,0,0,0.8));" />
+            <rect x="5" y="5" width="630" height="75" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1" rx="4" />
+            <text x="320" y="44" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="34" fill="#ffd700" style="letter-spacing: 2px;">CARTE DU MONDE — ${WORLD_NAME}</text>
+            <text x="320" y="68" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="14" fill="#f0e2cd" style="letter-spacing: 1px;">AETHERIA, ZENDORA, UMBRA ET CAELUM • GENERATED COMPASS G-IV</text>
+        </g>
 
-        <!-- Legend -->
+        <!-- Comprehensive Legend and Technical Scale Bar -->
         <g transform="translate(40, ${H - 240})">
-            <rect width="320" height="200" fill="rgba(20,12,6,0.78)" stroke="#c9a24a" stroke-width="2" />
-            <text x="16" y="26" font-family="serif" font-weight="bold" font-size="18" fill="#f4e3b0">LÉGENDE</text>
-            <circle cx="24" cy="52" r="6" fill="#8a2b22" />
-            <text x="40" y="57" font-family="sans-serif" font-size="14" fill="#e9dcb5">Cité / lieu</text>
-            <path d="M 170,44 L 172,48 L 176,48 L 173,51 L 174,56 L 170,53 L 166,56 L 167,51 L 164,48 L 168,48 Z" fill="#f4c542" />
-            <text x="186" y="57" font-family="sans-serif" font-size="14" fill="#e9dcb5">Capitale</text>
-            <text x="16" y="84" font-family="sans-serif" font-size="14" fill="#e9dcb5">Donjons par rang :</text>
+            <!-- Glass base panel -->
+            <rect width="320" height="200" fill="rgba(15,10,5,0.85)" stroke="#ffd700" stroke-width="1.8" rx="6" style="filter: drop-shadow(0 8px 20px rgba(0,0,0,0.75));" />
+            <rect x="5" y="5" width="310" height="190" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1" rx="4" />
+
+            <text x="20" y="30" font-family="Georgia, serif" font-weight="bold" font-size="16" fill="#ffd700">LÉGENDE CARTOGRAPHIQUE</text>
+
+            <!-- City / Capital -->
+            <circle cx="28" cy="58" r="7" fill="#fcf9f2" stroke="#bd3c30" stroke-width="2.2" />
+            <circle cx="28" cy="58" r="2.5" fill="#bd3c30" />
+            <text x="44" y="63" font-family="Georgia, serif" font-size="12" fill="#e9dcb5">Lieu / Cité</text>
+
+            <path d="M 160,50 L 163,56 L 170,56 L 165,61 L 167,68 L 160,64 L 153,68 L 155,61 L 150,56 L 157,56 Z" fill="#ffd700" stroke="#100b05" stroke-width="1" />
+            <text x="180" y="63" font-family="Georgia, serif" font-size="12" fill="#e9dcb5">Capitale</text>
+
+            <!-- Dungeons -->
+            <text x="20" y="92" font-family="Georgia, serif" font-size="13" fill="#ffd700" font-weight="bold">DONJONS DE ROYAUME :</text>
             ${Object.keys(RANK_COLORS).map((r, i) => {
-                const rx = 24 + (i % 3) * 95;
-                const ry = 110 + Math.floor(i / 3) * 30;
+                const rx = 28 + (i % 3) * 95;
+                const ry = 118 + Math.floor(i / 3) * 30;
                 return `
-                <path d="M ${rx},${ry-7} L ${rx+7},${ry} L ${rx},${ry+7} L ${rx-7},${ry} Z" fill="${RANK_COLORS[r]}" stroke="#2a2118" />
-                <text x="${rx+14}" y="${ry+5}" font-family="sans-serif" font-size="14" fill="#e9dcb5">Rang ${r}</text>
+                <path d="M ${rx},${ry-7} L ${rx+7},${ry} L ${rx},${ry+7} L ${rx-7},${ry} Z" fill="${RANK_COLORS[r]}" stroke="#100b05" stroke-width="1" />
+                <text x="${rx+14}" y="${ry+4}" font-family="Georgia, serif" font-size="12" fill="#e9dcb5">Rang ${r}</text>
                 `;
             }).join('')}
+
+            <!-- Scale Bar in kilometers (Azgaar Custom signature) -->
+            <g transform="translate(20, 160)">
+                <text x="0" y="10" font-family="'Courier New', monospace" font-size="10" fill="#ffd700">ÉCHELLE :</text>
+
+                <!-- Checkerboard alternating blocks -->
+                <rect x="75" y="2" width="40" height="6" fill="#ffd700" stroke="#100b05" stroke-width="1" />
+                <rect x="115" y="2" width="40" height="6" fill="#100b05" stroke="#ffd700" stroke-width="1" />
+                <rect x="155" y="2" width="40" height="6" fill="#ffd700" stroke="#100b05" stroke-width="1" />
+                <rect x="195" y="2" width="40" height="6" fill="#100b05" stroke="#ffd700" stroke-width="1" />
+
+                <!-- Labels -->
+                <text x="75" y="-3" font-family="'Courier New', monospace" font-size="8" fill="#e9dcb5" text-anchor="middle">0</text>
+                <text x="155" y="-3" font-family="'Courier New', monospace" font-size="8" fill="#e9dcb5" text-anchor="middle">150</text>
+                <text x="235" y="-3" font-family="'Courier New', monospace" font-size="8" fill="#e9dcb5" text-anchor="middle">300 km</text>
+            </g>
         </g>
     </svg>
     `;
