@@ -1,6 +1,28 @@
 const sharp = require('sharp');
 const axios = require('axios');
+const crypto = require('crypto');
 const { escapeXml } = require('./utils');
+
+/**
+ * Automatically converts legacy wikia.nocookie.net image URLs to robust gbf.wiki redirect-compatible thumb URLs.
+ * @param {string} url - Unsafe or old Wikia URL
+ * @returns {string} Robust gbf.wiki URL
+ */
+function convertWikiaToGbfWikiUrl(url) {
+    if (!url) return url;
+    if (url.includes('static.wikia.nocookie.net/gbf/images/')) {
+        const parts = url.split('/');
+        let filename = parts[parts.length - 1];
+        filename = filename.replace(/\s+/g, '_');
+
+        const hash = crypto.createHash('md5').update(filename).digest('hex');
+        const c1 = hash[0];
+        const c2 = hash.substring(0, 2);
+
+        return `https://gbf.wiki/images/thumb/${c1}/${c2}/${filename}/200px-${filename}`;
+    }
+    return url;
+}
 
 /**
  * Helper to fetch and resize wikipedia / gbf.wiki weapon images with a strict timeout.
@@ -10,13 +32,23 @@ const { escapeXml } = require('./utils');
  */
 async function fetchWikiImageBuffer(url, size = 100) {
     if (!url || !url.startsWith('http')) return null;
+    let targetUrl = url;
+    if (url.includes('static.wikia.nocookie.net/gbf/images/')) {
+        targetUrl = convertWikiaToGbfWikiUrl(url);
+    }
     try {
-        const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 1500 });
+        const res = await axios.get(targetUrl, {
+            responseType: 'arraybuffer',
+            timeout: 2500,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+            }
+        });
         return await sharp(res.data)
             .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
             .toBuffer();
     } catch (e) {
-        console.warn(`[Wiki Image Fetch] Failed to retrieve ${url}:`, e.message);
+        console.warn(`[Wiki Image Fetch] Failed to retrieve ${targetUrl}:`, e.message);
         return null;
     }
 }

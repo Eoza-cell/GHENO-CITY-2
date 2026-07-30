@@ -663,17 +663,17 @@ async function setupDatabase() {
                 rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { strength: 40, defense: 20 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/3/30/Seven-Star_Sword.png'
+                imageUrl: 'https://gbf.wiki/images/thumb/7/71/Seven-Star_Sword.png/200px-Seven-Star_Sword.png'
             },
             {
-                name: 'Chevalier Axe Magna',
-                description: 'Une hache scintillante imprégnée du pouvoir divin du Chevalier.',
-                price: 4500,
+                name: 'Luminiera Sword Omega',
+                description: 'Une épée de lumière légendaire imprégnée du pouvoir divin de la Chevalier.',
+                price: 9000,
                 type: 'weapon',
-                rarity: 'epic',
+                rarity: 'legendary',
                 slot: 'weapon',
-                statBonuses: { strength: 25, defense: 15 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/e/ef/Chevalier_Axe_Magna.png'
+                statBonuses: { strength: 35, defense: 25 },
+                imageUrl: 'https://gbf.wiki/images/thumb/e/e1/Luminiera_Sword_Omega.png/200px-Luminiera_Sword_Omega.png'
             },
             {
                 name: 'Tiamat Bolt Omega',
@@ -683,27 +683,27 @@ async function setupDatabase() {
                 rarity: 'epic',
                 slot: 'weapon',
                 statBonuses: { agility: 28, luck: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/e/e0/Tiamat_Bolt_Omega.png'
+                imageUrl: 'https://gbf.wiki/images/thumb/b/ba/Tiamat_Bolt_Omega.png/200px-Tiamat_Bolt_Omega.png'
             },
             {
-                name: 'Leviathan Muzzle Magna',
-                description: 'Une dague rituelle de l\'océan imprégnée d\'une puissance liquide intense.',
+                name: 'Leviathan Gaze Omega',
+                description: 'Une dague d\'eau de l\'océan libérant des torrents destructeurs.',
+                price: 4200,
+                type: 'weapon',
+                rarity: 'epic',
+                slot: 'weapon',
+                statBonuses: { strength: 15, agility: 25 },
+                imageUrl: 'https://gbf.wiki/images/thumb/e/e9/Leviathan_Gaze_Omega.png/200px-Leviathan_Gaze_Omega.png'
+            },
+            {
+                name: 'Colossus Cane Omega',
+                description: 'Un bâton de mage enflammé brûlant d\'une fureur volcanique divine.',
                 price: 3800,
                 type: 'weapon',
                 rarity: 'epic',
                 slot: 'weapon',
-                statBonuses: { agility: 22, strength: 10 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/c/c2/Leviathan_Muzzle_Magna.png'
-            },
-            {
-                name: 'Colossus Cane Magna',
-                description: 'Un bâton de mage enflammé brûlant d\'une fureur volcanique.',
-                price: 3500,
-                type: 'weapon',
-                rarity: 'epic',
-                slot: 'weapon',
-                statBonuses: { intelligence: 30, defense: 5 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/c/c3/Colossus_Cane_Magna.png'
+                statBonuses: { intelligence: 35, defense: 5 },
+                imageUrl: 'https://gbf.wiki/images/thumb/7/75/Colossus_Cane_Omega.png/200px-Colossus_Cane_Omega.png'
             },
             {
                 name: 'Bahamut Dagger',
@@ -713,7 +713,7 @@ async function setupDatabase() {
                 rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { strength: 50, agility: 30 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/b/b2/Bahamut_Dagger.png'
+                imageUrl: 'https://gbf.wiki/images/thumb/a/aa/Bahamut_Dagger.png/200px-Bahamut_Dagger.png'
             },
             {
                 name: 'Purifying Thunderbolt',
@@ -723,7 +723,7 @@ async function setupDatabase() {
                 rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { strength: 60, intelligence: 30 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/a/ab/Purifying_Thunderbolt.png'
+                imageUrl: 'https://gbf.wiki/images/thumb/6/64/Purifying_Thunderbolt.png/200px-Purifying_Thunderbolt.png'
             },
             {
                 name: 'Murgleis',
@@ -733,7 +733,7 @@ async function setupDatabase() {
                 rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { strength: 55, defense: 25 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/e/ef/Murgleis.png'
+                imageUrl: 'https://gbf.wiki/images/thumb/f/ff/Murgleis.png/200px-Murgleis.png'
             },
             {
                 name: 'Benedia',
@@ -743,7 +743,7 @@ async function setupDatabase() {
                 rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { agility: 45, luck: 25 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/b/b0/Benedia.png'
+                imageUrl: 'https://gbf.wiki/images/thumb/f/f5/Benedia.png/200px-Benedia.png'
             },
             {
                 name: 'Ichigo Hitofuri',
@@ -753,7 +753,7 @@ async function setupDatabase() {
                 rarity: 'legendary',
                 slot: 'weapon',
                 statBonuses: { strength: 50, agility: 25 },
-                imageUrl: 'https://static.wikia.nocookie.net/gbf/images/b/b9/Ichigo_Hitofuri.png'
+                imageUrl: 'https://gbf.wiki/images/thumb/1/19/Ichigo_Hitofuri.png/200px-Ichigo_Hitofuri.png'
             }
         ];
 

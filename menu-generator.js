@@ -1,19 +1,20 @@
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
+const { escapeXml } = require('./utils');
 
 /**
  * Generates an ultra-premium, modern anime-RPG main menu image using Sharp and SVG.
- * Features a classy, sleek layout with dark glassmorphic obsidian panels, gold & cyan accents,
- * glowing ethereal stardust, and elegant typography.
- * Completely removes combat statistics as requested.
+ * Features a gorgeous dashboard layout with a sleek player HUD header and a grid of 6
+ * beautiful card frames (cadres) representing each menu option, complete with custom background
+ * illustrations, glassmorphic filters, neon glowing borders, and elegant typography.
  * @param {Object} player - The player object from the database (optional)
  */
 async function generateMainMenuImage(player) {
     const width = 1200;
-    const height = 700;
+    const height = 750;
 
-    // Fallbacks and high-level details
+    // Fallbacks and details
     const pName = player?.name ? player.name.toUpperCase() : "HÉRITIER SANS NOM";
     const pClass = player?.class ? player.class.toUpperCase() : "CLASSE INITIALE";
     const pRace = player?.race ? player.race.toUpperCase() : "HUMAIN";
@@ -27,42 +28,117 @@ async function generateMainMenuImage(player) {
     const pMaxMana = player?.maxMana != null ? player.maxMana : 100;
     const pCol = player?.col != null ? player.col : 100;
 
-    // Premium Rank Theme Accents
-    const rankThemes = {
-        'S': { primary: '#ffd700', secondary: '#ff8c00', glow: '#ffd700' },
-        'A': { primary: '#ff3c00', secondary: '#ffaa00', glow: '#ff3c00' },
-        'B': { primary: '#d500f9', secondary: '#7b1fa2', glow: '#d500f9' },
-        'C': { primary: '#00e5ff', secondary: '#00b0ff', glow: '#00e5ff' },
-        'D': { primary: '#00e676', secondary: '#00c853', glow: '#00e676' },
-        'E': { primary: '#2979ff', secondary: '#2962ff', glow: '#2979ff' },
-        'F': { primary: '#b0bec5', secondary: '#37474f', glow: '#b0bec5' }
-    };
-    const theme = rankThemes[pRank] || rankThemes['F'];
+    // Grid details & options mapping
+    const cardWidth = 340;
+    const cardHeight = 200;
 
-    // Generate floating ethereal light particles / stardust coords
-    const particleCount = 65;
+    const cardsData = [
+        {
+            cmd: '/action',
+            title: 'AVENTURE',
+            sub: 'Combats, Chasses & Exploration',
+            desc: 'Défiez des monstres et gagnez de l\'XP',
+            color: '#ff3c00', // Ruby Red
+            imagePath: path.join(__dirname, 'assets', 'tutorial_boss.jpg'),
+            x: 60,
+            y: 220
+        },
+        {
+            cmd: '/profil',
+            title: 'FICHE D\'IDENTITÉ',
+            sub: 'Statistiques & Équipements',
+            desc: 'Visualisez l\'aura et la puissance',
+            color: '#00e5ff', // Cyan Neon
+            imagePath: path.join(__dirname, 'assets', 'silhouette.jpg'),
+            x: 430,
+            y: 220
+        },
+        {
+            cmd: '/quests',
+            title: 'JOURNAL DE QUÊTES',
+            sub: 'Chroniques du Destin',
+            desc: 'Suivez le fil rouge des missions',
+            color: '#ffd700', // Gold/Amber
+            imagePath: path.join(__dirname, 'assets', 'locations', 'interstice.jpg'),
+            x: 800,
+            y: 220
+        },
+        {
+            cmd: '/map',
+            title: 'CARTE DU MONDE',
+            sub: 'Navigation & Voyage',
+            desc: 'Explorez les 17 royaumes d\'Aetherys',
+            color: '#00e676', // Emerald Green
+            imagePath: path.join(__dirname, 'assets', 'locations', 'eldoria.jpg'),
+            x: 60,
+            y: 450
+        },
+        {
+            cmd: '/bank',
+            title: 'COFFRE-FORT',
+            sub: 'Dépôts, Retraits & Prêts',
+            desc: 'Gérez votre richesse en pièces Col',
+            color: '#d500f9', // Magenta Purple
+            imagePath: path.join(__dirname, 'assets', 'locations', 'academy.jpg'),
+            x: 430,
+            y: 450
+        },
+        {
+            cmd: '/lore',
+            title: 'ENCYCLOPÉDIE',
+            sub: 'Mythes & Histoires d\'Aetherys',
+            desc: 'Découvrez les secrets fondateurs',
+            color: '#b0bec5', // Slate Grey
+            imagePath: path.join(__dirname, 'assets', 'locations', 'necropolis.jpg'),
+            x: 800,
+            y: 450
+        }
+    ];
+
+    // Load and process card background images in parallel to Base64 buffers
+    const processedCards = await Promise.all(cardsData.map(async (card, idx) => {
+        let base64Img = '';
+        if (fs.existsSync(card.imagePath)) {
+            try {
+                const buf = await sharp(card.imagePath)
+                    .resize(cardWidth, cardHeight, { fit: 'cover' })
+                    .linear(0.45, 0) // Heavily dimmed to ensure high text contrast
+                    .jpeg({ quality: 80 })
+                    .toBuffer();
+                base64Img = buf.toString('base64');
+            } catch (e) {
+                console.error(`[Menu Generator] Error processing card image ${card.title}:`, e.message);
+            }
+        }
+        return {
+            ...card,
+            base64Img
+        };
+    }));
+
+    // Floating particles / stardust coordinates
+    const particleCount = 45;
     const particles = Array.from({ length: particleCount }).map((_, i) => {
-        const x = Math.floor((Math.sin(i * 17) * 0.5 + 0.5) * width);
-        const y = Math.floor((Math.cos(i * 13) * 0.5 + 0.5) * height);
-        const r = (i % 3 === 0) ? 3 : ((i % 2 === 0) ? 1.8 : 1.2);
-        const opacity = (i % 4 === 0) ? 0.8 : 0.5;
+        const x = Math.floor((Math.sin(i * 19) * 0.5 + 0.5) * width);
+        const y = Math.floor((Math.cos(i * 11) * 0.5 + 0.5) * height);
+        const r = (i % 3 === 0) ? 2.5 : ((i % 2 === 0) ? 1.5 : 1.0);
+        const opacity = (i % 4 === 0) ? 0.7 : 0.4;
         const glow = i % 5 === 0;
         return { x, y, r, opacity, glow };
     });
 
-    const menuCommands = ['/action', '/profil', '/quests', '/map', '/bank', '/lore'];
-
-    // Check if background template or elion flag exists
-    const flagPath = path.join(__dirname, 'assets', 'empire_elion_flag.png');
-    const hasFlag = fs.existsSync(flagPath);
-
     const svg = `
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
         <defs>
-            <!-- Ethereal & Dark Glassmorphic Gradients -->
-            <linearGradient id="obsidianGlass" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#0d0b18;stop-opacity:0.96" />
-                <stop offset="100%" style="stop-color:#040308;stop-opacity:0.98" />
+            <!-- Sleek Glassmorphic & Cyber Gradients -->
+            <linearGradient id="obsidianBack" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#07050e;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#010103;stop-opacity:1" />
+            </linearGradient>
+
+            <linearGradient id="glassHud" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#120e24;stop-opacity:0.85" />
+                <stop offset="100%" style="stop-color:#080612;stop-opacity:0.95" />
             </linearGradient>
 
             <linearGradient id="premiumGold" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -78,197 +154,182 @@ async function generateMainMenuImage(player) {
 
             <linearGradient id="softRuby" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" style="stop-color:#ff4081;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#d500f9;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ff3c00;stop-opacity:1" />
             </linearGradient>
 
-            <radialGradient id="vignetteGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" style="stop-color:#161028;stop-opacity:0.4" />
-                <stop offset="60%" style="stop-color:#06040c;stop-opacity:0.8" />
-                <stop offset="100%" style="stop-color:#020104;stop-opacity:1" />
+            <radialGradient id="ambientBackGlow" cx="50%" cy="40%" r="60%">
+                <stop offset="0%" style="stop-color:#181033;stop-opacity:0.5" />
+                <stop offset="50%" style="stop-color:#05030b;stop-opacity:0.9" />
+                <stop offset="100%" style="stop-color:#010103;stop-opacity:1" />
             </radialGradient>
 
             <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="6" result="blur" />
+                <feGaussianBlur stdDeviation="5" result="blur" />
                 <feMerge>
                     <feMergeNode in="blur" />
                     <feMergeNode in="SourceGraphic" />
                 </feMerge>
             </filter>
 
-            <filter id="intenseGlow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="15" result="blur" />
-                <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                </feMerge>
-            </filter>
+            <!-- Rounded clipPaths for grid cards background images -->
+            ${processedCards.map((_, i) => `
+            <clipPath id="clip-card-${i}">
+                <rect x="0" y="0" width="${cardWidth}" height="${cardHeight}" rx="14" ry="14" />
+            </clipPath>
+            `).join('')}
         </defs>
 
-        <!-- Main Background Vignette -->
-        <rect width="100%" height="100%" fill="url(#vignetteGlow)" />
+        <!-- Base Ambient Background Layers -->
+        <rect width="100%" height="100%" fill="url(#obsidianBack)" />
+        <rect width="100%" height="100%" fill="url(#ambientBackGlow)" />
 
-        <!-- Ethereal Cybernet Matrix gridlines -->
-        <g stroke="rgba(255, 215, 0, 0.03)" stroke-width="1">
-            ${Array.from({ length: 12 }).map((_, i) => `<line x1="0" y1="${i * 65}" x2="${width}" y2="${i * 65}" />`).join('')}
-            ${Array.from({ length: 20 }).map((_, i) => `<line x1="${i * 65}" y1="0" x2="${i * 65}" y2="${height}" />`).join('')}
+        <!-- Ethereal Space Matrix Gridlines -->
+        <g stroke="rgba(255, 215, 0, 0.015)" stroke-width="1">
+            ${Array.from({ length: 15 }).map((_, i) => `<line x1="0" y1="${i * 55}" x2="${width}" y2="${i * 55}" />`).join('')}
+            ${Array.from({ length: 25 }).map((_, i) => `<line x1="${i * 50}" y1="0" x2="${i * 50}" y2="${height}" />`).join('')}
         </g>
 
-        <!-- Soft diagonal luxury streaks -->
-        <path d="M-100,500 L1300,100 L1300,105 L-100,505 Z" fill="url(#premiumGold)" opacity="0.08" filter="url(#softGlow)" />
-        <path d="M-100,300 L1300,-100 L1300,-95 L-100,305 Z" fill="url(#cyberCyan)" opacity="0.05" filter="url(#softGlow)" />
+        <!-- Soft luxury background sweeps -->
+        <path d="M-100,550 L1300,150 L1300,154 L-100,554 Z" fill="url(#premiumGold)" opacity="0.06" filter="url(#softGlow)" />
+        <path d="M-100,350 L1300,-50 L1300,-46 L-100,354 Z" fill="url(#cyberCyan)" opacity="0.04" filter="url(#softGlow)" />
 
-        <!-- Floating ambient stardust -->
+        <!-- Floating Ambient Stardust Particles -->
         <g>
             ${particles.map(p => `
                 <circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="${p.glow ? '#ffd700' : '#00ffff'}" opacity="${p.opacity}" ${p.glow ? 'filter="url(#softGlow)"' : ''} />
             `).join('')}
         </g>
 
-        <!-- GAME LOGO: Clean Modern & Majestic Typography -->
-        <g transform="translate(120, 110)">
-            <text x="0" y="10" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="52" font-weight="900" fill="#ffffff" letter-spacing="3" style="text-shadow: 0px 4px 15px rgba(0,0,0,0.8);">AETHERYS</text>
-            <text x="320" y="10" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="28" font-weight="300" fill="url(#premiumGold)" letter-spacing="8" style="filter: url(#softGlow)">EVOLUTION</text>
-            <text x="0" y="32" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.4)" letter-spacing="4">NOYAU INTELLIGENT • GEMMA 3 STORY ENGINE</text>
+        <!-- ==================== HEADER / TOP PANEL ==================== -->
+        <!-- Logo Section -->
+        <g transform="translate(60, 45)">
+            <text x="0" y="32" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="34" font-weight="900" fill="#ffffff" letter-spacing="4" style="text-shadow: 0px 4px 12px rgba(0,0,0,0.9);">AETHERYS</text>
+            <text x="215" y="32" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="18" font-weight="300" fill="url(#premiumGold)" letter-spacing="6" style="filter: url(#softGlow)">EVOLUTION</text>
+            <text x="0" y="50" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.35)" letter-spacing="3.5">MJ D'AETHERYS • INTERFACE TACTIQUE</text>
 
-            <!-- Sleek gold underlines -->
-            <line x1="0" y1="45" x2="520" y2="45" stroke="url(#premiumGold)" stroke-width="2.5" />
-            <circle cx="520" cy="45" r="3" fill="#ffd700" />
+            <line x1="0" y1="62" x2="350" y2="62" stroke="url(#premiumGold)" stroke-width="1.8" opacity="0.8" />
+            <circle cx="350" cy="62" r="2.5" fill="#ffd700" />
         </g>
 
-        <!-- GLASSMORPHIC NAVIGATION MENU (Sleek Modern Slabs with cyber brackets) -->
-        <g transform="translate(100, 240)">
-            ${menuCommands.map((cmd, i) => {
-                const isActive = (i === 0);
-                const itemWidth = 350 - i * 12;
-                const plateFill = isActive ? 'url(#premiumGold)' : 'rgba(255, 255, 255, 0.02)';
-                const strokeColor = isActive ? '#ffd700' : 'rgba(255, 255, 255, 0.08)';
-                const textColor = isActive ? '#0a0910' : '#c1c2d0';
-                const textGlow = isActive ? 'font-weight: 900;' : '';
+        <!-- Glassmorphic Player HUD Banner -->
+        <g transform="translate(480, 35)">
+            <!-- Glass panel base -->
+            <rect x="0" y="0" width="660" height="135" fill="url(#glassHud)" stroke="rgba(255,255,255,0.08)" stroke-width="1" rx="16" style="filter: drop-shadow(0 10px 25px rgba(0,0,0,0.65));" />
+            <rect x="6" y="6" width="648" height="123" fill="none" stroke="rgba(255,215,0,0.02)" stroke-width="1" rx="10" />
 
-                return `
-                <g transform="translate(${i * 20}, ${i * 64})" style="cursor: pointer;">
-                    <!-- Elegant Rounded Slab -->
-                    <rect x="0" y="-20" width="${itemWidth}" height="42" fill="${plateFill}" stroke="${strokeColor}" stroke-width="${isActive ? '2' : '0.8'}" rx="6" style="${isActive ? 'filter: drop-shadow(0px 0px 10px rgba(255, 215, 0, 0.45));' : ''}" />
+            <!-- Decorative Bracket accents -->
+            <path d="M 12,25 L 12,12 L 25,12" fill="none" stroke="#ffd700" stroke-width="2" />
+            <path d="M 648,110 L 648,123 L 635,123" fill="none" stroke="#ffd700" stroke-width="2" />
 
-                    <!-- Cyan Accent Highlight Bar on Left side -->
-                    <rect x="0" y="-20" width="6" height="42" fill="${isActive ? '#ffffff' : 'url(#cyberCyan)'}" rx="3" opacity="0.9" />
+            <!-- Player Rank Badge -->
+            <circle cx="50" cy="68" r="32" fill="rgba(0,0,0,0.5)" stroke="url(#premiumGold)" stroke-width="2" />
+            <text x="50" y="55" font-family="'Segoe UI', sans-serif" font-size="9" font-weight="900" fill="#ffaa00" text-anchor="middle">LEVEL</text>
+            <text x="50" y="78" font-family="'Segoe UI', sans-serif" font-size="22" font-weight="900" fill="#ffffff" text-anchor="middle">${escapeXml(pLevel)}</text>
 
-                    <!-- Active Selector Dot -->
-                    <circle cx="-25" cy="1" r="10" fill="${isActive ? '#ffd700' : 'rgba(0,0,0,0.5)'}" stroke="${strokeColor}" stroke-width="1.5" />
-                    ${isActive ? `<circle cx="-25" cy="1" r="4" fill="#ffffff" />` : ''}
-
-                    <!-- Command text -->
-                    <text x="25" y="7" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="bold" fill="${textColor}" letter-spacing="1.5" style="${textGlow}">${cmd.toUpperCase()}</text>
-
-                    ${isActive ? `<polygon points="${itemWidth - 25},-3 ${itemWidth - 15},1 ${itemWidth - 25},5" fill="#000000" />` : ''}
-                </g>
-                `;
-            }).join('')}
-        </g>
-
-        <!-- RIGHT SIDE: PREMIUM MODERN HUD CARD (Clean Obsidian glass with no statistics) -->
-        <g transform="translate(710, 110)">
-            <!-- Main Board Backdrop -->
-            <rect x="0" y="0" width="390" height="500" fill="url(#obsidianGlass)" stroke="rgba(255,255,255,0.08)" stroke-width="1.2" rx="20" style="filter: drop-shadow(0 15px 35px rgba(0,0,0,0.8));" />
-            <rect x="10" y="10" width="370" height="480" fill="none" stroke="rgba(255, 215, 0, 0.04)" stroke-width="1" rx="12" />
-
-            <!-- Corner aesthetics -->
-            <path d="M 0,25 L 0,0 L 25,0" fill="none" stroke="#ffd700" stroke-width="3" transform="translate(15, 15)" />
-            <path d="M 360,0 L 385,0 L 360,25" fill="none" stroke="#ffd700" stroke-width="1" transform="translate(-10, 15)" />
-
-            <!-- Sub Header Title -->
-            <path d="M 12,12 L 378,12 L 378,45 L 12,45 Z" fill="rgba(255, 215, 0, 0.03)" />
-            <text x="195" y="33" font-family="'Segoe UI', sans-serif" font-size="14" font-weight="900" fill="#ffd700" text-anchor="middle" letter-spacing="4">FICHE DE L'HÉRITIER</text>
-
-            <!-- Character Profile Info -->
-            <g transform="translate(30, 95)">
-                <!-- Modern Circular Level Badge -->
-                <circle cx="300" cy="15" r="35" fill="rgba(0,0,0,0.6)" stroke="url(#premiumGold)" stroke-width="2.5" />
-                <text x="300" y="8" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="900" fill="#ffaa00" text-anchor="middle">LEVEL</text>
-                <text x="300" y="30" font-family="'Segoe UI', sans-serif" font-size="22" font-weight="900" fill="#ffffff" text-anchor="middle">${pLevel}</text>
-
-                <!-- Name & Subtitle -->
-                <text x="0" y="-5" font-family="'Segoe UI', sans-serif" font-size="28" font-weight="900" fill="#ffffff" style="letter-spacing: -0.5px;">${pName}</text>
-                <text x="0" y="18" font-family="'Segoe UI', sans-serif" font-size="14" fill="#00ffff" font-weight="700" letter-spacing="2">${pClass} • ${pRace}</text>
-                <text x="0" y="35" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.4)">RANG DE PUISSANCE : ${pRank}</text>
+            <!-- Name, Class, Race -->
+            <g transform="translate(100, 36)">
+                <text x="0" y="0" font-family="'Segoe UI', sans-serif" font-size="20" font-weight="900" fill="#ffffff">${escapeXml(pName)}</text>
+                <text x="0" y="18" font-family="'Segoe UI', sans-serif" font-size="12" fill="#ffd700" font-weight="bold" letter-spacing="1.5">${escapeXml(pClass)} • ${escapeXml(pRace)}</text>
+                <text x="0" y="32" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.4)">RANG : <tspan fill="#00ffff" font-weight="bold">${escapeXml(pRank)}</tspan> • COORDONNÉES MATRIX SECURE</text>
             </g>
 
-            <!-- Resource Progress Meters -->
-            <g transform="translate(30, 185)">
+            <!-- HP / MP Gauges on Right side of the HUD -->
+            <g transform="translate(370, 26)">
                 <!-- HP Gauge -->
                 <g transform="translate(0, 0)">
-                    <rect x="0" y="-18" width="10" height="10" fill="url(#softRuby)" rx="2" />
-                    <text x="18" y="-10" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="900" fill="#ff4081" letter-spacing="1.5">POINTS DE VIE (HP)</text>
-                    <text x="330" y="-10" font-family="monospace" font-size="13" fill="#ffffff" font-weight="bold" text-anchor="end">${pHealth} / ${pMaxHealth}</text>
-                    <rect x="0" y="0" width="330" height="8" fill="rgba(255,255,255,0.06)" rx="4" />
-                    <rect x="0" y="0" width="${Math.max(10, Math.min(100, (pHealth / pMaxHealth) * 100)) * 3.3}" height="8" fill="url(#softRuby)" rx="4" filter="url(#softGlow)" />
+                    <text x="0" y="10" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="900" fill="#ff4081" letter-spacing="1">HP</text>
+                    <text x="260" y="10" font-family="monospace" font-size="10" fill="#ffffff" font-weight="bold" text-anchor="end">${escapeXml(pHealth)} / ${escapeXml(pMaxHealth)}</text>
+                    <rect x="0" y="16" width="260" height="6" fill="rgba(255,255,255,0.07)" rx="3" />
+                    <rect x="0" y="16" width="${Math.max(10, Math.min(100, (pHealth / pMaxHealth) * 100)) * 2.6}" height="6" fill="url(#softRuby)" rx="3" filter="url(#softGlow)" />
                 </g>
 
                 <!-- MP Gauge -->
-                <g transform="translate(0, 52)">
-                    <rect x="0" y="-18" width="10" height="10" fill="url(#cyberCyan)" rx="2" />
-                    <text x="18" y="-10" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="900" fill="#00ffff" letter-spacing="1.5">RÉSERVE D'ÉTHER (MP)</text>
-                    <text x="330" y="-10" font-family="monospace" font-size="13" fill="#ffffff" font-weight="bold" text-anchor="end">${pMana} / ${pMaxMana}</text>
-                    <rect x="0" y="0" width="330" height="8" fill="rgba(255,255,255,0.06)" rx="4" />
-                    <rect x="0" y="0" width="${Math.max(10, Math.min(100, (pMana / pMaxMana) * 100)) * 3.3}" height="8" fill="url(#cyberCyan)" rx="4" filter="url(#softGlow)" />
-                </g>
-
-                <!-- Location & Sector Coordinates Panel -->
-                <g transform="translate(0, 115)">
-                    <rect x="-10" y="0" width="350" height="68" fill="rgba(255,255,255,0.01)" stroke="rgba(255,255,255,0.06)" rx="8" />
-                    <text x="15" y="24" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="900" fill="#ffd700" letter-spacing="2.5">SECTEUR ACTUEL</text>
-                    <text x="15" y="44" font-family="'Segoe UI', sans-serif" font-size="15" font-weight="bold" fill="#ffffff" letter-spacing="0.5">📍 ${pLocation}</text>
-                    <text x="15" y="58" font-family="monospace" font-size="11" fill="#00ffff" font-weight="bold">⚡ ${pSubLocation}</text>
-                </g>
-
-                <!-- Status overview icons and gold -->
-                <g transform="translate(0, 205)">
-                    <rect x="-10" y="0" width="165" height="52" fill="rgba(255,215,0,0.01)" stroke="rgba(255,215,0,0.08)" rx="8" />
-                    <text x="10" y="18" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="rgba(255,215,0,0.6)" letter-spacing="1">COL EN ESPÈCES</text>
-                    <text x="10" y="40" font-family="'Segoe UI', sans-serif" font-size="18" font-weight="900" fill="#ffd700">🪙 ${pCol.toLocaleString()}</text>
-
-                    <rect x="175" y="0" width="165" height="52" fill="rgba(0,255,255,0.01)" stroke="rgba(0,255,255,0.08)" rx="8" />
-                    <text x="195" y="18" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="rgba(0,255,255,0.6)" letter-spacing="1">STABILITÉ MATRICE</text>
-                    <text x="195" y="40" font-family="'Segoe UI', sans-serif" font-size="16" font-weight="900" fill="#00f3ff">CONNECTÉ</text>
+                <g transform="translate(0, 32)">
+                    <text x="0" y="10" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="900" fill="#00ffff" letter-spacing="1">MP</text>
+                    <text x="260" y="10" font-family="monospace" font-size="10" fill="#ffffff" font-weight="bold" text-anchor="end">${escapeXml(pMana)} / ${escapeXml(pMaxMana)}</text>
+                    <rect x="0" y="16" width="260" height="6" fill="rgba(255,255,255,0.07)" rx="3" />
+                    <rect x="0" y="16" width="${Math.max(10, Math.min(100, (pMana / pMaxMana) * 100)) * 2.6}" height="6" fill="url(#cyberCyan)" rx="3" filter="url(#softGlow)" />
                 </g>
             </g>
 
-            <!-- Bottom system diagnostic status keys -->
-            <g transform="translate(30, 465)">
-                <line x1="-10" y1="-10" x2="340" y2="-10" stroke="rgba(255,255,255,0.06)" stroke-width="0.8" />
-                <text x="0" y="8" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.3)">MATRIX CORE v4.12 // EMULATED SYSTEM: SECURE</text>
-                <text x="330" y="8" font-family="monospace" font-size="10" fill="#ffaa00" font-weight="bold" text-anchor="end">RANG ${pRank}</text>
+            <!-- Bottom location & Col panel in HUD -->
+            <g transform="translate(100, 108)">
+                <text x="0" y="0" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#00e676">📍 ${escapeXml(pLocation.toUpperCase())} <tspan fill="rgba(255,255,255,0.4)">|</tspan> ${escapeXml(pSubLocation.toUpperCase())}</text>
+                <text x="548" y="0" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="900" fill="#ffd700" text-anchor="end">🪙 ${escapeXml(pCol.toLocaleString())} COL</text>
             </g>
         </g>
 
-        <!-- Footer watermark -->
+        <!-- ==================== MAIN CARDS GRID (CADRES) ==================== -->
+        ${processedCards.map((card, i) => {
+            const isActive = (i === 0); // Adventure /action is active/highlighted by default
+            const borderGrad = isActive ? 'url(#premiumGold)' : 'rgba(255,255,255,0.12)';
+            const shadowGlow = isActive ? `filter: drop-shadow(0px 0px 15px rgba(255, 215, 0, 0.45)); stroke-width: 2.5;` : 'stroke-width: 1.2;';
+            const badgeBg = isActive ? '#ffd700' : 'rgba(255,255,255,0.06)';
+            const badgeTextColor = isActive ? '#05040a' : card.color;
+
+            return `
+            <g transform="translate(${card.x}, ${card.y})">
+                <!-- Group-level clip path to keep card completely rounded -->
+                <g clip-path="url(#clip-card-${i})">
+                    <!-- Embedded Card Background Image (processed/dimmed) -->
+                    ${card.base64Img ? `
+                    <image x="0" y="0" width="${cardWidth}" height="${cardHeight}" xlink:href="data:image/jpeg;base64,${card.base64Img}" />
+                    ` : `
+                    <!-- Solid gradient fallback if asset doesn't exist -->
+                    <rect width="${cardWidth}" height="${cardHeight}" fill="#0d0b1a" />
+                    <rect width="${cardWidth}" height="${cardHeight}" fill="${card.color}" opacity="0.08" />
+                    `}
+
+                    <!-- Dark premium glassmorphic overlay inside card -->
+                    <rect width="${cardWidth}" height="${cardHeight}" fill="rgba(9, 7, 18, 0.55)" />
+
+                    <!-- Cyber diagonal luxury stripes -->
+                    <path d="M 0,${cardHeight} L ${cardWidth},30" stroke="${card.color}" stroke-width="1.5" opacity="0.12" />
+
+                    <!-- Card Contents -->
+                    <g transform="translate(25, 30)">
+                        <!-- Command Badge -->
+                        <rect x="0" y="0" width="85" height="16" fill="${badgeBg}" rx="4" />
+                        <text x="42.5" y="11" font-family="monospace" font-size="9" font-weight="900" fill="${badgeTextColor}" text-anchor="middle">${escapeXml(card.cmd.toUpperCase())}</text>
+
+                        <!-- Glowing decorative indicator at top-right of card content -->
+                        <circle cx="${cardWidth - 55}" cy="8" r="4" fill="${card.color}" style="filter: url(#softGlow);" opacity="${isActive ? 0.9 : 0.5}" />
+
+                        <!-- Title and sub -->
+                        <text x="0" y="44" font-family="'Segoe UI', Arial, sans-serif" font-size="22" font-weight="900" fill="#ffffff" letter-spacing="1" style="text-shadow: 0px 2px 8px rgba(0,0,0,0.95);">${escapeXml(card.title)}</text>
+                        <text x="0" y="66" font-family="'Segoe UI', sans-serif" font-size="12" fill="${card.color}" font-weight="bold" letter-spacing="0.5">${escapeXml(card.sub)}</text>
+
+                        <!-- Description -->
+                        <text x="0" y="94" font-family="'Segoe UI', sans-serif" font-size="11" fill="rgba(255,255,255,0.55)" width="${cardWidth - 50}">${escapeXml(card.desc)}</text>
+                    </g>
+
+                    <!-- Active card highlight overlays -->
+                    ${isActive ? `
+                    <rect x="1" y="1" width="${cardWidth - 2}" height="${cardHeight - 2}" fill="none" stroke="url(#premiumGold)" stroke-width="1.5" opacity="0.35" rx="13" />
+                    <polygon points="12,185 24,185 18,175" fill="#ffd700" />
+                    <text x="32" y="184" font-family="monospace" font-size="9" font-weight="bold" fill="#ffd700" letter-spacing="1">SÉLECTION ACTIVE</text>
+                    ` : ''}
+
+                    <!-- Beautiful sci-fi design corners inside card -->
+                    <path d="M 12,20 L 12,12 L 20,12" fill="none" stroke="${card.color}" stroke-width="1.5" opacity="0.5" />
+                    <path d="M ${cardWidth - 12},${cardHeight - 20} L ${cardWidth - 12},${cardHeight - 12} L ${cardWidth - 20},${cardHeight - 12}" fill="none" stroke="${card.color}" stroke-width="1.5" opacity="0.5" />
+                </g>
+
+                <!-- High-contrast crisp border outside clipping to look incredibly sharp -->
+                <rect x="0" y="0" width="${cardWidth}" height="${cardHeight}" fill="none" stroke="${borderGrad}" style="${shadowGlow}" rx="14" ry="14" />
+            </g>
+            `;
+        }).join('')}
+
+        <!-- ==================== FOOTER ==================== -->
         <g transform="translate(60, ${height - 35})">
-            <text font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="rgba(255,255,255,0.2)" letter-spacing="4">© AETHERYS ENTERTAINMENT LABS // PREMIUM ANIME-RPG INTERFACE 2026</text>
+            <text font-family="'Segoe UI', sans-serif" font-size="10" font-weight="bold" fill="rgba(255,255,255,0.2)" letter-spacing="4">© AETHERYS ENTERTAINMENT LABS • CONSEIL TACTIQUE GENERATION IV</text>
+            <text x="1080" y="0" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.2)" text-anchor="end">SYS_STATUS: OPTIMAL // SYNC_ACTIVE</text>
         </g>
     </svg>
     `;
 
-    let menuSharpInstance;
-    if (hasFlag) {
-        try {
-            // Overlay flag as a soft background texture
-            const dimmedFlag = await sharp(flagPath)
-                .resize(width, height, { fit: 'cover' })
-                .blur(5)
-                .linear(0.12, 0) // heavily dimmed for maximum premium readability
-                .toBuffer();
-
-            menuSharpInstance = sharp(dimmedFlag)
-                .composite([{ input: Buffer.from(svg), top: 0, left: 0 }]);
-        } catch (e) {
-            console.error("[Menu Generator] Error processing flag background:", e);
-            menuSharpInstance = sharp(Buffer.from(svg));
-        }
-    } else {
-        menuSharpInstance = sharp(Buffer.from(svg));
-    }
-
-    return menuSharpInstance.png().toBuffer();
+    return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 module.exports = { generateMainMenuImage };
