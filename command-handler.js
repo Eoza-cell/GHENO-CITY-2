@@ -5,7 +5,7 @@ const path = require('path');
 const lastViewedItems = new Map();
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, PlayerSkill, Entity, Pact, Club, PlayerClub, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -1923,14 +1923,18 @@ commands.set('reset', async (sock, message, args) => {
     }
 
     try {
-        // We delete the player. Associations like Bank might need manual cleanup if not cascading.
+        // Complete bulletproof reset of player and all associations to ensure they are no longer an Apostle and start fresh
         await Bank.destroy({ where: { PlayerWhatsappId: jid } });
-        // PlayerQuest and PlayerSkill should be handled by sequelize if constraints are right,
-        // but often in SQLite/Manual sync we might need to be careful.
-        // However, destroying the player is the core.
+        await PlayerQuest.destroy({ where: { PlayerWhatsappId: jid } });
+        await PlayerSkill.destroy({ where: { PlayerWhatsappId: jid } });
+        await Pact.destroy({ where: { PlayerWhatsappId: jid } });
+        await PlayerClub.destroy({ where: { PlayerWhatsappId: jid } });
+        await TournamentParticipant.destroy({ where: { playerJid: jid } });
+        await House.update({ ownerId: null, storage: '[]' }, { where: { ownerId: jid } });
+
         await player.destroy();
 
-        await sock.sendMessage(replyJid, { text: "💥 *Personnage réinitialisé.* Ta présence a été effacée de la matrice d'Aetherys. Utilise `/start` pour renaître." });
+        await sock.sendMessage(replyJid, { text: "💥 *Personnage réinitialisé.* Ta présence et tes pouvoirs d'Apôtre ont été définitivement effacés de la matrice d'Aetherys. Utilise `/start` pour renaître de tes cendres." });
     } catch (error) {
         console.error("Erreur reset personnage:", error);
         await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la réinitialisation de ton personnage." });

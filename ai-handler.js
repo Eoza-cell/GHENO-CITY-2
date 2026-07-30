@@ -475,7 +475,8 @@ async function handleFreeAction(sock, message, player, actionText) {
       "Le Directeur Magnus a réuni les magiciens d'élite de l'Académie Impériale pour sceller une faille magique instable qui est apparue près des frontières.",
       "La Princesse Seraphina mène actuellement des négociations diplomatiques confidentielles avec les diplomates elfes de la Forêt de l'Éveil.",
       "Le Juge Orpheon prépare une convocation d'urgence à Nécropolis pour faire passer des jugements d'âmes corrompues.",
-      "L'Ombre organise une réunion secrète des chefs du Syndicat dans les bas-fonds de Gheno."
+      "L'Ombre organise une réunion secrète des chefs du Syndicat dans les bas-fonds de Gheno.",
+      "Plusieurs témoins affirment avoir senti le froid glacial caractéristique d'Erius, l'Éminence de l'Interstice, planer silencieusement lors de combats récents."
   ];
   const selectedNpcRumor = pnjActiveLifeRumors[Math.floor(Math.random() * pnjActiveLifeRumors.length)];
   hints.push(`ℹ️ VIE ACTIVE DES PNJ ET RUMEURS D'AETHERYS (Les PNJ majeurs bougent et agissent) : ${selectedNpcRumor}`);
@@ -767,6 +768,9 @@ LÉTHALITÉ & CONSÉQUENCES :
 INDÉPENDANCE ET LIBERTÉ D'ACTION DES JOUEURS :
 - INDÉPENDANCE ABSOLUE DES HISTOIRES : Tu ne dois JAMAIS mélanger, fusionner ou confondre les histoires individuelles, les objectifs, les quêtes ou les récits personnels des différents joueurs présents. Chaque joueur est un être à part entière, totalement autonome, libre et indépendant. Leurs destins ne sont pas liés de force.
 - INTERACTION LIBRE : Les joueurs interagissent entre eux de leur plein gré (dialogues, alliances temporaires, trahisons, duels PVP). Arbitre uniquement les conséquences physiques locales et immédiates de leurs interactions (transfert d'objets, dégâts physiques subis) sans jamais inventer de liens scénaristiques ou narratifs forcés ou artificiels entre leurs vécus respectifs.
+
+PRÉSENCES MYSTIQUES LOOMING :
+- LA PRÉSENCE D'ERIUS (L'ÉMINENCE) : Fais régulièrement ressentir de manière subtile, froide et divine la présence invisible mais oppressante d'Erius (l'Éminence de l'Interstice) qui observe silencieusement les combats, les duels PVP et les choix cruciaux depuis la lisière des ombres, ses yeux azurs scintillants brillant brièvement dans la pénombre.
 
 LORE DES CLASSES (CHEVALIER-DRAGON) :
 - CHEVALIER-DRAGON (DRAGON SLAYER) : Les joueurs de la classe "Chevalier-Dragon" possèdent des facultés identiques aux Dragon Slayers de Fairy Tail (comme Natsu Dragnir). Ils ont des poumons de dragon (capables d'expirer des souffles élémentaires dévastateurs), peuvent dévorer leur propre élément magique pour restaurer instantanément leurs PM/PV, et sous l'effet de l'Aura, leur peau se couvre d'écailles draconiques denses et leur force brute devient divine.
