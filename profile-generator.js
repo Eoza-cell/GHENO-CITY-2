@@ -136,7 +136,19 @@ async function addOverlay(baseImg, player, width, height) {
     const weapons = inventory.filter(i => weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 3);
     const equipment = inventory.filter(i => !weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 3);
 
-    const rankColor = player.rank === 'S' ? '#ffd700' : (player.rank === 'A' ? '#ff4fb3' : '#4fb3ff');
+    const rankConfigs = {
+        'S': { color: '#ffd700', font: "'Impact', 'Arial Black', sans-serif", style: "italic" },
+        'A': { color: '#ff0055', font: "'Times New Roman', 'Georgia', serif", style: "normal" },
+        'B': { color: '#bf00ff', font: "'Courier New', monospace", style: "normal" },
+        'C': { color: '#00e5ff', font: "'Georgia', serif", style: "italic" },
+        'D': { color: '#00e676', font: "'Trebuchet MS', sans-serif", style: "normal" },
+        'E': { color: '#2979ff', font: "'Arial Black', sans-serif", style: "normal" },
+        'F': { color: '#b0bec5', font: "'Arial', sans-serif", style: "normal" }
+    };
+    const rConf = rankConfigs[player.rank] || rankConfigs['F'];
+    const rankColor = rConf.color;
+    const rankFont = rConf.font;
+    const rankStyle = rConf.style;
 
     let outfitColor = "rgba(255,255,255,0.2)";
     let isTorn = player.outfitDurability < 50;
@@ -212,7 +224,7 @@ async function addOverlay(baseImg, player, width, height) {
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
             <style>
                 .text { fill: white; font-family: 'Segoe UI', Verdana, sans-serif; }
-                .rank { font-size: 110px; font-weight: 900; fill: ${rankColor}; font-style: italic; filter: drop-shadow(0 0 10px ${rankColor}); }
+                .rank { font-size: 110px; font-weight: 900; fill: ${rankColor}; font-family: ${rankFont}; font-style: ${rankStyle}; filter: drop-shadow(0 0 15px ${rankColor}); }
                 .rank-label { font-size: 24px; font-weight: bold; fill: ${rankColor}; letter-spacing: 5px; }
                 .aka { font-size: 20px; fill: rgba(255,255,255,0.6); font-weight: 300; letter-spacing: 2px; }
                 .name { font-size: 50px; font-weight: 900; fill: #ffffff; text-transform: uppercase; letter-spacing: -1px; }

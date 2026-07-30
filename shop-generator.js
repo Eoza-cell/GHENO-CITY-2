@@ -1,5 +1,25 @@
 const sharp = require('sharp');
+const axios = require('axios');
 const { escapeXml } = require('./utils');
+
+/**
+ * Helper to fetch and resize wikipedia / gbf.wiki weapon images with a strict timeout.
+ * Returns a PNG buffer with transparency or null on failure.
+ * @param {string} url - Wiki image URL
+ * @param {number} size - Target square size (width and height)
+ */
+async function fetchWikiImageBuffer(url, size = 100) {
+    if (!url || !url.startsWith('http')) return null;
+    try {
+        const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 1500 });
+        return await sharp(res.data)
+            .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .toBuffer();
+    } catch (e) {
+        console.warn(`[Wiki Image Fetch] Failed to retrieve ${url}:`, e.message);
+        return null;
+    }
+}
 
 /**
  * Draws a highly stylized, vector-based SVG weapon design depending on its type, element, and stats.
@@ -71,9 +91,8 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
     // Start drawing based on subtype
     switch (weaponSubtype) {
         case 'dagger': {
-            // Dagger: shorter blade, curved, high agility theme
             const bladeCurve = agi > 10 ? 'Q 110,60 100,20 Q 90,60' : 'L 105,40 L 100,25 L 95,40';
-            const bladeWidth = 10 + Math.min(10, str * 0.5); // high str makes it wider
+            const bladeWidth = 10 + Math.min(10, str * 0.5);
             drawingSvg = `
                 <!-- Hilt -->
                 <rect x="96" y="140" width="8" height="35" fill="#444" rx="2" />
@@ -82,14 +101,11 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
                 <path d="M 85,140 Q 100,135 115,140 L 110,146 Q 100,142 90,146 Z" fill="${mainColor}" />
                 <!-- Blade -->
                 <path d="M ${100 - bladeWidth},138 ${bladeCurve} 100,20 Q ${100 + bladeWidth},60 ${100 + bladeWidth},138 Z" fill="url(#bladeGlowGrad)" stroke="${mainColor}" stroke-width="1.5" />
-                <!-- Magic Rune for high intelligence -->
                 ${int > 10 ? `<line x1="100" y1="120" x2="100" y2="60" stroke="#00ffff" stroke-width="1" stroke-dasharray="2,3" />` : ''}
             `;
             break;
         }
         case 'spear': {
-            // Spear: very long shaft, pointed head
-            const shaftLength = 130;
             const headWidth = 12 + Math.min(15, str * 0.4);
             drawingSvg = `
                 <!-- Shaft -->
@@ -107,8 +123,7 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
             break;
         }
         case 'staff': {
-            // Staff: ornate magical cane, Floating Elemental Orb
-            const orbSize = 14 + Math.min(15, int * 0.3); // size scales with intelligence
+            const orbSize = 14 + Math.min(15, int * 0.3);
             drawingSvg = `
                 <!-- Wooden staff shaft -->
                 <line x1="100" y1="190" x2="100" y2="60" stroke="#5c4033" stroke-width="5" rx="2" />
@@ -120,7 +135,6 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
                 <path d="M 80,65 Q 100,35 120,65" fill="none" stroke="${mainColor}" stroke-width="2" />
                 <!-- Floating core orb -->
                 <circle cx="100" cy="55" r="${orbSize}" fill="url(#elementOrbGrad)" filter="url(#glowFilter)" />
-                <!-- Floating magical shards for legendary staff -->
                 ${rarity === 'legendary' ? `
                     <polygon points="72,40 76,44 70,46" fill="${mainColor}" />
                     <polygon points="128,40 124,44 130,46" fill="${mainColor}" />
@@ -130,7 +144,6 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
             break;
         }
         case 'bow': {
-            // Bow: Curved bow string, glowing arrow
             const bowPull = 80 + Math.min(30, agi * 0.5);
             drawingSvg = `
                 <!-- Main Bow Curve -->
@@ -142,13 +155,11 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
                 <line x1="50" y1="100" x2="125" y2="100" stroke="${mainColor}" stroke-width="2" />
                 <!-- Arrowhead -->
                 <polygon points="125,95 138,100 125,105" fill="#fff" filter="url(#glowFilter)" />
-                <!-- Arrow fletching -->
                 <path d="M 50,96 L 40,92 L 44,100 L 40,108 L 50,104 Z" fill="${mainColor}" />
             `;
             break;
         }
         case 'axe': {
-            // Axe: heavy shaft, massive crescent blades
             const axeScale = 10 + Math.min(18, str * 0.4);
             drawingSvg = `
                 <!-- Shaft -->
@@ -159,17 +170,15 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
                 <polygon points="96,35 104,35 100,25" fill="${mainColor}" />
                 <!-- Crescent Blade Left -->
                 <path d="M 98,40 Q ${100 - axeScale * 2},30 ${100 - axeScale * 2.5},70 Q ${100 - axeScale},105 98,90 Z" fill="url(#bladeGlowGrad)" stroke="${mainColor}" stroke-width="2" />
-                <!-- Crescent Blade Right (Double axe if high stats) -->
+                <!-- Crescent Blade Right -->
                 ${str > 15 ? `
                     <path d="M 102,40 Q ${100 + axeScale * 2},30 ${100 + axeScale * 2.5},70 Q ${100 + axeScale},105 102,90 Z" fill="url(#bladeGlowGrad)" stroke="${mainColor}" stroke-width="2" />
                 ` : ''}
-                <!-- Central binding plate -->
                 <rect x="92" y="50" width="16" height="25" fill="#333" stroke="${mainColor}" stroke-width="1.5" rx="3" />
             `;
             break;
         }
         case 'shield': {
-            // Shield: heavy defensive plate
             const shieldWidth = 35 + Math.min(15, def * 0.3);
             drawingSvg = `
                 <!-- Inner backing -->
@@ -178,7 +187,6 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
                 <path d="M 100,45 L ${100 - shieldWidth + 12},60 L ${100 - shieldWidth + 18},110 L 100,150 L ${100 + shieldWidth - 18},110 L ${100 + shieldWidth - 12},60 Z" fill="url(#elementOrbGrad)" stroke="#fff" stroke-width="1" opacity="0.8" />
                 <!-- Steel boss rivets -->
                 <circle cx="100" cy="95" r="8" fill="${mainColor}" stroke="#fff" stroke-width="1" />
-                <!-- Decorative wings or crest details for high rank -->
                 ${rarity === 'epic' || rarity === 'legendary' ? `
                     <line x1="${100 - shieldWidth}" y1="50" x2="${100 + shieldWidth}" y2="50" stroke="#ffd700" stroke-width="3" />
                     <polygon points="100,20 106,30 94,30" fill="#ffd700" />
@@ -187,7 +195,6 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
             break;
         }
         case 'clothing': {
-            // Clothing: protective coat or plate chest, high defense/intel theme
             drawingSvg = `
                 <!-- Shoulders and Coat -->
                 <path d="M 65,55 L 80,45 L 120,45 L 135,55 L 140,85 L 125,95 L 135,175 L 65,175 L 75,95 L 60,85 Z" fill="#1b1c2e" stroke="${mainColor}" stroke-width="2" />
@@ -204,23 +211,17 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
             // Default elegant legendary sword design (cx=100, cy=100)
             const bladeLength = 110 + Math.min(25, str * 0.5);
             const crossguardWidth = 35 + Math.min(15, def * 0.4);
-            const finalThickness = 8 + Math.min(8, str * 0.3); // high strength = thicker heavier claymore sword
+            const finalThickness = 8 + Math.min(8, str * 0.3);
 
             drawingSvg = `
-                <!-- Hilt grip wrapping -->
                 <rect x="96" y="130" width="8" height="45" fill="#4a2c11" rx="2" />
-                <!-- Pommel -->
                 <circle cx="100" cy="180" r="8" fill="${mainColor}" stroke="#ffffff" stroke-width="1.5" />
 
-                <!-- Crossguard (Slanted for action feel) -->
                 <path d="M ${100 - crossguardWidth},122 L ${100 + crossguardWidth},122 L 100,132 Z" fill="${mainColor}" stroke="#ffffff" stroke-width="1" />
                 <circle cx="${100 - crossguardWidth}" cy="122" r="3" fill="#ffffff" />
                 <circle cx="${100 + crossguardWidth}" cy="122" r="3" fill="#ffffff" />
 
-                <!-- Sword Blade (with dynamic sizing) -->
                 <path d="M ${100 - finalThickness},120 L ${100 - finalThickness + 2},${130 - bladeLength} L 100,${105 - bladeLength} L ${100 + finalThickness - 2},${130 - bladeLength} L ${100 + finalThickness},120 Z" fill="url(#bladeGlowGrad)" stroke="${mainColor}" stroke-width="1.8" />
-
-                <!-- Central blade blood-groove (gouttière) -->
                 <line x1="100" y1="115" x2="100" y2="${140 - bladeLength}" stroke="rgba(0,0,0,0.5)" stroke-width="1.5" stroke-linecap="round" />
             `;
             break;
@@ -231,7 +232,6 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
     let auraOverlay = '';
     if (element === 'Feu' || name.includes('[Feu]') || name.includes('flamme') || name.includes('brasier')) {
         auraOverlay = `
-            <!-- Rising fire flames -->
             <path d="M 60,140 Q 40,90 100,30 Q 160,90 140,140 Z" fill="url(#fireAuraGrad)" opacity="0.25" filter="url(#glowFilter)" />
             <circle cx="75" cy="80" r="4" fill="#ffaa00" opacity="0.6" filter="url(#glowFilter)" />
             <circle cx="125" cy="65" r="3" fill="#ffd700" opacity="0.8" filter="url(#glowFilter)" />
@@ -239,28 +239,24 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
         `;
     } else if (element === 'Eau' || name.includes('[Eau]') || name.includes('glace') || name.includes('torrent')) {
         auraOverlay = `
-            <!-- Water vortex / bubbles -->
             <path d="M 100,100 M 50,100 A 50,50 0 1,1 150,100 A 50,50 0 1,1 50,100" fill="none" stroke="#00bfff" stroke-width="1.5" stroke-dasharray="10,15" opacity="0.5" filter="url(#glowFilter)" />
             <circle cx="60" cy="70" r="4" fill="#e0ffff" opacity="0.7" />
             <circle cx="140" cy="120" r="6" fill="#1e90ff" opacity="0.4" />
         `;
     } else if (element === 'Terre' || name.includes('[Terre]') || name.includes('roc') || name.includes('cristal')) {
         auraOverlay = `
-            <!-- Crystalline earth shards -->
             <polygon points="50,110 58,102 54,122" fill="#ffd700" opacity="0.6" filter="url(#glowFilter)" />
             <polygon points="145,70 152,78 138,82" fill="#ffd700" opacity="0.7" filter="url(#glowFilter)" />
             <path d="M 70,150 L 130,150 L 100,170 Z" fill="#b8860b" opacity="0.3" />
         `;
     } else if (element === 'Vent' || name.includes('[Vent]') || name.includes('souffle') || name.includes('tempête')) {
         auraOverlay = `
-            <!-- Swirling wind currents -->
             <path d="M 50,120 Q 100,80 150,120 M 55,60 Q 100,110 145,60" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.4" />
             <line x1="45" y1="90" x2="70" y2="90" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.3" />
             <line x1="130" y1="130" x2="155" y2="130" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.3" />
         `;
     }
 
-    // Embed all vectors into a clean self-contained group
     return `
     <g transform="scale(${scale}) translate(${(1 - scale) * 100}, ${(1 - scale) * 100}) translate(10, 0)">
         <defs>
@@ -287,11 +283,7 @@ function drawItemDesign(name, type, rarity, element, stats, scale = 1.0) {
                 </feMerge>
             </filter>
         </defs>
-
-        <!-- Dynamic element aura backdrop -->
         ${auraOverlay}
-
-        <!-- Base weapon structure -->
         ${drawingSvg}
     </g>
     `;
@@ -323,6 +315,26 @@ async function generateShopImage(title, items) {
     };
 
     let itemsSvg = '';
+    const compositeOperations = [];
+
+    // Trigger Wikipedia images pre-fetching in parallel
+    const imagePromises = items.map(async (item, i) => {
+        if (item.imageUrl && item.imageUrl.startsWith('http')) {
+            const buf = await fetchWikiImageBuffer(item.imageUrl, 110);
+            if (buf) {
+                const row = Math.floor(i / cols);
+                const col = i % cols;
+                const x = margin + 15 + col * (cardWidth + margin);
+                const y = headerHeight + row * (cardHeight + margin);
+                // Center precisely inside the card portal region (absolute coordinates)
+                return { input: buf, left: x + 30, top: y + 60 };
+            }
+        }
+        return null;
+    });
+
+    const resolvedImages = await Promise.all(imagePromises);
+
     items.forEach((item, i) => {
         const row = Math.floor(i / cols);
         const col = i % cols;
@@ -336,7 +348,6 @@ async function generateShopImage(title, items) {
         const int = item.statBonuses?.intelligence || 0;
         const luk = item.statBonuses?.luck || 0;
 
-        // Calculate standard stats totals
         const statSum = str + agi + def + int + luk;
         let stars = 1;
         if (statSum > 45) stars = 5;
@@ -346,18 +357,19 @@ async function generateShopImage(title, items) {
 
         const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
 
-        // Render stat indicators as visual progress bars
-        const maxStatVisual = 50; // normalization max
+        const maxStatVisual = 50;
         const strBarWidth = Math.min(100, (str / maxStatVisual) * 100);
         const agiBarWidth = Math.min(100, (agi / maxStatVisual) * 100);
         const defBarWidth = Math.min(100, (def / maxStatVisual) * 100);
         const intBarWidth = Math.min(100, (int / maxStatVisual) * 100);
 
-        // Determine specific item elements if defined
         const itemElement = item.name.includes('[Feu]') ? 'Feu' :
                             (item.name.includes('[Eau]') ? 'Eau' :
                             (item.name.includes('[Terre]') ? 'Terre' :
                             (item.name.includes('[Vent]') ? 'Vent' : 'None')));
+
+        // Check if we successfully fetched the real Wikipedia / GBF Wikia image for this card
+        const hasWikiImage = !!resolvedImages[i];
 
         itemsSvg += `
             <g transform="translate(${x}, ${y})">
@@ -365,16 +377,18 @@ async function generateShopImage(title, items) {
                 <rect width="${cardWidth}" height="${cardHeight}" fill="rgba(8,10,25,0.85)" stroke="${rarityColor}" stroke-width="${item.rarity === 'legendary' ? 2.5 : 1.2}" rx="12" style="${item.rarity === 'legendary' || item.rarity === 'epic' ? `filter: drop-shadow(0 0 5px ${rarityColor})` : ''}" />
                 <rect x="5" y="5" width="${cardWidth - 10}" height="${cardHeight - 10}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1" rx="8" />
 
-                <!-- Left Panel: Dynamic Vector Weapon Drawing -->
+                <!-- Left Panel: Portal holding design -->
                 <g transform="translate(10, 15)">
-                    <!-- Drawing Background Portal -->
+                    <!-- Portal Backdrop circle -->
                     <circle cx="75" cy="100" r="60" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
                     <circle cx="75" cy="100" r="50" fill="none" stroke="${rarityColor}" stroke-dasharray="3,6" opacity="0.25" />
 
-                    <!-- Nested element-based visual generator -->
+                    <!-- Nested drawn vector design (only visible if Wikipedia image fetch failed or is absent) -->
+                    ${!hasWikiImage ? `
                     <g transform="translate(-25, 0)">
                         ${drawItemDesign(item.name, item.type, item.rarity, itemElement, item.statBonuses || {})}
                     </g>
+                    ` : ''}
                 </g>
 
                 <!-- Right Panel: Weapon Info & Stats Bars -->
@@ -464,7 +478,28 @@ async function generateShopImage(title, items) {
         </svg>
     `;
 
-    return await sharp(Buffer.from(svg))
+    // Construct sharp composition array
+    const baseSharp = sharp(Buffer.from(svg));
+    const finalComposites = [{ input: Buffer.from(svg), top: 0, left: 0 }];
+
+    resolvedImages.forEach(img => {
+        if (img) {
+            finalComposites.push(img);
+        }
+    });
+
+    // Resolve combined layout beautifully
+    const emptyBg = await sharp({
+        create: {
+            width,
+            height,
+            channels: 4,
+            background: { r: 3, g: 3, b: 11, alpha: 1 }
+        }
+    }).png().toBuffer();
+
+    return await sharp(emptyBg)
+        .composite(finalComposites)
         .png()
         .toBuffer();
 }
@@ -508,7 +543,6 @@ async function generateDetailedItemCard(item) {
     const rMax = 110;
     const getPointStr = (statVal) => Math.min(1.0, statVal / 50.0);
 
-    // Points directions: STR (0 deg, top), AGI (72 deg), INT (144 deg), DEF (216 deg), LUK (288 deg)
     const pStrX = cx + 0 * rMax * Math.sin(0);
     const pStrY = cy - getPointStr(str) * rMax * Math.cos(0);
 
@@ -528,6 +562,10 @@ async function generateDetailedItemCard(item) {
                         (item.name.includes('[Eau]') ? 'Eau' :
                         (item.name.includes('[Terre]') ? 'Terre' :
                         (item.name.includes('[Vent]') ? 'Vent' : 'None')));
+
+    // Try to fetch Wikipedia/Granblue Fantasy Wiki image
+    const wikiImageBuf = await fetchWikiImageBuffer(item.imageUrl, 220);
+    const hasWikiImage = !!wikiImageBuf;
 
     const svg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -583,13 +621,15 @@ async function generateDetailedItemCard(item) {
                 <path d="M 25,180 A 125,125 0 0,1 275,180" fill="none" stroke="${rarityColor}" stroke-width="1" opacity="0.15" />
                 <path d="M 25,180 A 125,125 0 0,0 275,180" fill="none" stroke="${rarityColor}" stroke-width="1" opacity="0.15" />
 
-                <!-- Nested drawn item design -->
+                <!-- Nested drawn item design (fallback if no wiki image is fetched) -->
+                ${!hasWikiImage ? `
                 <g transform="translate(50, 80)">
                     ${drawItemDesign(item.name, item.type, item.rarity, itemElement, item.statBonuses || {}, 1.6)}
                 </g>
+                ` : ''}
             </g>
 
-            <!-- Mid Section Info (Lore description) -->
+            <!-- Mid Section Info -->
             <g transform="translate(50, 485)">
                 <rect width="500" height="65" fill="rgba(255,255,255,0.01)" stroke="rgba(255,255,255,0.05)" rx="8" />
                 <text x="15" y="24" font-family="'Segoe UI', sans-serif" font-size="13" font-style="italic" fill="#c1c2d0">${escapeXml(item.description)}</text>
@@ -597,11 +637,9 @@ async function generateDetailedItemCard(item) {
                 <text x="485" y="46" font-family="Arial" font-size="13" fill="#ffd700" font-weight="bold" text-anchor="end">${starStr}</text>
             </g>
 
-            <!-- Stats diagram & numerical tables -->
-            <!-- Left Panel: Pentagon Radar Diagram -->
+            <!-- Pentagon Radar Diagram -->
             <g>
-                <!-- Pentagon background grids -->
-                ${[0.2, 0.4, 0.6, 0.8, 1.0].map((step, idx) => {
+                ${[0.2, 0.4, 0.6, 0.8, 1.0].map((step) => {
                     const r = rMax * step;
                     const p1x = cx; const p1y = cy - r;
                     const p2x = cx + r * Math.sin(72*Math.PI/180); const p2y = cy - r * Math.cos(72*Math.PI/180);
@@ -611,25 +649,19 @@ async function generateDetailedItemCard(item) {
                     return `<polygon points="${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y} ${p4x},${p4y} ${p5x},${p5y}" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1" />`;
                 }).join('')}
 
-                <!-- Center Spoke Lines -->
                 ${Array.from({length: 5}).map((_, i) => {
                     const angle = i * 72 * Math.PI / 180;
-                    const targetX = cx + rMax * Math.sin(angle);
-                    const targetY = cy - rMax * Math.cos(angle);
-                    return `<line x1="${cx}" y1="${cy}" x2="${targetX}" y2="${targetY}" stroke="rgba(255,255,255,0.06)" stroke-width="1" />`;
+                    return `<line x1="${cx}" y1="${cy}" x2="${cx + rMax * Math.sin(angle)}" y2="${cy - rMax * Math.cos(angle)}" stroke="rgba(255,255,255,0.06)" stroke-width="1" />`;
                 }).join('')}
 
-                <!-- Polygon Stat overlay -->
                 <polygon points="${pStrX},${pStrY} ${pAgiX},${pAgiY} ${pIntX},${pIntY} ${pDefX},${pDefY} ${pLukX},${pLukY}" fill="rgba(255, 69, 0, 0.25)" stroke="#ff4500" stroke-width="2.5" style="filter: drop-shadow(0 0 3px #ff4500);" />
 
-                <!-- Diagram Text Labels -->
                 <text x="${cx}" y="${cy - rMax - 10}" font-family="monospace" font-size="11" fill="#ff4d4d" font-weight="bold" text-anchor="middle">FOR [${str}]</text>
                 <text x="${cx + rMax * Math.sin(72*Math.PI/180) + 12}" y="${cy - rMax * Math.cos(72*Math.PI/180)}" font-family="monospace" font-size="11" fill="#33ff33" font-weight="bold" text-anchor="start">AGI [${agi}]</text>
                 <text x="${cx + rMax * Math.sin(144*Math.PI/180) + 12}" y="${cy - rMax * Math.cos(144*Math.PI/180) + 10}" font-family="monospace" font-size="11" fill="#00ffff" font-weight="bold" text-anchor="start">INT [${int}]</text>
                 <text x="${cx + rMax * Math.sin(216*Math.PI/180) - 12}" y="${cy - rMax * Math.cos(216*Math.PI/180) + 10}" font-family="monospace" font-size="11" fill="#ffcc00" font-weight="bold" text-anchor="end">DEF [${def}]</text>
                 <text x="${cx + rMax * Math.sin(288*Math.PI/180) - 12}" y="${cy - rMax * Math.cos(288*Math.PI/180)}" font-family="monospace" font-size="11" fill="#da70d6" font-weight="bold" text-anchor="end">LUK [${luk}]</text>
 
-                <!-- Anchor points -->
                 <circle cx="${pStrX}" cy="${pStrY}" r="4" fill="#ffffff" stroke="#ff4d4d" stroke-width="1.5" />
                 <circle cx="${pAgiX}" cy="${pAgiY}" r="4" fill="#ffffff" stroke="#33ff33" stroke-width="1.5" />
                 <circle cx="${pIntX}" cy="${pIntY}" r="4" fill="#ffffff" stroke="#00ffff" stroke-width="1.5" />
@@ -637,7 +669,6 @@ async function generateDetailedItemCard(item) {
                 <circle cx="${pLukX}" cy="${pLukY}" r="4" fill="#ffffff" stroke="#da70d6" stroke-width="1.5" />
             </g>
 
-            <!-- Bottom watermark/signoff -->
             <g transform="translate(300, 805)">
                 <line x1="-150" y1="-10" x2="150" y2="-10" stroke="rgba(255,255,255,0.06)" stroke-width="0.8" />
                 <text font-family="monospace" font-size="9" fill="rgba(255,255,255,0.3)" text-anchor="middle">AETHERYS DEFENSE LABS V2 // UNIQUE CATALOG REGISTRY CODE #${Math.floor(Math.random() * 900000 + 100000)}</text>
@@ -645,7 +676,23 @@ async function generateDetailedItemCard(item) {
         </svg>
     `;
 
-    return await sharp(Buffer.from(svg))
+    const emptyBg = await sharp({
+        create: {
+            width,
+            height,
+            channels: 4,
+            background: { r: 7, g: 5, b: 15, alpha: 1 }
+        }
+    }).png().toBuffer();
+
+    const composites = [{ input: Buffer.from(svg), top: 0, left: 0 }];
+    if (wikiImageBuf) {
+        // Overlay the real GBF Wiki/Wikipedia image inside the large portal
+        composites.push({ input: wikiImageBuf, left: 190, top: 180 });
+    }
+
+    return await sharp(emptyBg)
+        .composite(composites)
         .png()
         .toBuffer();
 }

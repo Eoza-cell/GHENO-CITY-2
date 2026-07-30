@@ -1105,7 +1105,7 @@ async function setupDatabase() {
         const firstNames = ["Kael", "Lyra", "Jax", "Elena", "Finn", "Soren", "Mira", "Thorne", "Valen", "Aria", "Zane", "Luna", "Cyrus", "Nyx", "Elias", "Ivy", "Kento", "Yuki", "Sakura", "Ren", "Akira", "Haru", "Misaki", "Tari", "Kenji"];
         const lastNames = ["Storm", "Shadow", "Light", "Blade", "Heart", "Soul", "Flame", "Frost", "Wind", "Iron", "Silva", "Vance", "Kuro", "Sato", "Watanabe", "Tanaka", "Ito", "Nakamura", "Kobayashi", "Kato"];
         const roles = ["Étudiant", "Professeur", "Garde", "Marchand", "Citoyen", "Aventurier", "Mercenaire", "Noble", "Prêtre", "Voleur"];
-        const behaviors = ["Calme", "Agressif", "Mystérieux", "Serviable", "Arrogant", "Distrait", "Studieux", "Protecteur", "Malicieux", "Loyal"];
+        const behaviors = ["Calme", "Agressif (Hostile)", "Mystérieux", "Serviable (Amical)", "Arrogant (Non-amical)", "Distrait", "Studieux (Amical)", "Protecteur (Amical)", "Malicieux (Hostile)", "Loyal (Amical)"];
         const locations = kingdomsToSeed.map(k => k.name);
 
         const batchSize = 100;

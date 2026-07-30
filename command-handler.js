@@ -142,12 +142,7 @@ commands.set('quests', async (sock, message) => {
 
     const activeQuests = player.Quests.filter(q => q.PlayerQuest.status === 'in_progress');
     const notStartedQuests = player.Quests.filter(q => q.PlayerQuest.status === 'not_started');
-
-
-    if (activeQuests.length === 0 && notStartedQuests.length === 0) {
-        await sock.sendMessage(replyJid, { text: "Tu n'as pas de quête active pour le moment. Explore le monde pour en trouver !" });
-        return;
-    }
+    const completedQuests = player.Quests.filter(q => q.PlayerQuest.status === 'completed');
 
     let questText = '« Le destin n\'est pas écrit, il se forge par le sang et la volonté. »\n\n' +
                     '╔══════════════════════════╗\n' +
@@ -165,10 +160,19 @@ commands.set('quests', async (sock, message) => {
 
     if (notStartedQuests.length > 0) {
         questText += '📍 *OBJECTIFS DÉCOUVERTS*\n' +
-                     notStartedQuests.map(q => `└ 💠 ${q.title}`).join('\n') + '\n\n';
+                     notStartedQuests.map(q => `├ 💠 *${q.title}*\n└ 📝 ${q.description}`).join('\n\n') + '\n\n';
     }
 
-    if (activeQuests.length === 0 && notStartedQuests.length === 0) {
+    if (completedQuests.length > 0) {
+        questText += '✅ *MISSIONS TERMINÉES*\n' +
+                     completedQuests.slice(0, 10).map(q => `├ 🟢 *${q.title}* (Terminée)`).join('\n') + '\n';
+        if (completedQuests.length > 10) {
+            questText += `└ _... et ${completedQuests.length - 10} autres quêtes complétées._\n`;
+        }
+        questText += '\n';
+    }
+
+    if (activeQuests.length === 0 && notStartedQuests.length === 0 && completedQuests.length === 0) {
         questText += "🌀 *Rien à signaler...*\nExplorez les environs pour trouver du travail, Héritier.";
     }
 
@@ -186,6 +190,9 @@ commands.set('quests', async (sock, message) => {
         await sock.sendMessage(replyJid, { text: questText });
     }
 });
+
+// Alias mapping
+commands.set('quest', commands.get('quests'));
 
 
 // Helper function to create a status bar
@@ -1081,13 +1088,18 @@ commands.set('examens', async (sock, message) => {
 
     if (!player) return;
 
-    const academicSuffix = player.academicYear === 1 ? 'ère' : 'ème';
+    const yearNames = {
+        1: "Seconde (2nd)",
+        2: "Première (1ere)",
+        3: "Terminale (Tle)"
+    };
+    const currentClass = yearNames[player.academicYear] || `${player.academicYear}ème Année`;
     let text = "--- 📝 DOSSIER ACADÉMIQUE --- \n\n";
     text += `👤 *Élève:* ${player.name}\n`;
-    text += `🎓 *Année:* ${player.academicYear}${academicSuffix} Année\n`;
+    text += `🎓 *Classe:* ${currentClass}\n`;
     text += `🏫 *École:* ${player.schoolName}\n`;
     text += `📊 *Moyenne Générale:* ${player.academicGrade}/100\n\n`;
-    text += `_Les examens de ${player.academicYear}${academicSuffix} année se passent via /action (écriture sur copie)._`;
+    text += `_Les examens de la classe de ${currentClass} se passent via /action (écriture sur copie d'examen)._`;
 
     await sock.sendMessage(replyJid, { text: text });
 });
