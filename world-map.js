@@ -30,11 +30,25 @@ const KINGDOMS = [
     { name: 'Cité de l\'Aube', short: 'AURORE', continent: "Caelum", color: '#d35400', fill: 'rgba(211,84,0,0.15)', labelPos: [1140, 460], polygon: [[1070, 370], [1240, 360], [1260, 520], [1150, 560], [1060, 510], [1050, 440]] }
 ];
 
+// Rich, highly complex organic fractal shoreline paths for the 4 continents
+// Replaces previous rigid straight-edged forms with top-tier geographical contours
 const CONTINENTS_SHAPES = [
-    { name: "Aetheria", polygon: [[120, 150], [180, 130], [250, 110], [350, 120], [450, 130], [520, 115], [580, 110], [610, 200], [630, 320], [610, 450], [590, 550], [500, 580], [420, 590], [320, 580], [250, 570], [180, 580], [110, 540], [90, 450], [70, 330], [90, 220]] },
-    { name: "Zendora", polygon: [[850, 550], [920, 530], [1000, 520], [1100, 530], [1200, 540], [1280, 580], [1340, 680], [1320, 780], [1310, 880], [1240, 950], [1150, 980], [1050, 990], [950, 970], [880, 940], [820, 850], [800, 780], [790, 700], [810, 620]] },
-    { name: "Umbra", polygon: [[50, 660], [120, 650], [200, 640], [320, 645], [450, 650], [520, 700], [580, 780], [560, 880], [540, 960], [450, 985], [350, 990], [250, 995], [150, 970], [80, 940], [30, 880], [25, 800], [20, 750], [30, 700]] },
-    { name: "Caelum", polygon: [[860, 60], [950, 40], [1050, 30], [1150, 40], [1250, 60], [1310, 120], [1340, 220], [1320, 350], [1280, 450], [1180, 480], [1080, 490], [980, 485], [880, 460], [840, 400], [820, 300], [825, 220], [830, 150], [845, 100]] }
+    {
+        name: "Aetheria",
+        path: "M 110,180 C 130,120 180,110 240,90 C 310,70 380,80 430,95 C 490,110 520,70 570,90 C 620,110 650,180 620,240 C 600,290 630,330 600,380 C 580,410 590,460 550,510 C 510,560 420,550 380,580 C 330,600 270,550 210,570 C 160,590 120,530 110,470 C 100,430 70,390 90,320 C 100,270 80,210 110,180 Z"
+    },
+    {
+        name: "Zendora",
+        path: "M 840,580 C 890,520 950,510 1020,490 C 1090,470 1180,500 1240,520 C 1310,540 1340,610 1310,680 C 1290,730 1320,780 1290,840 C 1260,890 1180,940 1130,970 C 1070,990 990,960 940,940 C 890,920 840,940 810,870 C 790,810 820,750 790,690 C 770,640 800,610 840,580 Z"
+    },
+    {
+        name: "Umbra",
+        path: "M 40,680 C 90,640 160,630 220,620 C 290,610 380,640 440,650 C 500,660 540,710 510,780 C 490,830 520,880 490,930 C 460,970 380,990 330,995 C 270,1000 200,970 150,950 C 100,930 60,940 30,880 C 10,830 40,770 20,720 C 10,690 20,680 40,680 Z"
+    },
+    {
+        name: "Caelum",
+        path: "M 850,80 C 900,40 980,30 1060,20 C 1140,10 1220,40 1270,70 C 1320,110 1350,180 1320,240 C 1290,290 1320,340 1290,400 C 1260,450 1180,480 1130,490 C 1070,500 990,470 940,450 C 890,430 840,450 810,390 C 790,340 820,290 790,240 C 770,190 800,110 850,80 Z"
+    }
 ];
 
 const CITIES = [
@@ -70,6 +84,20 @@ const CITIES = [
     { name: 'Palais d\'Argent', sub: 'Cœur Céleste', x: 950, y: 250, capital: true },
     { name: 'Abysse Inférieur', sub: 'Pandémonium', x: 1150, y: 250, capital: true },
     { name: 'Zenith Absolu', sub: 'Origine', x: 1050, y: 50, capital: true }
+];
+
+// Defined travel lines / highways between cities with precise distances in meters
+const TRAVEL_ROUTES = [
+    { from: 'Eldoria', to: 'Solis', dist: '4 500 m', ax: 400, ay: 500, bx: 450, by: 450 },
+    { from: 'Eldoria', to: 'Riverbend', dist: '3 200 m', ax: 400, ay: 500, bx: 380, by: 460 },
+    { from: 'Solis', to: 'Portes d\'Elion', dist: '5 800 m', ax: 450, ay: 450, bx: 520, by: 480 },
+    { from: 'Solis', to: 'Sparkwell', dist: '18 500 m', ax: 450, ay: 450, bx: 480, by: 200 },
+    { from: 'Gearhead', to: 'Sparkwell', dist: '6 200 m', ax: 420, ay: 240, bx: 480, by: 200 },
+    { from: 'Sylva-Lumia', to: 'Arbre-Mère', dist: '2 400 m', ax: 250, ay: 450, bx: 220, by: 420 },
+    { from: 'Eldoria', to: 'Marché Noir', dist: '15 000 m', ax: 400, ay: 500, bx: 300, by: 350 },
+    { from: 'Donjon de la Liche', to: 'Le Seuil', dist: '9 600 m', ax: 250, ay: 750, bx: 450, by: 750 },
+    { from: 'Palais d\'Argent', to: 'Zenith Absolu', dist: '24 000 m', ax: 950, ay: 250, bx: 1050, by: 50 },
+    { from: 'Pic du Prédateur', to: 'Fort-Sang', dist: '14 000 m', ax: 980, ay: 780, bx: 1150, by: 750 }
 ];
 
 const RANK_COLORS = {
@@ -168,23 +196,22 @@ async function generateWorldMapImage() {
 
     let continentsSvg = '';
     CONTINENTS_SHAPES.forEach(c => {
-        const path = `M ${c.polygon.map(p => p.join(',')).join(' L ')} Z`;
         continentsSvg += `
             <!-- Concentric Shoreline wave echoes -->
-            <path d="${path}" fill="none" stroke="#1d2e3f" stroke-width="3" opacity="0.65" />
-            <path d="${path}" fill="none" stroke="#253e52" stroke-width="8" opacity="0.4" />
-            <path d="${path}" fill="none" stroke="#2a4a5e" stroke-width="16" opacity="0.25" stroke-dasharray="6,4" />
-            <path d="${path}" fill="none" stroke="#2f5770" stroke-width="26" opacity="0.12" stroke-dasharray="3,6" />
+            <path d="${c.path}" fill="none" stroke="#1d2e3f" stroke-width="3" opacity="0.65" />
+            <path d="${c.path}" fill="none" stroke="#253e52" stroke-width="8" opacity="0.4" />
+            <path d="${c.path}" fill="none" stroke="#2a4a5e" stroke-width="16" opacity="0.25" stroke-dasharray="6,4" />
+            <path d="${c.path}" fill="none" stroke="#2f5770" stroke-width="26" opacity="0.12" stroke-dasharray="3,6" />
 
             <!-- Core Land surface with rich antique gradient -->
-            <path d="${path}" fill="url(#lowlandGrad)" stroke="#23170a" stroke-width="3.5" style="filter: url(#roughEdge) drop-shadow(0 6px 15px rgba(0,0,0,0.55));" />
+            <path d="${c.path}" fill="url(#lowlandGrad)" stroke="#23170a" stroke-width="3.5" style="filter: url(#roughEdge) drop-shadow(0 6px 15px rgba(0,0,0,0.55));" />
 
             <!-- Inset elevation contours -->
-            <path d="${path}" transform="translate(${(c.name === 'Aetheria' || c.name === 'Umbra' ? 5 : -5)}, 5) scale(0.97)" fill="url(#highlandGrad)" stroke="#23170a" stroke-width="1.2" stroke-dasharray="3,4" opacity="0.5" />
-            <path d="${path}" transform="translate(${(c.name === 'Aetheria' || c.name === 'Umbra' ? 12 : -12)}, 12) scale(0.93)" fill="url(#alpineGrad)" stroke="#23170a" stroke-width="1" stroke-dasharray="2,3" opacity="0.35" />
+            <path d="${c.path}" transform="translate(${(c.name === 'Aetheria' || c.name === 'Umbra' ? 5 : -5)}, 5) scale(0.97)" fill="url(#highlandGrad)" stroke="#23170a" stroke-width="1.2" stroke-dasharray="3,4" opacity="0.5" />
+            <path d="${c.path}" transform="translate(${(c.name === 'Aetheria' || c.name === 'Umbra' ? 12 : -12)}, 12) scale(0.93)" fill="url(#alpineGrad)" stroke="#23170a" stroke-width="1" stroke-dasharray="2,3" opacity="0.35" />
 
             <!-- Large continent text label -->
-            <text x="${c.polygon[0][0] + 120}" y="${c.polygon[0][1] + 100}" font-family="Georgia, serif" font-weight="900" font-size="44" fill="#201509" opacity="0.18" letter-spacing="22" transform="rotate(-6, ${c.polygon[0][0] + 120}, ${c.polygon[0][1] + 100})">${c.name.toUpperCase()}</text>
+            <text x="${c.name === 'Aetheria' ? 250 : (c.name === 'Zendora' ? 1000 : (c.name === 'Umbra' ? 200 : 1000))}" y="${c.name === 'Aetheria' ? 220 : (c.name === 'Zendora' ? 620 : (c.name === 'Umbra' ? 780 : 150))}" font-family="Georgia, serif" font-weight="900" font-size="44" fill="#201509" opacity="0.18" letter-spacing="22" transform="rotate(-6, ${c.name === 'Aetheria' ? 250 : (c.name === 'Zendora' ? 1000 : (c.name === 'Umbra' ? 200 : 1000))}, ${c.name === 'Aetheria' ? 220 : (c.name === 'Zendora' ? 620 : (c.name === 'Umbra' ? 780 : 150))})">${c.name.toUpperCase()}</text>
         `;
     });
 
@@ -192,12 +219,26 @@ async function generateWorldMapImage() {
     let kingdomsSvg = '';
     KINGDOMS.forEach(k => {
         const polyPath = `M ${k.polygon.map(p => p.join(',')).join(' L ')} Z`;
-        // High-contrast solid outlines representing territorial borders (limitations)
         kingdomsSvg += `
             <!-- Inner border glow -->
             <path d="${polyPath}" fill="${k.fill}" stroke="${k.color}" stroke-width="4.5" opacity="0.3" />
-            <!-- Solid sharp political border trait -->
+            <!-- Solid sharp political border trait (territorial limitations) -->
             <path d="${polyPath}" fill="none" stroke="${k.color}" stroke-width="2.5" stroke-dasharray="10,5" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.8));" />
+        `;
+    });
+
+    // Drawing elegant travels dashed lines with distances inside capsule labels
+    let routesSvg = '';
+    TRAVEL_ROUTES.forEach(route => {
+        const midX = (route.ax + route.bx) / 2;
+        const midY = (route.ay + route.by) / 2;
+        routesSvg += `
+            <!-- Route path -->
+            <line x1="${route.ax}" y1="${route.ay}" x2="${route.bx}" y2="${route.by}" stroke="#bd3c30" stroke-width="1.8" stroke-dasharray="3,5" opacity="0.8" />
+
+            <!-- Distance capsule label (paint-order/stroke for contrast) -->
+            <rect x="${midX - 35}" y="${midY - 9}" width="70" height="18" fill="#faf5e1" stroke="#251a08" stroke-width="1" rx="4" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));" />
+            <text x="${midX}" y="${midY + 1}" text-anchor="middle" dominant-baseline="middle" font-family="'Courier New', Courier, monospace" font-weight="900" font-size="10.5" fill="#bd3c30">${route.dist}</text>
         `;
     });
 
@@ -354,6 +395,9 @@ async function generateWorldMapImage() {
 
         <!-- Landmasses & Altitudes -->
         ${continentsSvg}
+
+        <!-- Travel routes & precise distances in meters -->
+        ${routesSvg}
 
         <!-- Regions, Boundaries & Kingdoms -->
         <g>
