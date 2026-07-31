@@ -76,26 +76,37 @@ function isValidAIResponse(input) {
         'permission_denied'
     ];
 
-    // Robust JSON detection
-    if (cleaned.startsWith('{')) {
-        const lowerText = cleaned.toLowerCase();
-        // If it's a JSON containing narrative or actions, it's almost certainly valid
-        if (lowerText.includes('"narrative"') || lowerText.includes('"actions"')) {
-            if (cleaned.length > 20) return true;
-        }
-    }
-
-    // If it's a tiny response with an error marker, it's definitely an error
-    if (cleaned.length < 300 && errorMarkers.some(m => lower.includes(m))) {
-        if (cleaned.length > 20 && !cleaned.includes('{') && !cleaned.includes('"')) return true;
-        return false;
-    }
-
     // If it's just technical jargon without narrative content
     if (cleaned.startsWith('data: [DONE]') || cleaned === '[DONE]') return false;
 
     // Check if it's an HTML error page
     if (lower.includes('<!doctype html>') || lower.includes('<html>')) return false;
+
+    // Robust JSON detection
+    if (cleaned.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(cleaned);
+            if (parsed.error || parsed.err || parsed.errorMessage) return false;
+
+            // If it's a valid OpenAI-compatible JSON envelope
+            if (parsed.choices && parsed.choices[0]?.message?.content) {
+                return true;
+            }
+
+            // If it's a direct structured roleplay response with narrative
+            const lowerText = cleaned.toLowerCase();
+            if (lowerText.includes('"narrative"') || lowerText.includes('"actions"')) {
+                if (cleaned.length > 20) return true;
+            }
+        } catch (e) {
+            // Not parseable as JSON, could be plain text starting with {
+        }
+    }
+
+    // If it's a tiny response with an error marker, it's definitely an error
+    if (cleaned.length < 300 && errorMarkers.some(m => lower.includes(m))) {
+        return false;
+    }
 
     return true;
 }
