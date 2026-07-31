@@ -648,6 +648,27 @@ async function callAether(system, prompt, options = {}) {
     return null;
 }
 
+/**
+ * Call the DevToolbox Free Keyless AI completion endpoint.
+ */
+async function callDevToolbox(system, prompt, options = {}) {
+    try {
+        console.log(`[AI] DevToolbox AI (Llama 3.2) - Tentative d'accès...`);
+        const resp = await axios.post("https://devtoolbox-api.devtoolbox-api.workers.dev/ai/generate", {
+            prompt: `SYSTEM: ${system}\n\nUSER: ${prompt}`
+        }, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 10000
+        });
+
+        const content = resp.data?.response;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] DevToolbox AI error:`, e.message);
+    }
+    return null;
+}
+
 async function callLMStudio(system, prompt, options = {}) {
     const url = process.env.LM_STUDIO_URL || "http://localhost:1234/v1/chat/completions";
     try {
@@ -707,6 +728,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
