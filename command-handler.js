@@ -2219,6 +2219,59 @@ const journalCommand = async (sock, message) => {
 commands.set('journal', journalCommand);
 commands.set('changelog', journalCommand);
 
+// Command: /guide
+const guideCommand = async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    let page = 1;
+    if (args[0]) {
+        const parsed = parseInt(args[0]);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 4) {
+            page = parsed;
+        }
+    }
+
+    try {
+        const { generateGuideImage } = require('./guide-generator');
+        const guideBuffer = await generateGuideImage(page);
+
+        let introText = "";
+        if (page === 1) {
+            introText = `📖 *GUIDE DE L'HÉRITIER - MODULE I : STATISTIQUES & RANGS*\n\n` +
+                        `Découvrez le fonctionnement de vos statistiques de combat et les limites physiques imposées à votre Héritier selon son Rang.\n\n` +
+                        `👉 *Taper \`/guide 2\`* pour afficher le Guide du Combat et des Extensions.\n` +
+                        `👉 *Taper \`/guide 3\`* pour afficher le Guide de la Survie et de l'Épuisement.\n` +
+                        `👉 *Taper \`/guide 4\`* pour afficher le Guide de la Politique et des Élections.`;
+        } else if (page === 2) {
+            introText = `📖 *GUIDE DE L'HÉRITIER - MODULE II : COMBAT & BATTLE IQ*\n\n` +
+                        `Maîtrisez la létalité impitoyable d'Aetherys. Sachez réagir avec tactique, esquiver et déployer votre Extension du Territoire de Rang S.\n\n` +
+                        `👉 *Taper \`/guide 1\`* pour afficher le Guide des Statistiques.\n` +
+                        `👉 *Taper \`/guide 3\`* pour afficher le Guide de la Survie.\n` +
+                        `👉 *Taper \`/guide 4\`* pour afficher le Guide de la Politique.`;
+        } else if (page === 3) {
+            introText = `📖 *GUIDE DE L'HÉRITIER - MODULE III : SURVIE & ALIMENTS*\n\n` +
+                        `Gérez rigoureusement vos jauges de faim, de sommeil et l'état de propreté de vos habits pour ne pas subir d'inanition ou de pénalités.\n\n` +
+                        `👉 *Taper \`/guide 1\`* pour afficher le Guide des Statistiques.\n` +
+                        `👉 *Taper \`/guide 2\`* pour afficher le Guide du Combat.\n` +
+                        `👉 *Taper \`/guide 4\`* pour afficher le Guide de la Politique.`;
+        } else {
+            introText = `📖 *GUIDE DE L'HÉRITIER - MODULE IV : CARRIÈRE POLITIQUE*\n\n` +
+                        `Devenez un chef d'opinion incontournable. Lancez votre campagne électorale, haranguez les foules et unissez les citoyens derrière votre projet.\n\n` +
+                        `👉 *Taper \`/guide 1\`* pour afficher le Guide des Statistiques.\n` +
+                        `👉 *Taper \`/guide 2\`* pour afficher le Guide du Combat.\n` +
+                        `👉 *Taper \`/guide 3\`* pour afficher le Guide de la Survie.`;
+        }
+
+        await sock.sendMessage(replyJid, {
+            image: guideBuffer,
+            caption: introText
+        });
+    } catch (err) {
+        console.error("[Guide] Error generating visual guide:", err);
+        await sock.sendMessage(replyJid, { text: "❌ Une erreur est survenue lors de la génération du guide visuel." });
+    }
+};
+commands.set('guide', guideCommand);
+
 // Command: /voyager
 commands.set('voyager', async (sock, message, args) => {
   const jid = getJid(message);
@@ -2806,6 +2859,7 @@ commands.set('menu', async (sock, message) => {
                    "└ `/tournoi` - Événements PVP\n\n" +
                    "⚙️ *SYSTÈME*\n" +
                    "├ `/help` - Aide complète\n" +
+                   "├ `/guide` - Guides en images\n" +
                    "├ `/journal` - Mises à jour & News\n" +
                    "└ `/save` - Sauvegarder\n\n" +
                    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
