@@ -1058,6 +1058,12 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
         } catch (e) {}
     }
 
+    // Post-process LLM markdown formatting to match WhatsApp's native styles
+    content = content
+        .replace(/\*\*(.*?)\*\*/g, "*$1*") // Convert **bold** to *bold*
+        .replace(/__(.*?)__/g, "_$1_")     // Convert __italic__ to _italic_
+        .replace(/\\n/g, "\n");
+
     // Save bot response to memory
     await RPMessage.create({
         senderJid: 'bot',
