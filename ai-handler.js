@@ -72,6 +72,28 @@ async function fetchTechniqueImage(techniqueName) {
 }
 
 /**
+ * Helper to fuzzy-match player names, stripping out symbols, @mentions, spaces, and punctuation.
+ */
+function findMatchingPlayer(targetName, player, nearbyPlayers) {
+    if (!targetName) return null;
+    const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+    const targetClean = clean(targetName);
+    if (!targetClean) return null;
+
+    if (clean(player.name).includes(targetClean) || targetClean.includes(clean(player.name))) {
+        return player;
+    }
+
+    for (const p of nearbyPlayers) {
+        const pClean = clean(p.name);
+        if (pClean.includes(targetClean) || targetClean.includes(pClean)) {
+            return p;
+        }
+    }
+    return null;
+}
+
+/**
  * Robustly parses stat updates and save commands from pure-text AI narratives.
  * Format examples: [SINGAM II: HP -18] [HP -18] [XP +50] [Col +100] /save HP -18
  */
@@ -81,20 +103,14 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
 
     // 1) Named stats inside brackets or pipes: [PlayerName: STAT +/- VALUE] or [foo | PlayerName: STAT +/- VALUE]
     // e.g. [SINGAM II: HP -18] or [Impact | SINGAM II: HP -18 | 82/100]
-    const namedRegex = /(?:[\[|]|^|\s)([A-Za-z0-9\s]+)\s*:\s*(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    const namedRegex = /(?:[\[|]|^|\s)([A-Za-z0-9\s\-_]+)\s*:\s*(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
     let match;
     while ((match = namedRegex.exec(text)) !== null) {
-        const targetName = match[1].trim().toLowerCase();
+        const targetName = match[1].trim();
         const statName = match[2].trim().toUpperCase();
         const value = parseInt(match[3].replace(/\s+/g, ''));
 
-        let targetPlayer = null;
-        if (player.name.toLowerCase() === targetName) {
-            targetPlayer = player;
-        } else {
-            targetPlayer = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-        }
-
+        const targetPlayer = findMatchingPlayer(targetName, player, nearbyPlayers);
         if (targetPlayer) {
             updates.push({ player: targetPlayer, stat: statName, value });
         }
@@ -115,17 +131,14 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 3) Support loose text-based "/save STAT +/- VALUE" commands
-    const saveRegex = /\/save\s+(?:([A-Za-z0-9\s]+?)\s*:\s*)?(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    const saveRegex = /\/save\s+(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
     while ((match = saveRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const statName = match[2].trim().toUpperCase();
         const value = parseInt(match[3].replace(/\s+/g, ''));
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         updates.push({ player: targetPlayer, stat: statName, value });
     }
@@ -194,16 +207,13 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 4) Quest Starts: [START_QUEST: Quest Title] or [DEBUT_QUETE: Quest Title]
-    const questStartRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:START_QUEST|DEBUT_QUETE)\s*:\s*(.+?)\s*\]/gi;
+    const questStartRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:START_QUEST|DEBUT_QUETE)\s*:\s*(.+?)\s*\]/gi;
     while ((match = questStartRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const questTitle = match[2].trim();
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         const logMsg = await questUtils.startQuest(targetPlayer, questTitle);
         if (logMsg) {
@@ -213,17 +223,14 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 5) Quest Progress: [PROGRESS_QUEST: Quest Title | 50] or [PROGRES_QUETE: Quest Title | 50]
-    const questProgressRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:PROGRESS_QUEST|PROGRES_QUETE)\s*:\s*(.+?)\s*\|\s*(\d+)\s*\]/gi;
+    const questProgressRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:PROGRESS_QUEST|PROGRES_QUETE)\s*:\s*(.+?)\s*\|\s*(\d+)\s*\]/gi;
     while ((match = questProgressRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const questTitle = match[2].trim();
         const progressVal = parseInt(match[3]);
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         const logMsg = await questUtils.advanceQuest(targetPlayer, questTitle, progressVal);
         if (logMsg) {
@@ -233,16 +240,13 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 6) Quest Completion: [COMPLETED_QUEST: Quest Title] or [FIN_QUETE: Quest Title]
-    const questCompleteRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:COMPLETED_QUEST|FIN_QUETE)\s*:\s*(.+?)\s*\]/gi;
+    const questCompleteRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:COMPLETED_QUEST|FIN_QUETE)\s*:\s*(.+?)\s*\]/gi;
     while ((match = questCompleteRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const questTitle = match[2].trim();
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         const logMsg = await questUtils.completeQuest(targetPlayer, questTitle, sock);
         if (logMsg) {
@@ -252,16 +256,13 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 7) Learn/Unlock Skills: [LEARN_SKILL: Skill Name] or [APPRENDRE_COMPETENCE: Skill Name] or [TECHNIQUE: Skill Name]
-    const skillLearnRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:LEARN_SKILL|APPRENDRE_COMPETENCE|TECHNIQUE)\s*:\s*(.+?)\s*\]/gi;
+    const skillLearnRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:LEARN_SKILL|APPRENDRE_COMPETENCE|TECHNIQUE)\s*:\s*(.+?)\s*\]/gi;
     while ((match = skillLearnRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const skillName = match[2].trim();
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         // Query skill from database
         const { Skill: ModelSkill } = require('./database');
