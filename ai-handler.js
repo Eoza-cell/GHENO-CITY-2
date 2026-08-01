@@ -1080,14 +1080,40 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     // Streamlined HUD and Header for cleaner responses
     const hud = ` [❤️ ${player.health}/${player.maxHealth} | 🌀 ${player.mana}/${player.maxMana} | 💰 ${player.col}]`;
 
+    // Parse out only the block belonging to the active player to prevent character mixing in group chats
+    let playerSection = content;
+    const blocks = content.split(/▬▬▬▬▬▬▬▬▬▬▬▬|-----------------------/i);
+    if (blocks.length > 1) {
+        const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        const searchName = clean(player.name);
+        let foundSection = null;
+        for (const block of blocks) {
+            const trimmed = block.trim();
+            const firstLines = trimmed.split('\n').slice(0, 5).join('\n');
+            if (clean(firstLines).includes(searchName)) {
+                foundSection = trimmed;
+                break;
+            }
+        }
+        if (foundSection) {
+            playerSection = foundSection;
+        }
+    }
+
     // Check if the response already contains a time header, if not, prepend it
-    let finalMsg = content;
-    if (!content.includes(' An ') && !content.includes('📅')) {
+    let finalMsg = playerSection;
+    if (!playerSection.includes(' An ') && !playerSection.includes('📅')) {
         finalMsg = `${getWorldHeader()}\n\n${finalMsg}`;
     }
 
-    if (feedbackList.length > 0) {
-        finalMsg = `${finalMsg}\n\n💾 *SAUVEGARDE DES STATUT :*\n${feedbackList.map(f => `├ ${f}`).join('\n')}`;
+    // Filter feedback list to only show status updates for this specific active player
+    const playerFeedback = feedbackList.filter(f => {
+        const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        return f.toLowerCase().includes(clean(player.name)) || f.includes('QUÊTE') || f.includes('COMPÉTENCE');
+    });
+
+    if (playerFeedback.length > 0) {
+        finalMsg = `${finalMsg}\n\n💾 *SAUVEGARDE DES STATUT :*\n${playerFeedback.map(f => `├ ${f}`).join('\n')}`;
     }
 
     finalMsg = `${finalMsg}\n\n📊 *HUD*:${hud}`;
