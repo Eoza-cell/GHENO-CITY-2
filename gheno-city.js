@@ -1,4 +1,4 @@
-const { default: makeWASocket, delay, DisconnectReason, proto, BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, delay, DisconnectReason, proto, BufferJSON, initAuthCreds, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -96,8 +96,20 @@ function connectToWhatsApp() {
 
     const { state, saveCreds } = await useDatabaseAuthState();
 
+    let version = [2, 3000, 1043857760]; // robust fallback version
+    try {
+        const fetched = await fetchLatestBaileysVersion();
+        if (fetched && fetched.version) {
+            version = fetched.version;
+            addLog(`Version WhatsApp récupérée : ${version.join('.')}`);
+        }
+    } catch (err) {
+        addLog(`Échec de récupération de la version en ligne, utilisation du fallback: ${err.message}`);
+    }
+
     sock = makeWASocket({
         auth: state,
+        version,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
         browser: ["Ubuntu", "Chrome", "20.0.04"]
