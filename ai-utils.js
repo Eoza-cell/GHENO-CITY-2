@@ -473,7 +473,7 @@ async function callPollinationsGET(system, prompt, options = {}) {
  * Call a local Ollama instance if available.
  */
 async function callOllama(system, prompt, options = {}) {
-    let ollamaUrl = process.env.OLLAMA_URL || "http://192.168.1.66:11434";
+    let ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
     const jsonMode = options.jsonMode !== false;
 
     if (!ollamaUrl.startsWith('http')) {
@@ -496,8 +496,8 @@ async function callOllama(system, prompt, options = {}) {
             stream: false,
             options: {
                 temperature: 0.2,
-                num_predict: 1024,
-                num_ctx: 8192
+                num_predict: 2048,  // Higher predict limit for deep world details
+                num_ctx: 32768      // Expanding to 32k context window (Infinite Memory)
             }
         };
         if (jsonMode) {
@@ -728,6 +728,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Ollama (Local)', fn: callOllama },
+        { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'Puter API (V1)', fn: callPuterAPI },
@@ -736,9 +738,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Pollinations Gen', fn: callPollinationsGen },
         { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
         { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Ollama (Local)', fn: callOllama },
         { name: 'MLVoca (Free)', fn: callMLVoca },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Blackbox', fn: callBlackbox },
         { name: 'World Server (Local)', fn: callWorldServer }
