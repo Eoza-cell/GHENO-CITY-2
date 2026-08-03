@@ -166,7 +166,11 @@ commands.set('quests', async (sock, message) => {
                      activeQuests.map(q => {
                          const progress = q.PlayerQuest.progress || 0;
                          const bar = createStatusBar(progress, 100, '▰', '▱', 8);
-                         return `├ *${q.title}*\n│ 📊 [${bar}] ${progress}%\n└ 📝 ${q.description}`;
+                         return `├ *${q.title}*\n` +
+                                `│ 📊 Progression : [${bar}] ${progress}%\n` +
+                                `│ 🎯 Objectifs : ${q.objective || 'Résoudre l\'énigme ou accomplir la tâche.'}\n` +
+                                `│ 🏁 Comment finir : Décris l'accomplissement physique de l'objectif dans tes actions /action. Le MJ d'Aetherys validera automatiquement et t'attribuera les récompenses en temps réel !\n` +
+                                `└ 📝 ${q.description}`;
                      }).join('\n\n') + '\n\n';
     }
 
@@ -2354,11 +2358,18 @@ commands.set('voyager', async (sock, message, args) => {
                      `⏳ Le temps s'est écoulé de **${dest.days} jours** dans le monde d'Aetherys.`;
 
   try {
-      const { generateLorePoster } = require('./lore-generator');
-      const buffer = await generateLorePoster("VOYAGE MARITIME", voyageText, 'HISTORY');
+      const { generateTravelPostcard } = require('./additional-visuals');
+      const distanceTravelled = dest.days * 4500;
+      const buffer = await generateTravelPostcard(player.name, player.location, dest.kingdom, distanceTravelled);
       await sock.sendMessage(replyJid, { image: buffer, caption: voyageText });
   } catch (e) {
-      await sock.sendMessage(replyJid, { text: voyageText });
+      try {
+          const { generateLorePoster } = require('./lore-generator');
+          const buffer = await generateLorePoster("VOYAGE MARITIME", voyageText, 'HISTORY');
+          await sock.sendMessage(replyJid, { image: buffer, caption: voyageText });
+      } catch (err) {
+          await sock.sendMessage(replyJid, { text: voyageText });
+      }
   }
 });
 
@@ -2448,7 +2459,16 @@ commands.set('etudier', async (sock, message, args) => {
   }
   await player.reload();
 
-  await sock.sendMessage(replyJid, { text: `📖 *APPRENTISSAGE RÉUSSI !* Tu as étudié avec succès la technique **${skill.name.toUpperCase()}** pour 5 SP !\n\n└ 📜 _Effet :_ ${skill.description}\n✨ Tes SP restants : *${player.skillPoints} SP*` });
+  const studyText = `📖 *APPRENTISSAGE RÉUSSI !* Tu as étudié avec succès la technique *${skill.name.toUpperCase()}* pour 5 SP !\n\n└ 📜 _Effet :_ ${skill.description}\n✨ Tes SP restants : *${player.skillPoints} SP*`;
+
+  try {
+      const { generateSkillScrollCard } = require('./additional-visuals');
+      const cardBuf = await generateSkillScrollCard(player.name, skill.name, skill.type, skill.description);
+      await sock.sendMessage(replyJid, { image: cardBuf, caption: studyText });
+  } catch (err) {
+      console.error("[Etudier Visual] Failed:", err);
+      await sock.sendMessage(replyJid, { text: studyText });
+  }
 });
 
 // Command: /missions

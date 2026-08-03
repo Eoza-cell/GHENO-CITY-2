@@ -219,6 +219,18 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         if (logMsg) {
             feedbackList.push(logMsg);
             playersToUpdate.add(targetPlayer.whatsappId);
+
+            // Send stunning quest starter poster
+            try {
+                const questData = await questUtils.findQuest(questTitle);
+                if (questData) {
+                    const { generateQuestStartCard } = require('./additional-visuals');
+                    const cardBuf = await generateQuestStartCard(targetPlayer.name, questData.title, questData.description, questData.reward_col, questData.reward_xp);
+                    await sock.sendMessage(jid, { image: cardBuf, caption: `📜 *NOUVELLE MISSION ÉVEILLÉE POUR ${targetPlayer.name.toUpperCase()} !*` });
+                }
+            } catch (vErr) {
+                console.error("[Quest Card Error]", vErr);
+            }
         }
     }
 
@@ -300,6 +312,15 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
                 }
                 feedbackList.push(`📖 *${targetPlayer.name}* a appris la technique : *${skill.name.toUpperCase()}* !`);
                 playersToUpdate.add(targetPlayer.whatsappId);
+
+                // Send stunning skill scroll card
+                try {
+                    const { generateSkillScrollCard } = require('./additional-visuals');
+                    const cardBuf = await generateSkillScrollCard(targetPlayer.name, skill.name, skill.type, skill.description);
+                    await sock.sendMessage(jid, { image: cardBuf, caption: `📖 *NOUVELLE TECHNIQUE MAÎTRISÉE PAR ${targetPlayer.name.toUpperCase()} !*` });
+                } catch (vErr) {
+                    console.error("[Skill Scroll Card Error]", vErr);
+                }
             }
         }
     }
@@ -393,10 +414,18 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   // Synchronization: Solo players bypass 'next' for immediate response.
   // Group players MUST use 'next' or wait for the group to be ready.
-  const lastMJMessage = await RPMessage.findOne({
+  let lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
   });
+
+  // If no MJ message exists in this specific sub-location yet, look for the last MJ message globally
+  if (!lastMJMessage) {
+      lastMJMessage = await RPMessage.findOne({
+          where: { senderName: 'Arise MJ' },
+          order: [['id', 'DESC']]
+      });
+  }
 
   // Calculate time advancement: 10 mins per action
   const actionsSinceLastMJ = await RPMessage.count({

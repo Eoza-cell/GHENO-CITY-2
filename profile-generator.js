@@ -11,7 +11,7 @@ const { generate3DVisual } = require('./three-renderer');
  * @returns {Promise<Object>} An object containing plot effects, name, and stat modifications.
  */
 async function calculatePlotImpact(player) {
-    const { Conflict, WorldJournal, Quest } = require('./database');
+    const { Conflict, WorldJournal } = require('./database');
 
     let plotName = "🌱 ÉVEIL DE L'HÉRITIER";
     let plotDesc = "Vous commencez à ressentir le flux d'Ether d'Aetherys. Votre destin s'éveille.";
@@ -19,7 +19,6 @@ async function calculatePlotImpact(player) {
     let visualEffect = "light"; // 'light', 'fire', 'dark', 'void', 'war'
 
     try {
-        // Fetch active main quests for this player
         if (player && typeof player.getQuests === 'function') {
             const activeQuests = await player.getQuests({
                 where: { type: 'main' },
@@ -84,8 +83,8 @@ async function calculatePlotImpact(player) {
 }
 
 async function generateProfileCard(player) {
-    const width = 800;
-    const height = 1100;
+    const width = 1150;
+    const height = 750;
     const templatePath = path.join(__dirname, 'assets/templates/profile_template.jpg');
 
     let baseImg;
@@ -108,23 +107,26 @@ async function generateProfileCard(player) {
     }
 
     if (!baseImg) {
-        if (fs.existsSync(templatePath)) {
-            baseImg = await sharp(templatePath).resize(width, height).toBuffer();
-        } else {
-            const svg = `
-                <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="100%" height="100%" fill="#050510" />
-                </svg>
-            `;
-            baseImg = await sharp(Buffer.from(svg)).png().toBuffer();
-        }
+        // Fallback to gorgeous custom procedural horizontal background
+        const svg = `
+            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="obsidianBack" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#07050e;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#010103;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#obsidianBack)" />
+            </svg>
+        `;
+        baseImg = await sharp(Buffer.from(svg)).png().toBuffer();
     }
 
     return await addOverlay(baseImg, player, width, height);
 }
 
 async function addOverlay(baseImg, player, width, height) {
-    const { Item, Bank, Skill } = require('./database');
+    const { Item, Bank } = require('./database');
     const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
     const bankBalance = bank ? bank.balance : 0;
 
@@ -161,50 +163,34 @@ async function addOverlay(baseImg, player, width, height) {
             }
         });
         lines.push(currentLine.trim());
-        return lines.slice(0, 6);
+        return lines;
     };
 
     const bioLines = wrapText(player.characterDescription || "Le destin se forge à chaque pas dans l'Interstice.", 35);
 
     const plotImpact = await calculatePlotImpact(player);
-    const plotLines = wrapText(plotImpact.plotDesc, 38);
+    const plotLines = wrapText(plotImpact.plotDesc, 110);
 
     let plotVisualOverlaySvg = '';
     if (plotImpact.visualEffect === 'fire') {
         plotVisualOverlaySvg = `
             <rect width="100%" height="100%" fill="none" stroke="#ff3300" stroke-width="4" opacity="0.35" filter="url(#glow)" />
-            <g transform="translate(100, 480)" filter="url(#glow)">
-                <path d="M 0,0 L 25,40 L 50,0 Q 25,-10 0,0" fill="none" stroke="#ff0000" stroke-width="4.5" />
-                <line x1="25" y1="10" x2="25" y2="45" stroke="#ff0000" stroke-width="4.5" />
-                <circle cx="25" cy="5" r="4" fill="#ff0000" />
-                <text x="-40" y="-15" font-family="monospace" font-size="10" font-weight="bold" fill="#ff3333" letter-spacing="1">CAUSALITY BRANDED</text>
-            </g>
         `;
     } else if (plotImpact.visualEffect === 'dark') {
         plotVisualOverlaySvg = `
             <rect width="100%" height="100%" fill="none" stroke="#bf00ff" stroke-width="4" opacity="0.25" filter="url(#glow)" />
-            <circle cx="200" cy="550" r="120" fill="none" stroke="#bf00ff" stroke-width="2" stroke-dasharray="10,15" opacity="0.4" />
         `;
     } else if (plotImpact.visualEffect === 'void') {
         plotVisualOverlaySvg = `
-            <rect width="100%" height="100%" fill="none" stroke="#050515" stroke-width="8" opacity="0.8" />
             <rect width="100%" height="100%" fill="none" stroke="#00ffff" stroke-width="2" opacity="0.3" filter="url(#glow)" />
-        `;
-    } else if (plotImpact.visualEffect === 'war') {
-        plotVisualOverlaySvg = `
-            <rect width="100%" height="100%" fill="none" stroke="#ffcc00" stroke-width="3" opacity="0.3" />
-            <line x1="15" y1="15" x2="60" y2="15" stroke="#ffcc00" stroke-width="4" />
-            <line x1="15" y1="15" x2="15" y2="60" stroke="#ffcc00" stroke-width="4" />
         `;
     }
 
     let auraSvgDecoration = '';
     if (player.hasAura) {
         auraSvgDecoration = `
-            <!-- Pulse glow aura effect representing Natsu/Dragon Slayer aura -->
-            <rect width="100%" height="100%" fill="none" stroke="#00f3ff" stroke-width="6" opacity="0.65" filter="url(#glow)" />
-            <ellipse cx="400" cy="550" rx="360" ry="500" fill="none" stroke="#aa00ff" stroke-width="2.5" stroke-dasharray="5,15" opacity="0.4" filter="url(#glow)" />
-            <text x="740" y="160" font-family="'Arial Black', sans-serif" font-size="12" font-weight="900" fill="#00f3ff" text-anchor="end" style="letter-spacing:4px; filter: drop-shadow(0 0 5px #00f3ff)">AURA ENERGIE BOOST ACTIVE</text>
+            <rect width="100%" height="100%" fill="none" stroke="#00f3ff" stroke-width="5" opacity="0.5" filter="url(#glow)" />
+            <text x="${width - 60}" y="45" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="900" fill="#00f3ff" text-anchor="end" style="letter-spacing:2px; filter: drop-shadow(0 0 5px #00f3ff)">AURA ENERGIE ACTIVED</text>
         `;
     }
 
@@ -212,30 +198,28 @@ async function addOverlay(baseImg, player, width, height) {
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
             <style>
                 .text { fill: white; font-family: 'Segoe UI', Verdana, sans-serif; }
-                .rank { font-size: 110px; font-weight: 900; fill: ${rankColor}; font-style: italic; filter: drop-shadow(0 0 10px ${rankColor}); }
-                .rank-label { font-size: 24px; font-weight: bold; fill: ${rankColor}; letter-spacing: 5px; }
-                .aka { font-size: 20px; fill: rgba(255,255,255,0.6); font-weight: 300; letter-spacing: 2px; }
-                .name { font-size: 50px; font-weight: 900; fill: #ffffff; text-transform: uppercase; letter-spacing: -1px; }
-                .bio { font-size: 17px; fill: rgba(255,255,255,0.85); line-height: 1.5; font-style: italic; }
-                .label { font-size: 16px; font-weight: bold; fill: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 3px; }
-                .stat-val { font-size: 19px; font-weight: bold; fill: #ffffff; filter: drop-shadow(0 0 5px rgba(255,255,255,0.3)); }
-                .about-header { font-size: 32px; font-weight: 900; fill: #ffffff; letter-spacing: 2px; }
-                .plot-title { font-size: 19px; font-weight: 900; fill: #ff4500; filter: drop-shadow(0 0 3px #ff4500); }
-                .plot-desc { font-size: 14px; fill: rgba(255,255,255,0.8); font-style: italic; line-height: 1.4; }
-                .plot-modifier { font-size: 13px; font-family: monospace; fill: #00ff66; font-weight: bold; }
+                .rank { font-size: 72px; font-weight: 900; fill: ${rankColor}; font-style: italic; filter: drop-shadow(0 0 10px ${rankColor}); }
+                .rank-label { font-size: 16px; font-weight: bold; fill: ${rankColor}; letter-spacing: 4px; }
+                .aka { font-size: 13px; fill: rgba(255,255,255,0.4); font-weight: 300; letter-spacing: 1.5px; }
+                .name { font-size: 32px; font-weight: 900; fill: #ffffff; text-transform: uppercase; letter-spacing: 1px; }
+                .bio { font-size: 12px; fill: rgba(255,255,255,0.7); line-height: 1.4; font-style: italic; }
+                .label { font-size: 12px; font-weight: bold; fill: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 2px; }
+                .stat-val { font-size: 14px; font-weight: bold; fill: #ffffff; }
+                .about-header { font-size: 14px; font-weight: 900; fill: ${rankColor}; letter-spacing: 2px; }
+                .plot-title { font-size: 14px; font-weight: 900; fill: #ff4500; filter: drop-shadow(0 0 3px #ff4500); }
+                .plot-desc { font-size: 11.5px; fill: rgba(255,255,255,0.7); font-style: italic; }
+                .plot-modifier { font-size: 11px; font-family: monospace; fill: #00ff66; font-weight: bold; }
             </style>
 
             <defs>
-                <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" style="stop-color:rgb(0,0,0);stop-opacity:0.9" />
-                    <stop offset="40%" style="stop-color:rgb(0,0,0);stop-opacity:0.3" />
-                    <stop offset="60%" style="stop-color:rgb(0,0,0);stop-opacity:0.3" />
-                    <stop offset="100%" style="stop-color:rgb(0,0,0);stop-opacity:0.8" />
+                <linearGradient id="mainGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#120e24;stop-opacity:0.2" />
+                    <stop offset="100%" style="stop-color:#080612;stop-opacity:0.9" />
                 </linearGradient>
                 <filter id="glow">
-                    <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                    <feGaussianBlur stdDeviation="3" result="blur"/>
                     <feMerge>
-                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="blur"/>
                         <feMergeNode in="SourceGraphic"/>
                     </feMerge>
                 </filter>
@@ -243,138 +227,171 @@ async function addOverlay(baseImg, player, width, height) {
 
             <rect width="100%" height="100%" fill="url(#mainGrad)" />
 
+            <!-- Cyber grid lines backdrop -->
+            <g stroke="rgba(255, 255, 255, 0.01)" stroke-width="1">
+                ${Array.from({ length: 15 }).map((_, i) => `<line x1="0" y1="${i * 50}" x2="${width}" y2="${i * 50}" />`).join('')}
+                ${Array.from({ length: 23 }).map((_, i) => `<line x1="${i * 50}" y1="0" x2="${i * 50}" y2="${height}" />`).join('')}
+            </g>
+
             ${plotVisualOverlaySvg}
+            ${auraSvgDecoration}
 
-            <!-- Fake Navbar from reference image -->
-            <g transform="translate(60, 50)">
-                <text x="0" y="0" style="fill:white; font-size: 20px; font-weight:900;">나 혼자만<tspan x="0" dy="18">레벨업</tspan></text>
-                <text x="180" y="10" style="fill:rgba(255,255,255,0.8); font-size: 16px; font-weight:bold;">Home   Characters   Help</text>
-                <text x="600" y="10" style="fill:white; font-size: 16px; font-weight:bold;">Sign Up</text>
-                <rect x="680" y="-10" width="100" height="30" fill="rgba(255,255,255,0.1)" rx="5" />
-                <text x="690" y="10" style="fill:rgba(255,255,255,0.4); font-size: 12px;">Search Here...</text>
+            <!-- Top Header Navbar -->
+            <g transform="translate(60, 55)">
+                <rect x="-10" y="-12" width="4" height="28" fill="${rankColor}" />
+                <text x="10" y="8" font-family="'Segoe UI', sans-serif" font-size="20" font-weight="900" fill="#ffffff" letter-spacing="3">FICHE D'IDENTITÉ HÉRITIER</text>
+                <text x="350" y="6" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.3)" letter-spacing="2">INTERFACE SECURE IV • GHENO CITY</text>
             </g>
 
-            <!-- LEFT SIDE: Identity -->
-            <g transform="translate(60, 240)">
-                <text x="0" y="0" class="rank" filter="url(#glow)">${player.rank}</text>
-                <text x="100" y="-15" class="rank-label">RANK</text>
+            <!-- CADRANT 1 (Top-Left): Identity -->
+            <g transform="translate(60, 120)">
+                <!-- Glass frame -->
+                <rect width="330" height="260" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.06)" rx="8" />
+                <rect x="5" y="5" width="320" height="250" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.1" rx="6" />
 
-                <text x="0" y="50" class="aka">${escapeXml(player.derivative || "Shadow Monarch")} A.K.A</text>
-                <text x="0" y="105" class="name">${escapeXml(player.name)}</text>
+                <g transform="translate(20, 30)">
+                    <text x="0" y="32" class="rank" filter="url(#glow)">${player.rank}</text>
+                    <text x="85" y="-5" class="rank-label">RANG</text>
 
-                <g transform="translate(0, 160)">
-                    ${bioLines.map((line, i) => `
-                        <text x="0" y="${i * 26}" class="bio">${escapeXml(line)}</text>
-                    `).join('')}
-                </g>
-            </g>
+                    <text x="0" y="70" class="aka">${escapeXml(player.derivative || "Shadow Monarch").toUpperCase()} • A.K.A</text>
+                    <text x="0" y="105" class="name">${escapeXml(player.name)}</text>
 
-            <!-- RIGHT SIDE: Attributes -->
-            <g transform="translate(480, 240)">
-                <text x="0" y="0" class="about-header">● ABOUT</text>
-
-                <g transform="translate(0, 70)">
-                    <text x="0" y="0" class="label">AFFILIATION</text>
-                    <text x="0" y="25" class="stat-val">${escapeXml(player.organization || player.schoolName || "SOLO PLAYER")}</text>
-
-                    <text x="0" y="70" class="label">STATUS</text>
-                    <text x="0" y="95" class="stat-val">LVL ${player.level} • HP ${player.health}/${player.maxHealth}</text>
-
-                    <text x="0" y="140" class="label">RELATIONSHIPS</text>
-                    <text x="0" y="165" class="stat-val">${escapeXml(player.family || "NONE")}</text>
-
-                    <text x="0" y="210" class="label">OUTFIT ASPECT</text>
-                    <text x="0" y="235" class="stat-val" style="fill:#ffd700">${escapeXml(player.equippedOutfit || "Aucun vêtement")} (${player.outfitDurability}% • ${player.outfitCleanliness.toUpperCase()})</text>
-
-                    <text x="0" y="280" class="label">SKILLS</text>
-                    <text x="0" y="305" class="stat-val">${skillsList.length > 0 ? skillsList.join(' • ') : "AWAKENING..."}</text>
-
-                    ${player.masterId || player.fusedWithId ? `
-                        <text x="0" y="350" class="label" style="fill:#00ffff">${player.masterId ? 'SERVITUDE BOND' : 'FUSION SYNC'}</text>
-                        <text x="0" y="375" class="stat-val" style="fill:#00ffff">${player.masterId ? 'ACTIVE' : (Math.round(player.fusionSyncLevel * 100) + '%')}</text>
-                    ` : ''}
-
-                    <text x="0" y="${player.masterId || player.fusedWithId ? 420 : 350}" class="label">FINANCES</text>
-                    <text x="0" y="375" class="stat-val">${player.col.toLocaleString()} COL • 🏦 ${bankBalance.toLocaleString()}</text>
-
-                    <text x="0" y="420" class="label">WEAPONS &amp; EQS</text>
-                    <g transform="translate(0, 445)">
-                        ${weapons.map((w, i) => `<text y="${i * 25}" class="stat-val">⚔️ ${escapeXml(w.name)}</text>`).join('')}
-                        ${equipment.map((e, i) => `<text y="${(weapons.length + i) * 25}" class="stat-val">🛡️ ${escapeXml(e.name)}</text>`).join('')}
-                    </g>
-                </g>
-            </g>
-
-            <!-- EXTRA BOTTOM ROW: DYNAMIC IMPACT OF THE MAIN PLOT -->
-            <g transform="translate(480, 760)">
-                <rect x="-10" y="-10" width="280" height="260" fill="rgba(255,69,0,0.04)" stroke="rgba(255,69,0,0.15)" stroke-width="1.5" rx="10" />
-                <text x="10" y="20" class="label" style="fill:#ff8c00;">● TRAME PRINCIPALE</text>
-
-                <g transform="translate(10, 50)">
-                    <text x="0" y="0" class="plot-title">${escapeXml(plotImpact.plotName)}</text>
-
-                    <g transform="translate(0, 20)">
-                        ${plotLines.slice(0, 3).map((line, i) => `
-                            <text x="0" y="${i * 18}" class="plot-desc">${escapeXml(line)}</text>
+                    <g transform="translate(0, 140)">
+                        ${bioLines.slice(0, 4).map((line, i) => `
+                            <text x="0" y="${i * 20}" class="bio">${escapeXml(line)}</text>
                         `).join('')}
                     </g>
+                </g>
+            </g>
 
-                    <g transform="translate(0, 100)">
-                        <text x="0" y="0" class="label" style="font-size:10px; fill:rgba(255,255,255,0.4)">MODIFICATEURS DE STATS :</text>
-                        ${Object.keys(plotImpact.modifiers).length > 0 ?
-                            Object.entries(plotImpact.modifiers).map(([stat, val], i) => `
-                                <text x="${(i%2)*120}" y="${18 + Math.floor(i/2)*20}" class="plot-modifier">
-                                    ${stat.toUpperCase()} : ${val >= 0 ? '+' : ''}${val}
-                                </text>
-                            `).join('') :
-                            `<text x="0" y="18" class="plot-desc" style="fill:rgba(255,255,255,0.4)">Aucune perturbation active.</text>`
-                        }
+            <!-- CADRANT 2 (Top-Right): Stats & Finances -->
+            <g transform="translate(420, 120)">
+                <rect width="320" height="260" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.06)" rx="8" />
+                <rect x="5" y="5" width="310" height="250" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.1" rx="6" />
+
+                <g transform="translate(20, 30)">
+                    <text x="0" y="12" class="about-header">● VITALITÉ &amp; STATUT</text>
+
+                    <text x="0" y="42" class="label">NIVEAU ACTUEL</text>
+                    <text x="0" y="62" class="stat-val">LVL ${player.level} (XP : ${player.xp})</text>
+
+                    <text x="0" y="98" class="label">AFFILIATION / FACTION</text>
+                    <text x="0" y="118" class="stat-val">${escapeXml(player.organization || player.schoolName || "SOLO PLAYER")}</text>
+
+                    <text x="0" y="154" class="label">FAMILLE / LIGNÉE</text>
+                    <text x="0" y="174" class="stat-val">${escapeXml(player.family || "SANS LIGNÉE")}</text>
+
+                    <text x="0" y="210" class="label">LIVRET DE COMPTE</text>
+                    <text x="0" y="230" class="stat-val" style="fill:#ffd700;">🪙 ${player.col.toLocaleString()} COL | 🏦 ${bankBalance.toLocaleString()} COL</text>
+                </g>
+            </g>
+
+            <!-- CADRANT 3 (Middle-Left): Skills -->
+            <g transform="translate(60, 410)">
+                <rect width="330" height="210" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.06)" rx="8" />
+                <rect x="5" y="5" width="320" height="200" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.1" rx="6" />
+
+                <g transform="translate(20, 30)">
+                    <text x="0" y="12" class="about-header">● TECHNIQUES MAÎTRISÉES</text>
+
+                    <g transform="translate(0, 40)">
+                        ${skillsList.length > 0 ? skillsList.map((s, i) => `
+                            <rect x="0" y="${i * 32}" width="12" height="12" fill="${rankColor}" opacity="0.5" rx="2" />
+                            <text x="24" y="${i * 32 + 11}" class="stat-val">${escapeXml(s.toUpperCase())}</text>
+                        `).join('') : `
+                            <text x="0" y="20" class="bio">Éveillez votre potentiel magique...</text>
+                        `}
                     </g>
                 </g>
             </g>
 
-            <line x1="60" y1="200" x2="300" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
-            <line x1="480" y1="200" x2="740" y2="200" style="stroke:rgba(255,255,255,0.4);stroke-width:1" />
+            <!-- CADRANT 4 (Middle-Right): Equipment & Weapons -->
+            <g transform="translate(420, 410)">
+                <rect width="320" height="210" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.06)" rx="8" />
+                <rect x="5" y="5" width="310" height="200" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.1" rx="6" />
 
-            <!-- Bottom Section for 3D Model -->
-            <rect x="60" y="760" width="370" height="260" fill="rgba(255,255,255,0.05)" rx="10" stroke="rgba(255,255,255,0.1)" />
-            <text x="75" y="790" class="label" style="fill: #ffffff; font-size: 14px;">● LIVE_3D_MODEL_SCAN</text>
-            <text x="415" y="790" class="label" text-anchor="end" style="fill: #00ffff; font-size: 10px; font-weight: normal;">SYNC_STATUS: 100%</text>
-            <rect x="250" y="782" width="80" height="8" fill="rgba(0,255,255,0.1)" rx="2" />
-            <rect x="250" y="782" width="80" height="8" fill="#00ffff" rx="2">
-                <animate attributeName="width" from="0" to="80" dur="2s" fill="freeze" />
-            </rect>
+                <g transform="translate(20, 30)">
+                    <text x="0" y="12" class="about-header">● ÉQUIPEMENTS ÉQUIPÉS</text>
 
-            <text x="50%" y="1060" text-anchor="middle" font-family="monospace" font-size="12" fill="rgba(255,255,255,0.3)">S-RANK_ENCRYPTED_ID: ${player.whatsappId.substring(0, 16)}</text>
+                    <text x="0" y="42" class="label">TENUE &amp; RÉSISTANCE</text>
+                    <text x="0" y="62" class="stat-val" style="fill:#00ffcc;">${escapeXml(player.equippedOutfit || "Aucun vêtement")} (${player.outfitDurability}% • ${player.outfitCleanliness.toUpperCase()})</text>
+
+                    <text x="0" y="98" class="label">ARMES ET ACCESSOIRES</text>
+                    <g transform="translate(0, 120)">
+                        ${weapons.slice(0, 2).map((w, i) => `<text x="0" y="${i * 22}" class="stat-val">⚔️ ${escapeXml(w.name)}</text>`).join('')}
+                        ${equipment.slice(0, 1).map((e, i) => `<text x="0" y="${(weapons.length > 2 ? 2 : weapons.length) * 22}" class="stat-val">🛡️ ${escapeXml(e.name)}</text>`).join('')}
+                        ${weapons.length === 0 && equipment.length === 0 ? '<text y="15" class="bio">Aucune arme équipée.</text>' : ''}
+                    </g>
+                </g>
+            </g>
+
+            <!-- CADRANT 5 (Far-Right): Live 3D Model Scan -->
+            <g transform="translate(770, 120)">
+                <rect width="320" height="500" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.06)" rx="8" />
+                <rect x="5" y="5" width="310" height="490" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.15" rx="6" />
+
+                <!-- 3D frame header -->
+                <text x="20" y="32" class="label" style="fill: #ffffff; font-size: 13px;">● SCAN MODEL PHYSIQUE</text>
+                <text x="300" y="32" class="label" text-anchor="end" style="fill: #00ffff; font-size: 10px; font-weight: normal;">SYNC_ACTIVE</text>
+                <line x1="20" y1="42" x2="300" y2="42" stroke="rgba(255,255,255,0.1)" stroke-width="1" />
+            </g>
+
+            <!-- CADRANT 6 (Bottom-Row): Main Plot / Plot Impacts -->
+            <g transform="translate(60, 640)">
+                <rect width="1030" height="75" fill="rgba(255,69,0,0.02)" stroke="rgba(255,69,0,0.12)" rx="8" />
+
+                <g transform="translate(20, 20)">
+                    <text x="0" y="12" class="plot-title" style="font-size:15px;">● TRAME : ${escapeXml(plotImpact.plotName)}</text>
+                    <text x="0" y="32" class="plot-desc">${escapeXml(plotLines[0] || "Aucune perturbation majeure active sur votre âme.")}</text>
+
+                    <!-- Stats modification row -->
+                    <g transform="translate(650, 12)">
+                        <text x="0" y="0" class="label" style="font-size:9.5px; fill:rgba(255,255,255,0.4)">MODIFICATEURS :</text>
+                        <g transform="translate(100, -8)">
+                            ${Object.keys(plotImpact.modifiers).length > 0 ?
+                                Object.entries(plotImpact.modifiers).map(([stat, val], i) => `
+                                    <text x="${i * 70}" y="10" class="plot-modifier" style="font-size:11.5px;">
+                                        ${stat.substring(0,3).toUpperCase()}:${val >= 0 ? '+' : ''}${val}
+                                    </text>
+                                `).join('') :
+                                `<text x="0" y="10" class="plot-desc" style="fill:rgba(255,255,255,0.4); font-size:11px;">Aucun</text>`
+                            }
+                        </g>
+                    </g>
+                </g>
+            </g>
+
+            <text x="50%" y="740" text-anchor="middle" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.2)">S-RANK_ENCRYPTED_ID: ${player.whatsappId.substring(0, 16)}</text>
         </svg>
     `;
 
     try {
         const modelType = (player.gender || "").toLowerCase().includes('f') ? 'female' : 'male';
         const threeBuffer = await generate3DVisual(modelType, 0x00ffff, outfitColor);
-        const threeResized = await sharp(threeBuffer).resize(330, 240, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
+        const threeResized = await sharp(threeBuffer).resize(280, 420, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
 
         const compositeOperations = [
             { input: Buffer.from(overlaySvg), top: 0, left: 0 },
-            { input: threeResized, top: 780, left: 80 }
+            { input: threeResized, top: 170, left: 790 }
         ];
 
         const silhouettePath = path.join(__dirname, 'assets/silhouette.jpg');
         if (!player.profilePicUrl && fs.existsSync(silhouettePath)) {
-            const silhouetteResized = await sharp(silhouettePath).resize(500, 800).toBuffer();
+            const silhouetteResized = await sharp(silhouettePath).resize(240, 360).toBuffer();
             const clothingLayer = await sharp(silhouetteResized)
                 .threshold(200).negate().tint(outfitColor).modulate({ opacity: 0.6 }).toBuffer();
 
             let mask = null;
             if (isTorn) {
-                const maskSvg = `<svg width="500" height="800"><rect width="100%" height="100%" fill="white" /><circle cx="200" cy="200" r="40" fill="black" /><circle cx="150" cy="350" r="30" fill="black" /></svg>`;
+                const maskSvg = `<svg width="240" height="360"><rect width="100%" height="100%" fill="white" /><circle cx="100" cy="100" r="20" fill="black" /><circle cx="80" cy="180" r="15" fill="black" /></svg>`;
                 mask = Buffer.from(maskSvg);
             }
             const finalClothing = mask ? await sharp(clothingLayer).composite([{ input: mask, blend: 'dest-in' }]).toBuffer() : clothingLayer;
             const silhouetteBlack = await sharp(silhouetteResized).threshold(240).toBuffer();
 
-            compositeOperations.unshift({ input: silhouetteBlack, top: 250, left: 150 });
-            compositeOperations.unshift({ input: finalClothing, top: 250, left: 150, blend: 'over' });
+            // Place silouhette nicely in the 3D frame
+            compositeOperations.unshift({ input: silhouetteBlack, top: 200, left: 810 });
+            compositeOperations.unshift({ input: finalClothing, top: 200, left: 810, blend: 'over' });
         }
 
         return await sharp(baseImg)

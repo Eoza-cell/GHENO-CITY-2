@@ -1124,10 +1124,24 @@ async function setupDatabase() {
                 const location = locations[Math.floor(Math.random() * locations.length)];
                 const power = Math.floor(Math.random() * 80 + 10);
 
+                const eyes = ["cyan éclatant", "or sombre", "rouge écarlate", "noir abysse", "vert émeraude", "améthyste", "argent glacé"];
+                const hair = ["argentés et longs", "courts et ébouriffés d'un noir corbeau", "blonds dorés tressés", "flamboyants comme le feu", "bleus profonds comme l'océan"];
+                const clothing = ["l'uniforme noir boutonné de l'Académie", "une armure de plaques argentée et étincelante", "une cape à capuchon miteuse couverte de boue", "des robes de soie fine parfumées à la lavande", "un manteau de cuir usé portant des cicatrices de combat"];
+                const motivation = ["qui cherche à venger sa famille", "déterminé à grimper l'échelle politique d'Elion", "à la recherche de parchemins magiques interdits", "vendant des rumeurs croustillantes sur la milice locale", "qui adore lancer des défis en duel aux nouveaux venus"];
+
+                const selectedEye = eyes[Math.floor(Math.random() * eyes.length)];
+                const selectedHair = hair[Math.floor(Math.random() * hair.length)];
+                const selectedOutfit = clothing[Math.floor(Math.random() * clothing.length)];
+                const selectedGoal = motivation[Math.floor(Math.random() * motivation.length)];
+
+                const fullDescription = `Héritier au regard ${selectedEye} et aux cheveux ${selectedHair}. ` +
+                                        `Il porte ${selectedOutfit}. C'est un ${role} au tempérament ${behavior.toLowerCase()} ` +
+                                        `${selectedGoal}.`;
+
                 batch.push({
                     name,
                     role,
-                    description: `Un ${role} au tempérament ${behavior.toLowerCase()}.`,
+                    description: fullDescription,
                     location,
                     powerLevel: power,
                     specialty: behavior,
