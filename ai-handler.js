@@ -14,6 +14,86 @@ const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
 
 /**
+ * Searches Google Images for an anime representation of a technique name,
+ * with a high-speed Pollinations AI image generation fallback if blocked or unsuccessful.
+ */
+async function fetchTechniqueImage(techniqueName) {
+    const axios = require('axios');
+    const query = encodeURIComponent(`${techniqueName} anime skill visual effect`);
+    const fallbackGoogleUrl = `https://www.google.com/search?q=${query}&tbm=isch`;
+
+    const userAgents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+    ];
+
+    try {
+        console.log(`[Google Images] Searching for technique: ${techniqueName}`);
+        const response = await axios.get(fallbackGoogleUrl, {
+            headers: {
+                'User-Agent': userAgents[Math.floor(Math.random() * userAgents.length)],
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+            },
+            timeout: 5000
+        });
+
+        const html = response.data;
+        const imgRegex = /src="([^"]+)"/g;
+        let match;
+        const urls = [];
+        while ((match = imgRegex.exec(html)) !== null) {
+            const url = match[1];
+            if (url.startsWith('http') && !url.includes('googlelogo') && !url.includes('gif')) {
+                urls.push(url);
+            }
+        }
+
+        if (urls.length > 0) {
+            const targetUrl = urls[Math.min(urls.length - 1, 1)];
+            console.log(`[Google Images] Found URL: ${targetUrl}`);
+            const imgBuf = await axios.get(targetUrl, { responseType: 'arraybuffer', timeout: 5000 });
+            return Buffer.from(imgBuf.data);
+        }
+    } catch (err) {
+        console.error(`[Google Images] Error scraping images for ${techniqueName}:`, err.message);
+    }
+
+    try {
+        console.log(`[Google Images Fallback] Generating image for "${techniqueName}" via Pollinations...`);
+        const cleanPrompt = encodeURIComponent(`high resolution epic anime illustration of the technique called "${techniqueName}", glowing energy, spectacular visual effects, dramatic combat stance, masterpiece art`);
+        const pollinationsUrl = `https://image.pollinations.ai/p/${cleanPrompt}?width=800&height=500&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+        const imgBuf = await axios.get(pollinationsUrl, { responseType: 'arraybuffer', timeout: 12000 });
+        return Buffer.from(imgBuf.data);
+    } catch (pErr) {
+        console.error(`[Google Images Fallback] Pollinations generation failed:`, pErr.message);
+    }
+
+    return null;
+}
+
+/**
+ * Helper to fuzzy-match player names, stripping out symbols, @mentions, spaces, and punctuation.
+ */
+function findMatchingPlayer(targetName, player, nearbyPlayers) {
+    if (!targetName) return null;
+    const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+    const targetClean = clean(targetName);
+    if (!targetClean) return null;
+
+    if (clean(player.name).includes(targetClean) || targetClean.includes(clean(player.name))) {
+        return player;
+    }
+
+    for (const p of nearbyPlayers) {
+        const pClean = clean(p.name);
+        if (pClean.includes(targetClean) || targetClean.includes(pClean)) {
+            return p;
+        }
+    }
+    return null;
+}
+
+/**
  * Robustly parses stat updates and save commands from pure-text AI narratives.
  * Format examples: [SINGAM II: HP -18] [HP -18] [XP +50] [Col +100] /save HP -18
  */
@@ -23,20 +103,14 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
 
     // 1) Named stats inside brackets or pipes: [PlayerName: STAT +/- VALUE] or [foo | PlayerName: STAT +/- VALUE]
     // e.g. [SINGAM II: HP -18] or [Impact | SINGAM II: HP -18 | 82/100]
-    const namedRegex = /(?:[\[|]|^|\s)([A-Za-z0-9\s]+)\s*:\s*(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    const namedRegex = /(?:[\[|]|^|\s)([A-Za-z0-9\s\-_]+)\s*:\s*(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
     let match;
     while ((match = namedRegex.exec(text)) !== null) {
-        const targetName = match[1].trim().toLowerCase();
+        const targetName = match[1].trim();
         const statName = match[2].trim().toUpperCase();
         const value = parseInt(match[3].replace(/\s+/g, ''));
 
-        let targetPlayer = null;
-        if (player.name.toLowerCase() === targetName) {
-            targetPlayer = player;
-        } else {
-            targetPlayer = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-        }
-
+        const targetPlayer = findMatchingPlayer(targetName, player, nearbyPlayers);
         if (targetPlayer) {
             updates.push({ player: targetPlayer, stat: statName, value });
         }
@@ -57,17 +131,14 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 3) Support loose text-based "/save STAT +/- VALUE" commands
-    const saveRegex = /\/save\s+(?:([A-Za-z0-9\s]+?)\s*:\s*)?(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    const saveRegex = /\/save\s+(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
     while ((match = saveRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const statName = match[2].trim().toUpperCase();
         const value = parseInt(match[3].replace(/\s+/g, ''));
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         updates.push({ player: targetPlayer, stat: statName, value });
     }
@@ -136,36 +207,42 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 4) Quest Starts: [START_QUEST: Quest Title] or [DEBUT_QUETE: Quest Title]
-    const questStartRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:START_QUEST|DEBUT_QUETE)\s*:\s*(.+?)\s*\]/gi;
+    const questStartRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:START_QUEST|DEBUT_QUETE)\s*:\s*(.+?)\s*\]/gi;
     while ((match = questStartRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const questTitle = match[2].trim();
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         const logMsg = await questUtils.startQuest(targetPlayer, questTitle);
         if (logMsg) {
             feedbackList.push(logMsg);
             playersToUpdate.add(targetPlayer.whatsappId);
+
+            // Send stunning quest starter poster
+            try {
+                const questData = await questUtils.findQuest(questTitle);
+                if (questData) {
+                    const { generateQuestStartCard } = require('./additional-visuals');
+                    const cardBuf = await generateQuestStartCard(targetPlayer.name, questData.title, questData.description, questData.reward_col, questData.reward_xp);
+                    await sock.sendMessage(jid, { image: cardBuf, caption: `📜 *NOUVELLE MISSION ÉVEILLÉE POUR ${targetPlayer.name.toUpperCase()} !*` });
+                }
+            } catch (vErr) {
+                console.error("[Quest Card Error]", vErr);
+            }
         }
     }
 
     // 5) Quest Progress: [PROGRESS_QUEST: Quest Title | 50] or [PROGRES_QUETE: Quest Title | 50]
-    const questProgressRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:PROGRESS_QUEST|PROGRES_QUETE)\s*:\s*(.+?)\s*\|\s*(\d+)\s*\]/gi;
+    const questProgressRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:PROGRESS_QUEST|PROGRES_QUETE)\s*:\s*(.+?)\s*\|\s*(\d+)\s*\]/gi;
     while ((match = questProgressRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const questTitle = match[2].trim();
         const progressVal = parseInt(match[3]);
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         const logMsg = await questUtils.advanceQuest(targetPlayer, questTitle, progressVal);
         if (logMsg) {
@@ -175,16 +252,13 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 6) Quest Completion: [COMPLETED_QUEST: Quest Title] or [FIN_QUETE: Quest Title]
-    const questCompleteRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:COMPLETED_QUEST|FIN_QUETE)\s*:\s*(.+?)\s*\]/gi;
+    const questCompleteRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:COMPLETED_QUEST|FIN_QUETE)\s*:\s*(.+?)\s*\]/gi;
     while ((match = questCompleteRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const questTitle = match[2].trim();
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         const logMsg = await questUtils.completeQuest(targetPlayer, questTitle, sock);
         if (logMsg) {
@@ -194,16 +268,13 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 7) Learn/Unlock Skills: [LEARN_SKILL: Skill Name] or [APPRENDRE_COMPETENCE: Skill Name] or [TECHNIQUE: Skill Name]
-    const skillLearnRegex = /\[\s*(?:([A-Za-z0-9\s]+?)\s*:\s*)?(?:LEARN_SKILL|APPRENDRE_COMPETENCE|TECHNIQUE)\s*:\s*(.+?)\s*\]/gi;
+    const skillLearnRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:LEARN_SKILL|APPRENDRE_COMPETENCE|TECHNIQUE)\s*:\s*(.+?)\s*\]/gi;
     while ((match = skillLearnRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim().toLowerCase() : null;
+        const targetName = match[1] ? match[1].trim() : null;
         const skillName = match[2].trim();
 
-        let targetPlayer = player;
-        if (targetName) {
-            const found = nearbyPlayers.find(p => p.name.toLowerCase() === targetName);
-            if (found) targetPlayer = found;
-        }
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
 
         // Query skill from database
         const { Skill: ModelSkill } = require('./database');
@@ -241,6 +312,15 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
                 }
                 feedbackList.push(`📖 *${targetPlayer.name}* a appris la technique : *${skill.name.toUpperCase()}* !`);
                 playersToUpdate.add(targetPlayer.whatsappId);
+
+                // Send stunning skill scroll card
+                try {
+                    const { generateSkillScrollCard } = require('./additional-visuals');
+                    const cardBuf = await generateSkillScrollCard(targetPlayer.name, skill.name, skill.type, skill.description);
+                    await sock.sendMessage(jid, { image: cardBuf, caption: `📖 *NOUVELLE TECHNIQUE MAÎTRISÉE PAR ${targetPlayer.name.toUpperCase()} !*` });
+                } catch (vErr) {
+                    console.error("[Skill Scroll Card Error]", vErr);
+                }
             }
         }
     }
@@ -263,6 +343,16 @@ async function handleFreeAction(sock, message, player, actionText) {
       });
   } catch (e) {
       console.error("[DB] RPMessage log error:", e.message);
+  }
+
+  // Technique detection: find any text written in bold (wrapped in single asterisks like *technique*)
+  let techniqueImageBuffer = null;
+  let techniqueDetectedName = null;
+  const boldMatch = actionText.match(/\*([A-Za-zÀ-ÖØ-öø-ÿ0-9\s'-]{3,40})\*/);
+  if (boldMatch) {
+      techniqueDetectedName = boldMatch[1].trim();
+      console.log(`[Technique Detector] Detected technique in bold: "${techniqueDetectedName}"`);
+      techniqueImageBuffer = await fetchTechniqueImage(techniqueDetectedName);
   }
 
   // Automatic Visual: Detect writing on paper or blackboard
@@ -324,10 +414,18 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   // Synchronization: Solo players bypass 'next' for immediate response.
   // Group players MUST use 'next' or wait for the group to be ready.
-  const lastMJMessage = await RPMessage.findOne({
+  let lastMJMessage = await RPMessage.findOne({
       where: { senderName: 'Arise MJ', ...sceneFilter },
       order: [['id', 'DESC']]
   });
+
+  // If no MJ message exists in this specific sub-location yet, look for the last MJ message globally
+  if (!lastMJMessage) {
+      lastMJMessage = await RPMessage.findOne({
+          where: { senderName: 'Arise MJ' },
+          order: [['id', 'DESC']]
+      });
+  }
 
   // Calculate time advancement: 10 mins per action
   const actionsSinceLastMJ = await RPMessage.count({
@@ -641,12 +739,17 @@ async function handleFreeAction(sock, message, player, actionText) {
           }
       }
 
+      const { getDistanceInMeters } = require('./utils');
+      const distToActive = getDistanceInMeters(player, p);
+
       return {
           nom: p.name,
           est_god: p.isGod,
           lieu_precis: p.subLocation,
           est_proche: p.subLocation === player.subLocation,
           est_acteur: (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
+          distance_en_metres_de_l_acteur: distToActive,
+          extension_du_territoire: p.territoryExtension || "Non éveillée ou non configurée.",
           etat: `Race:${p.race} | Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${Math.round(displayFor)} AGI:${Math.round(displayAgi)} INT:${Math.round(displayInt)} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}${bondInfo}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
@@ -761,15 +864,28 @@ IMMERSION SENSORIELLE :
 
 LÉTHALITÉ & CONSÉQUENCES :
 - MORT & CRUAUTÉ : PV <= 0 -> Action de mort immédiate. Le monde d'Aetherys est sans pitié pour les rangs bas (Rang F, etc.). Les adversaires sont sanguinaires et cherchent activement à TUER le joueur sans hésitation si les statistiques et l'occasion le leur permettent.
-- COMBAT : Brutal, impitoyable, sanglant. Les os craquent, la chair se déchire. Les dégâts physiques et attaques ennemies sont mortels.
+- COMBAT & DÉGÂTS RÉALISTES : Brutal, impitoyable, sanglant. Les os craquent, la chair se déchire. Une attaque ne peut JAMAIS être ignorée : le joueur doit obligatoirement soit l'esquiver (AGI), soit la parer/bloquer (DEF), soit l'encaisser de plein fouet (dégâts majeurs de HP). Les blessures dépendent de la zone touchée (tête, torse, bras, jambes) et peuvent entraîner la mort instantanée ou une mutilation si une zone vitale est touchée avec de gros dégâts. Tu DOIS obligatoirement déduire les PV correspondants via les brackets (ex: [Player: HP -15]) à la fin de ta narration.
 - CAUSALITÉ : Rang F extrêmement faible (stat cap strictly 30). Le joueur ne peut pas survivre s'il affronte de puissants ennemis de rang élevé sans aide.
+
+INDÉPENDANCE ET LIBERTÉ D'ACTION DES JOUEURS :
+- INDÉPENDANCE ABSOLUE DES HISTOIRES : Tu ne dois JAMAIS mélanger, fusionner ou confondre les histoires individuelles, les objectifs, les quêtes ou les récits personnels des différents joueurs présents. Chaque joueur est un être à part entière, totalement autonome, libre et indépendant. Leurs destins ne sont pas liés de force.
+- INTERACTION LIBRE : Les joueurs interagissent entre eux de leur plein gré (dialogues, alliances temporaires, trahisons, duels PVP). Arbitre uniquement les conséquences physiques locales et immédiates de leurs interactions (transfert d'objets, dégâts physiques subis) sans jamais inventer de liens scénaristiques ou narratifs forcés ou artificiels entre leurs vécus respectifs.
+
+FOCUS DE NARRATION ET SUIVI DE QUÊTES EN TEMPS RÉEL (RÈGLES CRITIQUES) :
+- FOCUS SUR L'ACTEUR PRINCIPAL : L'héritier qui joue ce tour est impérativement "${player.name}". Focalise TOUTE ton attention narrative sur "${player.name}". Ne décris pas l'histoire, les rêves, les réveils ou les actions privées d'autres personnages présents dans la pièce (comme Hubris ou d'autres) sauf s'ils entrent en contact physique direct de moins de 5 mètres ou s'ils s'adressent directement à "${player.name}". Chaque réponse doit raconter l'histoire de "${player.name}" d'abord !
+- INTÉGRATION DE QUÊTE EN TEMPS RÉEL : Les quêtes actives (fournies dans personnages_en_scene) doivent impérativement guider l'intrigue physique. Si le joueur a une quête en cours (ex: "Chasse aux Gobelins"), implante cette quête directement dans la narration en temps réel (ex: apparition des cibles, indices de quêtes, embuscades). Valide et suis en temps réel l'accomplissement des objectifs et s'ils sont réussis, écris explicitement le bracket [NOM_DU_JOUEUR: PROGRESS_QUEST: Nom Exact | Valeur] ou [NOM_DU_JOUEUR: COMPLETED_QUEST: Nom Exact].
+
+MÉCANIQUE DE DISTANCE ET EXTENSION DU TERRITOIRE (RANG S) :
+- DISTANCE ENTRE JOUEURS : Les joueurs sont séparés par une distance réelle et calculée en mètres (fournie dans la clé "distance_en_metres_de_l_acteur" pour chaque personnage). Décris et respecte rigoureusement cette distance physique lors des déplacements et actions physiques.
+- EXTENSION DU TERRITOIRE : L'Extension du Territoire est la technique ultime réservée aux combattants de Rang S. Elle possède une portée de 5 mètres. Si un joueur de Rang S déploie son Extension, seuls les joueurs et ennemis situés à 5 mètres ou moins sont emprisonnés dans ce domaine mystique et subissent ses effets uniques (fournis dans "extension_du_territoire"). Si les cibles sont à plus de 5 mètres, elles restent à l'extérieur. Décris les reflets, les barrières infranchissables et l'esthétique du domaine personnalisé de manière viscérale.
 
 LORE DES CLASSES (CHEVALIER-DRAGON) :
 - CHEVALIER-DRAGON (DRAGON SLAYER) : Les joueurs de la classe "Chevalier-Dragon" possèdent des facultés identiques aux Dragon Slayers de Fairy Tail (comme Natsu Dragnir). Ils ont des poumons de dragon (capables d'expirer des souffles élémentaires dévastateurs), peuvent dévorer leur propre élément magique pour restaurer instantanément leurs PM/PV, et sous l'effet de l'Aura, leur peau se couvre d'écailles draconiques denses et leur force brute devient divine.
 
 NARRATION :
 - CONCISION ANIME EXTRÊME (REGLE CRITIQUE) : Écris un paragraphe TRÈS COURT (MAXIMUM 80-120 MOTS). Ta narration doit être ultra-fluide, vive et rapide comme un plan d'anime de combat à fort budget. Les descriptions longues et contemplatives sont STRICTEMENT INTERDITES. Va droit au but, reste percutant et dynamique.
-- ADVERSAIRES ACTIFS, DIFFICULTÉ ÉLEVÉE & BATTLE IQ : Les combats d'Aetherys exigent un haut niveau d'intelligence de combat (Battle IQ). Les adversaires sont redoutables : ils esquivent, parent, contre-attaquent et se défendent désespérément même s'ils sont à l'agonie. Une victoire nécessite de la tactique (éléments, placement, timing).
+- ADVERSAIRES ACTIFS, DIFFICULTÉ EXTRÊME & BATTLE IQ : Les combats d'Aetherys sont impitoyables et exigent un haut niveau d'intelligence tactique (Battle IQ). Les ennemis prédisent les trajectoires, dressent des embuscades, emploient des contre-réactions élémentaires mortelles et infligent des souffrances extrêmes. Cependant, laisse TOUJOURS au joueur une opportunité immédiate d'esquiver, de réagir ou de parer au dernier millième de seconde s'il fait preuve de Battle IQ dans son action. Les combats doivent être d'une difficulté titanesque mais juste.
+- CARRIÈRE POLITIQUE & CAMPAGNES ÉLECTORALES : Les joueurs à vocation politique peuvent prononcer des discours publics, organiser des campagnes d'affichage, faire des promesses électorales, corrompre, ou participer à des débats pour briguer des postes de conseillers, maires ou chanceliers. Décris avec précision l'impact de leurs campagnes d'opinion, les applaudissements ou huées de la foule de citoyens et la fluctuation de leur popularité politique locale.
 - RÉACTIVITÉ SOCIALE ET MILICE : Si un affrontement ou une attaque survient près de PNJ (élèves, citoyens, etc.), ils réagissent instantanément (cris, panique générale, fuite éperdue, ou appel d'urgence aux gardes de la milice locale qui interviennent pour appréhender les coupables).
 - ÉLÈVES ROAMING HORS COURS : Des élèves aux caractères très distincts (arrogants, paresseux sécheurs, érudits curieux) errent hors de l'école pendant les cours. Décris leurs traits uniques s'ils croisent le joueur.
 - ETATS D'IVRESSE ET POISON (🥴 & 🤢) :
@@ -791,10 +907,10 @@ Format de bracket obligatoire :
 - [NOM_DU_JOUEUR: Col +X] ou [NOM_DU_JOUEUR: Col -X]
 - [NOM_DU_JOUEUR: SP +X] ou [NOM_DU_JOUEUR: SP -X]
 
-GUEST & COMPÉTENCE COMMANDES :
+GUEST & COMPÉTENCE COMMANDES (LOGIQUE ET SUIVI EXPLICITE) :
 - Pour lui faire commencer une quête : [NOM_DU_JOUEUR: START_QUEST: Nom Exact de la Quête] (Ex: [START_QUEST: La Chasse aux Gobelins] ou [SINGAM II: DEBUT_QUETE: La Chasse aux Gobelins])
-- Pour mettre à jour la progression d'une quête : [NOM_DU_JOUEUR: PROGRESS_QUEST: Nom de la Quête | ValeurEnPourcent] (Ex: [PROGRESS_QUEST: La Chasse aux Gobelins | 50])
-- Pour terminer/compléter une quête et distribuer les récompenses : [NOM_DU_JOUEUR: COMPLETED_QUEST: Nom de la Quête] (Ex: [COMPLETED_QUEST: La Chasse aux Gobelins] ou [FIN_QUETE: La Chasse aux Gobelins])
+- Suivi de mission logique obligatoire : Tu dois analyser rigoureusement la quête active du joueur et mettre à jour sa progression après ses exploits. Écris [NOM_DU_JOUEUR: PROGRESS_QUEST: Nom Exact | ValeurEnPourcent] (Ex: [PROGRESS_QUEST: La Chasse aux Gobelins | 50]).
+- Pour terminer/compléter une quête et distribuer les récompenses : Écris [NOM_DU_JOUEUR: COMPLETED_QUEST: Nom Exact de la Quête] (Ex: [COMPLETED_QUEST: La Chasse aux Gobelins]) dès que l'action finale de l'objectif est accomplie.
 - Pour lui débloquer/enseigner une nouvelle technique/sort : [NOM_DU_JOUEUR: LEARN_SKILL: Nom du sort] (Ex: [LEARN_SKILL: Starburst Stream] ou [APPRENDRE_COMPETENCE: Fente Puissante])
 
 Exemple de réponse attendue de ta part :
@@ -905,7 +1021,7 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
 2. RÉGIS LEURS INTERACTIONS AVEC UNE PRIO ABSOLUE : Si les joueurs s'adressent la parole, s'attaquent, coopèrent ou échangent des objets, décris l'action avec une extrême fluidité.
    - DIALOGUES & COMMERCE : Décris l'échange de mots direct ou le transfert physique d'objets ou de Col.
-   - DUEL PVP : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies (FOR/AGI/DEF) pour arbitrer le choc. Décris des parades, esquives rapides, blessures réalistes et applique les dégâts correspondants.
+   - DUEL PVP : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies (FOR/AGI/DEF) pour arbitrer le choc. Une attaque ne peut JAMAIS être ignorée : elle est soit esquivée (AGI), soit bloquée (DEF), soit encaissée de plein fouet (dégâts massifs de HP selon la zone touchée : tête, torse, membres, etc., pouvant être mortelle). Tu DOIS obligatoirement déduire des points de vie (HP) au joueur ciblé en écrivant le bracket correspondant (ex: [JoueurB: HP -25]). Si tu n'écris pas le bracket de dégâts, les joueurs ne perdront aucun PV dans la base de données, ce qui viole la règle de létalité.
    - COOPÉRATION : S'ils unissent leurs forces (attaque synchronisée), décris un combo spectaculaire combinant leurs éléments (ex: feu + vent) provoquant d'immenses dégâts collatéraux.
 3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
 4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.
@@ -930,40 +1046,42 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     }
 
     // Dynamic Action Visual Logic based on text content analysis
-    let visualBuffer = null;
+    let visualBuffer = techniqueImageBuffer || null;
     const lowerContent = content.toLowerCase();
 
-    // Automatically detect combat/skills to trigger action visuals
-    let actionType = null;
-    let visualTitle = "SÉQUENCE DE COMBAT";
-    let visualDesc = "Échange physique d'intensité maximale.";
+    // If a custom technique image is NOT detected, fallback to automatic combat/magic action visuals
+    if (!visualBuffer) {
+        let actionType = null;
+        let visualTitle = "SÉQUENCE DE COMBAT";
+        let visualDesc = "Échange physique d'intensité maximale.";
 
-    if (lowerContent.includes('attaque') || lowerContent.includes('frappe') || lowerContent.includes('combat') || lowerContent.includes('épée') || lowerContent.includes('lame') || lowerContent.includes('bâton') || lowerContent.includes('vrille') || lowerContent.includes('apôtre')) {
-        actionType = 'combat';
-    } else if (lowerContent.includes('magie') || lowerContent.includes('sort') || lowerContent.includes('mana') || lowerContent.includes('éther') || lowerContent.includes('lumière') || lowerContent.includes('bénit')) {
-        actionType = 'magic';
-        visualTitle = "FLUX ARCANIQUE";
-        visualDesc = "Manipulation active du mana spirituel.";
-    }
+        if (lowerContent.includes('attaque') || lowerContent.includes('frappe') || lowerContent.includes('combat') || lowerContent.includes('épée') || lowerContent.includes('lame') || lowerContent.includes('bâton') || lowerContent.includes('vrille') || lowerContent.includes('apôtre')) {
+            actionType = 'combat';
+        } else if (lowerContent.includes('magie') || lowerContent.includes('sort') || lowerContent.includes('mana') || lowerContent.includes('éther') || lowerContent.includes('lumière') || lowerContent.includes('bénit')) {
+            actionType = 'magic';
+            visualTitle = "FLUX ARCANIQUE";
+            visualDesc = "Manipulation active du mana spirituel.";
+        }
 
-    if (actionType) {
-        try {
-            // Match location with assets
-            const assetMap = {
-                'Eldoria': 'assets/locations/eldoria.jpg',
-                'Académie Impériale': 'assets/locations/academy.jpg',
-                'Nécropolis': 'assets/locations/necropolis.jpg',
-                'L\'Interstice': 'assets/locations/interstice.jpg'
-            };
-            const assetPath = assetMap[player.location] || 'assets/locations/eldoria.jpg';
-            visualBuffer = await generateActionVisual({
-                actionType,
-                title: visualTitle,
-                description: visualDesc,
-                assetPath
-            });
-        } catch (vErr) {
-            console.error("[Visual Generator Error]", vErr);
+        if (actionType) {
+            try {
+                // Match location with assets
+                const assetMap = {
+                    'Eldoria': 'assets/locations/eldoria.jpg',
+                    'Académie Impériale': 'assets/locations/academy.jpg',
+                    'Nécropolis': 'assets/locations/necropolis.jpg',
+                    'L\'Interstice': 'assets/locations/interstice.jpg'
+                };
+                const assetPath = assetMap[player.location] || 'assets/locations/eldoria.jpg';
+                visualBuffer = await generateActionVisual({
+                    actionType,
+                    title: visualTitle,
+                    description: visualDesc,
+                    assetPath
+                });
+            } catch (vErr) {
+                console.error("[Visual Generator Error]", vErr);
+            }
         }
     }
 
@@ -973,6 +1091,12 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
             visualBuffer = await generate3DVisual('cube', 0x00ffff);
         } catch (e) {}
     }
+
+    // Post-process LLM markdown formatting to match WhatsApp's native styles
+    content = content
+        .replace(/\*\*(.*?)\*\*/g, "*$1*") // Convert **bold** to *bold*
+        .replace(/__(.*?)__/g, "_$1_")     // Convert __italic__ to _italic_
+        .replace(/\\n/g, "\n");
 
     // Save bot response to memory
     await RPMessage.create({
@@ -989,14 +1113,40 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     // Streamlined HUD and Header for cleaner responses
     const hud = ` [❤️ ${player.health}/${player.maxHealth} | 🌀 ${player.mana}/${player.maxMana} | 💰 ${player.col}]`;
 
+    // Parse out only the block belonging to the active player to prevent character mixing in group chats
+    let playerSection = content;
+    const blocks = content.split(/▬▬▬▬▬▬▬▬▬▬▬▬|-----------------------/i);
+    if (blocks.length > 1) {
+        const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        const searchName = clean(player.name);
+        let foundSection = null;
+        for (const block of blocks) {
+            const trimmed = block.trim();
+            const firstLines = trimmed.split('\n').slice(0, 5).join('\n');
+            if (clean(firstLines).includes(searchName)) {
+                foundSection = trimmed;
+                break;
+            }
+        }
+        if (foundSection) {
+            playerSection = foundSection;
+        }
+    }
+
     // Check if the response already contains a time header, if not, prepend it
-    let finalMsg = content;
-    if (!content.includes(' An ') && !content.includes('📅')) {
+    let finalMsg = playerSection;
+    if (!playerSection.includes(' An ') && !playerSection.includes('📅')) {
         finalMsg = `${getWorldHeader()}\n\n${finalMsg}`;
     }
 
-    if (feedbackList.length > 0) {
-        finalMsg = `${finalMsg}\n\n💾 *SAUVEGARDE DES STATUT :*\n${feedbackList.map(f => `├ ${f}`).join('\n')}`;
+    // Filter feedback list to only show status updates for this specific active player
+    const playerFeedback = feedbackList.filter(f => {
+        const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        return f.toLowerCase().includes(clean(player.name)) || f.includes('QUÊTE') || f.includes('COMPÉTENCE');
+    });
+
+    if (playerFeedback.length > 0) {
+        finalMsg = `${finalMsg}\n\n💾 *SAUVEGARDE DES STATUT :*\n${playerFeedback.map(f => `├ ${f}`).join('\n')}`;
     }
 
     finalMsg = `${finalMsg}\n\n📊 *HUD*:${hud}`;

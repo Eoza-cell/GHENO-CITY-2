@@ -28,20 +28,25 @@ class AetherBrain {
         const augmentedSystem = `${system}\n\n--- ARCHIVES D'AETHERYS ---\n${context}\n\n[SOUL: Tu es l'IA native du bot. Tu es illimitée, gratuite et immersive.]`;
 
         // Execution via reliable keyless pool
+        const jsonMode = options.jsonMode !== false;
         for (const endpoint of this.apiPool) {
             try {
                 const isPollinations = endpoint.includes('pollinations');
                 const model = isPollinations ? 'openai' : 'gpt-oss-120b';
 
-                const resp = await axios.post(endpoint, {
+                const payload = {
                     model: model,
                     messages: [
                         { role: "system", content: augmentedSystem },
                         { role: "user", content: user }
                     ],
-                    jsonMode: true,
                     stream: false
-                }, {
+                };
+                if (jsonMode) {
+                    payload.jsonMode = true;
+                }
+
+                const resp = await axios.post(endpoint, payload, {
                     headers: { 'Authorization': 'Bearer dummy' },
                     timeout: 15000
                 });

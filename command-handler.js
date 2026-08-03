@@ -5,7 +5,7 @@ const path = require('path');
 const lastViewedItems = new Map();
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, Entity, Club, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, PlayerSkill, Entity, Pact, Club, PlayerClub, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -119,6 +119,18 @@ commands.set('competences', async (sock, message, args) => {
         if (passiveSkills.length > 10) skillText += `_... et ${passiveSkills.length - 10} autres passifs._\n\n`;
     }
 
+    if (player.rank === 'S') {
+        skillText += "🌌 *EXTENSION DU TERRITOIRE (RANG S):*\n";
+        if (player.territoryExtension) {
+            skillText += `├ 🔮 Description & Effets Rebalancés:\n`;
+            skillText += `└ ${player.territoryExtension}\n\n`;
+            skillText += `_Utilise "/extension <effets>" pour redéfinir ton extension._\n\n`;
+        } else {
+            skillText += `❌ Aucune extension configurée.\n`;
+            skillText += `_Utilise "/extension <votre description et vos effets>" pour éveiller ton extension unique ! L'IA supprimera les effets jugés trop "cheatés"._\n\n`;
+        }
+    }
+
     skillText += "_Débloque de nouvelles techniques à l'Académie ou via tes Pactes._";
 
     try {
@@ -154,7 +166,11 @@ commands.set('quests', async (sock, message) => {
                      activeQuests.map(q => {
                          const progress = q.PlayerQuest.progress || 0;
                          const bar = createStatusBar(progress, 100, '▰', '▱', 8);
-                         return `├ *${q.title}*\n│ 📊 [${bar}] ${progress}%\n└ 📝 ${q.description}`;
+                         return `├ *${q.title}*\n` +
+                                `│ 📊 Progression : [${bar}] ${progress}%\n` +
+                                `│ 🎯 Objectifs : ${q.objective || 'Résoudre l\'énigme ou accomplir la tâche.'}\n` +
+                                `│ 🏁 Comment finir : Décris l'accomplissement physique de l'objectif dans tes actions /action. Le MJ d'Aetherys validera automatiquement et t'attribuera les récompenses en temps réel !\n` +
+                                `└ 📝 ${q.description}`;
                      }).join('\n\n') + '\n\n';
     }
 
@@ -324,6 +340,63 @@ commands.set('profil', profileCommand);
 commands.set('techniques', (...args) => commands.get('competences')(...args));
 commands.set('skills', (...args) => commands.get('competences')(...args));
 commands.set('skill', (...args) => commands.get('competences')(...args));
+
+commands.set('extension', async (sock, message, args) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
+
+    if (player.rank !== 'S') {
+        await sock.sendMessage(replyJid, { text: "❌ *Seuls les puissants guerriers et mages de Rang S* peuvent s'éveiller et personnaliser l'Extension du Territoire ! Progressez jusqu'au Rang S pour débloquer ce pouvoir ultime." });
+        return;
+    }
+
+    const userInput = args.join(' ').trim();
+    if (!userInput) {
+        await sock.sendMessage(replyJid, { text: "❌ *Usage:* `/extension <description et effets de votre extension du territoire>`\n\nExemple:\n`/extension Une sphère de ténèbres infinies où mon agilité est doublée et les ennemis perdent leur défense.`" });
+        return;
+    }
+
+    await sock.sendMessage(replyJid, { text: "🌌 *L'Éther vibre... MJ d'AETHERYS analyse et rebalance ton Extension du Territoire pour éliminer les effets cheatés...*" });
+
+    try {
+        const { callAI } = require('./ai-utils');
+        const systemPrompt = `Tu es le MJ d'Aetherys. Le joueur propose une personnalisation pour son "Extension du Territoire" (Technique suprême de Rang S).
+Ton rôle est de réécrire cette extension dans un style Seinen/Shonen ultra-immersif, épique et viscéral, TOUT EN SUPPRIMANT ET REBALANÇANT tout effet abusif ("trop cheaté") comme :
+- Mort instantanée (auto-win / OS)
+- Invincibilité, immortalité ou immunité totale
+- Annulation inconditionnelle des pouvoirs de l'adversaire sans contrepartie majeure
+- Stats augmentées au-delà de +30% ou boosts infinis
+
+Tu dois impérativement rebalancer ces abus en effets épiques mais sains pour le jeu de rôle : ex. bonus de combat plafonné à max +30% aux stats clés du lanceur, malus de 15% aux ennemis proches, ou dégâts de zone magiques équilibrés, avec un coût requis de 80 PM.
+Garde l'essence thématique et l'esthétique spectaculaire voulue par le joueur (ténèbres, feu, glace, miroirs, etc.), mais rends le gameplay juste et équilibré.
+Écris la description finale en français de manière fluide, immersive et directe. Ne mets AUCUN commentaire méta, seulement la description finale de l'extension avec ses effets rebalancés.`;
+
+        const processedText = await callAI(systemPrompt, `Joueur: ${player.name}\nProposition d'extension:\n${userInput}`, { jsonMode: false });
+
+        if (processedText && processedText.trim()) {
+            player.territoryExtension = processedText.trim();
+            await player.save();
+
+            const responseMsg = `🌌 *ÉVEIL DE L'EXTENSION DU TERRITOIRE :*\n\n` +
+                                `_Votre extension a été purifiée de tout abus de puissance par le MJ d'Aetherys et gravée dans votre âme._\n\n` +
+                                `🔮 *Description & Effets Rebalancés:*\n${player.territoryExtension}\n\n` +
+                                `_Portée de l'extension: 5 mètres. Pour piéger un autre joueur, vous devez être à moins de 5m d'écart (vérifiable via la commande /joueurs ou la distance affichée lors des actions)._`;
+
+            await sock.sendMessage(replyJid, { text: responseMsg });
+        } else {
+            await sock.sendMessage(replyJid, { text: "❌ Une erreur est survenue lors de l'analyse par le MJ d'Aetherys. Veuillez réessayer avec une description différente." });
+        }
+    } catch (err) {
+        console.error("[Extension] Error:", err);
+        await sock.sendMessage(replyJid, { text: "❌ Impossible de formuler l'extension pour le moment. Veuillez réessayer." });
+    }
+});
 
 // Command: /background
 commands.set('background', async (sock, message, args) => {
@@ -962,9 +1035,14 @@ commands.set('joueurs', async (sock, message) => {
         return;
     }
 
+    const { getDistanceInMeters } = require('./utils');
+
     let playersText = `--- 👥 HÉRITIERS À PROXIMITÉ --- \n\n`;
     otherPlayers.forEach(p => {
+        const dist = getDistanceInMeters(player, p);
+        const canTerritory = dist <= 5;
         playersText += `*${p.name}*\n`;
+        playersText += `├ 📏 Distance: *${dist} mètres* ${canTerritory ? '🟢 (Assez proche pour une Extension du Territoire !)' : '🔴 (Trop loin pour l\'Extension du Territoire, max 5m)'}\n`;
         playersText += `├ 📍 ${p.subLocation}\n`;
         playersText += `├ 👪 Famille: ${p.family}\n`;
         playersText += `├ 🎭 Classe: ${p.class} | 📊 Niveau: ${p.level}\n`;
@@ -1923,14 +2001,18 @@ commands.set('reset', async (sock, message, args) => {
     }
 
     try {
-        // We delete the player. Associations like Bank might need manual cleanup if not cascading.
+        // Complete bulletproof reset of player and all associations to ensure they are no longer an Apostle and start fresh
         await Bank.destroy({ where: { PlayerWhatsappId: jid } });
-        // PlayerQuest and PlayerSkill should be handled by sequelize if constraints are right,
-        // but often in SQLite/Manual sync we might need to be careful.
-        // However, destroying the player is the core.
+        await PlayerQuest.destroy({ where: { PlayerWhatsappId: jid } });
+        await PlayerSkill.destroy({ where: { PlayerWhatsappId: jid } });
+        await Pact.destroy({ where: { PlayerWhatsappId: jid } });
+        await PlayerClub.destroy({ where: { PlayerWhatsappId: jid } });
+        await TournamentParticipant.destroy({ where: { playerJid: jid } });
+        await House.update({ ownerId: null, storage: '[]' }, { where: { ownerId: jid } });
+
         await player.destroy();
 
-        await sock.sendMessage(replyJid, { text: "💥 *Personnage réinitialisé.* Ta présence a été effacée de la matrice d'Aetherys. Utilise `/start` pour renaître." });
+        await sock.sendMessage(replyJid, { text: "💥 *Personnage réinitialisé.* Ta présence et tes pouvoirs d'Apôtre ont été définitivement effacés de la matrice d'Aetherys. Utilise `/start` pour renaître de tes cendres." });
     } catch (error) {
         console.error("Erreur reset personnage:", error);
         await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la réinitialisation de ton personnage." });
@@ -2141,6 +2223,59 @@ const journalCommand = async (sock, message) => {
 commands.set('journal', journalCommand);
 commands.set('changelog', journalCommand);
 
+// Command: /guide
+const guideCommand = async (sock, message, args) => {
+    const replyJid = message.key.remoteJid;
+    let page = 1;
+    if (args[0]) {
+        const parsed = parseInt(args[0]);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 4) {
+            page = parsed;
+        }
+    }
+
+    try {
+        const { generateGuideImage } = require('./guide-generator');
+        const guideBuffer = await generateGuideImage(page);
+
+        let introText = "";
+        if (page === 1) {
+            introText = `📖 *GUIDE DE L'HÉRITIER - MODULE I : STATISTIQUES & RANGS*\n\n` +
+                        `Découvrez le fonctionnement de vos statistiques de combat et les limites physiques imposées à votre Héritier selon son Rang.\n\n` +
+                        `👉 *Taper \`/guide 2\`* pour afficher le Guide du Combat et des Extensions.\n` +
+                        `👉 *Taper \`/guide 3\`* pour afficher le Guide de la Survie et de l'Épuisement.\n` +
+                        `👉 *Taper \`/guide 4\`* pour afficher le Guide de la Politique et des Élections.`;
+        } else if (page === 2) {
+            introText = `📖 *GUIDE DE L'HÉRITIER - MODULE II : COMBAT & BATTLE IQ*\n\n` +
+                        `Maîtrisez la létalité impitoyable d'Aetherys. Sachez réagir avec tactique, esquiver et déployer votre Extension du Territoire de Rang S.\n\n` +
+                        `👉 *Taper \`/guide 1\`* pour afficher le Guide des Statistiques.\n` +
+                        `👉 *Taper \`/guide 3\`* pour afficher le Guide de la Survie.\n` +
+                        `👉 *Taper \`/guide 4\`* pour afficher le Guide de la Politique.`;
+        } else if (page === 3) {
+            introText = `📖 *GUIDE DE L'HÉRITIER - MODULE III : SURVIE & ALIMENTS*\n\n` +
+                        `Gérez rigoureusement vos jauges de faim, de sommeil et l'état de propreté de vos habits pour ne pas subir d'inanition ou de pénalités.\n\n` +
+                        `👉 *Taper \`/guide 1\`* pour afficher le Guide des Statistiques.\n` +
+                        `👉 *Taper \`/guide 2\`* pour afficher le Guide du Combat.\n` +
+                        `👉 *Taper \`/guide 4\`* pour afficher le Guide de la Politique.`;
+        } else {
+            introText = `📖 *GUIDE DE L'HÉRITIER - MODULE IV : CARRIÈRE POLITIQUE*\n\n` +
+                        `Devenez un chef d'opinion incontournable. Lancez votre campagne électorale, haranguez les foules et unissez les citoyens derrière votre projet.\n\n` +
+                        `👉 *Taper \`/guide 1\`* pour afficher le Guide des Statistiques.\n` +
+                        `👉 *Taper \`/guide 2\`* pour afficher le Guide du Combat.\n` +
+                        `👉 *Taper \`/guide 3\`* pour afficher le Guide de la Survie.`;
+        }
+
+        await sock.sendMessage(replyJid, {
+            image: guideBuffer,
+            caption: introText
+        });
+    } catch (err) {
+        console.error("[Guide] Error generating visual guide:", err);
+        await sock.sendMessage(replyJid, { text: "❌ Une erreur est survenue lors de la génération du guide visuel." });
+    }
+};
+commands.set('guide', guideCommand);
+
 // Command: /voyager
 commands.set('voyager', async (sock, message, args) => {
   const jid = getJid(message);
@@ -2223,11 +2358,18 @@ commands.set('voyager', async (sock, message, args) => {
                      `⏳ Le temps s'est écoulé de **${dest.days} jours** dans le monde d'Aetherys.`;
 
   try {
-      const { generateLorePoster } = require('./lore-generator');
-      const buffer = await generateLorePoster("VOYAGE MARITIME", voyageText, 'HISTORY');
+      const { generateTravelPostcard } = require('./additional-visuals');
+      const distanceTravelled = dest.days * 4500;
+      const buffer = await generateTravelPostcard(player.name, player.location, dest.kingdom, distanceTravelled);
       await sock.sendMessage(replyJid, { image: buffer, caption: voyageText });
   } catch (e) {
-      await sock.sendMessage(replyJid, { text: voyageText });
+      try {
+          const { generateLorePoster } = require('./lore-generator');
+          const buffer = await generateLorePoster("VOYAGE MARITIME", voyageText, 'HISTORY');
+          await sock.sendMessage(replyJid, { image: buffer, caption: voyageText });
+      } catch (err) {
+          await sock.sendMessage(replyJid, { text: voyageText });
+      }
   }
 });
 
@@ -2317,7 +2459,16 @@ commands.set('etudier', async (sock, message, args) => {
   }
   await player.reload();
 
-  await sock.sendMessage(replyJid, { text: `📖 *APPRENTISSAGE RÉUSSI !* Tu as étudié avec succès la technique **${skill.name.toUpperCase()}** pour 5 SP !\n\n└ 📜 _Effet :_ ${skill.description}\n✨ Tes SP restants : *${player.skillPoints} SP*` });
+  const studyText = `📖 *APPRENTISSAGE RÉUSSI !* Tu as étudié avec succès la technique *${skill.name.toUpperCase()}* pour 5 SP !\n\n└ 📜 _Effet :_ ${skill.description}\n✨ Tes SP restants : *${player.skillPoints} SP*`;
+
+  try {
+      const { generateSkillScrollCard } = require('./additional-visuals');
+      const cardBuf = await generateSkillScrollCard(player.name, skill.name, skill.type, skill.description);
+      await sock.sendMessage(replyJid, { image: cardBuf, caption: studyText });
+  } catch (err) {
+      console.error("[Etudier Visual] Failed:", err);
+      await sock.sendMessage(replyJid, { text: studyText });
+  }
 });
 
 // Command: /missions
@@ -2728,6 +2879,7 @@ commands.set('menu', async (sock, message) => {
                    "└ `/tournoi` - Événements PVP\n\n" +
                    "⚙️ *SYSTÈME*\n" +
                    "├ `/help` - Aide complète\n" +
+                   "├ `/guide` - Guides en images\n" +
                    "├ `/journal` - Mises à jour & News\n" +
                    "└ `/save` - Sauvegarder\n\n" +
                    "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
