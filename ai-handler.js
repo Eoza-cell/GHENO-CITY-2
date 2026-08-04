@@ -932,14 +932,14 @@ Exemple de réponse attendue de ta part :
         },
         personnages_en_scene: scenePlayersData,
         env_social: {
-            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel, specialite: n.specialty })),
-            monstres_locaux: monsters.map(m => ({ name: m.name, pv: m.health, for: m.strength, def: m.defense, agi: m.agility, int: m.intelligence })),
+            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel, specialite: n.specialty, subLocation: n.subLocation })),
+            monstres_locaux: monsters.map(m => ({ name: m.name, pv: m.health, for: m.strength, def: m.defense, agi: m.agility, int: m.intelligence, subLocation: m.subLocation })),
             rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`),
             immobilier: playerHouses
         },
         objectifs_generaux: {
-            quetes_dispo: availableQuests.map(q => q.title),
-            donjon_local: dungeons.map(d => `${d.name}(${d.rank})`)
+            quetes_dispo: availableQuests.map(q => `${q.title} (Lieu: ${q.subLocation})`),
+            donjon_local: dungeons.map(d => `${d.name}(${d.rank} | Lieu: ${d.subLocation})`)
         },
         memoire_long_terme: journalState,
         memoire_court_terme: historyState
@@ -1013,6 +1013,9 @@ Rappel de toutes les actions, accomplissements et passés historiques de ${playe
 - QUÊTES TERMINÉES : ${completedQuestsState}
 - TIMELINE RP COMPLÈTE :
 ${infiniteTimelineState}
+
+### ANALYSE DU LIEU PHYSIQUE ET DE LA SCÈNE ###
+${sceneAnalysis}
 
 ### RÉSUMÉ DES ACTIONS À TRAITER ###
 ${actionSummary}

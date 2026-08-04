@@ -445,7 +445,7 @@ async function callPollinationsPOST(system, prompt, options = {}) {
 }
 
 async function callPollinationsGET(system, prompt, options = {}) {
-    const models = ['openai', 'mistral', 'llama'];
+    const models = ['openai-fast', 'gpt-oss-20b'];
     const jsonMode = options.jsonMode !== false;
     for (const model of models) {
         try {
@@ -655,10 +655,11 @@ async function callDevToolbox(system, prompt, options = {}) {
     try {
         console.log(`[AI] DevToolbox AI (Llama 3.2) - Tentative d'accès...`);
         const resp = await axios.post("https://devtoolbox-api.devtoolbox-api.workers.dev/ai/generate", {
-            prompt: `SYSTEM: ${system}\n\nUSER: ${prompt}`
+            prompt: `SYSTEM: ${system}\n\nUSER: ${prompt}`,
+            max_tokens: 1500
         }, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 10000
+            timeout: 15000
         });
 
         const content = resp.data?.response;
@@ -731,17 +732,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'GPTOSS Proxy', fn: callGPTOSS },
-        { name: 'Pollinations Gen', fn: callPollinationsGen },
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'MLVoca (Free)', fn: callMLVoca },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Blackbox', fn: callBlackbox },
-        { name: 'World Server (Local)', fn: callWorldServer }
+        { name: 'OpenRouter', fn: callOpenRouter }
     ];
 
     const timeouts = [];
