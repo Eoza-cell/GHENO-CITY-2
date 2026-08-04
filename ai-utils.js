@@ -656,7 +656,8 @@ async function callDevToolbox(system, prompt, options = {}) {
         console.log(`[AI] DevToolbox AI (Llama 3.2) - Tentative d'accès...`);
         const resp = await axios.post("https://devtoolbox-api.devtoolbox-api.workers.dev/ai/generate", {
             prompt: `SYSTEM: ${system}\n\nUSER: ${prompt}`,
-            max_tokens: 1500
+            max_tokens: 1500,
+            temperature: 0.85
         }, {
             headers: { 'Content-Type': 'application/json' },
             timeout: 15000

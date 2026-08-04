@@ -785,7 +785,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const shopState = "Shop: " + items.map(i => `${i.name}(${i.price}COL)`).join(',');
 
-  // Fetch history (last 100 messages) for Short Term Memory
+  // Fetch history (last 10 messages) for Short Term Memory (preventing memory flooding and repetition bias)
   const history = await RPMessage.findAll({
       where: sceneFilter,
       order: [['id', 'DESC']],
@@ -856,6 +856,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `MJ D'AETHERYS (RÉALISME BRUT & IMMERSION TOTALE)
 Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle.
 RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
+
+DYNAMISME, FLUIDITÉ ET ANTI-RÉPÉTITION ABSOLUE (RÈGLES CRITIQUES EXTRÊMES) :
+- INTERDICTION ABSOLUE de répéter, copier, paraphraser ou réitérer les phrases, événements, dialogues, postures ou descriptions des paragraphes précédents présents dans l'historique court terme (memoire_court_terme).
+- Le temps s'écoule à chaque tour et l'action précédente est déjà résolue. Tu DOIS impérativement décrire la SUITE directe de l'histoire, la NOUVELLE situation, le déplacement ou la réaction de l'environnement face au nouveau geste de l'acteur principal.
+- Si le joueur fait une action différente, le décor et l'intrigue DOIVENT changer immédiatement. Ne boucle jamais sur la même situation ou description de scène. Fais avancer l'intrigue physique de manière linéaire !
 
 IMMERSION SENSORIELLE :
 - ODORAT: Décris l'odeur du sang frais, de l'ozone après un éclair, du vieux parchemin, de la pourriture des bas-fonds.
