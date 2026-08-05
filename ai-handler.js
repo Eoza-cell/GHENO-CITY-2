@@ -813,7 +813,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const history = await RPMessage.findAll({
       where: sceneFilter,
       order: [['id', 'DESC']],
-      limit: 100
+      limit: 10
   });
   const historyState = history.length > 0
     ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
@@ -881,10 +881,15 @@ async function handleFreeAction(sock, message, player, actionText) {
 Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle.
 RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
 
-NE CONTRÔLE JAMAIS LES ACTIONS DU JOUEUR (RÈGLE CRITIQUE ABSOLUE) :
-- Tu ne décides JAMAIS, sous aucun prétexte, des pensées, sentiments, choix, dialogues, répliques, paroles ou actions futures de "${player.name}".
-- Tu décris UNIQUEMENT ce que "${player.name}" perçoit avec ses sens (visuel, sonore, olfactif) et ce qu'il subit physiquement (dégâts subis, obstacles, répliques des PNJ).
-- Laisse toujours 100% de liberté à "${player.name}" pour qu'il puisse décider lui-même de sa réaction et de son choix au tour suivant !
+🚨 RÈGLE D'OR ABSOLUE ET INVIOLABLE : INTERDICTION DE FAIRE PARLER OU AGIR LE JOUEUR 🚨
+- Tu ne dois JAMAIS, sous aucun prétexte, écrire de dialogue, de parole, de pensée, de sentiment, de choix, de déplacement ou d'action future pour l'acteur principal "${player.name}".
+- Il est STRICTEMENT INTERDIT d'écrire des phrases comme :
+  * "${player.name} dit : ..."
+  * "${player.name} répond : ..."
+  * "${player.name} pense : ..."
+  * "${player.name} fait ..." ou "${player.name} décide ..."
+- Tu décris UNIQUEMENT ce que "${player.name}" perçoit avec ses sens (visuel, sonore, olfactif) et ce qu'il subit physiquement (dégâts subis, obstacles, dialogues et gestes des PNJ).
+- Une fois que les PNJ ont parlé ou que l'environnement a réagi, tu t'arrêtes IMMÉDIATEMENT et tu laisses "${player.name}" répondre et agir librement. Ne décide jamais de ses réactions !
 
 DYNAMISME, FLUIDITÉ ET ANTI-RÉPÉTITION ABSOLUE (RÈGLES CRITIQUES EXTRÊMES) :
 - INTERDICTION ABSOLUE de répéter, copier, paraphraser ou réitérer les phrases, événements, dialogues, postures ou descriptions des paragraphes précédents présents dans l'historique court terme (memoire_court_terme).
@@ -927,7 +932,7 @@ NARRATION :
   - S'il est empoisonné ('isPoisoned: true'), il grimace de douleur, crache du sang noir et double d'intensité de souffrance physique à chaque mouvement.
 - IMPACT DES BLESSURES : Les blessures reçues par le joueur ont un impact direct, immédiat et réaliste sur ses mouvements, sa vitesse de déplacement et son agilité narrative (ex: jambe entaillée = déplacement ralenti, bras brisé = maniement de l'épée impossible de ce côté).
 - JUSTIFICATION DE TOUTE DÉDUCTION : Ne retire JAMAIS de points de vie (HP) ou de Col (pièces) au joueur de manière arbitraire sans une raison logique, évidente et explicitée clairement dans le texte de la narration (ex: vol commis sous ses yeux, blessure directe infligée par une arme ou piège).
-- MJ PUR : Tu ne décides jamais des pensées, répliques ou sentiments du joueur. Tu décris uniquement ce qu'il perçoit et ce qu'il subit physiquement.
+- MJ PUR : INTERDICTION TOTALEMENT ABSOLUE de faire parler, décider ou agir le joueur. Tu n'es pas le joueur. Tu décris uniquement ce que le joueur ressent physiquement et comment le monde (PNJ, monstres, environnement) répond à ses gestes. Ne mets JAMAIS de mots, de pensées ou de répliques dans la bouche de "${player.name}".
 - DÉVELOPPEMENT : Chaque action a un impact direct sur l'environnement.
 - COMPORTEMENTS & APPARENCE (RÈGLE IMPORTANTE) : Fais réagir l'environnement et les PNJ de manière réaliste et changeante selon l'habillement du personnage. Si le joueur a une tenue 'couverte de sang', 'déchirée' ou 'tachée de boue' (ou une faible durabilité d'outfit), les gardes de la milice seront extrêmement méfiants, les marchands augmenteront leurs prix ou l'ignoreront, tandis que s'il porte un costume élégant, il recevra du respect. Les dégâts physiques reçus déchirent ou salissent sa tenue.
 
