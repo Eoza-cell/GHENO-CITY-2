@@ -58,6 +58,30 @@ async function fetchTechniqueImage(techniqueName) {
         console.error(`[Google Images] Error scraping images for ${techniqueName}:`, err.message);
     }
 
+    // Attempt Hugging Face Image Generation first (supporting local-feeling/API-based adventure illustrations)
+    try {
+        console.log(`[Hugging Face] Generating image for "${techniqueName}"...`);
+        const hfToken = process.env.HF_TOKEN || process.env.HF_API_KEY;
+        const headers = { 'Content-Type': 'application/json' };
+        if (hfToken) {
+            headers['Authorization'] = `Bearer ${hfToken}`;
+        }
+        const promptText = `epic high resolution anime illustration of the technique called "${techniqueName}", glowing energy, masterpiece art`;
+        const resp = await axios.post("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
+            inputs: promptText
+        }, {
+            headers,
+            responseType: 'arraybuffer',
+            timeout: 8000
+        });
+        if (resp.status === 200 && resp.data) {
+            console.log(`[Hugging Face] ✅ Success generating image!`);
+            return Buffer.from(resp.data);
+        }
+    } catch (hfErr) {
+        console.warn(`[Hugging Face] Image generation failed, falling back to Pollinations:`, hfErr.message);
+    }
+
     try {
         console.log(`[Google Images Fallback] Generating image for "${techniqueName}" via Pollinations...`);
         const cleanPrompt = encodeURIComponent(`high resolution epic anime illustration of the technique called "${techniqueName}", glowing energy, spectacular visual effects, dramatic combat stance, masterpiece art`);
@@ -856,6 +880,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   const systemPrompt = `MJ D'AETHERYS (RÉALISME BRUT & IMMERSION TOTALE)
 Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle.
 RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
+
+NE CONTRÔLE JAMAIS LES ACTIONS DU JOUEUR (RÈGLE CRITIQUE ABSOLUE) :
+- Tu ne décides JAMAIS, sous aucun prétexte, des pensées, sentiments, choix, dialogues, répliques, paroles ou actions futures de "${player.name}".
+- Tu décris UNIQUEMENT ce que "${player.name}" perçoit avec ses sens (visuel, sonore, olfactif) et ce qu'il subit physiquement (dégâts subis, obstacles, répliques des PNJ).
+- Laisse toujours 100% de liberté à "${player.name}" pour qu'il puisse décider lui-même de sa réaction et de son choix au tour suivant !
 
 DYNAMISME, FLUIDITÉ ET ANTI-RÉPÉTITION ABSOLUE (RÈGLES CRITIQUES EXTRÊMES) :
 - INTERDICTION ABSOLUE de répéter, copier, paraphraser ou réitérer les phrases, événements, dialogues, postures ou descriptions des paragraphes précédents présents dans l'historique court terme (memoire_court_terme).
