@@ -730,11 +730,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Aether Local (Beta)', fn: callAether },
+        { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter }
