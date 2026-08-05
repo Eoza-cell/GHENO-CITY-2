@@ -349,6 +349,32 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         }
     }
 
+    // 8) Support subLocation and location updates in brackets
+    // e.g. [new_sub_location: la Forêt des Gobelins] or [new_location: Empire d'Elion]
+    const subLocationRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?new_sub_location\s*:\s*(.+?)\s*\]/gi;
+    while ((match = subLocationRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim() : null;
+        const newSub = match[2].trim();
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
+
+        await targetPlayer.update({ subLocation: newSub });
+        feedbackList.push(`📍 *${targetPlayer.name}* s'est déplacé à : *${newSub}*`);
+        playersToUpdate.add(targetPlayer.whatsappId);
+    }
+
+    const locationRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?new_location\s*:\s*(.+?)\s*\]/gi;
+    while ((match = locationRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim() : null;
+        const newLoc = match[2].trim();
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
+
+        await targetPlayer.update({ location: newLoc });
+        feedbackList.push(`🌍 *${targetPlayer.name}* a voyagé à : *${newLoc}*`);
+        playersToUpdate.add(targetPlayer.whatsappId);
+    }
+
     return { playersToUpdate, feedbackList };
 }
 

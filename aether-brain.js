@@ -10,7 +10,7 @@ const { Op } = require('sequelize');
  */
 class AetherBrain {
     constructor() {
-        this.version = "4.1-HybridAutonomous";
+        this.version = "4.2-HybridAutonomous";
     }
 
     /**
@@ -127,23 +127,40 @@ class AetherBrain {
         }
         playerAction = playerAction.replace(/^\[JOUEUR:\s*.*?\]\s*ACTIONS:\s*/, '').trim();
 
-        // Determine Action Type
+        // 4. Determine Action Type with highly robust regexes
         const actionLower = playerAction.toLowerCase();
         let actionType = "explore";
 
-        if (actionLower.includes("quete") || actionLower.includes("mission") || actionLower.includes("travail") || actionLower.includes("recherche")) {
+        const isMove = /(?:va|aller|pars|part|partir|dirige|diriger|marche|marcher|rejoins|rejoindre|rend|rendre|route|chemin|bouge|déplace|déplacer|poursuite|poursuivre|lance|élance|fuis|fuir|cours|courir)/i.test(actionLower);
+        const isCombat = /(?:attaque|attaquer|frappe|frapper|combat|combattre|épée|lame|sort|lance|lancer|magie|arme|coup|tue|tuer|affronte|affronter|bataille|guerre)/i.test(actionLower);
+        const isQuest = /(?:quête|quete|mission|travail|objectif)/i.test(actionLower);
+        const isDialogue = /(?:parle|parler|discute|discuter|salue|saluer|demande|demander|dit|répond|répondre|interroge|interroger)/i.test(actionLower);
+
+        if (isQuest) {
             actionType = "quest_request";
-        } else if (actionLower.includes("poursuite") || actionLower.includes("maître") || actionLower.includes("maitre") || actionLower.includes("suivre") || actionLower.includes("courir")) {
-            actionType = "master_pursuit";
-        } else if (actionLower.includes("attaque") || actionLower.includes("frappe") || actionLower.includes("combat") || actionLower.includes("épée") || actionLower.includes("lame") || actionLower.includes("sort")) {
+        } else if (isCombat) {
             actionType = "combat";
-        } else if (actionLower.includes("salue") || actionLower.includes("parle") || actionLower.includes("discute") || actionLower.includes("demande")) {
-            actionType = "dialogue";
-        } else if (actionLower.includes("va vers") || actionLower.includes("entre") || actionLower.includes("quitte") || actionLower.includes("bouge") || actionLower.includes("marche")) {
+        } else if (isMove) {
             actionType = "move";
+        } else if (isDialogue) {
+            actionType = "dialogue";
         }
 
-        // Varied sensory pools to prevent repetition
+        // Extract destination if move
+        let destination = "";
+        const destMatch = playerAction.match(/(?:vers|dans|à|au|aux|en|pour|la|le|les|l')\s+([A-Za-zÀ-ÖØ-öø-ÿ0-9\s'-]{3,50})/i);
+        if (destMatch) {
+            destination = destMatch[1].trim();
+        } else {
+            // Check if user named any kingdom or sublocation
+            const places = ["forêt", "palais", "citadelle", "taverne", "marché", "bureau", "donjon", "mine", "lac", "montagne", "désert", "nécropolis", "interstice"];
+            const matchedPlace = places.find(p => actionLower.includes(p));
+            if (matchedPlace) {
+                destination = matchedPlace;
+            }
+        }
+
+        // Sensory pools
         const sensorySmells = [
             "l'odeur fraîche de l'ozone d'éther",
             "le parfum de vieux parchemins magiques scellés",
@@ -169,7 +186,7 @@ class AetherBrain {
 
         const getSensory = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-        // Generate narrative based on state
+        // 6. Narrative Generation based on Action Type
         let narrative = "";
         let bracketStats = `[${playerName}: HP -0] [${playerName}: MP -0] [${playerName}: XP +20] [${playerName}: Col +10]`;
 
@@ -179,28 +196,79 @@ class AetherBrain {
                 : "La Chasse aux Gobelins";
             const questTitle = selectedQuest.split('(')[0].trim();
 
-            narrative = `L'atmosphère de ${playerSubLocation} s'anime sous un climat ${weather.toLowerCase()} alors qu'un officier de la Garde Impériale t'aperçoit. Il s'approche d'un pas rythmé et déroule un parchemin officiel : « ${playerName}, nous avons une mission de la plus haute importance pour toi : ${questTitle}. Es-tu prêt à relever le défi ? »\n\nTu ${getSensory(sensoryTouches)} alors que ${getSensory(sensoryAtmospheres)}, tandis que flotte ${getSensory(sensorySmells)}.`;
+            const dialogs = [
+                `« Ah, ${playerName}, tu tombes à pic ! » s'exclame l'officier de la Garde en t'apercevant. « Un danger immédiat menace notre sécurité. Nous avons besoin de quelqu'un pour : ${questTitle}. Te sens-tu d'attaque ? »`,
+                `Un messager s'approche en courant sous un climat ${weather.toLowerCase()} : « ${playerName} ! Le chancelier réclame ton aide pour la mission urgente : ${questTitle}. C'est une question de survie ! »`,
+                `L'intendant impérial hoche la tête avec sérieux : « ${playerName}, nous avons une quête d'importance majeure pour toi : ${questTitle}. Les récompenses en pièces d'or et en prestige seront généreuses. »`
+            ];
+            const pnjSpeech = dialogs[Math.floor(Math.random() * dialogs.length)];
+
+            narrative = `L'atmosphère de ${playerSubLocation} se charge de tension sous le ciel ${weather.toLowerCase()}. Les passants et les soldats s'affairent autour de toi. Soudain, un contact s'établit :\n\n${pnjSpeech}\n\nTu ${getSensory(sensoryTouches)} alors que ${getSensory(sensoryAtmospheres)}, tandis que flotte ${getSensory(sensorySmells)}.`;
             bracketStats = `[${playerName}: HP -0] [${playerName}: MP -0] [${playerName}: XP +30] [${playerName}: Col +20] [${playerName}: START_QUEST: ${questTitle}]`;
 
-        } else if (actionType === "master_pursuit") {
-            narrative = `La course s'accélère à travers les ruelles de ${playerSubLocation} sous un ciel ${weather.toLowerCase()} ! Tu te lances à corps perdu à la poursuite du maître, le souffle court. Un messager blessé s'appuie contre un pilier de pierre et pointe une ruelle : « Il est parti par là... avant que l'éclipse ou l'ombre ne l'emporte... » murmure-t-il.\n\nSoudain, Lunafreya Evervoid et Milim crimson se joignent à ta poursuite, leurs visages marqués par la gravité. Tu ${getSensory(sensoryTouches)} pendant que ${getSensory(sensoryAtmospheres)}.`;
-            bracketStats = `[${playerName}: HP -0] [${playerName}: MP -10] [${playerName}: XP +40] [${playerName}: Col +0] [${playerName}: PROGRESS_QUEST: Premiers Pas à Eldoria | 50]`;
+        } else if (actionType === "move") {
+            const targetDest = destination ? destination : "la Forêt des Gobelins";
+
+            const moveIntros = [
+                `D'un pas résolu, tu te mets immédiatement en route vers ${targetDest}. Tu laisses derrière toi l'atmosphère familière de ${playerSubLocation} pour t'avancer vers l'inconnu, l'esprit concentré sur ton objectif...`,
+                `Sans perdre une seconde, tu t'élances activement en direction de ${targetDest}. Ton allure est rapide et déterminée, franchissant les obstacles physiques un à un alors que le décor commence à changer sous tes yeux...`,
+                `Laissant tes pas se guider par ton instinct, tu entames ton déplacement vers ${targetDest}. L'air frais te fouette le visage à mesure que tu t'éloignes des zones sécurisées...`
+            ];
+
+            const moveOutros = [
+                `Le paysage de ${playerLocation} s'efface peu à peu, remplacé par des sentiers plus sauvages et escarpés à l'approche de ta destination.`,
+                `Les patrouilles de la milice s'estompent au loin, te laissant seul face aux mystères de ce nouveau territoire.`,
+                `Tu sens que chaque mètre parcouru te rapproche des conflits actifs et des opportunités qui t'attendent.`
+            ];
+
+            const intro = moveIntros[Math.floor(Math.random() * moveIntros.length)];
+            const outro = moveOutros[Math.floor(Math.random() * moveOutros.length)];
+
+            narrative = `${intro}\n\nSous un ciel ${weather.toLowerCase()}, tu ${getSensory(sensoryTouches)}. ${outro}\n\nPercevant ${getSensory(sensoryAtmospheres)}, tu respires ${getSensory(sensorySmells)}.`;
+            bracketStats = `[${playerName}: HP -0] [${playerName}: MP -0] [${playerName}: XP +25] [${playerName}: Col +0] [new_sub_location: ${targetDest}]`;
 
         } else if (actionType === "combat") {
-            narrative = `L'acier chante sous un environnement ${weather.toLowerCase()} ! Tu tires ton arme de son fourreau, le métal brillant d'une lueur bleutée. Tu assènes une frappe circulaire rapide avec force, l'impact retentissant sèchement dans toute la zone. Les gardes se mettent immédiatement en position de combat, analysant ton Battle IQ.\n\nTu ${getSensory(sensoryTouches)} et perçois ${getSensory(sensorySmells)}.`;
+            const combatIntros = [
+                `L'acier chante sous l'environnement ${weather.toLowerCase()} ! Tu tires ton arme de son fourreau, le métal brillant d'une lueur bleutée sous l'effet du mana. Tu assènes une frappe circulaire dévastatrice avec une précision mortelle !`,
+                `Le choc est immédiat ! Faisant preuve d'un haut Battle IQ, tu lances ton assaut de plein fouet, canalisant ton flux d'éther magique à travers ton équipement pour terrasser la cible !`,
+                `Tu passes à l'attaque sans aucune hésitation ! Tes appuis sont solides sur les dalles de ${playerSubLocation} alors que tu effectues une estoc ultra-rapide visant les points faibles de l'ennemi.`
+            ];
+
+            const combatOutros = [
+                `L'impact retentit sèchement dans toute la zone, provoquant la stupeur des passants et des gardes qui se mettent aussitôt sur la défensive.`,
+                `Une gerbe d'étincelles de mana s'élève dans l'air, témoignant de l'extrême létalité et de la violence brute du choc physique.`,
+                `Le souffle du coup balaie la poussière environnante, tandis que tes adversaires reculent d'un pas, terrifiés par ta force.`
+            ];
+
+            const intro = combatIntros[Math.floor(Math.random() * combatIntros.length)];
+            const outro = combatOutros[Math.floor(Math.random() * combatOutros.length)];
+
+            narrative = `${intro} ${outro}\n\nTu ${getSensory(sensoryTouches)} et perçois ${getSensory(sensorySmells)}.`;
             bracketStats = `[${playerName}: HP -0] [${playerName}: MP -15] [${playerName}: XP +50] [${playerName}: Col +15]`;
 
         } else if (actionType === "dialogue") {
-            const pnjName = pnjPresents.length > 0 ? pnjPresents[Math.floor(Math.random() * pnjPresents.length)].name : "un citoyen";
-            narrative = `Tu engages la conversation avec ${pnjName} à ${playerSubLocation}. Celui-ci s'arrête et t'écoute avec attention sous le climat ${weather.toLowerCase()} : « Les failles de l'Interstice s'élargissent, ${playerName}. Sois extrêmement sur tes gardes. »\n\nAlors que ${getSensory(sensoryAtmospheres)}, tu ${getSensory(sensoryTouches)}.`;
+            const pnjName = pnjPresents.length > 0 ? pnjPresents[Math.floor(Math.random() * pnjPresents.length)].name : "un citoyen important";
+
+            const dialogs = [
+                `Celui-ci s'arrête net, se tourne lentement vers toi et ajuste sa posture avec respect. D'un ton calme mais grave, il répond : « Les temps sont troubles, ${playerName}. Les anomalies de l'Interstice exigent toute notre attention. Ne baisse jamais ta garde. »`,
+                `Le regard fixé sur toi, il esquisse un léger sourire mystérieux : « ${playerName}, les forces politiques et magiques d'Eldoria sont en mouvement constant. Sois attentif aux signes de causalité autour de toi. »`,
+                `S'approchant à pas feutrés, il te murmure à voix basse : « Prends garde à ceux qui t'observent dans l'ombre. L'Empereur et la milice ne toléreront aucun faux pas dans les quartiers de la ville. »`
+            ];
+            const responseText = dialogs[Math.floor(Math.random() * dialogs.length)];
+
+            narrative = `Tu t'adresses directement à ${pnjName} à ${playerSubLocation} sous le ciel ${weather.toLowerCase()}.\n\n${responseText}\n\nAlors que ${getSensory(sensoryAtmospheres)}, tu ${getSensory(sensoryTouches)}.`;
             bracketStats = `[${playerName}: HP -0] [${playerName}: MP -0] [${playerName}: XP +15] [${playerName}: Col +0]`;
 
-        } else if (actionType === "move") {
-            narrative = `Tu te déplaces vers les limites de ${playerSubLocation} sous un ciel ${weather.toLowerCase()}. Les passants s'écartent sur ton passage, observant ton équipement avec curiosité. Tu ${getSensory(sensoryTouches)} pendant que ${getSensory(sensoryAtmospheres)} et que se diffuse ${getSensory(sensorySmells)}.`;
-            bracketStats = `[${playerName}: HP -0] [${playerName}: MP -0] [${playerName}: XP +20] [${playerName}: Col +0]`;
-
         } else {
-            narrative = `Tu examines minutieusement les détails de ${playerSubLocation} sous un ciel ${weather.toLowerCase()}. Tes yeux repèrent les runes anciennes gravées sur les piliers et le mouvement des citoyens. L'ambiance est calme mais empreinte de magie.\n\nTu ${getSensory(sensoryTouches)}, perçois ${getSensory(sensoryAtmospheres)} et respires ${getSensory(sensorySmells)}.`;
+            // General Explore / Inspect
+            const exploreIntros = [
+                `Tu observes attentivement chaque recoin de ${playerSubLocation} sous un climat ${weather.toLowerCase()}. Tes yeux repèrent les runes anciennes gravées sur les piliers et le mouvement des citoyens.`,
+                `Tu prends le temps d'inspecter l'environnement immédiat de ${playerSubLocation}. L'architecture de ${playerLocation} s'impose à tes yeux avec une splendeur solennelle et chargée d'histoire.`,
+                `Tu scrutes activement les alentours à l'affût du moindre détail ou d'indices cachés. Les murmures de la foule se propagent doucement sous le ciel ${weather.toLowerCase()}.`
+            ];
+            const intro = exploreIntros[Math.floor(Math.random() * exploreIntros.length)];
+
+            narrative = `${intro}\n\nL'ambiance est calme mais empreinte de magie. Tu ${getSensory(sensoryTouches)}, perçois ${getSensory(sensoryAtmospheres)} et respires ${getSensory(sensorySmells)}.`;
             bracketStats = `[${playerName}: HP -0] [${playerName}: MP -0] [${playerName}: XP +20] [${playerName}: Col +10]`;
         }
 
