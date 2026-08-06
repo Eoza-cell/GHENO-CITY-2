@@ -375,6 +375,79 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         playersToUpdate.add(targetPlayer.whatsappId);
     }
 
+    // 9) Proactive Consciousness Spawners
+    // [SPAWN_NPC: Name | Role | Specialty | Description]
+    const spawnNpcRegex = /\[\s*SPAWN_NPC\s*:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\]/gi;
+    while ((match = spawnNpcRegex.exec(text)) !== null) {
+        const name = match[1].trim();
+        const role = match[2].trim();
+        const specialty = match[3].trim();
+        const description = match[4].trim();
+
+        // Create NPC in DB
+        const [npc, created] = await NPC.findOrCreate({
+            where: { name },
+            defaults: {
+                role,
+                specialty,
+                description,
+                location: player.location,
+                subLocation: player.subLocation,
+                powerLevel: 50
+            }
+        });
+        if (created) {
+            feedbackList.push(`👤 *PNJ apparu* : *${name}* (${role} | Spécialité: ${specialty})`);
+        }
+    }
+
+    // [SPAWN_MONSTER: Name | Rank | HP | Strength | Defense | Agility]
+    const spawnMonsterRegex = /\[\s*SPAWN_MONSTER\s*:\s*(.+?)\s*\|\s*([A-S])\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\]/gi;
+    while ((match = spawnMonsterRegex.exec(text)) !== null) {
+        const name = match[1].trim();
+        const rank = match[2].trim();
+        const health = parseInt(match[3]);
+        const strength = parseInt(match[4]);
+        const defense = parseInt(match[5]);
+        const agility = parseInt(match[6]);
+
+        const [monster, created] = await Monster.findOrCreate({
+            where: { name },
+            defaults: {
+                rank,
+                health,
+                strength,
+                defense,
+                agility,
+                location: player.location,
+                subLocation: player.subLocation,
+                xp_reward: health * 2,
+                col_reward: health
+            }
+        });
+        if (created) {
+            feedbackList.push(`👾 *Monstre apparu* : *${name}* (Rang ${rank} | PV: ${health})`);
+        }
+    }
+
+    // [ANNONCE: Message]
+    const annonceRegex = /\[\s*ANNONCE\s*:\s*(.+?)\s*\]/gi;
+    while ((match = annonceRegex.exec(text)) !== null) {
+        const msg = match[1].trim();
+        // Create a world journal entry for global announcement
+        await WorldJournal.create({
+            entry: `📢 ANNONCE MONDIALE : ${msg}`,
+            importance: 5,
+            category: 'general'
+        });
+        feedbackList.push(`📢 *ANNONCE* : ${msg}`);
+
+        // Broadcast immediately on WhatsApp!
+        try {
+            await sock.sendMessage(jid, { text: `📢 *ANNONCE DE LA CONSCIENCE D'AETHERYS :*\n\n« ${msg} »` });
+        } catch (err) {}
+    }
+
     return { playersToUpdate, feedbackList };
 }
 

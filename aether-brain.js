@@ -19,12 +19,12 @@ class AetherBrain {
     async think(system, user, options = {}) {
         console.log(`[AETHER-BRAIN] Processing turn via Hybrid Engine...`);
 
-        // 1. Try Local Ollama first (completely offline LLM)
+        // 1. Try Local Ollama first (completely offline LLM - pointing to gemma4 for cutting-edge roleplay)
         try {
             console.log("[AETHER-BRAIN] Attempting local Ollama...");
             const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434/api/chat";
             const resp = await axios.post(ollamaUrl, {
-                model: process.env.OLLAMA_MODEL || 'mistral',
+                model: process.env.OLLAMA_MODEL || 'gemma4',
                 messages: [
                     { role: 'system', content: system },
                     { role: 'user', content: user }
@@ -270,6 +270,26 @@ class AetherBrain {
 
             narrative = `${intro}\n\nL'ambiance est calme mais empreinte de magie. Tu ${getSensory(sensoryTouches)}, perçois ${getSensory(sensoryAtmospheres)} et respires ${getSensory(sensorySmells)}.`;
             bracketStats = `[${playerName}: HP -0] [${playerName}: MP -0] [${playerName}: XP +20] [${playerName}: Col +10]`;
+        }
+
+        // Proactive Consciousness Brackets trigger logic
+        let proactiveBrackets = "";
+        if (actionLower.includes("ajoute") || actionLower.includes("crée") || actionLower.includes("cree") || actionLower.includes("spawn pnj") || actionLower.includes("spawn garde") || actionLower.includes("garde")) {
+            const pnjName = `Garde d'Élite #${Math.floor(Math.random() * 900 + 100)}`;
+            proactiveBrackets += ` [SPAWN_NPC: ${pnjName} | Garde Impérial | Protection | Un fier garde en armure d'acier étincelante invoqué de manière proactive par la Conscience d'Aetherys]`;
+        }
+        if (actionLower.includes("gobelin") || actionLower.includes("goblin") || actionLower.includes("monstre") || actionLower.includes("ennemi") || actionLower.includes("spawn gobelin")) {
+            const monsterName = `Gobelin Pilleur #${Math.floor(Math.random() * 9000 + 1000)}`;
+            proactiveBrackets += ` [SPAWN_MONSTER: ${monsterName} | E | 60 | 14 | 6 | 12]`;
+        }
+        if (actionLower.includes("annonce") || actionLower.includes("annoncer") || actionLower.includes("crie") || actionLower.includes("crier") || actionLower.includes("proclame") || actionLower.includes("proclamer")) {
+            const quoteMatch = playerAction.match(/"([^"]+)"/) || playerAction.match(/«([^»]+)»/);
+            const msgText = quoteMatch ? quoteMatch[1] : `${playerName} élève la voix pour proclamer ses exploits sur ${playerSubLocation} !`;
+            proactiveBrackets += ` [ANNONCE: ${msgText}]`;
+        }
+
+        if (proactiveBrackets) {
+            bracketStats += proactiveBrackets;
         }
 
         // Return beautiful structured RPG turn with dynamic parsed states!
