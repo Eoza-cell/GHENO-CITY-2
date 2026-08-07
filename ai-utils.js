@@ -286,10 +286,11 @@ async function callOpenRouter(system, prompt, options = {}) {
     }
 
     const models = [
+        "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "google/gemma-4-26b-a4b-it:free",
         "openrouter/free"
     ];
 
