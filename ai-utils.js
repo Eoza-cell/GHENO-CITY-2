@@ -237,7 +237,7 @@ async function callPuterSDK(system, prompt, options = {}) {
         console.warn("[AI] Puter SDK non initialisé ou indisponible.");
         return null;
     }
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
+    const models = ["google/gemma-4-31b-it", "google/gemma-4-26b-a4b-it", "gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
 
     for (const model of models) {
         try {
@@ -731,13 +731,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Ollama (Local)', fn: callOllama },
+        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
-        { name: 'Ollama (Local)', fn: callOllama },
         { name: 'LM Studio (Local)', fn: callLMStudio },
         { name: 'Pollinations GET', fn: callPollinationsGET },
         { name: 'Puter API (V1)', fn: callPuterAPI },
-        { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter }
     ];
 
