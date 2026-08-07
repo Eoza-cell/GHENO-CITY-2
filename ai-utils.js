@@ -157,6 +157,30 @@ function extractMessageContent(content) {
     return null;
 }
 
+/**
+ * Call the Puter Account Pool Manager proxy endpoint if available.
+ */
+async function callPuterPoolManager(system, prompt, options = {}) {
+    const baseUrl = process.env.PUTER_POOL_URL || "http://localhost:3000/v1";
+    try {
+        console.log(`[AI] Puter Pool Manager - Tentative sur ${baseUrl}/chat/completions...`);
+        const resp = await axios.post(`${baseUrl}/chat/completions`, {
+            model: "google/gemma-4-31b-it",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, { timeout: 15000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Puter Pool Manager indisponible: ${e.message}`);
+    }
+    return null;
+}
+
 async function callMLVoca(system, prompt, options = {}) {
     const models = ["deepseek-r1:1.5b", "tinyllama"];
     const jsonMode = options.jsonMode !== false;
@@ -733,6 +757,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const providers = [
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'Puter Pool Manager', fn: callPuterPoolManager },
         { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'LM Studio (Local)', fn: callLMStudio },
