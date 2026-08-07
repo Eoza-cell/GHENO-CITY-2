@@ -158,6 +158,37 @@ function extractMessageContent(content) {
 }
 
 /**
+ * Call the OmniBrain AI Proxy Smart endpoint if available.
+ */
+async function callOmniBrain(system, prompt, options = {}) {
+    const url = process.env.OMNIBRAIN_URL || "http://localhost:8080/v1/chat/completions";
+    const apiKey = process.env.OMNIBRAIN_API_KEY || "dummy";
+    try {
+        console.log(`[AI] OmniBrain Proxy - Tentative sur ${url}...`);
+        const resp = await axios.post(url, {
+            model: "openrouter/free",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] OmniBrain Proxy indisponible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
  * Call the Puter Account Pool Manager proxy endpoint if available.
  */
 async function callPuterPoolManager(system, prompt, options = {}) {
@@ -758,6 +789,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
+        { name: 'OmniBrain Proxy', fn: callOmniBrain },
         { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'LM Studio (Local)', fn: callLMStudio },
