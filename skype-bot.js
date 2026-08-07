@@ -96,7 +96,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(404);
     res.end();
 });
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3005;
 
 // Start server IMMEDIATELY to satisfy Render
 server.listen(PORT, () => {
