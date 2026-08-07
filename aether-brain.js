@@ -63,7 +63,42 @@ class AetherBrain {
             console.log("[AETHER-BRAIN] Local LM Studio offline.");
         }
 
-        // 3. Fallback to State-of-the-Art Procedural Story Engine
+        // 3. Try Hugging Face Inference API for google/gemma-4-31B-it (cutting-edge cloud-based offline option)
+        try {
+            console.log("[AETHER-BRAIN] Attempting Hugging Face Inference for google/gemma-4-31B-it...");
+            const hfToken = process.env.HF_TOKEN || process.env.HF_API_KEY;
+            const headers = { 'Content-Type': 'application/json' };
+            if (hfToken) {
+                headers['Authorization'] = `Bearer ${hfToken}`;
+            }
+            const resp = await axios.post("https://api-inference.huggingface.co/models/google/gemma-4-31B-it", {
+                inputs: `<bos><start_of_turn>user\nSYSTEM: ${system}\n\nUSER: ${user}<end_of_turn>\n<start_of_turn>model\n`
+            }, { headers, timeout: 15000 });
+
+            let content = "";
+            if (Array.isArray(resp.data)) {
+                content = resp.data[0]?.generated_text || "";
+            } else if (resp.data?.generated_text) {
+                content = resp.data.generated_text;
+            } else {
+                content = JSON.stringify(resp.data);
+            }
+
+            // Strip input prompt from Hugging Face output if included
+            if (content.includes("<start_of_turn>model\n")) {
+                content = content.split("<start_of_turn>model\n").pop();
+            }
+            content = content.replace(/<end_of_turn>/g, "").trim();
+
+            if (content && content.length > 10) {
+                console.log("[AETHER-BRAIN] ✅ Success via Hugging Face google/gemma-4-31B-it!");
+                return content;
+            }
+        } catch (e) {
+            console.log("[AETHER-BRAIN] Hugging Face google/gemma-4-31B-it offline or rate-limited:", e.message);
+        }
+
+        // 4. Fallback to State-of-the-Art Procedural Story Engine
         console.log("[AETHER-BRAIN] Falling back to Procedural Story Engine...");
 
         // Extract JSON Context from the prompt
