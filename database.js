@@ -481,6 +481,33 @@ const Monster = sequelize.define('Monster', {
     imageUrl: { type: DataTypes.STRING, allowNull: true }
 });
 
+const FootballPlayer = sequelize.define('FootballPlayer', {
+  name: { type: DataTypes.STRING, unique: true },
+  rating: { type: DataTypes.INTEGER, defaultValue: 90 },
+  position: { type: DataTypes.STRING, defaultValue: 'CF' },
+  country: { type: DataTypes.STRING, defaultValue: 'Unknown' },
+  club: { type: DataTypes.STRING, defaultValue: 'Free Agent' },
+  imagePath: { type: DataTypes.STRING, allowNull: true },
+  cardType: { type: DataTypes.STRING, defaultValue: 'Epic' }, // e.g. Epic, Big Time, Show Time, Highlight
+  speed: { type: DataTypes.INTEGER, defaultValue: 80 },
+  dribbling: { type: DataTypes.INTEGER, defaultValue: 80 },
+  shooting: { type: DataTypes.INTEGER, defaultValue: 80 },
+  passing: { type: DataTypes.INTEGER, defaultValue: 80 },
+  defense: { type: DataTypes.INTEGER, defaultValue: 50 },
+  physical: { type: DataTypes.INTEGER, defaultValue: 70 },
+});
+
+const UserStats = sequelize.define('UserStats', {
+  whatsappId: { type: DataTypes.STRING, primaryKey: true },
+  name: { type: DataTypes.STRING, defaultValue: 'Joueur eFootball' },
+  wins: { type: DataTypes.INTEGER, defaultValue: 0 },
+  draws: { type: DataTypes.INTEGER, defaultValue: 0 },
+  losses: { type: DataTypes.INTEGER, defaultValue: 0 },
+  goalsScored: { type: DataTypes.INTEGER, defaultValue: 0 },
+  goalsConceded: { type: DataTypes.INTEGER, defaultValue: 0 },
+  points: { type: DataTypes.INTEGER, defaultValue: 0 },
+});
+
 Player.hasOne(Bank);
 Bank.belongsTo(Player);
 Player.belongsToMany(Quest, { through: PlayerQuest });
@@ -516,7 +543,9 @@ async function setupDatabase() {
       Kingdoms: Kingdom.rawAttributes,
       Schools: School.rawAttributes,
       RPMessages: RPMessage.rawAttributes,
-      WorldJournals: WorldJournal.rawAttributes
+      WorldJournals: WorldJournal.rawAttributes,
+      FootballPlayers: FootballPlayer.rawAttributes,
+      UserStats: UserStats.rawAttributes
     };
 
     for (const [tableName, attributes] of Object.entries(tableDefinitions)) {
@@ -539,6 +568,74 @@ async function setupDatabase() {
 
     await sequelize.sync({ alter: true });
     console.log('Database synchronized.');
+
+    // Seed initial eFootball players if empty
+    const footballPlayerCount = await FootballPlayer.count();
+    if (footballPlayerCount === 0) {
+        console.log('Seeding Football players...');
+        await FootballPlayer.bulkCreate([
+            {
+                name: 'Lionel Messi',
+                rating: 99,
+                position: 'RWF',
+                country: 'Argentine',
+                club: 'Inter Miami',
+                imagePath: 'assets/efootball/messi.png',
+                cardType: 'Big Time',
+                speed: 81,
+                dribbling: 96,
+                shooting: 92,
+                passing: 94,
+                defense: 35,
+                physical: 68
+            },
+            {
+                name: 'Cristiano Ronaldo',
+                rating: 96,
+                position: 'CF',
+                country: 'Portugal',
+                club: 'Al-Nassr',
+                imagePath: 'assets/efootball/ronaldo.png',
+                cardType: 'Epic',
+                speed: 84,
+                dribbling: 83,
+                shooting: 94,
+                passing: 78,
+                defense: 30,
+                physical: 82
+            },
+            {
+                name: 'Neymar Jr',
+                rating: 97,
+                position: 'LWF',
+                country: 'Brésil',
+                club: 'Al-Hilal',
+                imagePath: 'assets/efootball/neymar.png',
+                cardType: 'Show Time',
+                speed: 86,
+                dribbling: 95,
+                shooting: 87,
+                passing: 89,
+                defense: 32,
+                physical: 62
+            },
+            {
+                name: 'Lamine Yamal',
+                rating: 94,
+                position: 'RWF',
+                country: 'Espagne',
+                club: 'FC Barcelone',
+                imagePath: 'assets/efootball/yamal.png',
+                cardType: 'Highlight',
+                speed: 90,
+                dribbling: 92,
+                shooting: 81,
+                passing: 84,
+                defense: 40,
+                physical: 64
+            }
+        ]);
+    }
 
     // Seed initial game data if empty
     const dungeonCount = await Dungeon.count();
@@ -1024,5 +1121,6 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
+  FootballPlayer, UserStats,
   setupDatabase,
 };
