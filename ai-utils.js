@@ -158,6 +158,37 @@ function extractMessageContent(content) {
 }
 
 /**
+ * Call the Kimi K3 Free Desktop AI proxy endpoint if available.
+ */
+async function callKimiK3(system, prompt, options = {}) {
+    const url = process.env.KIMI_K3_URL || "http://localhost:5000/v1/chat/completions";
+    const apiKey = process.env.KIMI_K3_API_KEY || "dummy";
+    try {
+        console.log(`[AI] Kimi K3 Proxy - Tentative sur ${url}...`);
+        const resp = await axios.post(url, {
+            model: "kimi-k3-code",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Kimi K3 Proxy indisponible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
  * Call the OmniBrain AI Proxy Smart endpoint if available.
  */
 async function callOmniBrain(system, prompt, options = {}) {
@@ -790,6 +821,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
         { name: 'OmniBrain Proxy', fn: callOmniBrain },
+        { name: 'Kimi K3 Proxy', fn: callKimiK3 },
         { name: 'Aether Local (Beta)', fn: callAether },
         { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'LM Studio (Local)', fn: callLMStudio },
