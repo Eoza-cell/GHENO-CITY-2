@@ -228,7 +228,7 @@ async function callOmniBrain(system, prompt, options = {}) {
     try {
         console.log(`[AI] OmniBrain Proxy - Tentative sur ${url}...`);
         const resp = await axios.post(url, {
-            model: "openrouter/free",
+            model: "google/gemma-4-31b-it",
             messages: [
                 { role: "system", content: system },
                 { role: "user", content: prompt }
@@ -852,13 +852,6 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
         { name: 'OmniBrain Proxy', fn: callOmniBrain },
-        { name: 'Kimi K3 Proxy', fn: callKimiK3 },
-        { name: 'Khoj Assistant', fn: callKhoj },
-        { name: 'Aether Local (Beta)', fn: callAether },
-        { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'OpenRouter', fn: callOpenRouter }
     ];
 

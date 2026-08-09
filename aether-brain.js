@@ -152,12 +152,10 @@ class AetherBrain {
         // 4. Try Local Python Transformers script (google/gemma-2b-it / local open-source python LLM)
         try {
             console.log("[AETHER-BRAIN] Attempting local Python Transformers execution...");
-            const { execSync } = require('child_process');
-            // Escape prompts safely
-            const sysEscaped = JSON.stringify(system);
-            const userEscaped = JSON.stringify(user);
+            const { execFileSync } = require('child_process');
 
-            const pythonOutput = execSync(`python transformer_model.py ${sysEscaped} ${userEscaped}`, {
+            // Securely execute python using an arguments array to prevent any command injection or shell RCE vulnerabilities
+            const pythonOutput = execFileSync('python', ['transformer_model.py', system, user], {
                 timeout: 30000,
                 encoding: 'utf8'
             });
