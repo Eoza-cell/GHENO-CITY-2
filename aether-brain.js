@@ -129,7 +129,31 @@ class AetherBrain {
             }
         }
 
-        // 4. Fallback to State-of-the-Art Procedural Story Engine
+        // 4. Try Local Python Transformers script (google/gemma-2b-it / local open-source python LLM)
+        try {
+            console.log("[AETHER-BRAIN] Attempting local Python Transformers execution...");
+            const { execSync } = require('child_process');
+            // Escape prompts safely
+            const sysEscaped = JSON.stringify(system);
+            const userEscaped = JSON.stringify(user);
+
+            const pythonOutput = execSync(`python transformer_model.py ${sysEscaped} ${userEscaped}`, {
+                timeout: 30000,
+                encoding: 'utf8'
+            });
+
+            if (pythonOutput && pythonOutput.includes("--- RESPONSE ---")) {
+                const response = pythonOutput.split("--- RESPONSE ---")[1].split("----------------")[0].trim();
+                if (response.length > 10) {
+                    console.log("[AETHER-BRAIN] ✅ Success via local Python Transformers!");
+                    return response;
+                }
+            }
+        } catch (e) {
+            console.log("[AETHER-BRAIN] Local Python Transformers offline or dependencies missing:", e.message);
+        }
+
+        // 5. Fallback to State-of-the-Art Procedural Story Engine
         console.log("[AETHER-BRAIN] Falling back to Procedural Story Engine...");
 
         // Extract JSON Context from the prompt
