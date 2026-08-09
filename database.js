@@ -349,7 +349,8 @@ const Dungeon = sequelize.define('Dungeon', {
     name: { type: DataTypes.STRING, unique: true },
     description: { type: DataTypes.TEXT },
     rank: { type: DataTypes.STRING },
-    floors: { type: DataTypes.INTEGER, defaultValue: 1 }
+    floors: { type: DataTypes.INTEGER, defaultValue: 1 },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Entrée' }
 });
 
 const Quest = sequelize.define('Quest', {
@@ -364,6 +365,7 @@ const Quest = sequelize.define('Quest', {
     objective: { type: DataTypes.TEXT, allowNull: true },
     nextQuestTitle: { type: DataTypes.STRING, allowNull: true },
     isMultiplayer: { type: DataTypes.BOOLEAN, defaultValue: false },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Bureau des Missions' }
 });
 
 const PlayerQuest = sequelize.define('PlayerQuest', {
@@ -436,7 +438,8 @@ const School = sequelize.define('School', {
     name: { type: DataTypes.STRING, unique: true },
     specialty: { type: DataTypes.STRING },
     description: { type: DataTypes.TEXT },
-    kingdomName: { type: DataTypes.STRING }
+    kingdomName: { type: DataTypes.STRING },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Quartier Scolaire' }
 });
 
 const RPMessage = sequelize.define('RPMessage', {
@@ -460,6 +463,7 @@ const NPC = sequelize.define('NPC', {
     role: { type: DataTypes.STRING },
     description: { type: DataTypes.TEXT },
     location: { type: DataTypes.STRING },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Place Centrale' },
     powerLevel: { type: DataTypes.INTEGER, defaultValue: 50 },
     specialty: { type: DataTypes.STRING },
     imageUrl: { type: DataTypes.STRING, allowNull: true }
@@ -519,6 +523,7 @@ const House = sequelize.define('House', {
     name: { type: DataTypes.STRING },
     price: { type: DataTypes.INTEGER },
     location: { type: DataTypes.STRING },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Quartier Résidentiel' },
     ownerId: { type: DataTypes.STRING, allowNull: true },
     storage: {
         type: DataTypes.TEXT,
@@ -549,6 +554,7 @@ const Monster = sequelize.define('Monster', {
     agility: { type: DataTypes.INTEGER },
     intelligence: { type: DataTypes.INTEGER, defaultValue: 10 },
     location: { type: DataTypes.STRING, defaultValue: 'Eldoria' },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Forêt des Gobelins' },
     xp_reward: { type: DataTypes.INTEGER },
     col_reward: { type: DataTypes.INTEGER },
     imageUrl: { type: DataTypes.STRING, allowNull: true }
@@ -590,7 +596,8 @@ async function setupDatabase() {
       Kingdoms: Kingdom.rawAttributes,
       Schools: School.rawAttributes,
       RPMessages: RPMessage.rawAttributes,
-      WorldJournals: WorldJournal.rawAttributes
+      WorldJournals: WorldJournal.rawAttributes,
+      Dungeons: Dungeon.rawAttributes
     };
 
     for (const [tableName, attributes] of Object.entries(tableDefinitions)) {
@@ -949,10 +956,18 @@ async function setupDatabase() {
     const houseCount = await House.count();
     if (houseCount === 0) {
         await House.bulkCreate([
-            { name: 'Appartement Moderne à Eldoria', price: 10000, location: 'Eldoria' },
-            { name: 'Villa de Luxe à Valkyr', price: 50000, location: 'Valkyr' },
-            { name: 'Studio Étudiant (Académie)', price: 5000, location: 'Académie Impériale' }
+            { name: 'Appartement Moderne à Eldoria', price: 10000, location: 'Eldoria', subLocation: 'Quartier Résidentiel' },
+            { name: 'Villa de Luxe à Valkyr', price: 50000, location: 'Valkyr', subLocation: 'Colline des Nobles' },
+            { name: 'Studio Étudiant (Académie)', price: 5000, location: 'Académie Impériale', subLocation: 'Dortoirs' }
         ]);
+    } else {
+        // Also update existing houses if they exist
+        const houses = await House.findAll();
+        for (const h of houses) {
+            if (h.name.includes('Eldoria')) await h.update({ subLocation: 'Quartier Résidentiel' });
+            else if (h.name.includes('Valkyr')) await h.update({ subLocation: 'Colline des Nobles' });
+            else if (h.name.includes('Académie')) await h.update({ subLocation: 'Dortoirs' });
+        }
     }
 
     const kingdomsToSeed = [
@@ -1057,33 +1072,41 @@ async function setupDatabase() {
     // Seed advanced Wizardry / Martial / Divine Schools & Milices for ALL 17 Realms
     console.log('[SEED] Registering comprehensive schools, milices, and factions...');
     const schoolsToSeed = [
-      { name: 'Académie Royale d\'Elion', specialty: 'Escrime de Mana & Droit Impérial', description: 'Le bastion d\'élite où étudient les héritiers et chevaliers d\'Elion.', kingdomName: 'Empire Impérial d\'Elion' },
-      { name: 'Garde Impériale de Fer', specialty: 'Milice & Maintien de l\'Ordre', description: 'La force d\'intervention rapide d\'Eldoria.', kingdomName: 'Empire Impérial d\'Elion' },
-      { name: 'Lycée Supérieur de l\'Éther', specialty: 'Techno-magie & Ondes de Mana', description: 'Université scientifique de premier plan pour ingénieurs russes et magiciens.', kingdomName: 'Royaume de Valkyrr' },
-      { name: 'Milice de Sparkwell', specialty: 'Patrouilles Mécanisées', description: 'Forces de défense cybernétique à Valkyrr.', kingdomName: 'Royaume de Valkyrr' },
-      { name: 'École de l\'Ombre Silencieuse', specialty: 'Infiltration, Dagues & Poisons', description: 'Cité d\'entraînement illégale dissimulée sous la surface.', kingdomName: 'Gheno souterrain' },
-      { name: 'Syndicat du Marché Noir', specialty: 'Fidélité et Contrebande', description: 'La milice de l\'Ombre maintenant le contrôle criminel.', kingdomName: 'Gheno souterrain' },
-      { name: 'Collège Elfique de Sylva-Lumia', specialty: 'Sorcellerie Végétale & Tir Sylvestre', description: 'Sanctuaire d\'étude de la nature et de l\'arc lunaire.', kingdomName: 'Forêt de l\'Éveil' },
-      { name: 'Garde Blanche des Frontières', specialty: 'Escortes d\'Archipel', description: 'Forte milice maritime maintenant l\'ordre sur l\'archipel.', kingdomName: 'Archipel des Murmures' },
-      { name: 'Clan de la Griffe Sauvage', specialty: 'Combat Bestial et Instinct', description: 'Lycée d\'honneur tribal formant de redoutables combattants physiques.', kingdomName: 'Terres Bestiales' },
-      { name: 'Arène des Sables Sanglants', specialty: 'Rage Brutale & Haches Lourdes', description: 'Le lieu d\'apprentissage brutal de la survie d\'Orkh.', kingdomName: 'Bastion d\'Orkh' },
-      { name: 'Citadelle de Forge-Profonde', specialty: 'Métallurgie Runique & Défense', description: 'Académie naine légendaire d\'ingénierie et de forge blindée.', kingdomName: 'Montagnes de Iron' },
-      { name: 'Académie Solaire des Dunes', specialty: 'Magie du Sable & Alchimie du Mirage', description: 'École mystique bâtie au milieu des vagues de chaleur du désert.', kingdomName: 'Désert d\'Ambre' },
-      { name: 'Sanctuaire de l\'Abîme', specialty: 'Sorcellerie de la Mort & Squelettes', description: 'Lieu d\'étude maudit de la magie interdite de Vharos.', kingdomName: 'Dominion Noir de Vharos' },
-      { name: 'Ordre de la Justice Céleste', specialty: 'Lumière Divine & Ailes de Volonté', description: 'L\'école des archanges et protecteurs ailés.', kingdomName: 'Royaume Céleste' },
-      { name: 'Lycée du Pandémonium', specialty: 'Magie du Feu Noir & Pactes Démoniaques', description: 'Institution d\'élite pour les démons nobles de haut niveau.', kingdomName: 'Abysse Inférieur' },
+      { name: 'Académie Royale d\'Elion', specialty: 'Escrime de Mana & Droit Impérial', description: 'Le bastion d\'élite où étudient les héritiers et chevaliers d\'Elion.', kingdomName: 'Empire Impérial d\'Elion', subLocation: 'Quartier Militaire' },
+      { name: 'Garde Impériale de Fer', specialty: 'Milice & Maintien de l\'Ordre', description: 'La force d\'intervention rapide d\'Eldoria.', kingdomName: 'Empire Impérial d\'Elion', subLocation: 'Quartier Général' },
+      { name: 'Lycée Supérieur de l\'Éther', specialty: 'Techno-magie & Ondes de Mana', description: 'Université scientifique de premier plan pour ingénieurs russes et magiciens.', kingdomName: 'Royaume de Valkyrr', subLocation: 'Quartier des Sciences' },
+      { name: 'Milice de Sparkwell', specialty: 'Patrouilles Mécanisées', description: 'Forces de défense cybernétique à Valkyrr.', kingdomName: 'Royaume de Valkyrr', subLocation: 'Poste de Contrôle' },
+      { name: 'École de l\'Ombre Silencieuse', specialty: 'Infiltration, Dagues & Poisons', description: 'Cité d\'entraînement illégale dissimulée sous la surface.', kingdomName: 'Gheno souterrain', subLocation: 'Bas-fonds' },
+      { name: 'Syndicat du Marché Noir', specialty: 'Fidélité et Contrebande', description: 'La milice de l\'Ombre maintenant le contrôle criminel.', kingdomName: 'Gheno souterrain', subLocation: 'Marché Noir' },
+      { name: 'Collège Elfique de Sylva-Lumia', specialty: 'Sorcellerie Végétale & Tir Sylvestre', description: 'Sanctuaire d\'étude de la nature et de l\'arc lunaire.', kingdomName: 'Forêt de l\'Éveil', subLocation: 'Sylva-Lumia' },
+      { name: 'Garde Blanche des Frontières', specialty: 'Escortes d\'Archipel', description: 'Forte milice maritime maintenant l\'ordre sur l\'archipel.', kingdomName: 'Archipel des Murmures', subLocation: 'Port-Brume' },
+      { name: 'Clan de la Griffe Sauvage', specialty: 'Combat Bestial et Instinct', description: 'Lycée d\'honneur tribal formant de redoutables combattants physiques.', kingdomName: 'Terres Bestiales', subLocation: 'Jungle de Fer' },
+      { name: 'Arène des Sables Sanglants', specialty: 'Rage Brutale & Haches Lourdes', description: 'Le lieu d\'apprentissage brutal de la survie d\'Orkh.', kingdomName: 'Bastion d\'Orkh', subLocation: 'Fort-Sang' },
+      { name: 'Citadelle de Forge-Profonde', specialty: 'Métallurgie Runique & Défense', description: 'Académie naine légendaire d\'ingénierie et de forge blindée.', kingdomName: 'Montagnes de Iron', subLocation: 'Forge-Profonde' },
+      { name: 'Académie Solaire des Dunes', specialty: 'Magie du Sable & Alchimie du Mirage', description: 'École mystique bâtie au milieu des vagues de chaleur du désert.', kingdomName: 'Désert d\'Ambre', subLocation: 'Oasis d\'Or' },
+      { name: 'Sanctuaire de l\'Abîme', specialty: 'Sorcellerie de la Mort & Squelettes', description: 'Lieu d\'étude maudit de la magie interdite de Vharos.', kingdomName: 'Dominion Noir de Vharos', subLocation: 'Donjon de la Liche' },
+      { name: 'Ordre de la Justice Céleste', specialty: 'Lumière Divine & Ailes de Volonté', description: 'L\'école des archanges et protecteurs ailés.', kingdomName: 'Royaume Céleste', subLocation: 'Palais d\'Argent' },
+      { name: 'Lycée du Pandémonium', specialty: 'Magie du Feu Noir & Pactes Démoniaques', description: 'Institution d\'élite pour les démons nobles de haut niveau.', kingdomName: 'Abysse Inférieur', subLocation: 'Cité de Pandémonium' },
     ];
 
     for (const sc of schoolsToSeed) {
-      await School.findOrCreate({ where: { name: sc.name }, defaults: sc });
+      const [schoolInstance, created] = await School.findOrCreate({ where: { name: sc.name }, defaults: sc });
+      if (!created) {
+          await schoolInstance.update({
+              specialty: sc.specialty,
+              description: sc.description,
+              kingdomName: sc.kingdomName,
+              subLocation: sc.subLocation
+          });
+      }
     }
 
     const npcsToSeed = [
-        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
-        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
-        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
-        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
-        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
+        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', subLocation: 'Tour de la Main', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
+        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', subLocation: 'Miroir Déformé', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
+        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', subLocation: 'Trône du Jugement', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
+        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', subLocation: 'Bureau du Directeur', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
+        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', subLocation: "Château d'Eldoria", powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
     ];
     for (const npc of npcsToSeed) {
         const [npcInstance, created] = await NPC.findOrCreate({
@@ -1095,6 +1118,7 @@ async function setupDatabase() {
                 role: npc.role,
                 description: npc.description,
                 location: npc.location,
+                subLocation: npc.subLocation,
                 powerLevel: npc.powerLevel,
                 specialty: npc.specialty,
                 imageUrl: npc.imageUrl

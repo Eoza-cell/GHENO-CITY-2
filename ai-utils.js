@@ -157,6 +157,123 @@ function extractMessageContent(content) {
     return null;
 }
 
+/**
+ * Call the Khoj AI assistant self-hosted endpoint if available.
+ */
+async function callKhoj(system, prompt, options = {}) {
+    const url = process.env.KHOJ_URL || "http://localhost:8000/v1/chat/completions";
+    const apiKey = process.env.KHOJ_API_KEY || "dummy";
+    try {
+        console.log(`[AI] Khoj Assistant - Tentative sur ${url}...`);
+        const resp = await axios.post(url, {
+            model: "khoj",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Khoj Assistant indisponible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
+ * Call the Kimi K3 Free Desktop AI proxy endpoint if available.
+ */
+async function callKimiK3(system, prompt, options = {}) {
+    const url = process.env.KIMI_K3_URL || "http://localhost:5000/v1/chat/completions";
+    const apiKey = process.env.KIMI_K3_API_KEY || "dummy";
+    try {
+        console.log(`[AI] Kimi K3 Proxy - Tentative sur ${url}...`);
+        const resp = await axios.post(url, {
+            model: "kimi-k3-code",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Kimi K3 Proxy indisponible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
+ * Call the OmniBrain AI Proxy Smart endpoint if available.
+ */
+async function callOmniBrain(system, prompt, options = {}) {
+    const url = process.env.OMNIBRAIN_URL || "http://localhost:8080/v1/chat/completions";
+    const apiKey = process.env.OMNIBRAIN_API_KEY || "dummy";
+    try {
+        console.log(`[AI] OmniBrain Proxy - Tentative sur ${url}...`);
+        const resp = await axios.post(url, {
+            model: "google/gemma-4-31b-it",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 15000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] OmniBrain Proxy indisponible: ${e.message}`);
+    }
+    return null;
+}
+
+/**
+ * Call the Puter Account Pool Manager proxy endpoint if available.
+ */
+async function callPuterPoolManager(system, prompt, options = {}) {
+    const baseUrl = process.env.PUTER_POOL_URL || "http://localhost:3000/v1";
+    try {
+        console.log(`[AI] Puter Pool Manager - Tentative sur ${baseUrl}/chat/completions...`);
+        const resp = await axios.post(`${baseUrl}/chat/completions`, {
+            model: "google/gemma-4-31b-it",
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            stream: false
+        }, { timeout: 15000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] Puter Pool Manager indisponible: ${e.message}`);
+    }
+    return null;
+}
+
 async function callMLVoca(system, prompt, options = {}) {
     const models = ["deepseek-r1:1.5b", "tinyllama"];
     const jsonMode = options.jsonMode !== false;
@@ -237,7 +354,7 @@ async function callPuterSDK(system, prompt, options = {}) {
         console.warn("[AI] Puter SDK non initialisé ou indisponible.");
         return null;
     }
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
+    const models = ["google/gemma-4-31b-it", "google/gemma-4-26b-a4b-it", "gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
 
     for (const model of models) {
         try {
@@ -286,10 +403,11 @@ async function callOpenRouter(system, prompt, options = {}) {
     }
 
     const models = [
+        "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free",
         "google/gemini-2.0-flash-exp:free",
         "google/gemini-2.0-flash-lite-preview-02-05:free",
         "meta-llama/llama-3.3-70b-instruct:free",
-        "google/gemma-4-26b-a4b-it:free",
         "openrouter/free"
     ];
 
@@ -445,7 +563,7 @@ async function callPollinationsPOST(system, prompt, options = {}) {
 }
 
 async function callPollinationsGET(system, prompt, options = {}) {
-    const models = ['openai', 'mistral', 'llama'];
+    const models = ['openai-fast', 'gpt-oss-20b'];
     const jsonMode = options.jsonMode !== false;
     for (const model of models) {
         try {
@@ -655,10 +773,12 @@ async function callDevToolbox(system, prompt, options = {}) {
     try {
         console.log(`[AI] DevToolbox AI (Llama 3.2) - Tentative d'accès...`);
         const resp = await axios.post("https://devtoolbox-api.devtoolbox-api.workers.dev/ai/generate", {
-            prompt: `SYSTEM: ${system}\n\nUSER: ${prompt}`
+            prompt: `SYSTEM: ${system}\n\nUSER: ${prompt}`,
+            max_tokens: 1500,
+            temperature: 0.85
         }, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 10000
+            timeout: 15000
         });
 
         const content = resp.data?.response;
@@ -729,19 +849,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     const providers = [
         { name: 'Ollama (Local)', fn: callOllama },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
-        { name: 'Aether Local (Beta)', fn: callAether },
-        { name: 'Puter API (V1)', fn: callPuterAPI },
         { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'GPTOSS Proxy', fn: callGPTOSS },
-        { name: 'Pollinations Gen', fn: callPollinationsGen },
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'MLVoca (Free)', fn: callMLVoca },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Blackbox', fn: callBlackbox },
-        { name: 'World Server (Local)', fn: callWorldServer }
+        { name: 'Puter Pool Manager', fn: callPuterPoolManager },
+        { name: 'OmniBrain Proxy', fn: callOmniBrain },
+        { name: 'OpenRouter', fn: callOpenRouter }
     ];
 
     const timeouts = [];

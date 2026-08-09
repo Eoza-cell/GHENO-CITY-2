@@ -58,6 +58,30 @@ async function fetchTechniqueImage(techniqueName) {
         console.error(`[Google Images] Error scraping images for ${techniqueName}:`, err.message);
     }
 
+    // Attempt Hugging Face Image Generation first (supporting local-feeling/API-based adventure illustrations)
+    try {
+        console.log(`[Hugging Face] Generating image for "${techniqueName}"...`);
+        const hfToken = process.env.HF_TOKEN || process.env.HF_API_KEY;
+        const headers = { 'Content-Type': 'application/json' };
+        if (hfToken) {
+            headers['Authorization'] = `Bearer ${hfToken}`;
+        }
+        const promptText = `epic high resolution anime illustration of the technique called "${techniqueName}", glowing energy, masterpiece art`;
+        const resp = await axios.post("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
+            inputs: promptText
+        }, {
+            headers,
+            responseType: 'arraybuffer',
+            timeout: 8000
+        });
+        if (resp.status === 200 && resp.data) {
+            console.log(`[Hugging Face] ✅ Success generating image!`);
+            return Buffer.from(resp.data);
+        }
+    } catch (hfErr) {
+        console.warn(`[Hugging Face] Image generation failed, falling back to Pollinations:`, hfErr.message);
+    }
+
     try {
         console.log(`[Google Images Fallback] Generating image for "${techniqueName}" via Pollinations...`);
         const cleanPrompt = encodeURIComponent(`high resolution epic anime illustration of the technique called "${techniqueName}", glowing energy, spectacular visual effects, dramatic combat stance, masterpiece art`);
@@ -323,6 +347,105 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
                 }
             }
         }
+    }
+
+    // 8) Support subLocation and location updates in brackets
+    // e.g. [new_sub_location: la Forêt des Gobelins] or [new_location: Empire d'Elion]
+    const subLocationRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?new_sub_location\s*:\s*(.+?)\s*\]/gi;
+    while ((match = subLocationRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim() : null;
+        const newSub = match[2].trim();
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
+
+        await targetPlayer.update({ subLocation: newSub });
+        feedbackList.push(`📍 *${targetPlayer.name}* s'est déplacé à : *${newSub}*`);
+        playersToUpdate.add(targetPlayer.whatsappId);
+    }
+
+    const locationRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?new_location\s*:\s*(.+?)\s*\]/gi;
+    while ((match = locationRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim() : null;
+        const newLoc = match[2].trim();
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
+
+        await targetPlayer.update({ location: newLoc });
+        feedbackList.push(`🌍 *${targetPlayer.name}* a voyagé à : *${newLoc}*`);
+        playersToUpdate.add(targetPlayer.whatsappId);
+    }
+
+    // 9) Proactive Consciousness Spawners
+    // [SPAWN_NPC: Name | Role | Specialty | Description]
+    const spawnNpcRegex = /\[\s*SPAWN_NPC\s*:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\]/gi;
+    while ((match = spawnNpcRegex.exec(text)) !== null) {
+        const name = match[1].trim();
+        const role = match[2].trim();
+        const specialty = match[3].trim();
+        const description = match[4].trim();
+
+        // Create NPC in DB
+        const [npc, created] = await NPC.findOrCreate({
+            where: { name },
+            defaults: {
+                role,
+                specialty,
+                description,
+                location: player.location,
+                subLocation: player.subLocation,
+                powerLevel: 50
+            }
+        });
+        if (created) {
+            feedbackList.push(`👤 *PNJ apparu* : *${name}* (${role} | Spécialité: ${specialty})`);
+        }
+    }
+
+    // [SPAWN_MONSTER: Name | Rank | HP | Strength | Defense | Agility]
+    const spawnMonsterRegex = /\[\s*SPAWN_MONSTER\s*:\s*(.+?)\s*\|\s*([A-S])\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\]/gi;
+    while ((match = spawnMonsterRegex.exec(text)) !== null) {
+        const name = match[1].trim();
+        const rank = match[2].trim();
+        const health = parseInt(match[3]);
+        const strength = parseInt(match[4]);
+        const defense = parseInt(match[5]);
+        const agility = parseInt(match[6]);
+
+        const [monster, created] = await Monster.findOrCreate({
+            where: { name },
+            defaults: {
+                rank,
+                health,
+                strength,
+                defense,
+                agility,
+                location: player.location,
+                subLocation: player.subLocation,
+                xp_reward: health * 2,
+                col_reward: health
+            }
+        });
+        if (created) {
+            feedbackList.push(`👾 *Monstre apparu* : *${name}* (Rang ${rank} | PV: ${health})`);
+        }
+    }
+
+    // [ANNONCE: Message]
+    const annonceRegex = /\[\s*ANNONCE\s*:\s*(.+?)\s*\]/gi;
+    while ((match = annonceRegex.exec(text)) !== null) {
+        const msg = match[1].trim();
+        // Create a world journal entry for global announcement
+        await WorldJournal.create({
+            entry: `📢 ANNONCE MONDIALE : ${msg}`,
+            importance: 5,
+            category: 'general'
+        });
+        feedbackList.push(`📢 *ANNONCE* : ${msg}`);
+
+        // Broadcast immediately on WhatsApp!
+        try {
+            await sock.sendMessage(jid, { text: `📢 *ANNONCE DE LA CONSCIENCE D'AETHERYS :*\n\n« ${msg} »` });
+        } catch (err) {}
     }
 
     return { playersToUpdate, feedbackList };
@@ -785,11 +908,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const shopState = "Shop: " + items.map(i => `${i.name}(${i.price}COL)`).join(',');
 
-  // Fetch history (last 100 messages) for Short Term Memory
+  // Fetch history (last 10 messages) for Short Term Memory (preventing memory flooding and repetition bias)
   const history = await RPMessage.findAll({
       where: sceneFilter,
       order: [['id', 'DESC']],
-      limit: 100
+      limit: 10
   });
   const historyState = history.length > 0
     ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
@@ -857,6 +980,21 @@ async function handleFreeAction(sock, message, player, actionText) {
 Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle.
 RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
 
+🚨 RÈGLE D'OR ABSOLUE ET INVIOLABLE : INTERDICTION DE FAIRE PARLER OU AGIR LE JOUEUR 🚨
+- Tu ne dois JAMAIS, sous aucun prétexte, écrire de dialogue, de parole, de pensée, de sentiment, de choix, de déplacement ou d'action future pour l'acteur principal "${player.name}".
+- Il est STRICTEMENT INTERDIT d'écrire des phrases comme :
+  * "${player.name} dit : ..."
+  * "${player.name} répond : ..."
+  * "${player.name} pense : ..."
+  * "${player.name} fait ..." ou "${player.name} décide ..."
+- Tu décris UNIQUEMENT ce que "${player.name}" perçoit avec ses sens (visuel, sonore, olfactif) et ce qu'il subit physiquement (dégâts subis, obstacles, dialogues et gestes des PNJ).
+- Une fois que les PNJ ont parlé ou que l'environnement a réagi, tu t'arrêtes IMMÉDIATEMENT et tu laisses "${player.name}" répondre et agir librement. Ne décide jamais de ses réactions !
+
+DYNAMISME, FLUIDITÉ ET ANTI-RÉPÉTITION ABSOLUE (RÈGLES CRITIQUES EXTRÊMES) :
+- INTERDICTION ABSOLUE de répéter, copier, paraphraser ou réitérer les phrases, événements, dialogues, postures ou descriptions des paragraphes précédents présents dans l'historique court terme (memoire_court_terme).
+- Le temps s'écoule à chaque tour et l'action précédente est déjà résolue. Tu DOIS impérativement décrire la SUITE directe de l'histoire, la NOUVELLE situation, le déplacement ou la réaction de l'environnement face au nouveau geste de l'acteur principal.
+- Si le joueur fait une action différente, le décor et l'intrigue DOIVENT changer immédiatement. Ne boucle jamais sur la même situation ou description de scène. Fais avancer l'intrigue physique de manière linéaire !
+
 IMMERSION SENSORIELLE :
 - ODORAT: Décris l'odeur du sang frais, de l'ozone après un éclair, du vieux parchemin, de la pourriture des bas-fonds.
 - TOUCHER: Sens la texture rugueuse de la pierre, le froid tranchant de l'acier, la chaleur pulsante du mana.
@@ -893,7 +1031,7 @@ NARRATION :
   - S'il est empoisonné ('isPoisoned: true'), il grimace de douleur, crache du sang noir et double d'intensité de souffrance physique à chaque mouvement.
 - IMPACT DES BLESSURES : Les blessures reçues par le joueur ont un impact direct, immédiat et réaliste sur ses mouvements, sa vitesse de déplacement et son agilité narrative (ex: jambe entaillée = déplacement ralenti, bras brisé = maniement de l'épée impossible de ce côté).
 - JUSTIFICATION DE TOUTE DÉDUCTION : Ne retire JAMAIS de points de vie (HP) ou de Col (pièces) au joueur de manière arbitraire sans une raison logique, évidente et explicitée clairement dans le texte de la narration (ex: vol commis sous ses yeux, blessure directe infligée par une arme ou piège).
-- MJ PUR : Tu ne décides jamais des pensées, répliques ou sentiments du joueur. Tu décris uniquement ce qu'il perçoit et ce qu'il subit physiquement.
+- MJ PUR : INTERDICTION TOTALEMENT ABSOLUE de faire parler, décider ou agir le joueur. Tu n'es pas le joueur. Tu décris uniquement ce que le joueur ressent physiquement et comment le monde (PNJ, monstres, environnement) répond à ses gestes. Ne mets JAMAIS de mots, de pensées ou de répliques dans la bouche de "${player.name}".
 - DÉVELOPPEMENT : Chaque action a un impact direct sur l'environnement.
 - COMPORTEMENTS & APPARENCE (RÈGLE IMPORTANTE) : Fais réagir l'environnement et les PNJ de manière réaliste et changeante selon l'habillement du personnage. Si le joueur a une tenue 'couverte de sang', 'déchirée' ou 'tachée de boue' (ou une faible durabilité d'outfit), les gardes de la milice seront extrêmement méfiants, les marchands augmenteront leurs prix ou l'ignoreront, tandis que s'il porte un costume élégant, il recevra du respect. Les dégâts physiques reçus déchirent ou salissent sa tenue.
 
@@ -932,14 +1070,14 @@ Exemple de réponse attendue de ta part :
         },
         personnages_en_scene: scenePlayersData,
         env_social: {
-            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel, specialite: n.specialty })),
-            monstres_locaux: monsters.map(m => ({ name: m.name, pv: m.health, for: m.strength, def: m.defense, agi: m.agility, int: m.intelligence })),
+            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel, specialite: n.specialty, subLocation: n.subLocation })),
+            monstres_locaux: monsters.map(m => ({ name: m.name, pv: m.health, for: m.strength, def: m.defense, agi: m.agility, int: m.intelligence, subLocation: m.subLocation })),
             rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`),
             immobilier: playerHouses
         },
         objectifs_generaux: {
-            quetes_dispo: availableQuests.map(q => q.title),
-            donjon_local: dungeons.map(d => `${d.name}(${d.rank})`)
+            quetes_dispo: availableQuests.map(q => `${q.title} (Lieu: ${q.subLocation})`),
+            donjon_local: dungeons.map(d => `${d.name}(${d.rank} | Lieu: ${d.subLocation})`)
         },
         memoire_long_terme: journalState,
         memoire_court_terme: historyState
@@ -1013,6 +1151,9 @@ Rappel de toutes les actions, accomplissements et passés historiques de ${playe
 - QUÊTES TERMINÉES : ${completedQuestsState}
 - TIMELINE RP COMPLÈTE :
 ${infiniteTimelineState}
+
+### ANALYSE DU LIEU PHYSIQUE ET DE LA SCÈNE ###
+${sceneAnalysis}
 
 ### RÉSUMÉ DES ACTIONS À TRAITER ###
 ${actionSummary}
