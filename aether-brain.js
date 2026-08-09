@@ -19,7 +19,27 @@ class AetherBrain {
     async think(system, user, options = {}) {
         console.log(`[AETHER-BRAIN] Processing turn via Hybrid Engine...`);
 
-        // 1. Try Local Ollama first (completely offline LLM - pointing to gemma4 for cutting-edge roleplay)
+        // 1. Try Local LiteRT-LM first (TensorFlow Lite for accelerated local Gemma execution)
+        try {
+            console.log("[AETHER-BRAIN] Attempting local LiteRT-LM...");
+            const litertUrl = process.env.LITERT_URL || "http://localhost:5001/v1/chat/completions";
+            const resp = await axios.post(litertUrl, {
+                messages: [
+                    { role: "system", content: system },
+                    { role: "user", content: user }
+                ]
+            }, { timeout: 8000 });
+
+            const content = resp.data?.choices?.[0]?.message?.content || resp.data;
+            if (content && content.length > 10) {
+                console.log("[AETHER-BRAIN] ✅ Success via local LiteRT-LM!");
+                return content;
+            }
+        } catch (e) {
+            console.log("[AETHER-BRAIN] Local LiteRT-LM offline.");
+        }
+
+        // 1b. Try Local Ollama (completely offline LLM - pointing to gemma4 for cutting-edge roleplay)
         try {
             console.log("[AETHER-BRAIN] Attempting local Ollama...");
             const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434/api/chat";
