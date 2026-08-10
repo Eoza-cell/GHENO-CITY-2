@@ -605,8 +605,8 @@ async function callOllama(system, prompt, options = {}) {
         console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
 
         const payload = {
-            // Default model is 'mistral' (creative writing and roleplay standard from https://ollama.com/library)
-            model: process.env.OLLAMA_MODEL || 'mistral',
+            // Default model is 'gemma4' local as requested by the user
+            model: process.env.OLLAMA_MODEL || 'gemma4',
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
@@ -880,6 +880,25 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         let failedCount = 0;
         const launched = new Set();
 
+        // Safety Global Timeout: 35 seconds max for the entire AI call
+        const globalTimeout = setTimeout(() => {
+            if (!completed) {
+                completed = true;
+                console.warn("[AI] 🚨 GLOBAL TIMEOUT REACHED (35s)! Forcing local MJ Fallback response...");
+                timeouts.forEach(clearTimeout);
+                resolve(callMJFallback(userPrompt));
+            }
+        }, 35000);
+
+        const resolveWithClear = (res) => {
+            if (!completed) {
+                completed = true;
+                clearTimeout(globalTimeout);
+                timeouts.forEach(clearTimeout);
+                resolve(res);
+            }
+        };
+
         const launchAtIndex = (index) => {
             if (completed || index >= providers.length || launched.has(index)) return;
 
@@ -888,26 +907,22 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             const provider = providers[index];
 
             callProvider(provider).then(res => {
-                if (!completed) {
-                    completed = true;
-                    timeouts.forEach(clearTimeout);
-                    resolve(res);
-                }
+                resolveWithClear(res);
             }).catch(err => {
                 failedCount++;
                 console.warn(`[AI] Provider ${provider.name} (index ${index}) failed: ${err.message}`);
 
                 if (failedCount >= providers.length) {
                     if (!completed) {
-                        completed = true;
-                        timeouts.forEach(clearTimeout);
                         if (depth < 1) {
                             console.log("[AI] All providers failed. Retrying depth 1...");
                             setTimeout(() => {
-                                resolve(callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 }));
+                                if (!completed) {
+                                    resolve(callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 }));
+                                }
                             }, 1000);
                         } else {
-                            resolve(callMJFallback(userPrompt));
+                            resolveWithClear(callMJFallback(userPrompt));
                         }
                     }
                 } else {
