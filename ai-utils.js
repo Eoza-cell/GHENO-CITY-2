@@ -852,7 +852,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
         { name: 'OmniBrain Proxy', fn: callOmniBrain },
-        { name: 'OpenRouter', fn: callOpenRouter }
+        { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'Pollinations POST', fn: callPollinationsPOST },
+        { name: 'Pollinations GET', fn: callPollinationsGET },
+        { name: 'Pollinations Gen', fn: callPollinationsGen }
     ];
 
     const timeouts = [];
