@@ -113,9 +113,9 @@ async function generateHuggingFaceImage(prompt) {
     // 1. Try Hugging Face Inference API if token exists
     if (process.env.HF_TOKEN) {
         try {
-            console.log("[HF] Requesting image from Hugging Face Inference API...");
+            console.log("[HF] Requesting image from Hugging Face Inference API (krea/Krea-2-Turbo)...");
             const response = await axios.post(
-                "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1",
+                "https://api-inference.huggingface.co/models/krea/Krea-2-Turbo",
                 { inputs: polishedPrompt },
                 {
                     headers: {
