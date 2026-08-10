@@ -1140,6 +1140,21 @@ RÉALITÉ PHYSIQUE:
       ? playerHistoryLogs.map(l => `- ${l.entry}`).join('\n')
       : "- Début récent de l'aventure dans l'Interstice d'Aetherys.";
 
+    // Fetch up to 100 historical RP actions/statements for infinite recall
+    const playerRPHistory = await RPMessage.findAll({
+        where: {
+            [Op.or]: [
+                { senderJid: player.whatsappId },
+                { content: { [Op.like]: `%${player.name}%` } }
+            ]
+        },
+        order: [['id', 'ASC']],
+        limit: 100
+    });
+    const infiniteRPState = playerRPHistory.length > 0
+      ? playerRPHistory.map(h => `- [${h.location || 'Aetherys'} - ${h.subLocation || 'Zone'}] ${h.senderName}: ${h.content.substring(0, 150)}`).join('\n')
+      : "- Aucun message de RP antérieur.";
+
     const fullPrompt = `### WORLD_PULSE (DICE/LUCK) ###\n${JSON.stringify(worldPulse)}
 
 ### MÉMOIRE_SYSTÈME_JSON (CONTEXTE DÉTAILLÉ PAR JOUEUR) ###\n${memoryJson}
@@ -1151,6 +1166,8 @@ Rappel de toutes les actions, accomplissements et passés historiques de ${playe
 - QUÊTES TERMINÉES : ${completedQuestsState}
 - TIMELINE RP COMPLÈTE :
 ${infiniteTimelineState}
+- ACTIONS RP ET DIALOGUES ANTÉRIEURS (SOUVENIRS INFINIS) :
+${infiniteRPState}
 
 ### ANALYSE DU LIEU PHYSIQUE ET DE LA SCÈNE ###
 ${sceneAnalysis}

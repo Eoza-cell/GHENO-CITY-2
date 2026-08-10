@@ -21,6 +21,7 @@
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
     "@heyputer/puter.js": "^2.5.4",
+    "@ryuu-reinzz/button-helper": "^2.2.3",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "axios": "^1.19.0",
     "dotenv": "^16.6.1",
