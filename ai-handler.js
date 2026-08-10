@@ -1146,7 +1146,7 @@ RÉALITÉ PHYSIQUE:
       ? playerHistoryLogs.map(l => `- ${l.entry}`).join('\n')
       : "- Début récent de l'aventure dans l'Interstice d'Aetherys.";
 
-    // Fetch up to 100 historical RP actions/statements for infinite recall
+    // Fetch up to 15 recent historical RP actions for safe infinite recall
     const playerRPHistory = await RPMessage.findAll({
         where: {
             [Op.or]: [
@@ -1154,11 +1154,11 @@ RÉALITÉ PHYSIQUE:
                 { content: { [Op.like]: `%${player.name}%` } }
             ]
         },
-        order: [['id', 'ASC']],
-        limit: 100
+        order: [['id', 'DESC']],
+        limit: 15
     });
     const infiniteRPState = playerRPHistory.length > 0
-      ? playerRPHistory.map(h => `- [${h.location || 'Aetherys'} - ${h.subLocation || 'Zone'}] ${h.senderName}: ${h.content.substring(0, 150)}`).join('\n')
+      ? playerRPHistory.reverse().map(h => `- [${h.location || 'Aetherys'} - ${h.subLocation || 'Zone'}] ${h.senderName}: ${h.content.substring(0, 150)}`).join('\n')
       : "- Aucun message de RP antérieur.";
 
     const fullPrompt = `### WORLD_PULSE (DICE/LUCK) ###\n${JSON.stringify(worldPulse)}
