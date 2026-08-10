@@ -14,16 +14,17 @@ def main():
     system_prompt = sys.argv[1]
     user_prompt = sys.argv[2]
 
-    # Model name: lightweight Gemma 2B or similar open-source model
-    model_name = "google/gemma-2b-it"
+    # Model name: zai-org/GLM-5.2 as requested by the user
+    model_name = "zai-org/GLM-5.2"
     print(f"[Python Transformer] Loading lightweight open-source {model_name}...")
 
     try:
         # Load tokenizer and model in 8-bit or half precision to protect system RAM
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16,
+            trust_remote_code=True,
             device_map="auto"
         )
 
@@ -50,7 +51,7 @@ def main():
         print("----------------")
 
     except Exception as e:
-        print(f"❌ Error loading/generating via local Python Transformers: {str(e)}")
+        print(f"❌ Error loading/generating via zai-org/GLM-5.2: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
