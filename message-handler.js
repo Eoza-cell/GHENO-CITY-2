@@ -84,8 +84,15 @@ async function sendWithImage(sock, jid, aiResponse) {
                 return;
             }
 
-            // If it's a text prompt, we no longer generate. We just log it for debug.
-            console.log(`[IMG] AI requested generation for: "${imagePrompt}" but generation is DISABLED.`);
+            // Generate using our beautiful Hugging Face image generator!
+            if (typeof imagePrompt === 'string' && !imagePrompt.startsWith('http')) {
+                console.log(`[IMG] Generating image on Hugging Face for prompt: "${imagePrompt}"...`);
+                const imageBuffer = await generateHuggingFaceImage(imagePrompt);
+                if (imageBuffer) {
+                    await sock.sendMessage(jid, { image: imageBuffer, caption: text, mentions, mimetype: 'image/jpeg' });
+                    return;
+                }
+            }
         } catch (error) {
             console.error(`[IMG] Erreur d'affichage d'image (${imagePrompt}):`, error.message);
         }
@@ -94,6 +101,56 @@ async function sendWithImage(sock, jid, aiResponse) {
     if (text) {
         await sock.sendMessage(jid, { text: text, mentions });
     }
+}
+
+/**
+ * Beautiful image generator utilizing the Hugging Face Inference API
+ * with a zero-config elegant Pollinations AI fallback.
+ */
+async function generateHuggingFaceImage(prompt) {
+    const polishedPrompt = `${prompt}, anime style, beautiful digital illustration, high fantasy, highly detailed, vibrant colors, aesthetic masterpiece`;
+
+    // 1. Try Hugging Face Inference API if token exists
+    if (process.env.HF_TOKEN) {
+        try {
+            console.log("[HF] Requesting image from Hugging Face Inference API...");
+            const response = await axios.post(
+                "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1",
+                { inputs: polishedPrompt },
+                {
+                    headers: {
+                        Authorization: `Bearer ${process.env.HF_TOKEN}`,
+                        "Content-Type": "application/json"
+                    },
+                    responseType: 'arraybuffer',
+                    timeout: 20000
+                }
+            );
+            if (response.data && response.data.byteLength > 1000) {
+                return Buffer.from(response.data);
+            }
+        } catch (e) {
+            console.warn("[HF] Hugging Face Inference failed, falling back to Pollinations:", e.message);
+        }
+    }
+
+    // 2. Fallback/Default: Pollinations AI (highly resilient, gorgeous, zero config)
+    try {
+        console.log("[HF] Requesting image from Pollinations AI fallback...");
+        const response = await axios.get(
+            `https://image.pollinations.ai/prompt/${encodeURIComponent(polishedPrompt)}?width=1024&height=768&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`,
+            {
+                responseType: 'arraybuffer',
+                timeout: 20000
+            }
+        );
+        if (response.data && response.data.byteLength > 1000) {
+            return Buffer.from(response.data);
+        }
+    } catch (e) {
+        console.error("[HF] Fallback image generation also failed:", e.message);
+    }
+    return null;
 }
 
 // Fallback functions for backward compatibility with other modules if they still try to call them

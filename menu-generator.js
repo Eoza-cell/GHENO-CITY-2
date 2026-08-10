@@ -132,8 +132,9 @@ async function generateMainMenuImage(player) {
         <defs>
             <!-- Sleek Glassmorphic & Cyber Gradients -->
             <linearGradient id="obsidianBack" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#07050e;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#010103;stop-opacity:1" />
+                <stop offset="0%" style="stop-color:#0b0821;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#05030e;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#010005;stop-opacity:1" />
             </linearGradient>
 
             <linearGradient id="glassHud" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -174,7 +175,7 @@ async function generateMainMenuImage(player) {
             <!-- Rounded clipPaths for grid cards background images -->
             ${processedCards.map((_, i) => `
             <clipPath id="clip-card-${i}">
-                <rect x="0" y="0" width="${cardWidth}" height="${cardHeight}" rx="14" ry="14" />
+                <rect x="0" y="0" width="${cardWidth}" height="${cardHeight}" rx="18" ry="18" />
             </clipPath>
             `).join('')}
         </defs>
@@ -324,14 +325,14 @@ async function generateMainMenuImage(player) {
                 </g>
 
                 <!-- High-contrast crisp border outside clipping to look incredibly sharp -->
-                <rect x="0" y="0" width="${cardWidth}" height="${cardHeight}" fill="none" stroke="${borderGrad}" style="${shadowGlow}" rx="14" ry="14" />
+                <rect x="0" y="0" width="${cardWidth}" height="${cardHeight}" fill="none" stroke="${borderGrad}" style="${shadowGlow}" rx="18" ry="18" />
             </g>
             `;
         }).join('')}
 
         <!-- ==================== FOOTER ==================== -->
         <g transform="translate(60, ${height - 35})">
-            <text font-family="'Segoe UI', sans-serif" font-size="10" font-weight="bold" fill="rgba(255,255,255,0.2)" letter-spacing="4">© AETHERYS ENTERTAINMENT LABS • CONSEIL TACTIQUE GENERATION IV</text>
+            <text font-family="'Segoe UI', sans-serif" font-size="10" font-weight="bold" fill="rgba(255,255,255,0.2)" letter-spacing="4">© AFTER THE REBIRTH • ENTERTAINMENT LABS • CONSEIL TACTIQUE GENERATION IV</text>
             <text x="1080" y="0" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.2)" text-anchor="end">SYS_STATUS: OPTIMAL // SYNC_ACTIVE</text>
         </g>
     </svg>

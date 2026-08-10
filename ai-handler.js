@@ -908,11 +908,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const shopState = "Shop: " + items.map(i => `${i.name}(${i.price}COL)`).join(',');
 
-  // Fetch history (last 10 messages) for Short Term Memory (preventing memory flooding and repetition bias)
+  // Fetch history (last 20 messages) for Short Term Memory (preventing memory flooding and repetition bias)
   const history = await RPMessage.findAll({
       where: sceneFilter,
       order: [['id', 'DESC']],
-      limit: 10
+      limit: 20
   });
   const historyState = history.length > 0
     ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
