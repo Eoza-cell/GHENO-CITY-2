@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
         return res.end(`
             <html>
                 <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #121b22; color: white; margin: 0; padding: 20px; box-sizing: border-box; text-align: center;">
-                    <h1>🔗 GHENO-CITY : Connexion</h1>
+                    <h1>🔗 AFTER THE REBIRTH (ATR) : Connexion</h1>
 
                     ${isWhatsAppConnected ? `
                         <div style="border: 2px solid #00a884; padding: 40px; border-radius: 15px;">
@@ -247,7 +247,7 @@ async function connectToWhatsApp() {
 
       try {
           const botJid = jidNormalizedUser(sock.user.id);
-          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - Gheno-City est en ligne." });
+          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - After the Rebirth (ATR) est en ligne." });
       } catch (e) {}
 
       startDayNightCycle();

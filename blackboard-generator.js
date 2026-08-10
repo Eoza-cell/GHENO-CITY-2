@@ -153,7 +153,7 @@ async function generateMagicDetailBoard(skill) {
 
         <!-- System Footer -->
         <text x="50%" y="${height - 20}" font-family="monospace" font-size="14" fill="${color}" text-anchor="middle" opacity="0.6">
-            ARCHIVES MAGIQUES D'AETHERYS // ANALYSE DE FLUX RÉSOLUE // UNITÉ MJ ARISE
+            ARCHIVES MAGIQUES D'AETHERYS // ANALYSE DE FLUX RÉSOLUE // UNITÉ MJ ATR
         </text>
     </svg>
     `;

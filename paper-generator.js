@@ -121,7 +121,7 @@ async function generateMissionBoard(player, activeQuests) {
 
         ${questRows}
 
-        <text x="50%" y="${height - 40}" font-family="monospace" font-size="12" fill="#ffd700" text-anchor="middle" opacity="0.5">SYSTÈME DE SUIVI ARISE II // ${player.name.toUpperCase()}</text>
+        <text x="50%" y="${height - 40}" font-family="monospace" font-size="12" fill="#ffd700" text-anchor="middle" opacity="0.5">SYSTÈME DE SUIVI ATR // ${player.name.toUpperCase()}</text>
     </svg>
     `;
 

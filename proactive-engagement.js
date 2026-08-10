@@ -128,7 +128,7 @@ Rédige un seul paragraphe immersif et sensoriel d'action ou d'ambiance se termi
       // Log the proactive message in the RP logs
       await RPMessage.create({
         senderJid: 'bot',
-        senderName: 'Arise MJ',
+        senderName: 'ATR MJ',
         content: `[PROACTIVE HOOK] ${narrative.trim()}`,
         location: player.location,
         subLocation: player.subLocation

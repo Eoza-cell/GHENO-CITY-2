@@ -108,7 +108,7 @@ async function generateActionVisual(data) {
 
             <!-- System Info -->
             <text x="30" y="${height - 35}" font-family="monospace" font-size="14" fill="${primaryColor}" opacity="0.9">
-                ARISE_OS_v3.2 // CAPTURE_SEQUENCE [${actionType.toUpperCase()}] // STABLE_FLUX
+                ATR_OS_v5.0 // CAPTURE_SEQUENCE [${actionType.toUpperCase()}] // STABLE_FLUX
             </text>
 
             <!-- Rank/Level Decoration -->

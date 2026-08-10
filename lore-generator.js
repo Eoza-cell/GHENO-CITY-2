@@ -99,7 +99,7 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
         ${contentSvg}
 
         <!-- Footer -->
-        <text x="50%" y="${height - 100}" font-family="monospace" font-size="20" fill="#666" text-anchor="middle" font-style="italic">ARISE: GHENO CITY - CHRONIQUES D'AETHERYS</text>
+        <text x="50%" y="${height - 100}" font-family="monospace" font-size="20" fill="#666" text-anchor="middle" font-style="italic">AFTER THE REBIRTH: ATR - CHRONIQUES D'AETHERYS</text>
     </svg>
     `;
 

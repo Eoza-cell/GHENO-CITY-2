@@ -827,6 +827,59 @@ async function setupDatabase() {
         }
     }
 
+    // Seed 1100 Culinary Specialties (After the Rebirth - ATR Food)
+    const currentFoodCount = await Item.count({ where: { type: 'food' } });
+    if (currentFoodCount < 1100) {
+        console.log(`[SEED] Generating ${1100 - currentFoodCount} additional culinary specialties...`);
+        const foodBases = ["Ramen", "Onigiri", "Sushi", "Tempura", "Bento", "Udon", "Soba", "Yakitori", "Takoyaki", "Okonomiyaki", "Dorayaki", "Taiyaki", "Mochi", "Daifuku", "Tartare", "Ragoût", "Brochette", "Gâteau", "Soupe", "Rôti", "Fondue", "Pâtisserie", "Beignet", "Tarte", "Salade", "Brioche", "Velouté", "Gratin", "Poêlée", "Confit"];
+        const foodAdjectives = ["Légendaire", "Céleste", "Infernal", "Abyssal", "Lunaire", "Solaire", "Ancestral", "Magique", "d'Éther", "d'Or", "d'Argent", "Royal", "de Dragon", "de Phénix", "Étoilé", "Parfumé", "Épicé", "Sucré", "Salé", "Divin", "Secret", "Impérial", "Croustillant", "Fondant", "Moelleux", "Volcanique", "Givré", "Spectral", "Brillant", "Suprême", "Sombre", "Pur", "Éthéré", "Mystique", "Exotique", "Onctueux", "Parfait", "d'Aetherys", "d'Après la Renaissance"];
+        const foodIngredients = ["au Poulet de braise", "au Bœuf d'Asgard", "au Saumon des glaces", "aux Champignons de l'Ombre", "aux Baies d'Émeraudes", "au Miel de fée", "aux Épices de feu", "aux Algues de Poséidon", "aux Truffes des cavernes", "au Fromage céleste", "au Chocolat d'obsession", "aux Fruits du verger perdu", "aux Épices de l'Abîme", "au Nectar d'Olympe", "au Riz de Lune", "aux Pommes d'Éden", "au Crabe de cristal", "à la Truite d'argent", "aux Noix de mana", "aux Cerises de sang", "au Thé d'Étoiles", "à la Crème d'Éther", "au Sucre de givre", "au Basilic magique", "au Safran impérial", "à la Vanille des Songes", "au Gingembre sauvage", "au Citron de foudre", "à la Pêche céleste", "au Melon royal", "à la Goyave de feu", "à l'Avocat magique", "au Wasabi de lave", "au Rôti d'hydre", "au Ragoût de chimère"];
+        const foodColors = ["#ffd700", "#ffaa00", "#ff66cc", "#ff3c00", "#00ffff", "#00e5ff", "#00e676", "#ffa64d"];
+
+        const foodBatchSize = 100;
+        const targetFoodCount = 1100;
+        for (let i = currentFoodCount; i < targetFoodCount; i += foodBatchSize) {
+            const batch = [];
+            for (let j = 0; j < foodBatchSize && (i + j) < targetFoodCount; j++) {
+                const base = foodBases[Math.floor(Math.random() * foodBases.length)];
+                const adj = foodAdjectives[Math.floor(Math.random() * foodAdjectives.length)];
+                const ing = foodIngredients[Math.floor(Math.random() * foodIngredients.length)];
+
+                // Construct a completely unique name using index to avoid rare name collisions
+                const name = `${base} ${adj} ${ing} (Spécialité #${i + j + 1})`;
+
+                const rarityRoll = Math.random();
+                let rarity = 'common';
+                let statMult = 1;
+                if (rarityRoll < 0.05) { rarity = 'legendary'; statMult = 3; }
+                else if (rarityRoll < 0.15) { rarity = 'epic'; statMult = 2; }
+                else if (rarityRoll < 0.35) { rarity = 'rare'; statMult = 1.5; }
+
+                const hungerBonus = Math.floor((Math.random() * 20 + 20) * statMult);
+                const sleepBonus = Math.floor((Math.random() * 15 + 15) * statMult);
+
+                batch.push({
+                    name,
+                    description: `Une spécialité culinaire exquise du jeu After the Rebirth (ATR). Style: ${adj}, avec ${ing}. Restaure l'énergie et rassasie l'Héritier.`,
+                    price: Math.floor((Math.random() * 80 + 20) * statMult),
+                    type: 'food',
+                    rarity,
+                    slot: 'none',
+                    durability: 100,
+                    visualData: {
+                        color: foodColors[Math.floor(Math.random() * foodColors.length)],
+                        style: adj.toLowerCase()
+                    },
+                    statBonuses: {
+                        hunger: hungerBonus,
+                        sleep: sleepBonus
+                    }
+                });
+            }
+            await Item.bulkCreate(batch, { ignoreDuplicates: true });
+        }
+    }
+
     const skillCount = await Skill.count();
     if (skillCount < 4000) {
         console.log(`[SEED] Seeding skills (Current: ${skillCount})...`);

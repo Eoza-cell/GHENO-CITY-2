@@ -3,6 +3,8 @@ const path = require('path');
 
 // Memory map to track the last 8 items shown to each player for easy index-based purchases
 const lastViewedItems = new Map();
+// Memory map to track currently sleeping players
+const sleepingPlayers = new Map();
 const axios = require('axios');
 const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, PlayerSkill, Entity, Pact, Club, PlayerClub, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
@@ -2038,7 +2040,7 @@ commands.set('evenement', async (sock, message, args) => {
 
     await sock.sendMessage(replyJid, { text: "🌍 *Manipulation de la réalité en cours...*" });
 
-    const systemPrompt = `Tu es le MJ d'Arise. Un administrateur déclenche un événement spécial.
+    const systemPrompt = `Tu es le MJ d'After the Rebirth (ATR). Un administrateur déclenche un événement spécial.
 LORE: Convergence, Éveil, Monstres, Entités.
 RÈGLES: Décris l'apparition brutale d'un monstre, d'une entité ou d'un événement environnemental.
 FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
@@ -2062,7 +2064,7 @@ FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
         // Save event to history
         await RPMessage.create({
             senderJid: 'system',
-            senderName: 'Arise MJ',
+            senderName: 'ATR MJ',
             content: aiResponse.narrative,
             location: player.location,
             subLocation: player.subLocation
@@ -2122,7 +2124,7 @@ commands.set('status', async (sock, message) => {
     const uptime = Math.floor(process.uptime() / 60);
     const mem = Math.round(process.memoryUsage().rss / 1024 / 1024);
 
-    let text = "⚙️ *SYSTÈME ARISE - ÉTAT ACTUEL*\n\n";
+    let text = "⚙️ *SYSTÈME ATR - ÉTAT ACTUEL*\n\n";
     text += `🟢 Bot Opérationnel\n`;
     text += `⏱️ Uptime: ${uptime} minutes\n`;
     text += `💾 Mémoire: ${mem} MB\n`;
@@ -2845,13 +2847,32 @@ commands.set('reparer', async (sock, message) => {
 // Command: /menu
 commands.set('menu', async (sock, message) => {
   const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player) {
     await player.update({ mode: 'normal' });
   }
 
+  // Promise delay helper
+  const delayHelper = ms => new Promise(res => setTimeout(res, ms));
+
+  // Stylish loading bar sequence
+  const loadingMsg = await sock.sendMessage(replyJid, { text: "🔷 [◽◽◽◽◽◽◽◽◽◽] 0% - Initialisation de l'interface ATR..." });
+
+  await delayHelper(350);
+  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷◽◽◽◽◽◽◽] 30% - Synchronisation avec la matrice...", edit: loadingMsg.key });
+
+  await delayHelper(350);
+  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷🔷🔷🔷◽◽◽◽] 60% - Récupération de l'Héritier...", edit: loadingMsg.key });
+
+  await delayHelper(350);
+  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷🔷🔷🔷🔷🔷🔷◽] 90% - Rendu de la carte d'accès tactique...", edit: loadingMsg.key });
+
+  await delayHelper(250);
+  await sock.sendMessage(replyJid, { delete: loadingMsg.key });
+
   const menuText = "╔══════════════════════════╗\n" +
-                   "   🌐  *ARISE : GHENO CITY*  🌐\n" +
+                   "   🌐  *AFTER THE REBIRTH*   🌐\n" +
                    "╚══════════════════════════╝\n" +
                    "_Portes d'Aetherys, archives vivantes et conflits de l'Interstice._\n\n" +
                    "🕹️ *IMMERSION*\n" +
@@ -2896,6 +2917,92 @@ commands.set('menu', async (sock, message) => {
   }
 });
 
+// Command: /dormir & /sleep
+const dormirCommand = async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
+
+    if (player.mode === 'sleep' || sleepingPlayers.has(player.whatsappId)) {
+        await sock.sendMessage(replyJid, { text: "Tu es déjà en train de dormir !" });
+        return;
+    }
+
+    // Enter sleep cycle
+    await player.update({ mode: 'sleep' });
+
+    const duration = 180 * 1000; // 3 minutes
+    const endTime = Date.now() + duration;
+
+    const sent = await sock.sendMessage(replyJid, {
+        text: `💤 *AFTER THE REBIRTH (ATR) - Cycle de Sommeil* 💤\n\n` +
+              `Tu t'allonges pour récupérer tes forces pendant 3 minutes...\n\n` +
+              `🔷 [◽◽◽◽◽◽◽◽◽◽] 0%`
+    });
+
+    const intervalId = setInterval(async () => {
+        const p = await Player.findOne({ where: { whatsappId: jid } });
+        if (!p || p.mode !== 'sleep') {
+            clearInterval(intervalId);
+            sleepingPlayers.delete(jid);
+            return;
+        }
+
+        const now = Date.now();
+        if (now >= endTime) {
+            clearInterval(intervalId);
+            sleepingPlayers.delete(jid);
+            await p.update({ mode: 'normal', sleep: 100 });
+
+            await sock.sendMessage(replyJid, {
+                text: `🔷 *AFTER THE REBIRTH (ATR) - Réveil !* 🔷\n\n` +
+                      `Tu te réveilles en pleine forme ! Ta jauge d'énergie/sommeil a été entièrement restaurée (+100%).\n\n` +
+                      `🔷 [🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷] 100%`,
+                edit: sent.key
+            }).catch(e => console.warn("Erreur réveil message:", e.message));
+        } else {
+            const elapsed = now - (endTime - duration);
+            const percent = Math.min(99, Math.floor((elapsed / duration) * 100));
+            const filled = Math.floor(percent / 10);
+            const empty = 10 - filled;
+            const progressBar = "🔷".repeat(filled) + "◽".repeat(empty);
+
+            let statusText = "Transition vers le sommeil...";
+            if (percent >= 15 && percent < 35) {
+                statusText = "Sommeil léger. Votre esprit dérive dans les limbes d'After the Rebirth...";
+            } else if (percent >= 35 && percent < 55) {
+                statusText = "Sommeil lourd. Restauration de vos flux de mana et réparation corporelle...";
+            } else if (percent >= 55 && percent < 75) {
+                statusText = "Sommeil profond. Rêves lucides de victoires et de renaissance...";
+            } else if (percent >= 75) {
+                statusText = "Réveil progressif. L'énergie déborde à nouveau dans votre âme...";
+            }
+
+            await sock.sendMessage(replyJid, {
+                text: `💤 *AFTER THE REBIRTH (ATR) - Cycle de Sommeil* 💤\n\n` +
+                      `${statusText}\n\n` +
+                      `🔷 [${progressBar}] ${percent}%`,
+                edit: sent.key
+            }).catch(e => console.warn("Erreur d'édition du sommeil:", e.message));
+        }
+    }, 20000);
+
+    sleepingPlayers.set(jid, {
+        endTime,
+        duration,
+        intervalId,
+        messageKey: sent.key
+    });
+};
+
+commands.set('dormir', dormirCommand);
+commands.set('sleep', dormirCommand);
+
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {
   if (message.key.fromMe) return;
@@ -2910,6 +3017,34 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   console.log(`[MSG] From "${senderName}" (${jid}) in ${replyJid}: "${messageText}"`);
 
   const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  // Handle sleep blocking logic
+  if (player && (player.mode === 'sleep' || sleepingPlayers.has(player.whatsappId))) {
+      const now = Date.now();
+      const sleepInfo = sleepingPlayers.get(player.whatsappId);
+
+      if (sleepInfo && now < sleepInfo.endTime) {
+          const elapsed = now - (sleepInfo.endTime - sleepInfo.duration);
+          const percent = Math.min(99, Math.floor((elapsed / sleepInfo.duration) * 100));
+          const filled = Math.floor(percent / 10);
+          const empty = 10 - filled;
+          const progressBar = "🔷".repeat(filled) + "◽".repeat(empty);
+          const timeLeft = Math.ceil((sleepInfo.endTime - now) / 1000);
+
+          await sock.sendMessage(replyJid, {
+              text: `💤 *AFTER THE REBIRTH (ATR) - Cycle de Sommeil en cours* 💤\n\n` +
+                    `Chuuut... Tu dors profondément en ce moment. Attends de te réveiller avant d'agir !\n\n` +
+                    `🔷 [${progressBar}] ${percent}%\n` +
+                    `⏳ Temps restant : ${timeLeft} secondes.`
+          });
+          return; // BLOCK ALL ACTIONS
+      } else {
+          // If the timer ended or isn't set up (e.g. server restart), wake them up!
+          if (sleepInfo) clearInterval(sleepInfo.intervalId);
+          sleepingPlayers.delete(player.whatsappId);
+          await player.update({ mode: 'normal', sleep: 100 });
+      }
+  }
 
   // Handle registration flow
   if (player && player.registrationStep) {

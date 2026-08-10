@@ -203,9 +203,9 @@ async function generateMainMenuImage(player) {
         <!-- ==================== HEADER / TOP PANEL ==================== -->
         <!-- Logo Section -->
         <g transform="translate(60, 45)">
-            <text x="0" y="32" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="34" font-weight="900" fill="#ffffff" letter-spacing="4" style="text-shadow: 0px 4px 12px rgba(0,0,0,0.9);">AETHERYS</text>
-            <text x="215" y="32" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="18" font-weight="300" fill="url(#premiumGold)" letter-spacing="6" style="filter: url(#softGlow)">EVOLUTION</text>
-            <text x="0" y="50" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.35)" letter-spacing="3.5">MJ D'AETHERYS • INTERFACE TACTIQUE</text>
+            <text x="0" y="32" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="28" font-weight="900" fill="#ffffff" letter-spacing="2" style="text-shadow: 0px 4px 12px rgba(0,0,0,0.9);">AFTER THE REBIRTH</text>
+            <text x="315" y="32" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="14" font-weight="300" fill="url(#premiumGold)" letter-spacing="4" style="filter: url(#softGlow)">ATR OS</text>
+            <text x="0" y="50" font-family="monospace" font-size="9" fill="rgba(255,255,255,0.35)" letter-spacing="3.5">MJ D'AFTER THE REBIRTH • INTERFACE TACTIQUE</text>
 
             <line x1="0" y1="62" x2="350" y2="62" stroke="url(#premiumGold)" stroke-width="1.8" opacity="0.8" />
             <circle cx="350" cy="62" r="2.5" fill="#ffd700" />
@@ -249,6 +249,14 @@ async function generateMainMenuImage(player) {
                     <text x="260" y="10" font-family="monospace" font-size="10" fill="#ffffff" font-weight="bold" text-anchor="end">${escapeXml(pMana)} / ${escapeXml(pMaxMana)}</text>
                     <rect x="0" y="16" width="260" height="6" fill="rgba(255,255,255,0.07)" rx="3" />
                     <rect x="0" y="16" width="${Math.max(10, Math.min(100, (pMana / pMaxMana) * 100)) * 2.6}" height="6" fill="url(#cyberCyan)" rx="3" filter="url(#softGlow)" />
+                </g>
+
+                <!-- ATR System Loading Bar -->
+                <g transform="translate(0, 64)">
+                    <text x="0" y="10" font-family="'Segoe UI', sans-serif" font-size="9" font-weight="900" fill="#00ffcc" letter-spacing="1">ATR CONNECTIVITY</text>
+                    <text x="260" y="10" font-family="monospace" font-size="9" fill="#00ffcc" font-weight="bold" text-anchor="end">ONLINE // 100%</text>
+                    <rect x="0" y="16" width="260" height="4" fill="rgba(255,255,255,0.07)" rx="2" />
+                    <rect x="0" y="16" width="260" height="4" fill="#00ffcc" rx="2" style="filter: drop-shadow(0 0 4px #00ffcc);" />
                 </g>
             </g>
 

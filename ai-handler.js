@@ -538,14 +538,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   // Synchronization: Solo players bypass 'next' for immediate response.
   // Group players MUST use 'next' or wait for the group to be ready.
   let lastMJMessage = await RPMessage.findOne({
-      where: { senderName: 'Arise MJ', ...sceneFilter },
+      where: { senderName: 'ATR MJ', ...sceneFilter },
       order: [['id', 'DESC']]
   });
 
   // If no MJ message exists in this specific sub-location yet, look for the last MJ message globally
   if (!lastMJMessage) {
       lastMJMessage = await RPMessage.findOne({
-          where: { senderName: 'Arise MJ' },
+          where: { senderName: 'ATR MJ' },
           order: [['id', 'DESC']]
       });
   }
@@ -558,7 +558,7 @@ async function handleFreeAction(sock, message, player, actionText) {
               { subLocation: player.subLocation, location: player.location }
           ],
           id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
-          senderName: { [Op.ne]: 'Arise MJ' }
+          senderName: { [Op.ne]: 'ATR MJ' }
       }
   });
 
@@ -585,7 +585,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   // Fetch all messages in the KINGDOM to detect people moving toward the scene
   const kingdomMessageQuery = {
       location: player.location,
-      senderName: { [Op.ne]: 'Arise MJ' }
+      senderName: { [Op.ne]: 'ATR MJ' }
   };
   if (lastMJMessage) {
       kingdomMessageQuery.id = { [Op.gt]: lastMJMessage.id };
@@ -1242,7 +1242,7 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     // Save bot response to memory
     await RPMessage.create({
         senderJid: 'bot',
-        senderName: 'Arise MJ',
+        senderName: 'ATR MJ',
         content: content,
         location: player.location,
         subLocation: player.subLocation
