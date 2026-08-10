@@ -1041,6 +1041,10 @@ NARRATION :
 - DÉVELOPPEMENT : Chaque action a un impact direct sur l'environnement.
 - COMPORTEMENTS & APPARENCE (RÈGLE IMPORTANTE) : Fais réagir l'environnement et les PNJ de manière réaliste et changeante selon l'habillement du personnage. Si le joueur a une tenue 'couverte de sang', 'déchirée' ou 'tachée de boue' (ou une faible durabilité d'outfit), les gardes de la milice seront extrêmement méfiants, les marchands augmenteront leurs prix ou l'ignoreront, tandis que s'il porte un costume élégant, il recevra du respect. Les dégâts physiques reçus déchirent ou salissent sa tenue.
 
+MÉCANIQUE DE GÉNÉRATION D'IMAGES EN TEMPS RÉEL (REGLE CRITIQUE DE SUPRÊME IMPORTANCE) :
+- Tu DOIS obligatoirement inclure un bracket [IMAGE: ...] à la toute fin de ta narration, décrivant la scène d'action de manière extrêmement jolie, esthétique et détaillée (en anglais) pour notre générateur d'images.
+- Exemple de bracket : [IMAGE: highly detailed anime digital painting of an adventurer facing a massive fiery dragon in a crumbling stone temple ruins, epic fantasy art, dramatic lighting]
+
 STATUTS ET COMMANDES DE SAUVEGARDE :
 Pour mettre à jour le statut, tu ne dois plus utiliser de JSON. Tu dois simplement inclure des brackets à la fin de ta narration pour indiquer ce que le joueur a subi ou gagné, afin que notre parseur de sauvegarde mette à jour ses statistiques, ses techniques ou ses quêtes.
 Format de bracket obligatoire :
@@ -1061,7 +1065,7 @@ Exemple de réponse attendue de ta part :
 📅 An 23, 31 Mars | 🌙 04:44
 *AVENTURA* *📍 Eldoria (Place Centrale)*
 ... (Texte narratif immersif d'un seul paragraphe) ...
-[Distance utile: 1 m → contact] [Impact au torse/flanc | SINGAM II: HP -18 | 82/100] [SINGAM II: XP +50] [START_QUEST: La Chasse aux Gobelins] [LEARN_SKILL: Fente Puissante]`;
+[Distance utile: 1 m → contact] [Impact au torse/flanc | SINGAM II: HP -18 | 82/100] [SINGAM II: XP +50] [START_QUEST: La Chasse aux Gobelins] [LEARN_SKILL: Fente Puissante] [IMAGE: highly detailed anime digital painting of an adventurer facing a massive fiery dragon in a crumbling stone temple ruins, epic fantasy art, dramatic lighting]`;
 
     const memoryJson = JSON.stringify({
         monde: {
@@ -1201,6 +1205,15 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     }
     console.log(`[AI RAW] Contenu reçu:\n${content.substring(0, 1000)}`);
 
+    // Parse image generation bracket [IMAGE: ...] from content
+    let imagePromptText = null;
+    const imageRegex = /\[IMAGE:\s*([^\]]+)\]/i;
+    const imageMatch = content.match(imageRegex);
+    if (imageMatch) {
+        imagePromptText = imageMatch[1].trim();
+        content = content.replace(imageRegex, '').trim(); // Strip bracket from output
+    }
+
     // Extract dynamic statistics changes from the text
     const { playersToUpdate, feedbackList } = await parseStatsFromText(content, player, nearbyPlayers, sock, jid);
 
@@ -1327,6 +1340,23 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
         messagePayload.caption = finalMsg;
     }
     await sock.sendMessage(jid, messagePayload);
+
+    // Generate and send custom scene image asynchronously in the background as a follow-up
+    if (imagePromptText) {
+        // Run asynchronously without blocking the main text response
+        (async () => {
+            try {
+                console.log(`[HF] Generating custom scene image in background for: "${imagePromptText}"...`);
+                const { generateHuggingFaceImage } = require('./message-handler');
+                const buf = await generateHuggingFaceImage(imagePromptText);
+                if (buf) {
+                    await sock.sendMessage(jid, { image: buf, caption: `🖼️ *Visualisation de la scène :* ${player.name}` });
+                }
+            } catch (imgErr) {
+                console.error("[HF] Asynchronous image generation failed:", imgErr.message);
+            }
+        })();
+    }
 
     // Silent reload of any changed players to keep cache synchronized
     if (playersToUpdate.size > 0) {
