@@ -980,6 +980,12 @@ async function handleFreeAction(sock, message, player, actionText) {
 Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle.
 RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
 
+⚠️ DIRECTIVE DE SÉCURITÉ COMPORTEMENTALE ABSOLUE (MJ PUR - NE PAS CONTRÔLER LE JOUEUR) ⚠️
+- Tu as l'INTERDICTION STRICTE et TOTALEMENT ABSOLUE de décrire ou d'écrire les actions, les mouvements, les pensées, les paroles ou les choix de "${player.name}".
+- Tu n'es pas le joueur, tu es uniquement le MJ (Meneur de Jeu). Tu as l'interdiction d'utiliser des verbes d'action ou de parole dont le sujet est "Tu" ou "${player.name}".
+- Tu décris UNIQUEMENT les réactions des PNJ, des monstres, de l'environnement, des objets et de la météo face aux actions de "${player.name}".
+- Termine TOUJOURS ta narration en laissant le joueur libre de réagir (ex: en face de la nouvelle situation physique), sans jamais décider de son geste suivant. Si tu violes cette règle, le système de sécurité rejettera ta réponse. Reste à ta place de MJ !
+
 🚨 RÈGLE D'OR ABSOLUE ET INVIOLABLE : INTERDICTION DE FAIRE PARLER OU AGIR LE JOUEUR 🚨
 - Tu ne dois JAMAIS, sous aucun prétexte, écrire de dialogue, de parole, de pensée, de sentiment, de choix, de déplacement ou d'action future pour l'acteur principal "${player.name}".
 - Il est STRICTEMENT INTERDIT d'écrire des phrases comme :
@@ -1204,6 +1210,23 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
         content = "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...";
     }
     console.log(`[AI RAW] Contenu reçu:\n${content.substring(0, 1000)}`);
+
+    // Programmatic anti-godmoding post-sanitization filter
+    const sanitizeGodmoding = (text, playerName) => {
+        if (!text) return text;
+        let cleaned = text;
+        cleaned = cleaned.replace(new RegExp(`tu décides de\\s+`, 'gi'), "Tu te prépares à ");
+        cleaned = cleaned.replace(new RegExp(`tu penses que\\s+`, 'gi'), "Il semble que ");
+        cleaned = cleaned.replace(new RegExp(`tu choisis de\\s+`, 'gi'), "L'occasion se présente de ");
+        cleaned = cleaned.replace(new RegExp(`tu dis\\s*:\\s*`, 'gi'), "Des voix s'élèvent : ");
+        cleaned = cleaned.replace(new RegExp(`tu réponds\\s*:\\s*`, 'gi'), "Le dialogue s'engage : ");
+        cleaned = cleaned.replace(new RegExp(`${playerName} dit\\s*:\\s*`, 'gi'), "Des voix s'élèvent : ");
+        cleaned = cleaned.replace(new RegExp(`${playerName} répond\\s*:\\s*`, 'gi'), "Le dialogue s'engage : ");
+        cleaned = cleaned.replace(new RegExp(`${playerName} choisit de\\s+`, 'gi'), "L'occasion se présente de ");
+        cleaned = cleaned.replace(new RegExp(`${playerName} pense que\\s+`, 'gi'), "Il semble que ");
+        return cleaned;
+    };
+    content = sanitizeGodmoding(content, player.name);
 
     // Parse image generation bracket [IMAGE: ...] from content
     let imagePromptText = null;
