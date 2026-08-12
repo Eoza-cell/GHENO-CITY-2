@@ -1171,11 +1171,49 @@ RÉALITÉ PHYSIQUE:
       ? playerRPHistory.reverse().map(h => `- [${h.location || 'Aetherys'} - ${h.subLocation || 'Zone'}] ${h.senderName}: ${h.content.substring(0, 150)}`).join('\n')
       : "- Aucun message de RP antérieur.";
 
+    const memoryText = `
+### ÉTAT DU MONDE D'AETHERYS ###
+- DATE: ${rpYearString}
+- PÉRIODE: ${cycleInfo}
+- MÉTÉO: ${weather}
+- ROYAUME ACTUEL: ${kingdom?.name || player.location}
+- DESCRIPTION DU ROYAUME: ${kingdom?.description || ""}
+- GÉOGRAPHIE ET FACTIONS:
+${worldGeography}
+- CONFLITS POLITIQUES ACTUELS: ${worldConflicts || "Paix relative."}
+- ACADÉMIES ET ÉCOLES: ${schoolLore}
+
+### PERSONNAGES PRÉSENTS DANS LA SCÈNE (SOCIÉTÉ) ###
+${scenePlayersData.map(p => {
+    return `- ${p.nom} :
+  * Classe: ${p.classe} (${p.metier})
+  * Statut: ${p.etat}
+  * Faction: ${p.organisation} (Influence: ${p.influence})
+  * Équipements & Inventaire: ${p.inventaire.join(', ') || 'Aucun'}
+  * Techniques maîtrisées: ${p.competences.join(', ') || 'Aucune'}
+  * Pactes d'entités: ${p.pactes.join(', ') || 'Aucun'}
+  * Quêtes actives: ${p.quetes_actives.join(', ') || 'Aucune'}
+  * Récents gestes de ce joueur: ${p.actions_recentes.join(' -> ')}`;
+}).join('\n')}
+
+### ENVIRONNEMENT IMMÉDIAT ET OBJECTIFS ###
+- PNJ PRÉSENTS PROCHES: ${npcState || "Aucun"}
+- MONSTRES LOCAUX: ${monsterState || "Aucun"}
+- PROPRIÉTÉS ET DOMICILES: ${playerHouses || "Aucun"}
+- DONJONS ET QUÊTES DISPONIBLES: ${availableQuestState} | ${dungeonState}
+`.trim();
+
+    const storyHooksText = storyHooks.map(h => {
+        return `- Souvenirs récents de ${h.joueur} :\n${h.derniers_evenements.map(e => `  * ${e}`).join('\n') || "  * Aucun événement marquant enregistré."}`;
+    }).join('\n');
+
     const fullPrompt = `### WORLD_PULSE (DICE/LUCK) ###\n${JSON.stringify(worldPulse)}
 
-### MÉMOIRE_SYSTÈME_JSON (CONTEXTE DÉTAILLÉ PAR JOUEUR) ###\n${memoryJson}
+### ÉTAT PHYSIQUE ET DONNÉES DU MONDE DE JEU ###
+${memoryText}
 
-### HISTORIQUE_NARRATIF_RÉCENT_PAR_JOUEUR ###\n${JSON.stringify(storyHooks, null, 2)}
+### HISTORIQUE_NARRATIF_RÉCENT_PAR_JOUEUR ###
+${storyHooksText}
 
 ### HISTORIQUE DE TOUTE L'AVENTURE DE L'HÉRITIER (MÉMOIRE INFINIE - NE PAS OUBLIER !) ###
 Rappel de toutes les actions, accomplissements et passés historiques de ${player.name} :
