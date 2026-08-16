@@ -591,7 +591,7 @@ async function callPollinationsGET(system, prompt, options = {}) {
  * Call a local Ollama instance if available.
  */
 async function callOllama(system, prompt, options = {}) {
-    let ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    let ollamaUrl = process.env.OLLAMA_URL || "http://192.168.1.66:12434";
     const jsonMode = options.jsonMode !== false;
 
     if (!ollamaUrl.startsWith('http')) {
