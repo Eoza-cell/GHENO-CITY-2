@@ -226,6 +226,36 @@ async function callKimiK3(system, prompt, options = {}) {
  * Call a vLLM OpenAI-compatible online serving server.
  * Documentation: https://docs.vllm.ai/en/stable/serving/online_serving/#openai-compatible-server
  */
+/**
+ * Calls local Python Hugging Face Transformers pipeline (Gemma 4B / 2B).
+ */
+async function callLocalGemmaTransformers(system, prompt, options = {}) {
+    const { exec } = require('child_process');
+    const path = require('path');
+
+    return new Promise((resolve) => {
+        const scriptPath = path.join(__dirname, 'transformer_model.py');
+        const sysArg = JSON.stringify(system);
+        const userArg = JSON.stringify(prompt);
+
+        console.log("[AI] Launching Local Gemma 4B Hugging Face Transformers Python Process...");
+        exec(`python3 "${scriptPath}" ${sysArg} ${userArg}`, { timeout: 30000 }, (error, stdout, stderr) => {
+            if (error) {
+                console.warn("[AI] Local Gemma Transformers Process Error:", error.message);
+                return resolve(null);
+            }
+            if (stdout && stdout.includes("--- RESPONSE ---")) {
+                const match = stdout.match(/--- RESPONSE ---\s*([\s\S]*?)\s*----------------/);
+                if (match && match[1]) {
+                    const text = match[1].trim();
+                    if (isValidAIResponse(text)) return resolve(text);
+                }
+            }
+            resolve(null);
+        });
+    });
+}
+
 async function callVLLM(system, prompt, options = {}) {
     let vllmUrl = process.env.VLLM_URL || "http://192.168.1.66:8000/v1/chat/completions";
     if (!vllmUrl.startsWith('http')) vllmUrl = 'http://' + vllmUrl;
@@ -889,6 +919,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Gemma 4B Transformers (Local)', fn: callLocalGemmaTransformers },
         { name: 'vLLM OpenAI Server', fn: callVLLM },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },

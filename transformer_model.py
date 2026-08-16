@@ -6,7 +6,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 def main():
     print("[Python Transformer] Initializing...")
-    # Load parameters from Node
     if len(sys.argv) < 3:
         print("❌ Usage: python transformer_model.py <system_prompt> <user_prompt>")
         sys.exit(1)
@@ -14,21 +13,18 @@ def main():
     system_prompt = sys.argv[1]
     user_prompt = sys.argv[2]
 
-    # Model name: zai-org/GLM-5.2 as requested by the user
-    model_name = "zai-org/GLM-5.2"
-    print(f"[Python Transformer] Loading lightweight open-source {model_name}...")
+    # Model name: Gemma local Hugging Face RP model
+    model_name = "google/gemma-2-2b-it"
+    print(f"[Python Transformer] Loading local Gemma 4B/2B Hugging Face model ({model_name})...")
 
     try:
-        # Load tokenizer and model in 8-bit or half precision to protect system RAM
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float16,
-            trust_remote_code=True,
-            device_map="auto"
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device_map="auto" if torch.cuda.is_available() else None
         )
 
-        # Structure the instruction prompt
         chat = [
             {"role": "user", "content": f"SYSTEM: {system_prompt}\n\nUSER_ACTION: {user_prompt}"}
         ]
@@ -40,7 +36,7 @@ def main():
         outputs = model.generate(
             **inputs,
             max_new_tokens=512,
-            temperature=0.85,
+            temperature=0.7,
             do_sample=True,
             repetition_penalty=1.15
         )
@@ -51,7 +47,7 @@ def main():
         print("----------------")
 
     except Exception as e:
-        print(f"❌ Error loading/generating via zai-org/GLM-5.2: {str(e)}")
+        print(f"❌ Error generating response via local Gemma Hugging Face Transformers: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -98,7 +98,7 @@ async function generateMissionBoard(player, activeQuests) {
     const height = 600;
 
     let questRows = activeQuests.map((q, i) => {
-        const progress = q.PlayerQuest.progress || 0;
+        const progress = (q.PlayerQuest && q.PlayerQuest.progress) ? q.PlayerQuest.progress : 0;
         const barWidth = (progress / 100) * 400;
         return `
             <g transform="translate(100, ${150 + i * 120})">

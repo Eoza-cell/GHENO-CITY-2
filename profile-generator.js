@@ -240,7 +240,7 @@ async function addOverlay(baseImg, player, width, height) {
             <g transform="translate(60, 55)">
                 <rect x="-10" y="-12" width="4" height="28" fill="${rankColor}" />
                 <text x="10" y="8" font-family="'Segoe UI', sans-serif" font-size="20" font-weight="900" fill="#ffffff" letter-spacing="3">FICHE D'IDENTITÉ HÉRITIER</text>
-                <text x="350" y="6" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.3)" letter-spacing="2">INTERFACE SECURE IV • GHENO CITY</text>
+                <text x="350" y="6" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.3)" letter-spacing="2">AFTER THE REBIRTH (ATR) • INTERFACE SECURE</text>
             </g>
 
             <!-- CADRANT 1 (Top-Left): Identity -->

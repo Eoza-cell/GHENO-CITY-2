@@ -1223,6 +1223,19 @@ ${infiniteTimelineState}
 - ACTIONS RP ET DIALOGUES ANTÉRIEURS (SOUVENIRS INFINIS) :
 ${infiniteRPState}
 
+### DONNÉES DE LA TABLE EXCEL DU JOUEUR (MÉMOIRE CHRONOLOGIQUE TABLEUR) ###
+${(() => {
+    try {
+        const { getInfiniteMemoryForPlayer } = require('./excel-memory');
+        const excelHistory = getInfiniteMemoryForPlayer(player.whatsappId, 25);
+        return excelHistory.length > 0
+            ? excelHistory.map(h => `- [${h.timestamp ? h.timestamp.substring(0, 10) : 'Date'}] [${h.actionType}] : ${h.content.substring(0, 150)}`).join('\n')
+            : "- Aucune ligne historique dans le tableur Excel.";
+    } catch (e) {
+        return "- Initialisation de la mémoire Excel...";
+    }
+})()}
+
 ### ANALYSE DU LIEU PHYSIQUE ET DE LA SCÈNE ###
 ${sceneAnalysis}
 
@@ -1344,6 +1357,22 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
         location: player.location,
         subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
+
+    // Sync to Excel/CSV Infinite Memory Spreadsheet Database
+    try {
+        const { appendExcelMemory } = require('./excel-memory');
+        await appendExcelMemory({
+            whatsappId: player.whatsappId,
+            playerName: player.name,
+            location: player.location,
+            subLocation: player.subLocation,
+            actionType: 'MJ_NARRATIVE',
+            content: content,
+            statsSnapshot: { health: player.health, maxHealth: player.maxHealth, mana: player.mana, col: player.col }
+        });
+    } catch (excelErr) {
+        console.error("[EXCEL MEMORY] Error syncing to CSV database:", excelErr.message);
+    }
 
     // Reload active player to sync the new stats
     await player.reload();

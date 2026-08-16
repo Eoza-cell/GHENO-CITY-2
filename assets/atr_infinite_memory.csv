@@ -1,0 +1,2 @@
+Timestamp,WhatsappID,PlayerName,Location,SubLocation,ActionType,Content,StatsSnapshot
+"2026-08-16T13:50:59.048Z","test@s.whatsapp.net","Eoza","Eldoria","Place","TEST","Test memory action","{""hp"":100}"
