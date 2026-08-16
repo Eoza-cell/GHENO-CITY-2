@@ -12,7 +12,7 @@ const { escapeXml } = require('./utils');
  */
 async function generateMainMenuImage(player) {
     const width = 1200;
-    const height = 750;
+    const height = 780;
 
     // Fallbacks and details
     const pName = player?.name ? player.name.toUpperCase() : "HÉRITIER SANS NOM";
@@ -28,70 +28,90 @@ async function generateMainMenuImage(player) {
     const pMaxMana = player?.maxMana != null ? player.maxMana : 100;
     const pCol = player?.col != null ? player.col : 100;
 
-    // Grid details & options mapping
-    const cardWidth = 340;
-    const cardHeight = 200;
+    // Grid details & options mapping (Restructured 8-card grid)
+    const cardWidth = 260;
+    const cardHeight = 220;
 
     const cardsData = [
         {
             cmd: '/action',
             title: 'AVENTURE',
-            sub: 'Combats, Chasses & Exploration',
+            sub: 'Combats & RP',
             desc: 'Défiez des monstres et gagnez de l\'XP',
             color: '#ff3c00', // Ruby Red
             imagePath: path.join(__dirname, 'assets', 'tutorial_boss.jpg'),
-            x: 60,
-            y: 220
+            x: 40,
+            y: 210
+        },
+        {
+            cmd: '/dormir',
+            title: 'SOMMEIL',
+            sub: 'Récupération (3 min)',
+            desc: 'Restaurez à 100% votre jauge d\'énergie',
+            color: '#3399ff', // Soft Blue
+            imagePath: path.join(__dirname, 'assets', 'silhouette.jpg'),
+            x: 320,
+            y: 210
         },
         {
             cmd: '/profil',
-            title: 'FICHE D\'IDENTITÉ',
-            sub: 'Statistiques & Équipements',
-            desc: 'Visualisez l\'aura et la puissance',
+            title: 'FICHE HÉRITIER',
+            sub: 'Stats & Aura',
+            desc: 'Visualisez votre niveau et puissance',
             color: '#00e5ff', // Cyan Neon
             imagePath: path.join(__dirname, 'assets', 'silhouette.jpg'),
-            x: 430,
-            y: 220
+            x: 600,
+            y: 210
         },
         {
             cmd: '/quests',
             title: 'JOURNAL DE QUÊTES',
-            sub: 'Chroniques du Destin',
-            desc: 'Suivez le fil rouge des missions',
+            sub: 'Missions & Fil Rouge',
+            desc: 'Suivez vos objectifs actifs et primes',
             color: '#ffd700', // Gold/Amber
             imagePath: path.join(__dirname, 'assets', 'locations', 'interstice.jpg'),
-            x: 800,
-            y: 220
+            x: 880,
+            y: 210
         },
         {
             cmd: '/map',
             title: 'CARTE DU MONDE',
-            sub: 'Navigation & Voyage',
-            desc: 'Explorez les 17 royaumes d\'Aetherys',
+            sub: 'Navigation & Voy.',
+            desc: 'Explorez les 17 royaumes d\'ATR',
             color: '#00e676', // Emerald Green
             imagePath: path.join(__dirname, 'assets', 'locations', 'eldoria.jpg'),
-            x: 60,
-            y: 450
+            x: 40,
+            y: 460
+        },
+        {
+            cmd: '/boutique',
+            title: 'BOUTIQUE',
+            sub: 'Armes & Nourriture',
+            desc: 'Achetez des objets et consommables',
+            color: '#ff9900', // Amber Orange
+            imagePath: path.join(__dirname, 'assets', 'apostle.jpg'),
+            x: 320,
+            y: 460
         },
         {
             cmd: '/bank',
             title: 'COFFRE-FORT',
-            sub: 'Dépôts, Retraits & Prêts',
-            desc: 'Gérez votre richesse en pièces Col',
+            sub: 'Dépôts & Retraits',
+            desc: 'Gérez votre fortune en pièces Col',
             color: '#d500f9', // Magenta Purple
             imagePath: path.join(__dirname, 'assets', 'locations', 'academy.jpg'),
-            x: 430,
-            y: 450
+            x: 600,
+            y: 460
         },
         {
             cmd: '/lore',
-            title: 'ENCYCLOPÉDIE',
-            sub: 'Mythes & Histoires d\'Aetherys',
-            desc: 'Découvrez les secrets fondateurs',
+            title: 'ARCHIVES ATR',
+            sub: 'Lore & Mythes',
+            desc: 'Découvrez les secrets de la Renaissance',
             color: '#b0bec5', // Slate Grey
             imagePath: path.join(__dirname, 'assets', 'locations', 'necropolis.jpg'),
-            x: 800,
-            y: 450
+            x: 880,
+            y: 460
         }
     ];
 

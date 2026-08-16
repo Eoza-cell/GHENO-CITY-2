@@ -2871,39 +2871,40 @@ commands.set('menu', async (sock, message) => {
   await delayHelper(250);
   await sock.sendMessage(replyJid, { delete: loadingMsg.key });
 
-  const menuText = "╔══════════════════════════╗\n" +
-                   "   🌐  *AFTER THE REBIRTH*   🌐\n" +
-                   "╚══════════════════════════╝\n" +
-                   "_Portes d'Aetherys, archives vivantes et conflits de l'Interstice._\n\n" +
-                   "🕹️ *IMMERSION*\n" +
-                   "└ `/action` - Entrer dans le RP\n\n" +
-                   "👤 *HÉRITIER*\n" +
-                   "├ `/profil` - Statut & Stats\n" +
-                   "├ `/inventory` - Sac à dos\n" +
-                   "└ `/competences` - Sorts & Skills\n\n" +
-                   "📍 *NAVIGATION*\n" +
-                   "├ `/map` - Monde & Donjons\n" +
-                   "├ `/quests` - Journal d'objectifs\n" +
-                   "├ `/joueurs` - Qui est ici ?\n" +
-                   "└ `/lieux` - Ta position actuelle\n\n" +
-                   "💰 *ÉCONOMIE*\n" +
-                   "├ `/bank` - Ton compte (Col)\n" +
-                   "├ `/boutique` - Armes & Items\n" +
-                   "└ `/vetements` - Mode Aetherys\n\n" +
-                   "🏛️ *SOCIÉTÉ*\n" +
-                   "├ `/lore` - Bibliothèque\n" +
-                   "├ `/pacts` - Entités & Pactes\n" +
-                   "├ `/maison` - Ton domicile\n" +
-                   "└ `/clubs` - Clubs Académiques\n\n" +
-                   "🏆 *COMPÉTITION*\n" +
-                   "├ `/top` - Classement Global\n" +
-                   "└ `/tournoi` - Événements PVP\n\n" +
-                   "⚙️ *SYSTÈME*\n" +
-                   "├ `/help` - Aide complète\n" +
-                   "├ `/guide` - Guides en images\n" +
-                   "├ `/journal` - Mises à jour & News\n" +
-                   "└ `/save` - Sauvegarder\n\n" +
-                   "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
+  const menuText = "╔══════════════════════════════════╗\n" +
+                   "   🌐  *AFTER THE REBIRTH (ATR)*  🌐\n" +
+                   "╚══════════════════════════════════╝\n" +
+                   "_Matrice Tactique • Chroniques & Destin d'Aetherys_\n\n" +
+                   "✦ ⚔️ *AVENTURE & COMBAT*\n" +
+                   "  ├ `/action` (`/a`) - Entrer dans le RP (Mode Action)\n" +
+                   "  └ `/dormir` (`/d`) - Sommeil (3 min, +100% Énergie)\n\n" +
+                   "✦ 👤 *PROFIL & STATISTIQUES*\n" +
+                   "  ├ `/profil` (`/p`) - Carte d'identité & aura\n" +
+                   "  ├ `/inventory` (`/i`) - Sac à dos & équipements\n" +
+                   "  └ `/competences` (`/s`) - Sorts & compétences\n\n" +
+                   "✦ 📍 *EXPLORATION & MONDE*\n" +
+                   "  ├ `/map` - Carte interactive des 17 Royaumes\n" +
+                   "  ├ `/quests` (`/q`) - Journal de quêtes & objectifs\n" +
+                   "  ├ `/lieux` - Position actuelle & environnements\n" +
+                   "  └ `/joueurs` - Héritiers actifs à proximité\n\n" +
+                   "✦ 🪙 *ÉCONOMIE & MARCHÉ*\n" +
+                   "  ├ `/bank` - Banque centrale Col & comptes\n" +
+                   "  ├ `/boutique` - Armes, armures & nourriture\n" +
+                   "  └ `/vetements` - Tenues, réparations & lavage\n\n" +
+                   "✦ 🏛️ *SOCIÉTÉ & FACTIONS*\n" +
+                   "  ├ `/maison` - Domicile & stockage privé\n" +
+                   "  ├ `/clubs` - Factions académiques & guildes\n" +
+                   "  ├ `/pacts` - Pactes d'entités mystiques\n" +
+                   "  └ `/lore` - Archives historiques d'ATR\n\n" +
+                   "✦ 🏆 *COMPÉTITION & RANGS*\n" +
+                   "  ├ `/top` - Classement mondial des Héritiers\n" +
+                   "  └ `/tournoi` - Événements PVP & Arènes\n\n" +
+                   "✦ ⚙️ *SYSTÈME & RACCOURCIS*\n" +
+                   "  ├ `/menu` (`/m`) - Réafficher ce menu\n" +
+                   "  ├ `/status` - Diagnostic système\n" +
+                   "  └ `/help` - Aide complète\n\n" +
+                   "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
+                   "💡 *Astuce:* Utilisez les boutons ci-dessous ou les raccourcis (`/a`, `/p`, `/d`, `/m`) !";
 
   try {
     const menuImage = await generateMainMenuImage(player);
@@ -3018,6 +3019,15 @@ const dormirCommand = async (sock, message) => {
 
 commands.set('dormir', dormirCommand);
 commands.set('sleep', dormirCommand);
+commands.set('d', dormirCommand);
+
+// Restructured Modular Command Shortcuts/Aliases
+commands.set('a', (...args) => commands.get('action')(...args));
+commands.set('m', (...args) => commands.get('menu')(...args));
+commands.set('p', (...args) => commands.get('profil')(...args));
+commands.set('i', (...args) => commands.get('inventory')(...args));
+commands.set('q', (...args) => commands.get('quests')(...args));
+commands.set('s', (...args) => commands.get('competences')(...args));
 
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {
