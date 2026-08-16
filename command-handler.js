@@ -3033,7 +3033,19 @@ commands.set('s', (...args) => commands.get('competences')(...args));
 async function handleCommand(sock, message, downloadMediaMessage) {
   if (message.key.fromMe) return;
 
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
+  let messageText = message.message.conversation ||
+                    message.message.extendedTextMessage?.text ||
+                    message.message.buttonsResponseMessage?.selectedButtonId ||
+                    message.message.templateButtonReplyMessage?.selectedId ||
+                    message.message.listResponseMessage?.singleSelectReply?.selectedRowId;
+
+  if (!messageText && message.message.interactiveResponseMessage) {
+      try {
+          const params = JSON.parse(message.message.interactiveResponseMessage.nativeFlowResponseMessage?.paramsJson || '{}');
+          messageText = params.id || params.display_text;
+      } catch (e) {}
+  }
+
   if (!messageText) return;
 
   const jid = getJid(message);

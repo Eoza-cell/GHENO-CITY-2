@@ -303,7 +303,7 @@ async function connectToWhatsApp() {
                         }
                     } else {
                          // Only warn if it's not a command
-                         const text = message.message.conversation || message.message.extendedTextMessage?.text;
+                         const text = message.message.conversation || message.message.extendedTextMessage?.text || message.message.buttonsResponseMessage?.selectedButtonId;
                          if (!text || !text.startsWith('/')) {
                              await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
                              return;
