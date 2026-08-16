@@ -222,6 +222,47 @@ async function callKimiK3(system, prompt, options = {}) {
 /**
  * Call the OmniBrain AI Proxy Smart endpoint if available.
  */
+/**
+ * Call a vLLM OpenAI-compatible online serving server.
+ * Documentation: https://docs.vllm.ai/en/stable/serving/online_serving/#openai-compatible-server
+ */
+async function callVLLM(system, prompt, options = {}) {
+    let vllmUrl = process.env.VLLM_URL || "http://192.168.1.66:8000/v1/chat/completions";
+    if (!vllmUrl.startsWith('http')) vllmUrl = 'http://' + vllmUrl;
+    if (!vllmUrl.includes('/v1/chat/completions')) {
+        vllmUrl = vllmUrl.replace(/\/$/, '') + '/v1/chat/completions';
+    }
+
+    const apiKey = process.env.VLLM_API_KEY || "token-dummy";
+    const model = process.env.VLLM_MODEL || "zai-org/GLM-5.2";
+
+    try {
+        console.log(`[AI] vLLM Server - Tentative sur ${vllmUrl} (Modèle: ${model})...`);
+        const resp = await axios.post(vllmUrl, {
+            model: model,
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 2048,
+            stream: false
+        }, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 20000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] vLLM Server Error (${vllmUrl}):`, e.message);
+    }
+    return null;
+}
+
 async function callOmniBrain(system, prompt, options = {}) {
     const url = process.env.OMNIBRAIN_URL || "http://localhost:8080/v1/chat/completions";
     const apiKey = process.env.OMNIBRAIN_API_KEY || "dummy";
@@ -848,6 +889,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'vLLM OpenAI Server', fn: callVLLM },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
