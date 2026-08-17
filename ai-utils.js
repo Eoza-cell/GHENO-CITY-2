@@ -919,7 +919,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'Gemma 4B Transformers (Local)', fn: callLocalGemmaTransformers },
+        { name: 'Blackbox AI (Free)', fn: callBlackbox },
         { name: 'vLLM OpenAI Server', fn: callVLLM },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },

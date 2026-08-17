@@ -832,7 +832,8 @@ async function handleFreeAction(sock, message, player, actionText) {
       const pPacts = await p.getEntities();
       const pClubs = await p.getClubs();
       const pQuests = await p.getQuests();
-      const [pBank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: p.whatsappId } });
+      const pBank = await Bank.findOne({ where: { PlayerWhatsappId: p.whatsappId } });
+      const bankBalance = pBank ? pBank.balance : 100;
       const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
       const pActions = recentActions.filter(a => a.senderName === p.name).map(a => a.content);
 
@@ -873,7 +874,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           est_acteur: (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
           distance_en_metres_de_l_acteur: distToActive,
           extension_du_territoire: p.territoryExtension || "Non éveillée ou non configurée.",
-          etat: `Race:${p.race} | Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${pBank.balance} | FOR:${Math.round(displayFor)} AGI:${Math.round(displayAgi)} INT:${Math.round(displayInt)} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}${bondInfo}`,
+          etat: `Race:${p.race} | Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${bankBalance} | FOR:${Math.round(displayFor)} AGI:${Math.round(displayAgi)} INT:${Math.round(displayInt)} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}${bondInfo}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
           metier: p.occupation,

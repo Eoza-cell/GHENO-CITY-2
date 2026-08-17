@@ -634,7 +634,7 @@ commands.set('map', async (sock, message) => {
     const kingdoms = await Kingdom.findAll();
     const dungeons = await Dungeon.findAll();
 
-    let mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
+    let mapText = `🗺️ *CARTE DU MONDE — AFTER THE REBIRTH (ATR)*\n\n` +
                   `📍 *Position:* ${player.location} (${player.subLocation})\n\n` +
                   `🌍 *CONTINENTS ET ROYAUMES:*\n`;
 
