@@ -4,10 +4,7 @@ const WORLD_NAME = 'AFTER THE REBIRTH (ATR)';
 
 /**
  * Azgaar's Fantasy Map Generator Signature Renderer
- * Renders high-fidelity cartographic maps with biomes, elevation contours,
- * winding river networks, coastal water depth rings, and Azgaar state icons.
  */
-
 const KINGDOMS = [
     { name: "Empire Impérial d'Elion", short: "ELION", continent: "Aetheria", color: '#f1c40f', fill: 'rgba(241,196,15,0.25)', labelPos: [430, 440], polygon: [[380, 360], [450, 340], [540, 370], [560, 480], [510, 540], [390, 530], [360, 450], [350, 380]] },
     { name: 'Royaume de Valkyrr', short: 'VALKYRR', continent: "Aetheria", color: '#3498db', fill: 'rgba(52,152,219,0.25)', labelPos: [450, 245], polygon: [[380, 180], [480, 160], [550, 200], [540, 340], [450, 340], [380, 310], [360, 250]] },
@@ -55,6 +52,75 @@ const CITIES = [
     { name: 'Donjon de la Liche', sub: 'Trône Noir', x: 250, y: 750, capital: true },
     { name: 'Palais d\'Argent', sub: 'Cœur Céleste', x: 950, y: 250, capital: true }
 ];
+
+/**
+ * Watabou Medieval Town Generator (TownGeneratorOS Style)
+ * Renders procedural medieval city maps with walls, towers, gates, riverfronts,
+ * districts, roads, and rooftops in Watabou's iconic parchment/ink aesthetic.
+ */
+async function generateWatabouTownMap(cityName = 'Eldoria') {
+    const W = 1200, H = 900;
+
+    // Watabou Procedural Roof & District Generator
+    const buildingRoofs = [];
+    const colors = ['#b85444', '#9e4638', '#5b6b7c', '#7d8c9e', '#8c6d58'];
+
+    // Generate inner city districts (Castle, Temple, Market, Slums, Harbor)
+    for (let i = 0; i < 180; i++) {
+        const cx = 350 + Math.random() * 500;
+        const cy = 250 + Math.random() * 400;
+        const bw = 15 + Math.random() * 25;
+        const bh = 15 + Math.random() * 25;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        buildingRoofs.push(`
+            <rect x="${cx}" y="${cy}" width="${bw}" height="${bh}" fill="${color}" stroke="#2a221b" stroke-width="1.2" transform="rotate(${Math.floor(Math.random()*45)}, ${cx+bw/2}, ${cy+bh/2})" />
+        `);
+    }
+
+    const svg = `
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        <!-- Parchment Background -->
+        <rect width="100%" height="100%" fill="#f2e6ce" />
+
+        <!-- Riverfront / Harbor Line -->
+        <path d="M 100,100 C 300,300 500,200 700,500 C 900,800 1100,700 1200,900" fill="none" stroke="#688a9e" stroke-width="45" opacity="0.8" />
+
+        <!-- Main Roads -->
+        <path d="M 200,450 Q 600,450 1000,450" fill="none" stroke="#c8b89e" stroke-width="14" />
+        <path d="M 600,150 Q 600,450 600,750" fill="none" stroke="#c8b89e" stroke-width="14" />
+
+        <!-- Watabou Outer City Wall Polygon -->
+        <polygon points="300,200 600,150 900,200 950,450 900,700 600,750 300,700 250,450" fill="none" stroke="#3d332a" stroke-width="8" />
+
+        <!-- Curtain Towers at Wall Vertices -->
+        <circle cx="300" cy="200" r="10" fill="#3d332a" />
+        <circle cx="600" cy="150" r="10" fill="#3d332a" />
+        <circle cx="900" cy="200" r="10" fill="#3d332a" />
+        <circle cx="950" cy="450" r="10" fill="#3d332a" />
+        <circle cx="900" cy="700" r="10" fill="#3d332a" />
+        <circle cx="600" cy="750" r="10" fill="#3d332a" />
+        <circle cx="300" cy="700" r="10" fill="#3d332a" />
+        <circle cx="250" cy="450" r="10" fill="#3d332a" />
+
+        <!-- Castle / Citadel Keep Quarter -->
+        <rect x="530" y="380" width="140" height="140" fill="#3d332a" opacity="0.15" />
+        <polygon points="530,380 670,380 670,520 530,520" fill="none" stroke="#3d332a" stroke-width="5" />
+        <text x="600" y="455" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="16" fill="#2a221b">CHÂTEAU / CITADELLE</text>
+
+        <!-- Building Rooftops -->
+        ${buildingRoofs.join('')}
+
+        <!-- Watabou Banner Header -->
+        <g transform="translate(50, 40)">
+            <rect width="450" height="65" fill="#f8f0de" stroke="#3d332a" stroke-width="2.5" rx="4" />
+            <text x="225" y="35" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="24" fill="#2a221b">PLAN DE LA CITÉ — ${cityName.toUpperCase()}</text>
+            <text x="225" y="52" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="12" fill="#5c4a3d">WATABOU TOWN GENERATOR OS • ATR EDITION</text>
+        </g>
+    </svg>
+    `;
+
+    return sharp(Buffer.from(svg)).png().toBuffer();
+}
 
 async function generateWorldMapImage() {
     const W = 1400, H = 1000;
@@ -142,4 +208,4 @@ async function generateWorldMapImage() {
     return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-module.exports = { generateWorldMapImage, WORLD_NAME };
+module.exports = { generateWorldMapImage, generateWatabouTownMap, WORLD_NAME };
