@@ -1381,25 +1381,8 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     // Streamlined HUD and Header for cleaner responses
     const hud = ` [❤️ ${player.health}/${player.maxHealth} | 🌀 ${player.mana}/${player.maxMana} | 💰 ${player.col}]`;
 
-    // Parse out only the block belonging to the active player to prevent character mixing in group chats
+    // Preserve full narrative content cleanly for the player
     let playerSection = content;
-    const blocks = content.split(/▬▬▬▬▬▬▬▬▬▬▬▬|-----------------------/i);
-    if (blocks.length > 1) {
-        const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-        const searchName = clean(player.name);
-        let foundSection = null;
-        for (const block of blocks) {
-            const trimmed = block.trim();
-            const firstLines = trimmed.split('\n').slice(0, 5).join('\n');
-            if (clean(firstLines).includes(searchName)) {
-                foundSection = trimmed;
-                break;
-            }
-        }
-        if (foundSection) {
-            playerSection = foundSection;
-        }
-    }
 
     // Check if the response already contains a time header, if not, prepend it
     let finalMsg = playerSection;

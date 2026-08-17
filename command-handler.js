@@ -2912,22 +2912,6 @@ commands.set('menu', async (sock, message) => {
         image: menuImage,
         caption: menuText
     });
-
-    // Send WhatsApp Interactive Quick Reply Buttons
-    try {
-        const { sendButtons } = require('@ryuu-reinzz/button-helper');
-        await sendButtons(sock, message.key.remoteJid, {
-            text: "Choisissez votre action rapide de l'Héritier :",
-            footer: "AFTER THE REBIRTH (ATR)",
-            buttons: [
-                { id: "/action", text: "⚔️ Commencer l'Aventure" },
-                { id: "/profil", text: "👤 Fiche d'Identité" },
-                { id: "/quests", text: "📜 Journal de Quêtes" }
-            ]
-        });
-    } catch (btnErr) {
-        console.warn("Boutons non supportés ou erreur d'émission:", btnErr.message);
-    }
   } catch (error) {
     console.warn("Erreur génération image menu:", error.message);
     await sock.sendMessage(message.key.remoteJid, { text: menuText });
