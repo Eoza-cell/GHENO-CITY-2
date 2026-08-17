@@ -1,7 +1,7 @@
 const sharp = require('sharp');
 
 // ---- Canonical world data (mirrors the seeds in database.js) ----
-const WORLD_NAME = 'AETHERYS';
+const WORLD_NAME = 'AFTER THE REBIRTH (ATR)';
 
 const KINGDOMS = [
     // --- AETHERIA (High Fantasy Coast) ---
@@ -449,8 +449,8 @@ async function generateWorldMapImage() {
             <!-- Double-lined classic frame -->
             <rect width="640" height="85" fill="rgba(15,10,5,0.85)" stroke="#ffd700" stroke-width="2.5" rx="6" style="filter: drop-shadow(0 6px 15px rgba(0,0,0,0.8));" />
             <rect x="5" y="5" width="630" height="75" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1" rx="4" />
-            <text x="320" y="44" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="34" fill="#ffd700" style="letter-spacing: 2px;">CARTE DU MONDE — ${WORLD_NAME}</text>
-            <text x="320" y="68" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="14" fill="#f0e2cd" style="letter-spacing: 1px;">AETHERIA, ZENDORA, UMBRA ET CAELUM • GENERATED COMPASS G-IV</text>
+            <text x="320" y="44" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="30" fill="#ffd700" style="letter-spacing: 2px;">CARTE DU MONDE — ${WORLD_NAME}</text>
+            <text x="320" y="68" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="14" fill="#f0e2cd" style="letter-spacing: 1px;">AETHERIA, ZENDORA, UMBRA ET CAELUM • AZGAAR MAP GENERATOR ATR</text>
         </g>
 
         <!-- Comprehensive Legend and Technical Scale Bar -->
