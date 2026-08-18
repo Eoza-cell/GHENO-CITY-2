@@ -1036,7 +1036,9 @@ LORE DES CLASSES (CHEVALIER-DRAGON) :
 NARRATION :
 - NARRATION DÉTAILLÉE, RICHE ET IMMERSIVE (RÈGLE CRITIQUE) : Rédige une réponse LONGUE, DÉTAILLÉE et COMPLÈTE (2 à 4 paragraphes vivants et percutants). Ta narration doit ressembler à un épisode d'anime de haute qualité (style Shonen/Seinen), décrivant avec précision l'environnement, la tension, les réactions des témoins, et les mouvements tactiques.
 - ÉCHELLE PLANÉTAIRE & ENTITÉS CÉLESTES : Le monde d'ATR est une vaste planète abritant des continents légendaires (Aetheria, Zendora, Umbra, Caelum), des bêtes célestes ancestrales (Dragons, Hydres, Phénix) et des antagonistes surpuissants conspirant dans l'ombre.
-- ÉLÈVES DE L'ACADÉMIE & PNJ UNIQUES : L'Académie Impériale abrite des centaines d'élèves aux apparences physiques singulières, styles vestimentaires distincts et rivalités complexes. Chaque PNJ possède sa propre histoire et son visage unique.
+- CLASSEMENT & ÉLÈVES DE L'ACADÉMIE IMPÉRIALE : L'Académie Impériale compte plus de 1000 élèves d'élite, chacun possédant des traits physiques, spécialités et pouvoirs uniques. Le N°1 incontesté du Classement de Puissance de l'Académie est **Erius**, un combattant légendaire qui porte un BANDEAU NOIR SUR LES YEUX, doté d'une perception spatiale absolue et d'une Aura titanesque.
+- COMBATS PRÉCIS ET TACTIQUES (SANS SCHÉMAS SÉRIEISÉS) : Décris chaque mouvement avec une précision chirurgicale (ex: "Tu pares le coup de poing droit de ton adversaire d'un revers de la main gauche avant de lui asséner un crochet du droit net dans la mâchoire").
+- HIÉRARCHIE ET CLASSES SOCIALES : Le monde d'ATR et les Académies sont régis par des classes sociales bien distinctes (Haute Noblesse, Magisters, Bourgeoisie, Roturiers et Bas-fonds). Le respect, les prix et les privilèges dépendent du prestige social et de la tenue de l'Héritier.
 - PUISSANCE ET DURABILITÉ DES ADVERSAIRES : Évalue et décris la puissance brute, l'Aura, l'agilité et la durabilité des protections/armures des adversaires au fur et à mesure des chocs.
 - LOGIQUE CAUSALE (SANS ÉVÉNEMENT SURPRISE ARBITRAIRE) : Les événements découlent uniquement de la logique du monde et des actions du joueur. Pas de téléportation ou d'événements surprises absurdes.
 - ADVERSAIRES ACTIFS, DIFFICULTÉ EXTRÊME & BATTLE IQ : Les combats d'Aetherys sont impitoyables et exigent un haut niveau d'intelligence tactique (Battle IQ). Les ennemis prédisent les trajectoires, dressent des embuscades, emploient des contre-réactions élémentaires mortelles et infligent des souffrances extrêmes. Cependant, laisse TOUJOURS au joueur une opportunité immédiate d'esquiver, de réagir ou de parer au dernier millième de seconde s'il fait preuve de Battle IQ dans son action. Les combats doivent être d'une difficulté titanesque mais juste.
@@ -1411,15 +1413,16 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
         await sock.sendPresenceUpdate('composing', jid);
     } catch (e) {}
 
-    // Send the final immersive output
+    // Send the final immersive output to the active group/chat session
+    const targetChatJid = message.key.remoteJid || jid;
     const messagePayload = { text: finalMsg };
     if (visualBuffer) {
         messagePayload.image = visualBuffer;
         messagePayload.caption = finalMsg;
     }
-    await sock.sendMessage(jid, messagePayload);
+    await sock.sendMessage(targetChatJid, messagePayload);
 
-    // Generate and send custom scene image asynchronously in the background as a follow-up
+    // Generate and send custom scene image asynchronously in the background as a follow-up to the active chat session
     if (imagePromptText) {
         // Run asynchronously without blocking the main text response
         (async () => {
@@ -1428,7 +1431,7 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
                 const { generateHuggingFaceImage } = require('./message-handler');
                 const buf = await generateHuggingFaceImage(imagePromptText);
                 if (buf) {
-                    await sock.sendMessage(jid, { image: buf, caption: `🖼️ *Visualisation de la scène :* ${player.name}` });
+                    await sock.sendMessage(targetChatJid, { image: buf, caption: `🖼️ *Visualisation de la scène :* ${player.name}` });
                 }
             } catch (imgErr) {
                 console.error("[HF] Asynchronous image generation failed:", imgErr.message);
