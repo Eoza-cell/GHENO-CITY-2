@@ -110,6 +110,22 @@ async function sendWithImage(sock, jid, aiResponse) {
 async function generateHuggingFaceImage(prompt) {
     const polishedPrompt = `${prompt}, anime style, beautiful digital illustration, high fantasy, highly detailed, vibrant colors, aesthetic masterpiece`;
 
+    // 0. Try local Python Krea Diffusers execution if available
+    try {
+        const { execSync } = require('child_process');
+        const path = require('path');
+        const tmpOut = path.join(__dirname, 'assets', `krea_out_${Date.now()}.png`);
+        const pyScript = path.join(__dirname, 'generate_krea_image.py');
+        execSync(`python3 "${pyScript}" "${polishedPrompt.replace(/"/g, '')}" "${tmpOut}"`, { timeout: 15000, stdio: 'ignore' });
+        if (fs.existsSync(tmpOut)) {
+            const buf = fs.readFileSync(tmpOut);
+            fs.unlinkSync(tmpOut);
+            return buf;
+        }
+    } catch (pyErr) {
+        // Fallback silently to HF Inference API or Pollinations
+    }
+
     // 1. Try Hugging Face Inference API if token exists
     if (process.env.HF_TOKEN) {
         try {
@@ -157,4 +173,4 @@ async function generateHuggingFaceImage(prompt) {
 async function generateAnimeImage() { return null; }
 function buildAnimePrompt(p) { return p; }
 
-module.exports = { sendWithImage, generateAnimeImage, buildAnimePrompt, resolveMentions, shouldNotifyPlayer };
+module.exports = { sendWithImage, generateHuggingFaceImage, generateAnimeImage, buildAnimePrompt, resolveMentions, shouldNotifyPlayer };

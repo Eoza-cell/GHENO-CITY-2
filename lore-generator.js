@@ -10,7 +10,7 @@ const { escapeXml } = require('./utils');
  */
 async function generateLorePoster(title, content, type = 'LORE', imageUrl = null) {
     const width = 800;
-    const height = 1200;
+    const height = 1500;
 
     // Background color based on type
     const colors = {
@@ -57,18 +57,18 @@ async function generateLorePoster(title, content, type = 'LORE', imageUrl = null
     const contentLines = [];
     content.split('\n').forEach(p => {
         if (p.trim()) {
-            const wrapped = wrapText(p.trim(), width - 160, 22);
+            const wrapped = wrapText(p.trim(), width - 140, 18);
             contentLines.push(...wrapped, ''); // Empty string for paragraph spacing
         }
     });
 
-    const startY = imageBuffer ? 780 : 350;
-    const lineHeight = 30;
+    const startY = imageBuffer ? 780 : 320;
+    const lineHeight = 24;
 
     let contentSvg = '';
     contentLines.forEach((line, i) => {
-        if (startY + i * lineHeight < height - 150) {
-            contentSvg += `<text x="80" y="${startY + i * lineHeight}" font-family="serif" font-size="22" fill="#ffffff">${escapeXml(line)}</text>`;
+        if (startY + i * lineHeight < height - 100) {
+            contentSvg += `<text x="70" y="${startY + i * lineHeight}" font-family="serif" font-size="18" fill="#ffffff">${escapeXml(line)}</text>`;
         }
     });
 

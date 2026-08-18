@@ -1293,7 +1293,42 @@ async function setupDatabase() {
                 title: "L'Antre du Chef Gobelin", description: 'Le chef gobelin doit tomber.',
                 objective: 'Affronte et vaincs le Chef Gobelin au fond de la forêt.',
                 type: 'main', chain: "L'Ascension de l'Aventurier", step: 3,
-                nextQuestTitle: null, rank_required: 'F', reward_col: 500, reward_xp: 400
+                nextQuestTitle: 'Chasse au Loup-Gris Sauvage', rank_required: 'F', reward_col: 500, reward_xp: 400
+            },
+            {
+                title: 'Chasse au Loup-Gris Sauvage', description: 'Les loups féroces rôdent aux abords d\'Eldoria.',
+                objective: 'Traque et neutralise le Loup-Gris des Terres Sauvages.',
+                type: 'side', rank_required: 'F', reward_col: 300, reward_xp: 200, subLocation: 'Forêt des Gobelins'
+            },
+            {
+                title: 'Exploration des Mines de Cobalt', description: 'Des anomalies magiques perturbent la mine.',
+                objective: 'Explore la Mine de Cobalt et sécurise le secteur.',
+                type: 'side', rank_required: 'E', reward_col: 600, reward_xp: 450, subLocation: 'Valkyrr'
+            },
+            {
+                title: 'Escorte du Convoi d\'Éther', description: 'Un convoi marchand traverse la vallée des ombres.',
+                objective: 'Protège les marchands contre les attaques de bandits.',
+                type: 'side', rank_required: 'D', reward_col: 1200, reward_xp: 800, subLocation: 'Solis'
+            },
+            {
+                title: 'Infiltration du Marché Noir de Gheno', description: 'Obtiens des renseignements sur le syndicat criminel.',
+                objective: 'Infiltre le Marché Noir de Gheno sans te faire repérer.',
+                type: 'side', rank_required: 'C', reward_col: 2500, reward_xp: 1800, subLocation: 'Gheno souterrain'
+            },
+            {
+                title: 'Purification du Sanctuaire de Nécropolis', description: 'Des esprits affolés menacent la frontière des morts.',
+                objective: 'Purifie 3 stèles rituelles dans Nécropolis.',
+                type: 'side', rank_required: 'B', reward_col: 5000, reward_xp: 3500, subLocation: 'Nécropolis'
+            },
+            {
+                title: 'Traque de la Bête Céleste : Phénix d\'Or', description: 'Une bête légendaire s\'est éveillée dans le désert.',
+                objective: 'Affronte le Phénix d\'Or et récupère sa plume magique.',
+                type: 'boss', rank_required: 'A', reward_col: 12000, reward_xp: 8000, subLocation: 'Désert d\'Ambre'
+            },
+            {
+                title: 'Subjugation de l\'Hydre Abyssale', description: 'L\'entité primordiale émerge des profondeurs de Caelum.',
+                objective: 'Vaincs l\'Hydre Abyssale au sommet de l\'Abysse Inférieur.',
+                type: 'boss', rank_required: 'S', reward_col: 30000, reward_xp: 25000, subLocation: 'Caelum'
             }
         ];
 
