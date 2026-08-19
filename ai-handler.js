@@ -1293,12 +1293,12 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     const charDescPrompt = player.characterDescription ? `Character visual appearance: (${player.characterDescription}). ` : '';
 
     if (imageMatch) {
-        imagePromptText = `${charDescPrompt}${imageMatch[1].trim()}`;
+        imagePromptText = `${charDescPrompt}Epic shonen anime scene: ${imageMatch[1].trim()}, studio ufotable MAPPA style, vibrant anime visual, dynamic perspective`;
         content = content.replace(imageRegex, '').trim(); // Strip bracket from output
     } else {
         // Fallback automatic prompt from narrative and action text
         const cleanNarrative = content.replace(/[*_#\[\]]/g, ' ').substring(0, 180).trim();
-        imagePromptText = `${charDescPrompt}anime digital painting of ${player.name} (${player.class || 'adventurer'}) in ${player.location}, ${cleanNarrative}, high fantasy masterpiece, highly detailed, dynamic lighting, 8k resolution`;
+        imagePromptText = `${charDescPrompt}Epic shonen anime scene featuring ${player.name} (${player.class || 'hero'}) in ${player.location}, ${cleanNarrative}, studio ufotable MAPPA style masterpiece, dynamic action pose, cinematic lighting, 8k resolution`;
     }
 
     // Extract dynamic statistics changes from the text

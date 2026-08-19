@@ -108,9 +108,10 @@ async function sendWithImage(sock, jid, aiResponse) {
  * with a zero-config elegant Pollinations AI fallback.
  */
 async function generateHuggingFaceImage(prompt) {
-    const polishedPrompt = `${prompt}, anime style, beautiful digital illustration, high fantasy masterpiece, highly detailed, vibrant colors, aesthetic masterpiece, 8k resolution`;
+    const shonenAnimeBooster = "masterpiece, top quality, official shonen anime visual art, studio ufotable MAPPA style, highly detailed illustration, 8k resolution, crisp lineart, vibrant colors, dynamic anime lighting, cinematic fantasy shot";
+    const polishedPrompt = `${prompt}, ${shonenAnimeBooster}`;
 
-    // 0. Try local Python Diffusers execution if available
+    // 0. Try local Python Transformers/Diffusers execution if available
     try {
         const { execSync } = require('child_process');
         const path = require('path');
@@ -123,7 +124,7 @@ async function generateHuggingFaceImage(prompt) {
             return buf;
         }
     } catch (pyErr) {
-        // Fallback silently to HF Inference API or Pollinations
+        // Fallback silently
     }
 
     // 1. Try Hugging Face Inference API models if token exists
@@ -157,21 +158,24 @@ async function generateHuggingFaceImage(prompt) {
         }
     }
 
-    // 2. Fallback/Default: Pollinations AI (Flux / Anime model)
-    try {
-        console.log("[HF] Requesting image from Pollinations AI fallback (Flux Anime)...");
-        const encodedPrompt = encodeURIComponent(polishedPrompt);
-        const seed = Math.floor(Math.random() * 1000000);
-        const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&model=flux&nologo=true&seed=${seed}`;
-        const response = await axios.get(pollUrl, {
-            responseType: 'arraybuffer',
-            timeout: 25000
-        });
-        if (response.data && response.data.byteLength > 1000) {
-            return Buffer.from(response.data);
+    // 2. Pollinations AI (Flux / Anime model with enhanced parameters)
+    const modelsToTry = ['flux-anime', 'flux', 'turbo'];
+    for (const modelName of modelsToTry) {
+        try {
+            console.log(`[HF] Requesting image from Pollinations AI (${modelName})...`);
+            const encodedPrompt = encodeURIComponent(polishedPrompt);
+            const seed = Math.floor(Math.random() * 1000000);
+            const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&model=${modelName}&nologo=true&seed=${seed}&enhance=true`;
+            const response = await axios.get(pollUrl, {
+                responseType: 'arraybuffer',
+                timeout: 25000
+            });
+            if (response.data && response.data.byteLength > 1000) {
+                return Buffer.from(response.data);
+            }
+        } catch (e) {
+            console.warn(`[HF] Pollinations AI model ${modelName} failed:`, e.message);
         }
-    } catch (e) {
-        console.error("[HF] Fallback image generation also failed:", e.message);
     }
     return null;
 }
