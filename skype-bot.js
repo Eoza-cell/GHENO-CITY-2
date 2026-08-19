@@ -12,11 +12,8 @@ const { default: PQueue } = require('p-queue');
 const { Sequelize } = require('sequelize');
 const { setupDatabase, Player } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
-const { handleCommand, getJid } = require('./command-handler');
-const { startTutorial } = require('./tutorial-handler');
-const { startDayNightCycle } = require('./game-state');
-const { startModelServer } = require('./model-server');
-const { startProactiveAIEngagement } = require('./proactive-engagement');
+const { getJid } = require('./command-handler');
+const { recordGroupMessage, isBotMentioned, generateHumanReply, generateIntelligenceReport, startReportScheduler } = require('./spy-handler');
 
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
@@ -247,11 +244,10 @@ async function connectToWhatsApp() {
 
       try {
           const botJid = jidNormalizedUser(sock.user.id);
-          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - After the Rebirth (ATR) est en ligne." });
+          sock.sendMessage(botJid, { text: "🕵️‍♂️ *BOT ESPION OPÉRATIONNEL* - Surveillance & Rapports activés." });
       } catch (e) {}
 
-      startDayNightCycle();
-      startProactiveAIEngagement(sock);
+      startReportScheduler(sock);
     }
   });
 
@@ -264,55 +260,61 @@ async function connectToWhatsApp() {
     for (const message of m.messages) {
         messageQueue.add(async () => {
             try {
-                if (!message.message) return;
+                if (!message.message || message.key.fromMe) return;
 
-                const jid = getJid(message);
-                if (!jid) return;
+                const remoteJid = message.key.remoteJid;
+                if (!remoteJid) return;
 
-                const player = await Player.findOne({ where: { whatsappId: jid } });
+                const text = message.message.conversation ||
+                             message.message.extendedTextMessage?.text ||
+                             message.message.imageMessage?.caption || '';
 
-                // Handle profile picture submission
-                if (player && player.awaitingProfilePic) {
-                    const type = getContentType(message.message);
-                    if (type === 'imageMessage') {
-                        try {
-                            console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
-                            const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
+                const senderJid = getJid(message) || remoteJid;
+                const senderName = message.pushName || senderJid.split('@')[0];
 
-                            const idPart = jid.includes('@') ? jid.split('@')[0] : jid;
-                            const filename = `${idPart}.jpg`;
-                            const filepath = path.join('assets', 'profiles', filename);
+                // 1. Group Message Spy Recording
+                if (remoteJid.endsWith('@g.us')) {
+                    let groupName = 'Groupe';
+                    try {
+                        const groupMeta = await sock.groupMetadata(remoteJid);
+                        groupName = groupMeta.subject || 'Groupe';
+                    } catch (e) {}
 
-                            fs.writeFileSync(filepath, buffer);
-
-                            await player.update({
-                                profilePicUrl: filepath,
-                                awaitingProfilePic: false
-                            });
-
-                            console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                            await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
-
-                            // Trigger tutorial after profile pic
-                            await startTutorial(sock, message.key.remoteJid, player);
-                            return;
-                        } catch (error) {
-                            console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
-                            await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
-                            return;
-                        }
-                    } else {
-                         // Only warn if it's not a command
-                         const text = message.message.conversation || message.message.extendedTextMessage?.text || message.message.buttonsResponseMessage?.selectedButtonId;
-                         if (!text || !text.startsWith('/')) {
-                             await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
-                             return;
-                         }
+                    if (text) {
+                        await recordGroupMessage({
+                            groupJid: remoteJid,
+                            groupName,
+                            senderJid,
+                            senderName,
+                            messageText: text
+                        });
                     }
                 }
 
-                // If not a profile pic submission, handle as a normal command/message
-                await handleCommand(sock, message, downloadMediaMessage);
+                // 2. Manual On-Demand Report Command (/rapport)
+                if (text.trim().toLowerCase() === '/rapport' || text.trim().toLowerCase().startsWith('/rapport ')) {
+                    const report = await generateIntelligenceReport({
+                        groupJid: remoteJid.endsWith('@g.us') ? remoteJid : null,
+                        periodName: 'Sur Demande'
+                    });
+                    await sock.sendMessage(remoteJid, { text: report });
+                    return;
+                }
+
+                // 3. Natural Human Response when tagged/mentioned or in DM
+                if (isBotMentioned(message, sock)) {
+                    let groupName = 'ce groupe';
+                    if (remoteJid.endsWith('@g.us')) {
+                        try {
+                            const groupMeta = await sock.groupMetadata(remoteJid);
+                            groupName = groupMeta.subject || 'ce groupe';
+                        } catch (e) {}
+                    }
+
+                    const humanReply = await generateHumanReply(text, senderName, groupName);
+                    await sock.sendMessage(remoteJid, { text: humanReply }, { quoted: message });
+                }
+
             } catch (globalError) {
                 console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
             }
@@ -324,11 +326,7 @@ async function connectToWhatsApp() {
 if (require.main === module) {
   setupDatabase()
     .then(async () => {
-      console.log('[CORE] Base de données prête. Lancement du bot...');
-
-      // Démarre le 2ème serveur pour le modèle DARK LUST
-      startModelServer();
-
+      console.log('[CORE] Base de données prête. Lancement du bot espion...');
       connectToWhatsApp();
     })
     .catch(err => {

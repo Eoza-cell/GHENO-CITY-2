@@ -451,6 +451,18 @@ const RPMessage = sequelize.define('RPMessage', {
     timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
 
+const GroupMessage = sequelize.define('GroupMessage', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    groupJid: { type: DataTypes.STRING },
+    groupName: { type: DataTypes.STRING, allowNull: true },
+    senderJid: { type: DataTypes.STRING },
+    senderNumber: { type: DataTypes.STRING },
+    senderName: { type: DataTypes.STRING },
+    messageText: { type: DataTypes.TEXT },
+    messageType: { type: DataTypes.STRING, defaultValue: 'text' },
+    timestamp: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
+});
+
 const WorldJournal = sequelize.define('WorldJournal', {
     entry: { type: DataTypes.TEXT },
     importance: { type: DataTypes.INTEGER, defaultValue: 1 },
@@ -596,6 +608,7 @@ async function setupDatabase() {
       Kingdoms: Kingdom.rawAttributes,
       Schools: School.rawAttributes,
       RPMessages: RPMessage.rawAttributes,
+      GroupMessages: GroupMessage.rawAttributes,
       WorldJournals: WorldJournal.rawAttributes,
       Dungeons: Dungeon.rawAttributes
     };
@@ -1397,6 +1410,6 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   mediaSequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant, MediaAsset,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, GroupMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant, MediaAsset,
   setupDatabase,
 };
