@@ -1286,13 +1286,17 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     };
     content = sanitizeGodmoding(content, player.name);
 
-    // Parse image generation bracket [IMAGE: ...] from content
+    // Parse image generation bracket [IMAGE: ...] from content, or fallback to auto-constructing an action image prompt
     let imagePromptText = null;
     const imageRegex = /\[IMAGE:\s*([^\]]+)\]/i;
     const imageMatch = content.match(imageRegex);
     if (imageMatch) {
         imagePromptText = imageMatch[1].trim();
         content = content.replace(imageRegex, '').trim(); // Strip bracket from output
+    } else {
+        // Fallback automatic prompt from narrative and action text
+        const cleanNarrative = content.replace(/[*_#\[\]]/g, ' ').substring(0, 180).trim();
+        imagePromptText = `anime digital painting of ${player.name} in ${player.location}, ${cleanNarrative}, high fantasy, highly detailed, dynamic lighting`;
     }
 
     // Extract dynamic statistics changes from the text
