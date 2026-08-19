@@ -3094,21 +3094,21 @@ async function handleCommand(sock, message, downloadMediaMessage) {
           const age = parseInt(messageText.trim());
           if (!isNaN(age) && age > 0 && age < 150) {
               await player.update({ age, registrationStep: 'awaiting_description' });
-              await sock.sendMessage(replyJid, { text: `Très bien. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
+              await sock.sendMessage(replyJid, { text: `Très bien. Maintenant, décris l'apparence physique détaillée de ton personnage (jusqu'à 1000 caractères max : yeux, cheveux, tenue, cicatrices, aura, style, etc.). Cette description sera utilisée pour générer tes images de jeu !` });
           } else {
               await sock.sendMessage(replyJid, { text: "Âge invalide. Réessaie." });
           }
       } else if (player.registrationStep === 'awaiting_description') {
         const description = messageText.trim();
-        if (description.length > 10 && description.length <= 150) {
+        if (description.length >= 5 && description.length <= 1000) {
             await player.update({
                 characterDescription: description,
                 registrationStep: null, // Registration finished
                 awaitingProfilePic: true
             });
-            await sock.sendMessage(replyJid, { text: `« Je vois... Ton essence commence à se stabiliser. »\n\nDescription enregistrée ! Pour terminer, envoie une image qui représentera ton personnage. Elle sera gravée dans la matrice d'Aetherys.` });
+            await sock.sendMessage(replyJid, { text: `« Je vois... Ton essence commence à se stabiliser. »\n\nDescription enregistrée (${description.length}/1000 caractères) ! Pour terminer, envoie une image qui représentera ton personnage. Elle sera gravée dans la matrice d'ATR.` });
         } else {
-            await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères). Réessaie." });
+            await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (5-1000 caractères). Réessaie." });
         }
       }
       return;

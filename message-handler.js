@@ -108,15 +108,15 @@ async function sendWithImage(sock, jid, aiResponse) {
  * with a zero-config elegant Pollinations AI fallback.
  */
 async function generateHuggingFaceImage(prompt) {
-    const polishedPrompt = `${prompt}, anime style, beautiful digital illustration, high fantasy, highly detailed, vibrant colors, aesthetic masterpiece`;
+    const polishedPrompt = `${prompt}, anime style, beautiful digital illustration, high fantasy masterpiece, highly detailed, vibrant colors, aesthetic masterpiece, 8k resolution`;
 
-    // 0. Try local Python Krea Diffusers execution if available
+    // 0. Try local Python Diffusers execution if available
     try {
         const { execSync } = require('child_process');
         const path = require('path');
-        const tmpOut = path.join(__dirname, 'assets', `krea_out_${Date.now()}.png`);
+        const tmpOut = path.join(__dirname, 'assets', `gen_out_${Date.now()}.png`);
         const pyScript = path.join(__dirname, 'generate_krea_image.py');
-        execSync(`python3 "${pyScript}" "${polishedPrompt.replace(/"/g, '')}" "${tmpOut}"`, { timeout: 15000, stdio: 'ignore' });
+        execSync(`python3 "${pyScript}" "${polishedPrompt.replace(/"/g, '')}" "${tmpOut}"`, { timeout: 25000, stdio: 'ignore' });
         if (fs.existsSync(tmpOut)) {
             const buf = fs.readFileSync(tmpOut);
             fs.unlinkSync(tmpOut);
@@ -126,40 +126,47 @@ async function generateHuggingFaceImage(prompt) {
         // Fallback silently to HF Inference API or Pollinations
     }
 
-    // 1. Try Hugging Face Inference API if token exists
+    // 1. Try Hugging Face Inference API models if token exists
     if (process.env.HF_TOKEN) {
-        try {
-            console.log("[HF] Requesting image from Hugging Face Inference API (krea/Krea-2-Turbo)...");
-            const response = await axios.post(
-                "https://api-inference.huggingface.co/models/krea/Krea-2-Turbo",
-                { inputs: polishedPrompt },
-                {
-                    headers: {
-                        Authorization: `Bearer ${process.env.HF_TOKEN}`,
-                        "Content-Type": "application/json"
-                    },
-                    responseType: 'arraybuffer',
-                    timeout: 20000
+        const hfModels = [
+            "cagliostrolab/animagine-xl-3.1",
+            "black-forest-labs/FLUX.1-schnell",
+            "krea/Krea-2-Turbo"
+        ];
+        for (const model of hfModels) {
+            try {
+                console.log(`[HF] Requesting image from Hugging Face Inference API (${model})...`);
+                const response = await axios.post(
+                    `https://api-inference.huggingface.co/models/${model}`,
+                    { inputs: polishedPrompt },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${process.env.HF_TOKEN}`,
+                            "Content-Type": "application/json"
+                        },
+                        responseType: 'arraybuffer',
+                        timeout: 20000
+                    }
+                );
+                if (response.data && response.data.byteLength > 1000) {
+                    return Buffer.from(response.data);
                 }
-            );
-            if (response.data && response.data.byteLength > 1000) {
-                return Buffer.from(response.data);
+            } catch (e) {
+                console.warn(`[HF] Hugging Face Inference for ${model} failed: ${e.message}`);
             }
-        } catch (e) {
-            console.warn("[HF] Hugging Face Inference failed, falling back to Pollinations:", e.message);
         }
     }
 
-    // 2. Fallback/Default: Pollinations AI (highly resilient, gorgeous, zero config)
+    // 2. Fallback/Default: Pollinations AI (Flux / Anime model)
     try {
-        console.log("[HF] Requesting image from Pollinations AI fallback...");
-        const response = await axios.get(
-            `https://image.pollinations.ai/prompt/${encodeURIComponent(polishedPrompt)}?width=1024&height=768&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`,
-            {
-                responseType: 'arraybuffer',
-                timeout: 20000
-            }
-        );
+        console.log("[HF] Requesting image from Pollinations AI fallback (Flux Anime)...");
+        const encodedPrompt = encodeURIComponent(polishedPrompt);
+        const seed = Math.floor(Math.random() * 1000000);
+        const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&model=flux&nologo=true&seed=${seed}`;
+        const response = await axios.get(pollUrl, {
+            responseType: 'arraybuffer',
+            timeout: 25000
+        });
         if (response.data && response.data.byteLength > 1000) {
             return Buffer.from(response.data);
         }

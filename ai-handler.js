@@ -1290,13 +1290,15 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     let imagePromptText = null;
     const imageRegex = /\[IMAGE:\s*([^\]]+)\]/i;
     const imageMatch = content.match(imageRegex);
+    const charDescPrompt = player.characterDescription ? `Character visual appearance: (${player.characterDescription}). ` : '';
+
     if (imageMatch) {
-        imagePromptText = imageMatch[1].trim();
+        imagePromptText = `${charDescPrompt}${imageMatch[1].trim()}`;
         content = content.replace(imageRegex, '').trim(); // Strip bracket from output
     } else {
         // Fallback automatic prompt from narrative and action text
         const cleanNarrative = content.replace(/[*_#\[\]]/g, ' ').substring(0, 180).trim();
-        imagePromptText = `anime digital painting of ${player.name} in ${player.location}, ${cleanNarrative}, high fantasy, highly detailed, dynamic lighting`;
+        imagePromptText = `${charDescPrompt}anime digital painting of ${player.name} (${player.class || 'adventurer'}) in ${player.location}, ${cleanNarrative}, high fantasy masterpiece, highly detailed, dynamic lighting, 8k resolution`;
     }
 
     // Extract dynamic statistics changes from the text
