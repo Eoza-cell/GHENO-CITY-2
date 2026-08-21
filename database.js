@@ -212,6 +212,18 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  spouseJid: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  equippedTitle: {
+    type: DataTypes.STRING,
+    defaultValue: "Aventurier Novice",
+  },
+  badges: {
+    type: DataTypes.TEXT,
+    defaultValue: '["🔰 Novice"]',
+  },
   schoolName: {
     type: DataTypes.STRING,
     defaultValue: 'Aucune',

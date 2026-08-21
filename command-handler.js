@@ -3011,6 +3011,293 @@ commands.set('i', (...args) => commands.get('inventory')(...args));
 commands.set('q', (...args) => commands.get('quests')(...args));
 commands.set('s', (...args) => commands.get('competences')(...args));
 
+// OVL-MD-V2 Inspired RP Feature: Marriage / Soulbond System
+const pendingProposals = new Map(); // targetJid -> { proposerJid, time }
+
+commands.set('marry', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  if (player.spouseJid) {
+    await sock.sendMessage(replyJid, { text: `💍 Tu es déjà uni(e) à un(e) partenaire dans le monde d'ATR ! Tape /divorce pour rompre ton lien.` });
+    return;
+  }
+
+  const { mentions } = await resolveMentions(message.message.extendedTextMessage?.text || "");
+  const targetJid = mentions[0] || (message.message.extendedTextMessage?.contextInfo?.participant);
+
+  if (!targetJid || targetJid === jid) {
+    await sock.sendMessage(replyJid, { text: `💍 Mentionne la personne avec qui tu souhaites t'unir ! Ex: \`/marry @Joueur\`` });
+    return;
+  }
+
+  const spouse = await Player.findOne({ where: { whatsappId: targetJid } });
+  if (!spouse) {
+    await sock.sendMessage(replyJid, { text: `❌ Ce joueur n'est pas enregistré dans la matrice ATR.` });
+    return;
+  }
+
+  if (spouse.spouseJid) {
+    await sock.sendMessage(replyJid, { text: `💔 ${spouse.name} est déjà marié(e) avec un autre aventurier !` });
+    return;
+  }
+
+  pendingProposals.set(targetJid, { proposerJid: jid, proposerName: player.name });
+  await sock.sendMessage(replyJid, { text: `💍 *PROPOSITION DE MARIAGE / SOULBOND* 💍\n\n✨ **${player.name}** demande la main de **${spouse.name}** !\n\n👉 **${spouse.name}**, tape \`/accepter_mariage\` pour sceller cette union sacrée et débloquer +10% de régénération d'énergie et de points de vie !` });
+});
+
+commands.set('marier', commands.get('marry'));
+
+commands.set('accepter_mariage', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const proposal = pendingProposals.get(jid);
+
+  if (!proposal) {
+    await sock.sendMessage(replyJid, { text: `❌ Tu n'as aucune demande de mariage en attente.` });
+    return;
+  }
+
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  const spouse = await Player.findOne({ where: { whatsappId: proposal.proposerJid } });
+
+  if (!player || !spouse) return;
+
+  await player.update({ spouseJid: spouse.whatsappId });
+  await spouse.update({ spouseJid: player.whatsappId });
+  pendingProposals.delete(jid);
+
+  await sock.sendMessage(replyJid, { text: `💖 *UNION SCELLÉE DANS ATR !* 💖\n\n✨ **${player.name}** et **${spouse.name}** sont désormais unis par le Soulbond !\n\n🎁 *Bonus de Couple :* +10% de Récupération de Vitalité & SP lors de vos aventures communes !` });
+});
+
+commands.set('divorce', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player || !player.spouseJid) {
+    await sock.sendMessage(replyJid, { text: `❌ Tu n'es marié(e) à personne.` });
+    return;
+  }
+
+  const spouse = await Player.findOne({ where: { whatsappId: player.spouseJid } });
+  await player.update({ spouseJid: null });
+  if (spouse) await spouse.update({ spouseJid: null });
+
+  await sock.sendMessage(replyJid, { text: `💔 **RUPTURE DU LIEN !** L'union entre ${player.name} et ${spouse ? spouse.name : 'son partenaire'} est dissoute.` });
+});
+
+commands.set('couple', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player || !player.spouseJid) {
+    await sock.sendMessage(replyJid, { text: `💍 Tu n'es pas marié(e). Tape \`/marry @joueur\` pour te lier à quelqu'un !` });
+    return;
+  }
+
+  const spouse = await Player.findOne({ where: { whatsappId: player.spouseJid } });
+  await sock.sendMessage(replyJid, { text: `💖 *CARTE DE COUPLE - SOULBOND ATR* 💖\n\n👩‍❤️‍👨 **Partenaires :** ${player.name} 💞 ${spouse ? spouse.name : 'Inconnu'}\n✨ **Niveau du Lien :** Rang S\n🛡️ **Bonus d'Union :** +10% Vitalité & Régénération Énergie\n📍 **Lieu d'origine :** ${player.location}` });
+});
+
+// OVL-MD-V2 Inspired RP Feature: PvP Turn-Based Duel System
+const activeDuels = new Map(); // targetJid -> { challengerJid, betCol }
+
+commands.set('duel', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  const { mentions } = await resolveMentions(message.message.extendedTextMessage?.text || "");
+  const targetJid = mentions[0] || (message.message.extendedTextMessage?.contextInfo?.participant);
+  const betCol = parseInt(args.find(a => !isNaN(a) && parseInt(a) > 0)) || 0;
+
+  if (!targetJid || targetJid === jid) {
+    await sock.sendMessage(replyJid, { text: `⚔️ Mentionne ton adversaire pour le défier en duel ! Ex: \`/duel @Adversaire 100\`` });
+    return;
+  }
+
+  if (betCol > player.col) {
+    await sock.sendMessage(replyJid, { text: `🪙 Tu n'as pas assez de Col (${player.col} Col dispos) pour miser ${betCol} Col.` });
+    return;
+  }
+
+  const opponent = await Player.findOne({ where: { whatsappId: targetJid } });
+  if (!opponent) {
+    await sock.sendMessage(replyJid, { text: `❌ Cet adversaire n'est pas enregistré.` });
+    return;
+  }
+
+  activeDuels.set(targetJid, { challengerJid: jid, betCol });
+  await sock.sendMessage(replyJid, { text: `⚔️ *DEFIS EN ARÈNE DE DUEL ATR !* ⚔️\n\n🛡️ **${player.name}** (Niv.${player.level}) défie **${opponent.name}** (Niv.${opponent.level}) en duel d'honneur !\n🪙 **Mise en jeu :** ${betCol} Col\n\n👉 **${opponent.name}**, tape \`/accepter_duel\` pour entrer dans l'arène ou \`/refuser_duel\` pour décliner !` });
+});
+
+commands.set('arene', commands.get('duel'));
+
+commands.set('accepter_duel', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const duel = activeDuels.get(jid);
+
+  if (!duel) {
+    await sock.sendMessage(replyJid, { text: `❌ Aucun duel en attente.` });
+    return;
+  }
+
+  const defender = await Player.findOne({ where: { whatsappId: jid } });
+  const attacker = await Player.findOne({ where: { whatsappId: duel.challengerJid } });
+
+  if (!defender || !attacker) return;
+  activeDuels.delete(jid);
+
+  // Combat calculation based on stats
+  const p1Power = (attacker.strength * 2.5) + (attacker.agility * 2.0) + (attacker.intelligence * 1.5) + (attacker.level * 10);
+  const p2Power = (defender.strength * 2.5) + (defender.agility * 2.0) + (defender.intelligence * 1.5) + (defender.level * 10);
+
+  const roll1 = Math.floor(Math.random() * 30);
+  const roll2 = Math.floor(Math.random() * 30);
+
+  const total1 = p1Power + roll1;
+  const total2 = p2Power + roll2;
+
+  let winner, loser;
+  if (total1 >= total2) {
+    winner = attacker;
+    loser = defender;
+  } else {
+    winner = defender;
+    loser = attacker;
+  }
+
+  if (duel.betCol > 0) {
+    await winner.increment('col', { by: duel.betCol });
+    await loser.decrement('col', { by: Math.min(loser.col, duel.betCol) });
+  }
+
+  await winner.increment('xp', { by: 50 });
+  await winner.increment('rankPoints', { by: 15 });
+
+  await sock.sendMessage(replyJid, {
+    text: `🏟️ *RÉSULTAT DU DUEL EN ARÈNE !* 🏟️\n\n` +
+          `💥 **${attacker.name}** [Puissance: ${Math.round(total1)}] ⚔️ **${defender.name}** [Puissance: ${Math.round(total2)}]\n\n` +
+          `🏆 **VICTOIRE ÉCLATANTE DE ${winner.name.toUpperCase()} !**\n` +
+          `🪙 **Gain :** +${duel.betCol} Col • ✨ +50 XP • 🏆 +15 Points d'Arène !`
+  });
+});
+
+commands.set('refuser_duel', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  if (activeDuels.has(jid)) {
+    activeDuels.delete(jid);
+    await sock.sendMessage(replyJid, { text: `🛡️ Tu as décliné le duel.` });
+  }
+});
+
+// OVL-MD-V2 Inspired RP Feature: Titles & Badges System
+commands.set('titre', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  const availableTitles = [
+    "Aventurier Novice",
+    "Chasseur de Béhérits",
+    "Épée de l'Ombre",
+    "Souverain du Néant",
+    "Maître des Flammes",
+    "Héros d'Eldoria",
+    "Légende d'ATR"
+  ];
+
+  if (args[0] === 'equip' && args.slice(1).length > 0) {
+    const chosen = args.slice(1).join(' ');
+    const match = availableTitles.find(t => t.toLowerCase() === chosen.toLowerCase());
+    if (match) {
+      await player.update({ equippedTitle: match });
+      await sock.sendMessage(replyJid, { text: `✨ *TITRE ÉQUIPÉ !* Tu portes désormais le titre de : **« ${match} »** !` });
+      return;
+    } else {
+      await sock.sendMessage(replyJid, { text: `❌ Titre inconnu. Choisis parmi la liste.` });
+      return;
+    }
+  }
+
+  let text = `📜 *GESTION DES TITRES ATR* 📜\n\n` +
+             `👤 **Titre Actuel :** « ${player.equippedTitle || "Aventurier Novice"} »\n\n` +
+             `🏆 **Titres disponibles à équiper :**\n`;
+  availableTitles.forEach((t, i) => {
+    text += `${i + 1}. « ${t} »\n`;
+  });
+  text += `\n👉 Pour équiper un titre : \`/titre equip [Nom du titre]\` (Ex: \`/titre equip Héros d'Eldoria\`)`;
+
+  await sock.sendMessage(replyJid, { text });
+});
+
+commands.set('titres', commands.get('titre'));
+
+commands.set('badges', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  let badgeList = [];
+  try { badgeList = JSON.parse(player.badges || '[]'); } catch(e) { badgeList = ["🔰 Novice"]; }
+
+  if (player.level >= 10 && !badgeList.includes("⚔️ Vétéran")) badgeList.push("⚔️ Vétéran");
+  if (player.isGod && !badgeList.includes("👑 Dieu Créateur")) badgeList.push("👑 Dieu Créateur");
+  if (player.spouseJid && !badgeList.includes("💍 Âme Soeur")) badgeList.push("💍 Âme Soeur");
+
+  await player.update({ badges: JSON.stringify(badgeList) });
+
+  let text = `🎖️ *BADGES D'HONNEUR - ${player.name.toUpperCase()}* 🎖️\n\n`;
+  badgeList.forEach(b => {
+    text += `├ ${b}\n`;
+  });
+  text += `\n✨ Accomplis des hauts faits dans le monde d'ATR pour débloquer de nouveaux badges d'élite !`;
+
+  await sock.sendMessage(replyJid, { text });
+});
+
+// OVL-MD-V2 Inspired RP Feature: Casino & Dice Betting System
+commands.set('casino', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  const bet = parseInt(args[0]);
+  if (isNaN(bet) || bet <= 0) {
+    await sock.sendMessage(replyJid, { text: `🎰 *CASINO DU MARCHÉ NOIR ATR* 🎰\n\nUsage: \`/casino [montant en Col]\` (Ex: \`/casino 100\`)` });
+    return;
+  }
+
+  if (bet > player.col) {
+    await sock.sendMessage(replyJid, { text: `🪙 Tu n'as pas assez de Col ! Solde : ${player.col} Col.` });
+    return;
+  }
+
+  const pRoll = Math.floor(Math.random() * 6) + 1;
+  const houseRoll = Math.floor(Math.random() * 6) + 1;
+
+  if (pRoll > houseRoll) {
+    const winAmount = bet * 2;
+    await player.increment('col', { by: bet });
+    await sock.sendMessage(replyJid, { text: `🎲 *VICTOIRE AU CASINO !* 🎲\n\n🎲 Ton dé : *${pRoll}* 🆚 Dé de la Banque : *${houseRoll}*\n🎉 Tu remportes **+${winAmount} Col** ! (Nouveau solde : ${player.col + bet} Col)` });
+  } else if (pRoll < houseRoll) {
+    await player.decrement('col', { by: bet });
+    await sock.sendMessage(replyJid, { text: `🎲 *DÉFAITE AU CASINO !* 🎲\n\n🎲 Ton dé : *${pRoll}* 🆚 Dé de la Banque : *${houseRoll}*\n💸 Tu perds **-${bet} Col**. (Nouveau solde : ${player.col - bet} Col)` });
+  } else {
+    await sock.sendMessage(replyJid, { text: `🎲 *ÉGALITÉ !* 🎲\n\n🎲 Ton dé : *${pRoll}* 🆚 Dé de la Banque : *${houseRoll}*\n🪙 La banque te rembourse ta mise de ${bet} Col.` });
+  }
+});
+
+commands.set('des', commands.get('casino'));
+
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {
   if (message.key.fromMe) return;
