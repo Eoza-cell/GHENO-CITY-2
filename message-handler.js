@@ -126,16 +126,17 @@ async function generateHuggingFaceImage(prompt) {
         // Fallback silently to HF Inference API or Pollinations
     }
 
-    // 1. Try Hugging Face Inference API models if token exists
+    // 1. Try Flagship Hugging Face Inference API models if token exists
     if (process.env.HF_TOKEN) {
         const hfModels = [
-            "cagliostrolab/animagine-xl-3.1",
+            "black-forest-labs/FLUX.1-dev",
             "black-forest-labs/FLUX.1-schnell",
-            "krea/Krea-2-Turbo"
+            "cagliostrolab/animagine-xl-3.1",
+            "stabilityai/stable-diffusion-3.5-large"
         ];
         for (const model of hfModels) {
             try {
-                console.log(`[HF] Requesting image from Hugging Face Inference API (${model})...`);
+                console.log(`[HF Flagship] Requesting high-resolution image from Hugging Face (${model})...`);
                 const response = await axios.post(
                     `https://api-inference.huggingface.co/models/${model}`,
                     { inputs: polishedPrompt },
@@ -145,22 +146,23 @@ async function generateHuggingFaceImage(prompt) {
                             "Content-Type": "application/json"
                         },
                         responseType: 'arraybuffer',
-                        timeout: 20000
+                        timeout: 30000
                     }
                 );
                 if (response.data && response.data.byteLength > 1000) {
                     return Buffer.from(response.data);
                 }
             } catch (e) {
-                console.warn(`[HF] Hugging Face Inference for ${model} failed: ${e.message}`);
+                console.warn(`[HF Flagship] Hugging Face model ${model} failed: ${e.message}`);
             }
         }
     }
 
-    // 2. Public Hugging Face open inference endpoints fallback
+    // 2. Public Flagship Hugging Face open inference endpoints fallback
     const publicHfEndpoints = [
-        "https://api-inference.huggingface.co/models/cagliostrolab/animagine-xl-3.1",
-        "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+        "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev",
+        "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
+        "https://api-inference.huggingface.co/models/cagliostrolab/animagine-xl-3.1"
     ];
 
     for (const endpoint of publicHfEndpoints) {
