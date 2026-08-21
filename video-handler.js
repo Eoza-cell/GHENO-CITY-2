@@ -50,19 +50,15 @@ async function generateHuggingFaceVideo(prompt) {
         }
     }
 
-    // 1. Pollinations / Luma video fallback API
+    // 1. Hugging Face Image Keyframe + ffmpeg video rendering fallback
     try {
-        console.log(`[HF Video] Requesting video from Pollinations Video API...`);
-        const encoded = encodeURIComponent(polishedPrompt);
-        const seed = Math.floor(Math.random() * 1000000);
-        const videoUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=576&model=flux&nologo=true&seed=${seed}`;
-
-        // Fetch generated keyframe and convert to 3-second MP4 loop using ffmpeg if installed
-        const imgResponse = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 25000 });
-        if (imgResponse.data && imgResponse.data.byteLength > 1000) {
+        console.log(`[HF Video] Generating keyframe via Hugging Face Transformers for video loop...`);
+        const { generateHuggingFaceImage } = require('./message-handler');
+        const imgBuffer = await generateHuggingFaceImage(polishedPrompt);
+        if (imgBuffer) {
             const tmpImg = path.join(__dirname, 'assets', `v_frame_${Date.now()}.png`);
             const tmpVid = path.join(__dirname, 'assets', `v_out_${Date.now()}.mp4`);
-            fs.writeFileSync(tmpImg, Buffer.from(imgResponse.data));
+            fs.writeFileSync(tmpImg, imgBuffer);
 
             try {
                 execSync(`ffmpeg -y -loop 1 -i "${tmpImg}" -c:v libx264 -t 3 -pix_fmt yuv420p "${tmpVid}"`, { stdio: 'ignore', timeout: 15000 });

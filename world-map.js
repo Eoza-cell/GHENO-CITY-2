@@ -152,12 +152,14 @@ async function generateWorldMapImage() {
     if (!bgBuffer) {
         try {
             const prompt = 'ultra detailed epic fantasy world map, parchment texture, ancient continents, oceans, mountains, rivers, cartography masterpiece, D&D fantasy map style';
-            const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) + '?width=1400&height=1000&nologo=true&seed=999';
-            const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
-            bgBuffer = Buffer.from(res.data);
-            fs.writeFileSync(bgPath, bgBuffer);
+            const { generateHuggingFaceImage } = require('./message-handler');
+            const hfBuf = await generateHuggingFaceImage(prompt);
+            if (hfBuf) {
+                bgBuffer = hfBuf;
+                fs.writeFileSync(bgPath, bgBuffer);
+            }
         } catch (e) {
-            console.warn("[WORLD MAP] Could not fetch online map background, using fallback color:", e.message);
+            console.warn("[WORLD MAP] Could not fetch map background via Hugging Face, using fallback color:", e.message);
         }
     }
 

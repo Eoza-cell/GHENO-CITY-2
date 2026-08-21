@@ -1167,11 +1167,11 @@ async function setupDatabase() {
     }
 
     const npcsToSeed = [
-        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', subLocation: 'Tour de la Main', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
-        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', subLocation: 'Miroir Déformé', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
-        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', subLocation: 'Trône du Jugement', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
-        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', subLocation: 'Bureau du Directeur', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
-        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', subLocation: "Château d'Eldoria", powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
+        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', subLocation: 'Tour de la Main', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: null },
+        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', subLocation: 'Miroir Déformé', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: null },
+        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', subLocation: 'Trône du Jugement', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: null },
+        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', subLocation: 'Bureau du Directeur', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: null },
+        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', subLocation: "Château d'Eldoria", powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: null },
     ];
     for (const npc of npcsToSeed) {
         const [npcInstance, created] = await NPC.findOrCreate({
@@ -1234,7 +1234,7 @@ async function setupDatabase() {
                     location,
                     powerLevel: power,
                     specialty: behavior,
-                    imageUrl: `https://images.pollinations.ai/prompt/Anime%20style%20portrait%20of%20${role}%20character%20${firstName}%20in%20${location}?model=flux-anime`
+                    imageUrl: null
                 });
             }
             await NPC.bulkCreate(batch, { ignoreDuplicates: true });

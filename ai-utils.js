@@ -557,103 +557,17 @@ async function callBlackbox(system, prompt, options = {}) {
     return null;
 }
 
-async function callPollinationsGen(system, prompt, options = {}) {
-    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'searchgpt'];
-    const key = process.env.POLLINATIONS_API_KEY;
-    const jsonMode = options.jsonMode !== false;
-
-    for (const model of models) {
-        try {
-            console.log(`[AI] Pollinations Gen - Tentative avec ${model}...`);
-            const headers = { 'Content-Type': 'application/json' };
-            if (key) headers['Authorization'] = `Bearer ${key}`;
-
-            const payload = {
-                model: model,
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                stream: false
-            };
-            if (jsonMode) {
-                payload.jsonMode = true;
-            }
-
-            const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", payload, {
-                headers,
-                timeout: 20000
-            });
-
-            const content = resp.data?.choices?.[0]?.message?.content;
-            if (isValidAIResponse(content)) return content;
-        } catch (e) {
-            console.warn(`[AI] Pollinations Gen Error (${model}):`, e.response?.data || e.message);
-            continue;
-        }
-    }
-    return null;
-}
-
-async function callPollinationsPOST(system, prompt, options = {}) {
-    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'unity', 'evil', 'p1', 'searchgpt'];
-    const jsonMode = options.jsonMode !== false;
-
-    for (const model of models) {
-        try {
-            console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
-            const payload = {
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                model: model,
-                seed: Math.floor(Math.random() * 1000000),
-                cache: false
-            };
-            if (jsonMode) {
-                payload.jsonMode = true;
-            }
-
-            const resp = await axios.post("https://text.pollinations.ai/", payload, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
-                },
-                timeout: 30000
-            });
-
-            const content = parsePuterResponse(resp.data);
-            if (isValidAIResponse(content)) return content;
-        } catch (e) {
-            console.warn(`[AI] Pollinations POST Error (${model}):`, e.response?.data || e.message);
-            continue;
-        }
-    }
-    return null;
-}
-
-async function callPollinationsGET(system, prompt, options = {}) {
-    const models = ['openai-fast', 'gpt-oss-20b'];
-    const jsonMode = options.jsonMode !== false;
-    for (const model of models) {
-        try {
-            console.log(`[AI] Pollinations GET - Tentative avec ${model}...`);
-            const cleanedPrompt = prompt.substring(prompt.length - 1000).replace(/["']/g, '');
-            const fullPrompt = encodeURIComponent(cleanedPrompt);
-            const systemEncoded = encodeURIComponent(system.substring(0, 800).replace(/["']/g, ''));
-            const seed = Math.floor(Math.random() * 1000000);
-
-            let url = `https://text.pollinations.ai/${fullPrompt}?model=${model}&seed=${seed}&system=${systemEncoded}`;
-            if (jsonMode) {
-                url += `&json=true`;
-            }
-
-            const resp = await axios.get(url, { timeout: 25000 });
-            if (isValidAIResponse(resp.data)) return resp.data;
-        } catch (e) {
-            console.warn(`[AI] Pollinations GET Error (${model}):`, e.message);
-        }
+async function callHuggingFaceLocal(system, prompt, options = {}) {
+    try {
+        console.log(`[AI] Executing Hugging Face Transformers local model...`);
+        const { execSync } = require('child_process');
+        const path = require('path');
+        const scriptPath = path.join(__dirname, 'transformer_model.py');
+        const combinedInput = `System: ${system}\nUser: ${prompt}`;
+        const output = execSync(`python3 "${scriptPath}" "${combinedInput.replace(/"/g, '')}"`, { timeout: 25000 }).toString();
+        if (isValidAIResponse(output)) return output;
+    } catch (e) {
+        console.warn(`[AI] Hugging Face Transformers local execution failed:`, e.message);
     }
     return null;
 }
@@ -926,9 +840,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
         { name: 'OmniBrain Proxy', fn: callOmniBrain },
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Pollinations POST', fn: callPollinationsPOST },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Pollinations Gen', fn: callPollinationsGen }
+        { name: 'Hugging Face Transformers (Local)', fn: callHuggingFaceLocal }
     ];
 
     const timeouts = [];

@@ -157,22 +157,63 @@ async function generateHuggingFaceImage(prompt) {
         }
     }
 
-    // 2. Fallback/Default: Pollinations AI (Flux / Anime model)
-    try {
-        console.log("[HF] Requesting image from Pollinations AI fallback (Flux Anime)...");
-        const encodedPrompt = encodeURIComponent(polishedPrompt);
-        const seed = Math.floor(Math.random() * 1000000);
-        const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=768&model=flux&nologo=true&seed=${seed}`;
-        const response = await axios.get(pollUrl, {
-            responseType: 'arraybuffer',
-            timeout: 25000
-        });
-        if (response.data && response.data.byteLength > 1000) {
-            return Buffer.from(response.data);
+    // 2. Public Hugging Face open inference endpoints fallback
+    const publicHfEndpoints = [
+        "https://api-inference.huggingface.co/models/cagliostrolab/animagine-xl-3.1",
+        "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+    ];
+
+    for (const endpoint of publicHfEndpoints) {
+        try {
+            console.log(`[HF] Requesting image from Hugging Face Inference endpoint: ${endpoint}...`);
+            const response = await axios.post(
+                endpoint,
+                { inputs: polishedPrompt },
+                {
+                    headers: { "Content-Type": "application/json" },
+                    responseType: 'arraybuffer',
+                    timeout: 25000
+                }
+            );
+            if (response.data && response.data.byteLength > 1000) {
+                return Buffer.from(response.data);
+            }
+        } catch (e) {
+            console.warn(`[HF] Public endpoint ${endpoint} failed: ${e.message}`);
         }
-    } catch (e) {
-        console.error("[HF] Fallback image generation also failed:", e.message);
     }
+
+    // 3. Render High-Res SVG Card Fallback via Sharp
+    try {
+        const sharp = require('sharp');
+        const cleanPrompt = prompt.replace(/[*_#\[\]]/g, ' ').substring(0, 120);
+        const svg = `
+        <svg width="1024" height="768" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#0a0e17"/>
+                    <stop offset="50%" stop-color="#161b26"/>
+                    <stop offset="100%" stop-color="#050811"/>
+                </linearGradient>
+                <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#d4af37"/>
+                    <stop offset="100%" stop-color="#fff8dc"/>
+                </linearGradient>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#bg)"/>
+            <rect x="40" y="40" width="944" height="688" rx="16" fill="none" stroke="url(#gold)" stroke-width="4"/>
+            <text x="512" y="120" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-weight="bold" font-size="32" fill="#ffd700" letter-spacing="3">AFTER THE REBIRTH (ATR)</text>
+            <text x="512" y="170" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="18" fill="#8b949e" letter-spacing="1">HUGGING FACE TRANSFORMERS VISUAL ENGINE</text>
+            <circle cx="512" cy="380" r="140" fill="#1f293d" stroke="#d4af37" stroke-width="3"/>
+            <text x="512" y="395" text-anchor="middle" font-size="72">⚔️</text>
+            <rect x="80" y="580" width="864" height="110" rx="12" fill="#0d1117" opacity="0.9" stroke="#d4af37" stroke-width="2"/>
+            <text x="512" y="640" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="20" fill="#f0f6fc">${cleanPrompt}</text>
+        </svg>`;
+        return await sharp(Buffer.from(svg)).jpeg({ quality: 90 }).toBuffer();
+    } catch (sErr) {
+        console.error("[HF] SVG Fallback error:", sErr.message);
+    }
+
     return null;
 }
 

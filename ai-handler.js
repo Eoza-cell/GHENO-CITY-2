@@ -83,13 +83,12 @@ async function fetchTechniqueImage(techniqueName) {
     }
 
     try {
-        console.log(`[Google Images Fallback] Generating image for "${techniqueName}" via Pollinations...`);
-        const cleanPrompt = encodeURIComponent(`high resolution epic anime illustration of the technique called "${techniqueName}", glowing energy, spectacular visual effects, dramatic combat stance, masterpiece art`);
-        const pollinationsUrl = `https://image.pollinations.ai/p/${cleanPrompt}?width=800&height=500&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
-        const imgBuf = await axios.get(pollinationsUrl, { responseType: 'arraybuffer', timeout: 12000 });
-        return Buffer.from(imgBuf.data);
+        console.log(`[Hugging Face] Generating image for "${techniqueName}" via Hugging Face...`);
+        const cleanPrompt = `high resolution epic anime illustration of the technique called "${techniqueName}", glowing energy, spectacular visual effects, dramatic combat stance, masterpiece art`;
+        const { generateHuggingFaceImage } = require('./message-handler');
+        return await generateHuggingFaceImage(cleanPrompt);
     } catch (pErr) {
-        console.error(`[Google Images Fallback] Pollinations generation failed:`, pErr.message);
+        console.error(`[Hugging Face Fallback] Technique generation failed:`, pErr.message);
     }
 
     return null;
