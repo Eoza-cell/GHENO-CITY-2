@@ -18,6 +18,7 @@ const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage, generateDetailedItemCard } = require('./shop-generator');
 const { generateSkillListImage } = require('./action-visual-generator');
 const { handleFreeAction } = require('./ai-handler');
+const { resolveMentions } = require('./message-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const referee = require('./referee-logic');

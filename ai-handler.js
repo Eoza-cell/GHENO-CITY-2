@@ -663,32 +663,8 @@ async function handleFreeAction(sock, message, player, actionText) {
     limit: 5
   });
 
-  // Dynamic proactive passing NPC event logic
-  let passingNpcHook = "";
-  if (Math.random() < 0.40) { // 40% chance of a passing NPC event
-      const pNpc = npcs.length > 0 ? npcs[Math.floor(Math.random() * npcs.length)] : null;
-      const behaviors = [
-          "passe en ignorant superbement le joueur, plongé dans ses pensées ou très pressé par ses propres quêtes",
-          "s'arrête intrigué, observe le joueur (notamment l'état de ses vêtements) et engage brièvement la conversation ou lance un avertissement mystérieux",
-          "bloque le chemin du joueur avec suspicion, suspectant un vagabondage ou un acte suspect, et demande de s'identifier",
-          "bouscule le joueur par inadvertance dans la hâte, grommelle quelque chose sur les 'amateurs de l'Interstice' et continue rapidement sa route",
-          "observe le joueur de loin en souriant d'un air mystérieux, semblant en savoir long sur sa trame principale ou son destin"
-      ];
-      const behavior = behaviors[Math.floor(Math.random() * behaviors.length)];
-
-      if (pNpc) {
-          passingNpcHook = `⚠️ ÉVÉNEMENT PNJ PROACTIF DE PASSAGE : Le PNJ Important *${pNpc.name}* (Rôle: ${pNpc.role}, Force: ${pNpc.powerLevel}) traverse brusquement la scène ! Comportement : il/elle ${behavior}. Tu DOIS l'intégrer proactivement de manière majeure et viscérale dans ton paragraphe narratif.`;
-      } else {
-          const localRoles = ["Garde de la Milice Royale", "Étudiant de l'Académie", "Marchand ambulant de passage", "Voleur à la tire des Bas-fonds", "Citoyen suspect", "Prêtre de la Lumière"];
-          const role = localRoles[Math.floor(Math.random() * localRoles.length)];
-          const names = ["Gérard", "Lyanna", "Thorgar", "Vasco", "Kaelen", "Myra", "Darius"];
-          const name = names[Math.floor(Math.random() * names.length)];
-          passingNpcHook = `⚠️ ÉVÉNEMENT PNJ PROACTIF DE PASSAGE : Un PNJ Mineur de passage nommé *${name}* (Rôle: ${role}) traverse la scène ! Comportement : il/elle ${behavior}. Tu DOIS l'intégrer proactivement dans ton paragraphe narratif de manière viscérale.`;
-      }
-  }
-
+  // No arbitrary surprise random events: The world narrative is 100% deterministic and driven by player actions
   const hints = [];
-  if (passingNpcHook) hints.push(passingNpcHook);
 
   // Inject active live rumors for PNJ bosses (such as the King attending Sovereign summits)
   const pnjActiveLifeRumors = [
@@ -1428,8 +1404,33 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     }
     await sock.sendMessage(targetChatJid, messagePayload);
 
+    // Check if an NPC is speaking in the narrative and generate an NPC Dialogue Card overlay
+    const npcSpeechMatch = content.match(/([A-Z][a-zA-Z0-9_\- ']{2,25})\s*:\s*[«"]([^»"]+)[»"]/i) ||
+                           content.match(/[«"]([^»"]+)[»"]\s*[-–—]\s*([A-Z][a-zA-Z0-9_\- ']{2,25})/i);
+
+    if (npcSpeechMatch) {
+        const npcName = (npcSpeechMatch[1] && npcSpeechMatch[1].length < 25 ? npcSpeechMatch[1] : npcSpeechMatch[2]).trim();
+        const npcQuote = (npcSpeechMatch[1] && npcSpeechMatch[1].length < 25 ? npcSpeechMatch[2] : npcSpeechMatch[1]).trim();
+
+        if (npcName && npcQuote) {
+            (async () => {
+                try {
+                    const { NPC } = require('./database');
+                    const { generateNpcDialogueCard } = require('./npc-dialogue-generator');
+                    const npc = await NPC.findOne({ where: { name: npcName } });
+                    const cardBuf = await generateNpcDialogueCard(npcName, npcQuote, npc?.imageUrl);
+                    if (cardBuf) {
+                        await sock.sendMessage(targetChatJid, { image: cardBuf, caption: `🗣️ *${npcName.toUpperCase()} PARLE :* « ${npcQuote} »` });
+                    }
+                } catch (npcErr) {
+                    console.error("[NPC Card] Failed to generate dialogue card:", npcErr.message);
+                }
+            })();
+        }
+    }
+
     // Generate and send custom scene image asynchronously in the background as a follow-up to the active chat session
-    if (imagePromptText) {
+    if (imagePromptText && !npcSpeechMatch) {
         // Run asynchronously without blocking the main text response
         (async () => {
             try {
