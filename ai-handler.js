@@ -1384,10 +1384,10 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     });
 
     if (playerFeedback.length > 0) {
-        finalMsg = `${finalMsg}\n\n💾 *SAUVEGARDE DES STATUT :*\n${playerFeedback.map(f => `├ ${f}`).join('\n')}`;
+        finalMsg = `${finalMsg}\n\n❖ 💾 *SAUVEGARDE DES STATUTS ATR :*\n${playerFeedback.map(f => `├ ${f}`).join('\n')}`;
     }
 
-    finalMsg = `${finalMsg}\n\n📊 *HUD*:${hud}`;
+    finalMsg = `${finalMsg}\n\n◈ 📊 *HUD TACTIQUE OBLIQUE* :${hud}`;
 
     // Send typing indicators
     try {

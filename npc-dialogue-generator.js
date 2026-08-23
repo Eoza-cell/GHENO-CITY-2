@@ -115,17 +115,17 @@ async function generateNpcDialogueCard(npcName, dialogueText, imageUrl) {
             AFTER THE REBIRTH (ATR) • DIALOGUE ENGINE
         </text>
 
-        <!-- Bottom RPG Rectangular Dialogue Box -->
+        <!-- Bottom RPG Oblique Diamond / Rhomboid Dialogue Box Container -->
         <!-- Outer Gold Border -->
-        <rect x="40" y="430" width="920" height="180" rx="12" fill="none" stroke="url(#goldBorder)" stroke-width="3"/>
+        <polygon points="60,430 960,430 940,610 40,610" fill="none" stroke="url(#goldBorder)" stroke-width="3"/>
 
         <!-- Main Dark Glass Dialogue Box Body -->
-        <rect x="42" y="432" width="916" height="176" rx="10" fill="url(#boxGrad)"/>
+        <polygon points="62,432 958,432 938,608 42,608" fill="url(#boxGrad)"/>
 
-        <!-- NPC Name Plate Banner -->
-        <rect x="60" y="405" width="280" height="42" rx="8" fill="#161b22" stroke="#d4af37" stroke-width="2"/>
-        <text x="80" y="432" font-family="'Segoe UI', Roboto, sans-serif" font-weight="bold" font-size="20" fill="#ffd700" letter-spacing="1">
-            🗣️ ${escapeXml(npcName.toUpperCase())}
+        <!-- NPC Slanted Name Plate Banner -->
+        <polygon points="75,400 360,400 340,442 55,442" fill="#161b22" stroke="#d4af37" stroke-width="2"/>
+        <text x="85" y="428" font-family="'Segoe UI', Roboto, sans-serif" font-weight="bold" font-size="20" fill="#ffd700" letter-spacing="1">
+            🗣️ ${escapeXml(npcName.toUpperCase())} ❖
         </text>
 
         <!-- Dialogue Text Lines -->

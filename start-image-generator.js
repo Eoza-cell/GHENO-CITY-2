@@ -77,20 +77,22 @@ async function generateLinkStartImage() {
             <text x="50%" y="46%" dominant-baseline="middle" text-anchor="middle" font-family="'Segoe UI', 'Arial Black', sans-serif" font-weight="900" font-size="140" fill="url(#textGrad)" style="letter-spacing: 25px; filter: drop-shadow(0 0 40px #00ffcc);">LINK START</text>
         </g>
 
-        <!-- Loading Interface / Bottom Status HUD -->
+        <!-- Loading Interface / Oblique Diamond Bottom Status HUD -->
         <g transform="translate(600, 560)">
-            <!-- Progress Bar Frame -->
-            <rect x="-350" y="0" width="700" height="12" fill="rgba(0, 255, 204, 0.05)" stroke="rgba(0, 255, 204, 0.4)" stroke-width="1.5" rx="6" />
-            <!-- Active Progress Bar with nice glow -->
-            <rect x="-350" y="2" width="580" height="8" fill="#00ffcc" rx="4" filter="url(#textGlow)">
-                <animate attributeName="width" from="0" to="700" dur="2s" repeatCount="1" />
-            </rect>
+            <!-- Slanted Progress Bar Frame -->
+            <polygon points="-350,0 350,0 335,16 -365,16" fill="rgba(0, 255, 204, 0.05)" stroke="rgba(0, 255, 204, 0.5)" stroke-width="1.5" />
+            <!-- Active Oblique Progress Bar with glow -->
+            <polygon points="-348,2 250,2 238,14 -360,14" fill="#00ffcc" filter="url(#textGlow)"/>
+
+            <!-- Oblique Diamond Badges -->
+            <polygon points="-385,8 -375,-2 -365,8 -375,18" fill="#00ffcc" filter="url(#textGlow)"/>
+            <polygon points="365,8 375,-2 385,8 375,18" fill="#00ffcc" filter="url(#textGlow)"/>
 
             <!-- Loading Info/Bar Markers -->
-            <text x="-350" y="-12" font-family="monospace" font-size="11" fill="#00ffcc" opacity="0.8">ATR_OS_CORE_CONNECTED: 85%</text>
-            <text x="350" y="-12" font-family="monospace" font-size="11" fill="#00ffcc" opacity="0.8" text-anchor="end">SYS_READY_OK</text>
+            <text x="-350" y="-12" font-family="monospace" font-size="11" fill="#00ffcc" opacity="0.8">❖ ATR_OS_CORE_CONNECTED: 85%</text>
+            <text x="350" y="-12" font-family="monospace" font-size="11" fill="#00ffcc" opacity="0.8" text-anchor="end">SYS_READY_OK ❖</text>
 
-            <text x="0" y="42" dominant-baseline="middle" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="18" font-weight="bold" fill="#00ffcc" filter="url(#textGlow)" style="letter-spacing: 4px;">NEURAL_CONNECTION_ESTABLISHED</text>
+            <text x="0" y="42" dominant-baseline="middle" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="18" font-weight="bold" fill="#00ffcc" filter="url(#textGlow)" style="letter-spacing: 4px;">❖ NEURAL_CONNECTION_ESTABLISHED ❖</text>
             <text x="0" y="68" dominant-baseline="middle" text-anchor="middle" font-family="DejaVu Sans Mono, monospace" font-size="13" fill="rgba(255, 255, 255, 0.5)">AFTER THE REBIRTH (ATR) • OS v5.0.2 // WELCOME_USER</text>
         </g>
     </svg>
