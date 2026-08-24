@@ -571,11 +571,14 @@ async function callHuggingFaceLocal(system, prompt, options = {}) {
         fs.writeFileSync(tmpSys, system);
         fs.writeFileSync(tmpUsr, prompt);
 
-        const output = execSync(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 25000 }).toString();
+        const output = execSync(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 25000, stdio: ['pipe', 'pipe', 'ignore'] }).toString();
         if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
         if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
 
-        const cleanedOutput = output.replace(/System:[\s\S]*?User:/gi, '').trim();
+        const cleanedOutput = output
+            .replace(/\[Python Transformer\][\s\S]*?\n/gi, '')
+            .replace(/System:[\s\S]*?User:/gi, '')
+            .trim();
         if (isValidAIResponse(cleanedOutput)) return cleanedOutput;
     } catch (e) {
         console.warn(`[AI] Hugging Face Transformers local execution failed:`, e.message);
