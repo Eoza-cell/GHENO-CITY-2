@@ -9,28 +9,54 @@
 async function checkLevelUp(player, sock) {
     const { shouldNotifyPlayer } = require('./message-handler');
     await player.reload();
-    const xpNeeded = player.level * 100;
-    if (player.xp < xpNeeded) return false;
+    let currentXp = player.xp || 0;
+    let currentLvl = player.level || 1;
+    let levelsGained = 0;
 
-    const levelsGained = Math.floor(player.xp / xpNeeded);
-    await player.increment('level', { by: levelsGained });
-    await player.update({
-        xp: player.xp % xpNeeded,
-        maxHealth: player.maxHealth + (levelsGained * 15),
-        maxMana: player.maxMana + (levelsGained * 8),
-        health: player.maxHealth + (levelsGained * 15),
-        mana: player.maxMana + (levelsGained * 8),
-        strength: player.strength + (levelsGained * 1),
-        agility: player.agility + (levelsGained * 1),
-        intelligence: player.intelligence + (levelsGained * 1)
-    });
-
-    if (sock && shouldNotifyPlayer(player)) {
-        await sock.sendMessage(player.whatsappId, {
-            text: `✨ *LEVEL UP !* ✨\nTu es maintenant niveau ${player.level} !\nTes stats ont augmenté.`
-        });
+    while (currentXp >= currentLvl * 100) {
+        currentXp -= currentLvl * 100;
+        currentLvl += 1;
+        levelsGained += 1;
     }
-    return true;
+
+    if (levelsGained > 0) {
+        const hpBonus = levelsGained * 20;
+        const mpBonus = levelsGained * 20;
+        const newMaxHp = (player.maxHealth || 100) + hpBonus;
+        const newMaxMp = (player.maxMana || 100) + mpBonus;
+
+        await player.update({
+            level: currentLvl,
+            xp: currentXp,
+            maxHealth: newMaxHp,
+            maxMana: newMaxMp,
+            health: newMaxHp,
+            mana: newMaxMp,
+            skillPoints: (player.skillPoints || 0) + (levelsGained * 5),
+            strength: (player.strength || 10) + (levelsGained * 2),
+            agility: (player.agility || 10) + (levelsGained * 2),
+            intelligence: (player.intelligence || 10) + (levelsGained * 2),
+            defense: (player.defense || 10) + (levelsGained * 2)
+        });
+
+        if (sock && shouldNotifyPlayer(player)) {
+            try {
+                const targetJid = player.whatsappId;
+                await sock.sendMessage(targetJid, {
+                    text: `🎉 *MONTÉE EN NIVEAU ! LEVEL UP !* 🎉\n\n` +
+                          `👤 **${player.name}** atteint le **NIVEAU ${player.level}** !\n` +
+                          `❤️ Max HP +${hpBonus} (Restauré à 100% : ${newMaxHp}/${newMaxHp})\n` +
+                          `🌀 Max MP +${mpBonus} (Restauré à 100% : ${newMaxMp}/${newMaxMp})\n` +
+                          `📖 SP +${levelsGained * 5} Point(s) de compétence\n` +
+                          `💪 Statistiques de combat améliorées (+2 partout)`
+                });
+            } catch (e) {
+                console.error("[LevelUp Notification Error]", e.message);
+            }
+        }
+        return true;
+    }
+    return false;
 }
 
 module.exports = { checkLevelUp };

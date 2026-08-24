@@ -122,15 +122,28 @@ function findMatchingPlayer(targetName, player, nearbyPlayers) {
  */
 async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     const updates = [];
+    const playersToUpdate = new Set();
+    const feedbackList = [];
     const lowerText = text.toLowerCase();
 
+    // Normalize stat names helper
+    const normalizeStat = (s) => {
+        const u = s.toUpperCase();
+        if (['XP', 'EXP', 'EXPERIENCE'].includes(u)) return 'XP';
+        if (['COL', 'GOLD', 'OR'].includes(u)) return 'COL';
+        if (['HP', 'PV', 'VIE'].includes(u)) return 'HP';
+        if (['MP', 'PM', 'MANA'].includes(u)) return 'MP';
+        if (['SP'].includes(u)) return 'SP';
+        return u;
+    };
+
     // 1) Named stats inside brackets or pipes: [PlayerName: STAT +/- VALUE] or [foo | PlayerName: STAT +/- VALUE]
-    // e.g. [SINGAM II: HP -18] or [Impact | SINGAM II: HP -18 | 82/100]
-    const namedRegex = /(?:[\[|]|^|\s)([A-Za-z0-9\s\-_]+)\s*:\s*(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    // e.g. [SINGAM II: HP -18] or [E.L.King: EXP +750] or [E.L.King: GOLD +950]
+    const namedRegex = /(?:[\[|]|^|\s)([A-Za-z0-9\s\-_.]+?)\s*:\s*(HP|PV|VIE|MP|PM|MANA|XP|EXP|EXPERIENCE|Col|GOLD|OR|SP)\s*([+-]\s*\d+)/gi;
     let match;
     while ((match = namedRegex.exec(text)) !== null) {
         const targetName = match[1].trim();
-        const statName = match[2].trim().toUpperCase();
+        const statName = normalizeStat(match[2].trim());
         const value = parseInt(match[3].replace(/\s+/g, ''));
 
         const targetPlayer = findMatchingPlayer(targetName, player, nearbyPlayers);
@@ -140,10 +153,10 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 2) Unnamed stats inside brackets: [STAT +/- VALUE]
-    // e.g. [HP -18] or [XP +50]
-    const unnamedRegex = /\[\s*(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    // e.g. [HP -18] or [EXP +750]
+    const unnamedRegex = /\[\s*(HP|PV|VIE|MP|PM|MANA|XP|EXP|EXPERIENCE|Col|GOLD|OR|SP)\s*([+-]\s*\d+)/gi;
     while ((match = unnamedRegex.exec(text)) !== null) {
-        const statName = match[1].trim().toUpperCase();
+        const statName = normalizeStat(match[1].trim());
         const value = parseInt(match[2].replace(/\s+/g, ''));
 
         // Avoid double-counting if this was already captured as a named stat
@@ -154,10 +167,10 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
     }
 
     // 3) Support loose text-based "/save STAT +/- VALUE" commands
-    const saveRegex = /\/save\s+(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(HP|PV|MP|PM|XP|Col|SP)\s*([+-]\s*\d+)/gi;
+    const saveRegex = /\/save\s+(?:([A-Za-z0-9\s\-_.]+?)\s*:\s*)?(HP|PV|VIE|MP|PM|MANA|XP|EXP|EXPERIENCE|Col|GOLD|OR|SP)\s*([+-]\s*\d+)/gi;
     while ((match = saveRegex.exec(text)) !== null) {
         const targetName = match[1] ? match[1].trim() : null;
-        const statName = match[2].trim().toUpperCase();
+        const statName = normalizeStat(match[2].trim());
         const value = parseInt(match[3].replace(/\s+/g, ''));
 
         let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
@@ -166,10 +179,39 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         updates.push({ player: targetPlayer, stat: statName, value });
     }
 
-    // Group updates by player and apply them to the DB
-    const playersToUpdate = new Set();
-    const feedbackList = [];
+    // 3.5) ITEM_ADD parsing: [PlayerName: ITEM_ADD: Item1 x2, Item2] or [ITEM_ADD: Item1]
+    const itemAddRegex = /\[\s*(?:([A-Za-z0-9\s\-_.]+?)\s*:\s*)?(?:ITEM_ADD|ITEMS?|OBJET_AJOUT)\s*:\s*(.+?)\s*\]/gi;
+    while ((match = itemAddRegex.exec(text)) !== null) {
+        const targetName = match[1] ? match[1].trim() : null;
+        const itemStr = match[2].trim();
 
+        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
+        if (!targetPlayer) targetPlayer = player;
+
+        const itemsList = itemStr.split(',').map(s => s.trim()).filter(Boolean);
+        const inv = Array.isArray(targetPlayer.inventory) ? [...targetPlayer.inventory] : [];
+        const addedNames = [];
+
+        for (const rawItem of itemsList) {
+            const qtyMatch = rawItem.match(/(.+?)\s*x\s*(\d+)$/i);
+            const name = (qtyMatch ? qtyMatch[1] : rawItem).trim();
+            const qty = qtyMatch ? parseInt(qtyMatch[2]) : 1;
+
+            const existing = inv.find(i => i.name.toLowerCase() === name.toLowerCase());
+            if (existing) {
+                existing.quantity = (existing.quantity || 1) + qty;
+            } else {
+                inv.push({ name, quantity: qty, type: 'misc' });
+            }
+            addedNames.push(`${name} (x${qty})`);
+        }
+
+        await targetPlayer.update({ inventory: inv });
+        feedbackList.push(`🎒 *${targetPlayer.name}* : Objets reçus ➔ ${addedNames.join(', ')}`);
+        playersToUpdate.add(targetPlayer.whatsappId);
+    }
+
+    // Group updates by player and apply them to the DB
     for (const update of updates) {
         const p = update.player;
         const val = update.value;
@@ -1461,4 +1503,4 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
   }
 }
 
-module.exports = { handleFreeAction };
+module.exports = { handleFreeAction, parseStatsFromText };
