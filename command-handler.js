@@ -2325,6 +2325,13 @@ commands.set('voyager', async (sock, message, args) => {
 
   const dest = destinations[targetKey];
 
+  const { verifyRegionAccess } = require('./quest-system');
+  const accessCheck = await verifyRegionAccess(player, dest.kingdom);
+  if (!accessCheck.allowed) {
+      await sock.sendMessage(replyJid, { text: accessCheck.reason });
+      return;
+  }
+
   if (player.col < dest.price && !player.isGod) {
       await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de pièces pour acheter un billet de bateau pour ${dest.kingdom} (${dest.price} Col requis, tu en as *${player.col}*).` });
       return;

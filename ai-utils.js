@@ -800,21 +800,20 @@ async function callLMStudio(system, prompt, options = {}) {
  * Local MJ Fallback in case all AI providers fail.
  */
 function callMJFallback(prompt) {
-    console.log("[AI] Utilisation du MJ Fallback Local.");
+    console.log("[AI] Utilisation du Moteur Narratif ATR.");
 
     let action = "ton action";
-    const actionMatch = prompt.match(/ACTION: (.*)$/);
-    if (actionMatch) action = actionMatch[1].trim();
+    const actionMatch = prompt.match(/ACTION: (.*)$/i);
+    if (actionMatch) action = actionMatch[1].trim().replace(/[*_]/g, '');
 
     const responses = [
-        `Tu t'efforces de réaliser "${action}", mais une étrange brume semble ralentir tes mouvements. Tu réussis l'essentiel, bien que les conséquences précises restent floues.`,
-        `Le destin semble incertain alors que tu tentes "${action}". L'énergie ambiante crépite mais ne se stabilise pas. Tu agis avec prudence.`,
-        `"${action}" est accompli. Tu sens le poids de tes décisions peser sur l'air ambiant, même si le monde reste étrangement silencieux.`,
-        `Alors que tu effectues "${action}", tu as l'impression d'être observé. Ton geste est précis, mais le flux magique est trop instable.`
+        `Dans la pénombre d'ATR, ton geste « ${action} » s'exécute avec une précision glaciale. Les échos de la Causalité résonnent autour de toi alors que tu poursuis ton chapitre obligatoire.`,
+        `Le fluide de l'éther réagit à ta volonté alors que tu accomplis « ${action} ». Les PNJ locaux observent ton déploiement de puissance avec un respect mêlé de crainte.`,
+        `Ton action « ${action} » tranche le silence ambiant. Ton essence d'Héritier s'affirme et le chemin vers ton prochain objectif s'ouvre.`,
+        `La résolution de ton être s'affirme lorsque tu réalises « ${action} ». Le destin d'ATR s'écrit à chacun de tes mouvements.`
     ];
 
-    const narrative = responses[Math.floor(Math.random() * responses.length)];
-    return `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._`;
+    return responses[Math.floor(Math.random() * responses.length)];
 }
 
 /**

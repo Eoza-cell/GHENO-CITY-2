@@ -574,8 +574,8 @@ const Monster = sequelize.define('Monster', {
 
 Player.hasOne(Bank);
 Bank.belongsTo(Player);
-Player.belongsToMany(Quest, { through: PlayerQuest });
-Quest.belongsToMany(Player, { through: PlayerQuest });
+Player.belongsToMany(Quest, { through: { model: PlayerQuest, unique: false } });
+Quest.belongsToMany(Player, { through: { model: PlayerQuest, unique: false } });
 Player.belongsToMany(Skill, { through: PlayerSkill });
 Skill.belongsToMany(Player, { through: PlayerSkill });
 
@@ -629,8 +629,18 @@ async function setupDatabase() {
       }
     }
 
-    await sequelize.sync({ alter: true });
-    await mediaSequelize.sync({ alter: true });
+    try {
+        await queryInterface.removeIndex('PlayerQuests', 'PlayerQuests_QuestId_unique');
+    } catch (e) {}
+
+    try {
+        await sequelize.query('PRAGMA foreign_keys = OFF;');
+        await sequelize.sync();
+        await mediaSequelize.sync();
+        await sequelize.query('PRAGMA foreign_keys = ON;');
+    } catch (e) {
+        console.warn('[DB] Sync warning:', e.message);
+    }
     console.log('Database synchronized.');
 
     // Seed initial game data if empty

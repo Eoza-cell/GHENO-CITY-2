@@ -946,6 +946,22 @@ async function handleFreeAction(sock, message, player, actionText) {
     : [];
 
   // Story Hooks: Persistent JSON Memory for each player's recent narrative arc
+  const { getOrAssignMandatoryMainQuest } = require('./quest-system');
+  const { quest: mandatoryQuest } = await getOrAssignMandatoryMainQuest(player);
+
+  const mandatoryQuestBlock = `
+❖ QUÊTE PRINCIPALE OBLIGATOIRE DU JOUEUR : "${mandatoryQuest.title}" ❖
+Description de la trame : ${mandatoryQuest.description}
+OBJECTIF OBLIGATOIRE EN COURS : "${mandatoryQuest.objective}"
+Rang Requis : ${mandatoryQuest.rank_required} | Récompense : +${mandatoryQuest.reward_xp} XP / +${mandatoryQuest.reward_col} COL
+
+RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
+- Le jeu d'ATR N'EST PAS un bac à sable sans fin : C'EST UNE HISTOIRE DENSE ET STRUCTURÉE GUIDÉE PAR LA QUÊTE PRINCIPALE OBLIGATOIRE.
+- Bien que le joueur soit libre dans la forme de ses actions RP, TOUS LES ÉVÉNEMENTS, PNJ ET RÉACTIONS DU MONDE DOIVENT IMPÉRATIVEMENT CANALISER, ORIENTER ET GUIDER ${player.name} VERS L'ACCOMPLISSEMENT DE SON OBJECTIF OBLIGATOIRE : "${mandatoryQuest.objective}".
+- Ne laisse pas le joueur errer sans but dans une liberté totale sans conséquences. Rappelle-lui constamment le poids de son destin et la nécessité d'accomplir son chapitre principal.
+- Si le joueur réalise l'Objectif Obligatoire dans sa scène, valide la quête avec le tag : [${player.name}: COMPLETED_QUEST: ${mandatoryQuest.title}] et accorde les récompenses !
+`;
+
   const storyHooks = await Promise.all(scenePlayersData.map(async p => {
       const pJournal = await WorldJournal.findAll({
           where: { entry: { [Op.like]: `%${p.nom}%` } },
@@ -994,9 +1010,11 @@ async function handleFreeAction(sock, message, player, actionText) {
   const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
 
-  const systemPrompt = `MJ D'AETHERYS (RÉALISME BRUT & IMMERSION TOTALE)
-Tu es l'architecte d'Aetherys. Ton monde n'est pas un jeu, c'est une réalité cruelle, viscérale et sensorielle.
+  const systemPrompt = `MJ D'ATR (HISTOIRE STRUCTURÉE & NARRATION CANALISÉE)
+Tu es l'architecte du monde d'ATR (After the Rebirth).
 RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
+
+${mandatoryQuestBlock}
 
 ⚠️ DIRECTIVE DE SÉCURITÉ COMPORTEMENTALE ABSOLUE (MJ PUR - NE PAS CONTRÔLER LE JOUEUR) ⚠️
 - Tu as l'INTERDICTION STRICTE et TOTALEMENT ABSOLUE de décrire ou d'écrire les actions, les mouvements, les pensées, les paroles ou les choix de "${player.name}".
