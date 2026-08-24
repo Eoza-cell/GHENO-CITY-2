@@ -563,9 +563,20 @@ async function callHuggingFaceLocal(system, prompt, options = {}) {
         const { execSync } = require('child_process');
         const path = require('path');
         const scriptPath = path.join(__dirname, 'transformer_model.py');
-        const combinedInput = `System: ${system}\nUser: ${prompt}`;
-        const output = execSync(`python3 "${scriptPath}" "${combinedInput.replace(/"/g, '')}"`, { timeout: 25000 }).toString();
-        if (isValidAIResponse(output)) return output;
+
+        // Pass system prompt and user action as separate clean JSON/arguments
+        const tmpSys = path.join(__dirname, 'assets', `sys_${Date.now()}.txt`);
+        const tmpUsr = path.join(__dirname, 'assets', `usr_${Date.now()}.txt`);
+        const fs = require('fs');
+        fs.writeFileSync(tmpSys, system);
+        fs.writeFileSync(tmpUsr, prompt);
+
+        const output = execSync(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 25000 }).toString();
+        if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
+        if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
+
+        const cleanedOutput = output.replace(/System:[\s\S]*?User:/gi, '').trim();
+        if (isValidAIResponse(cleanedOutput)) return cleanedOutput;
     } catch (e) {
         console.warn(`[AI] Hugging Face Transformers local execution failed:`, e.message);
     }

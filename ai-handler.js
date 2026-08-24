@@ -1302,6 +1302,14 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     if (!content) {
         content = "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...";
     }
+
+    // Strip out system prompt leaks or system headers if an LLM echoed system prompt
+    content = content
+        .replace(/MJ D'ATR[\s\S]*?DIRECTIVE[\s\S]*?\n\n/gi, '')
+        .replace(/System:\s*MJ D'ATR[\s\S]*?User:/gi, '')
+        .replace(/RÈGLES D'HISTOIRE STRUCTURÉE[\s\S]*?RÈGLES IMPÉRATIVES/gi, '')
+        .trim();
+
     console.log(`[AI RAW] Contenu reçu:\n${content.substring(0, 1000)}`);
 
     // Programmatic anti-godmoding post-sanitization filter

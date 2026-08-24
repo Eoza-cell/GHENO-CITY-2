@@ -630,7 +630,8 @@ async function setupDatabase() {
     }
 
     try {
-        await queryInterface.removeIndex('PlayerQuests', 'PlayerQuests_QuestId_unique');
+        const qI = sequelize.getQueryInterface();
+        await qI.removeIndex('PlayerQuests', 'PlayerQuests_QuestId_unique');
     } catch (e) {}
 
     try {
