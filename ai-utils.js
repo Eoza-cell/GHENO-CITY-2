@@ -832,14 +832,14 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
+        { name: 'Hugging Face Transformers (Primary Engine)', fn: callHuggingFaceLocal },
         { name: 'Blackbox AI (Free)', fn: callBlackbox },
         { name: 'vLLM OpenAI Server', fn: callVLLM },
         { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
         { name: 'OmniBrain Proxy', fn: callOmniBrain },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Hugging Face Transformers (Local)', fn: callHuggingFaceLocal }
+        { name: 'OpenRouter', fn: callOpenRouter }
     ];
 
     const timeouts = [];
