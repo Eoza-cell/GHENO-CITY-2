@@ -157,6 +157,31 @@ function extractMessageContent(content) {
     return null;
 }
 
+async function callG4F(system, prompt, options = {}) {
+    try {
+        console.log(`[AI] Executing GPT4Free (g4f) python provider engine...`);
+        const { execSync } = require('child_process');
+        const path = require('path');
+        const scriptPath = path.join(__dirname, 'g4f_handler.py');
+
+        const tmpSys = path.join(__dirname, 'assets', `sys_g4f_${Date.now()}.txt`);
+        const tmpUsr = path.join(__dirname, 'assets', `usr_g4f_${Date.now()}.txt`);
+        const fs = require('fs');
+        fs.writeFileSync(tmpSys, system);
+        fs.writeFileSync(tmpUsr, prompt);
+
+        const output = execSync(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 25000, stdio: ['pipe', 'pipe', 'ignore'] }).toString();
+        if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
+        if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
+
+        const cleanedOutput = output.replace(/System:[\s\S]*?User:/gi, '').trim();
+        if (isValidAIResponse(cleanedOutput)) return cleanedOutput;
+    } catch (e) {
+        console.warn(`[AI] GPT4Free (g4f) execution failed:`, e.message);
+    }
+    return null;
+}
+
 /**
  * Call the Khoj AI assistant self-hosted endpoint if available.
  */
@@ -846,10 +871,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     }
 
     const providers = [
-        { name: 'Hugging Face Transformers (Primary Engine)', fn: callHuggingFaceLocal },
+        { name: 'Ollama (Local Gemma 4)', fn: callOllama },
+        { name: 'Hugging Face Transformers (Local Gemma)', fn: callHuggingFaceLocal },
+        { name: 'GPT4Free (g4f) Engine', fn: callG4F },
         { name: 'Blackbox AI (Free)', fn: callBlackbox },
         { name: 'vLLM OpenAI Server', fn: callVLLM },
-        { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
         { name: 'OmniBrain Proxy', fn: callOmniBrain },
