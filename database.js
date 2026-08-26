@@ -506,6 +506,7 @@ const UserStats = sequelize.define('UserStats', {
   goalsScored: { type: DataTypes.INTEGER, defaultValue: 0 },
   goalsConceded: { type: DataTypes.INTEGER, defaultValue: 0 },
   points: { type: DataTypes.INTEGER, defaultValue: 0 },
+  casinoChips: { type: DataTypes.INTEGER, defaultValue: 500 },
 });
 
 Player.hasOne(Bank);

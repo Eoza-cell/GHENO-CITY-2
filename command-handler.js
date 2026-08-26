@@ -270,6 +270,272 @@ commands.set('classement', async (sock, message) => {
   await sock.sendMessage(replyJid, { text });
 });
 
+// Command: /addchips @mention <montant>
+commands.set('addchips', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  // Check admin rights
+  const isAdmin = await isGroupAdmin(sock, message, jid);
+  if (!isAdmin) {
+    return await sock.sendMessage(replyJid, { text: `❌ *Sécurité eFootball Casino* : Seuls les administrateurs du groupe peuvent ajouter des jetons.` });
+  }
+
+  let targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+
+  if (!targetJid && args[0] && args[0].startsWith('@')) {
+    const cleanNumber = args[0].replace(/[^0-9]/g, '');
+    targetJid = `${cleanNumber}@s.whatsapp.net`;
+  }
+
+  if (!targetJid) {
+    return await sock.sendMessage(replyJid, { text: `❌ Veuillez mentionner un membre pour lui donner des jetons.\nFormat : \`/addchips @joueur <montant>\`` });
+  }
+
+  if (args[0] && args[0].startsWith('@')) {
+    args.shift();
+  }
+
+  const amount = parseInt(args[0]);
+  if (isNaN(amount) || amount <= 0) {
+    return await sock.sendMessage(replyJid, { text: `❌ Montant invalide. Exemple : \`/addchips @joueur 1000\`` });
+  }
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: targetJid } });
+  if (!userStats) {
+    userStats = await UserStats.create({
+      whatsappId: targetJid,
+      name: 'Nouveau Joueur'
+    });
+  }
+
+  userStats.casinoChips += amount;
+  await userStats.save();
+
+  await sock.sendMessage(replyJid, {
+    text: `🎰 *DÉPÔT CASINO ADMIN RÉUSSI !*\n\n` +
+          `👤 *Bénéficiaire :* ${userStats.name}\n` +
+          `🪙 *Jetons Ajoutés :* +${amount.toLocaleString()} 🪙\n` +
+          `💰 *Nouveau Solde :* ${userStats.casinoChips.toLocaleString()} 🪙\n\n` +
+          `⚡ *Marque de Fabrique ARISE*`
+  });
+});
+
+// Command: /chips and /jetons
+const chipsCommand = async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  if (!userStats) {
+    userStats = await UserStats.create({
+      whatsappId: jid,
+      name: message.pushName || 'Compétiteur'
+    });
+  }
+
+  await sock.sendMessage(replyJid, {
+    text: `🎰 *VOTRE PORTE-FEUILLE CASINO eFOOTBALL*\n\n` +
+          `👤 *Joueur :* ${userStats.name}\n` +
+          `🪙 *Solde Jetons :* ${userStats.casinoChips.toLocaleString()} 🪙\n\n` +
+          `🎮 *Jeux disponibles :*\n` +
+          `• \`/slots <mise>\` : Machine à sous eFootball\n` +
+          `• \`/roulette <pari> <mise>\` : Roulette (rouge/noir/pair/impair/0-36)\n` +
+          `• \`/blackjack <mise>\` : Duel de cartes 21 contre le croupier\n\n` +
+          `⚡ *Marque de Fabrique ARISE*`
+  });
+};
+commands.set('chips', chipsCommand);
+commands.set('jetons', chipsCommand);
+
+// Command: /slots <mise>
+commands.set('slots', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  if (!userStats) {
+    userStats = await UserStats.create({
+      whatsappId: jid,
+      name: message.pushName || 'Compétiteur'
+    });
+  }
+
+  const bet = parseInt(args[0]);
+  if (isNaN(bet) || bet <= 0) {
+    return await sock.sendMessage(replyJid, { text: `❌ Veuillez indiquer une mise valide. Exemple : \`/slots 100\`` });
+  }
+
+  if (userStats.casinoChips < bet) {
+    return await sock.sendMessage(replyJid, { text: `❌ Jetons insuffisants (${userStats.casinoChips.toLocaleString()} 🪙 disponibles). Demandez à un admin avec \`/addchips\`.` });
+  }
+
+  const symbols = ['⚽', '🏆', '🥇', '👟', '🥅', '⭐', '🔥'];
+  const r1 = symbols[Math.floor(Math.random() * symbols.length)];
+  const r2 = symbols[Math.floor(Math.random() * symbols.length)];
+  const r3 = symbols[Math.floor(Math.random() * symbols.length)];
+
+  let winMult = 0;
+  if (r1 === r2 && r2 === r3) {
+    if (r1 === '⚽') winMult = 10;
+    else if (r1 === '🏆') winMult = 7;
+    else winMult = 5;
+  } else if (r1 === r2 || r2 === r3 || r1 === r3) {
+    winMult = 2;
+  }
+
+  const netGain = (bet * winMult) - bet;
+  userStats.casinoChips += netGain;
+  await userStats.save();
+
+  let resultMsg = `🎰 *MACHINE À SOUS eFOOTBALL*\n\n` +
+                  `╔═════════════════╗\n` +
+                  `   [  ${r1}  |  ${r2}  |  ${r3}  ]   \n` +
+                  `╚═════════════════╝\n\n`;
+
+  if (winMult > 0) {
+    resultMsg += `🎉 *JACKPOT !* Vous gagnez x${winMult} ( +${(bet * winMult).toLocaleString()} 🪙 ) !\n`;
+  } else {
+    resultMsg += `💸 *Perdu...* (-${bet.toLocaleString()} 🪙)\n`;
+  }
+
+  resultMsg += `💰 *Nouveau Solde :* ${userStats.casinoChips.toLocaleString()} 🪙\n\n` +
+               `⚡ *Marque de Fabrique ARISE*`;
+
+  await sock.sendMessage(replyJid, { text: resultMsg });
+});
+
+// Command: /roulette <pari> <mise>
+commands.set('roulette', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  if (!userStats) {
+    userStats = await UserStats.create({
+      whatsappId: jid,
+      name: message.pushName || 'Compétiteur'
+    });
+  }
+
+  const betType = args[0]?.toLowerCase();
+  const bet = parseInt(args[1]);
+
+  if (!betType || isNaN(bet) || bet <= 0) {
+    return await sock.sendMessage(replyJid, { text: `❌ Format invalide.\nUsage : \`/roulette <rouge/noir/pair/impair/0-36> <mise>\`\nExemple : \`/roulette rouge 200\`` });
+  }
+
+  if (userStats.casinoChips < bet) {
+    return await sock.sendMessage(replyJid, { text: `❌ Jetons insuffisants (${userStats.casinoChips.toLocaleString()} 🪙 disponibles).` });
+  }
+
+  const num = Math.floor(Math.random() * 37); // 0 to 36
+  const redNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+  const color = num === 0 ? 'vert' : (redNumbers.includes(num) ? 'rouge' : 'noir');
+  const parity = num === 0 ? 'zero' : (num % 2 === 0 ? 'pair' : 'impair');
+
+  let won = false;
+  let mult = 0;
+
+  if (betType === color) {
+    won = true;
+    mult = 2;
+  } else if (betType === parity) {
+    won = true;
+    mult = 2;
+  } else if (!isNaN(parseInt(betType)) && parseInt(betType) === num) {
+    won = true;
+    mult = 36;
+  }
+
+  const netGain = won ? (bet * mult) - bet : -bet;
+  userStats.casinoChips += netGain;
+  await userStats.save();
+
+  let msg = `🎡 *ROULETTE CASINO ARISE*\n\n` +
+            `🎯 *Résultat de la bille :* ${num} (${color.toUpperCase()}, ${parity.toUpperCase()})\n\n`;
+
+  if (won) {
+    msg += `🎉 *GAGNÉ !* Vous remportez +${(bet * mult).toLocaleString()} 🪙 !\n`;
+  } else {
+    msg += `💸 *PERDU...* (-${bet.toLocaleString()} 🪙)\n`;
+  }
+
+  msg += `💰 *Solde Actuel :* ${userStats.casinoChips.toLocaleString()} 🪙\n\n` +
+         `⚡ *Marque de Fabrique ARISE*`;
+
+  await sock.sendMessage(replyJid, { text: msg });
+});
+
+// Command: /blackjack <mise>
+commands.set('blackjack', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  if (!userStats) {
+    userStats = await UserStats.create({
+      whatsappId: jid,
+      name: message.pushName || 'Compétiteur'
+    });
+  }
+
+  const bet = parseInt(args[0]);
+  if (isNaN(bet) || bet <= 0) {
+    return await sock.sendMessage(replyJid, { text: `❌ Veuillez indiquer une mise valide. Exemple : \`/blackjack 150\`` });
+  }
+
+  if (userStats.casinoChips < bet) {
+    return await sock.sendMessage(replyJid, { text: `❌ Jetons insuffisants (${userStats.casinoChips.toLocaleString()} 🪙 disponibles).` });
+  }
+
+  const drawCard = () => Math.floor(Math.random() * 10) + 1; // 1 to 10
+  const userScore = drawCard() + drawCard();
+  let dealerScore = drawCard() + drawCard();
+
+  while (dealerScore < 16) {
+    dealerScore += drawCard();
+  }
+
+  let won = false;
+  let draw = false;
+
+  if (userScore > 21) {
+    won = false;
+  } else if (dealerScore > 21 || userScore > dealerScore) {
+    won = true;
+  } else if (userScore === dealerScore) {
+    draw = true;
+  }
+
+  let netGain = 0;
+  if (won) {
+    netGain = bet;
+    userStats.casinoChips += netGain;
+  } else if (!draw) {
+    netGain = -bet;
+    userStats.casinoChips += netGain;
+  }
+  await userStats.save();
+
+  let msg = `🎴 *DUEL BLACKJACK eFOOTBALL*\n\n` +
+            `👤 *Vos cartes :* Score de ${userScore}\n` +
+            `🎰 *Croupier :* Score de ${dealerScore}\n\n`;
+
+  if (won) {
+    msg += `🎉 *VICTOIRE !* Vous gagnez +${bet.toLocaleString()} 🪙 !\n`;
+  } else if (draw) {
+    msg += `🤝 *ÉGALITÉ !* Votre mise de ${bet.toLocaleString()} 🪙 vous est rendue.\n`;
+  } else {
+    msg += `💸 *DÉFAITE...* (-${bet.toLocaleString()} 🪙)\n`;
+  }
+
+  msg += `💰 *Nouveau Solde :* ${userStats.casinoChips.toLocaleString()} 🪙\n\n` +
+         `⚡ *Marque de Fabrique ARISE*`;
+
+  await sock.sendMessage(replyJid, { text: msg });
+});
+
 // Command: /tagall and /all
 const tagAllCommand = async (sock, message, args) => {
   const jid = getJid(message);
@@ -327,8 +593,14 @@ commands.set('help', async (sock, message) => {
                    `• \`/profil\` / \`/stats\` : Afficher sa carte de statistiques et performances ARISE.\n` +
                    `• \`/classement\` : Voir le classement de la ligue du groupe WhatsApp.\n` +
                    `• \`/joueur <nom>\` : Afficher une carte eFootball détaillée (Messi, Mbappé, Haaland, Ronaldo).\n\n` +
+                   `🎰 *Jeux de Casino eFootball* :\n` +
+                   `• \`/chips\` / \`/jetons\` : Afficher votre solde de jetons casino.\n` +
+                   `• \`/slots <mise>\` : Machine à sous eFootball.\n` +
+                   `• \`/roulette <rouge/noir/pair/impair/0-36> <mise>\` : Roulette casino.\n` +
+                   `• \`/blackjack <mise>\` : Duel 21 contre le croupier.\n\n` +
                    `👮 *Commandes Administrateur* :\n` +
                    `• \`/update_stats @mention <V/N/D> <buts_marqués> <buts_encaissés>\` : Met à jour les stats d'un joueur suite à un match.\n` +
+                   `• \`/addchips @mention <montant>\` : Ajoute des jetons casino à un membre du groupe.\n` +
                    `• \`/tagall\` / \`/all [message]\` : Mentionne tous les membres du groupe WhatsApp.\n\n` +
                    `⚡ *Marque de Fabrique ARISE*`;
 
