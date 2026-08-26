@@ -103,10 +103,17 @@ async function generatePlayerCard(p) {
             <text x="320" y="845" font-family="'Impact', Arial" font-size="38" fill="rgba(255,255,255,0.2)" text-anchor="middle" letter-spacing="8">ARISE</text>
         `}
 
-        <!-- Cropped Player Image -->
+        <!-- Vector Football Silhouette / Emblem when cropped asset is absent -->
         ${playerImageBase64 ? `
             <image href="${playerImageBase64}" x="140" y="110" width="360" height="360" />
-        ` : ''}
+        ` : `
+            <g transform="translate(320, 290)" opacity="0.85">
+                <circle r="120" fill="rgba(255,255,255,0.03)" stroke="${strokeColor}" stroke-width="2" />
+                <path d="M -60 -40 L 0 -100 L 60 -40 L 40 50 L -40 50 Z" fill="none" stroke="${strokeColor}" stroke-width="3" />
+                <circle r="40" fill="rgba(255,255,255,0.08)" stroke="${strokeColor}" stroke-width="2" />
+                <text y="14" font-family="'Arial Black', sans-serif" font-size="32" fill="#ffffff" text-anchor="middle" font-weight="900">${p.position}</text>
+            </g>
+        `}
 
         <!-- Top-Left UI: Overall Rating and Position Hex-Badge -->
         <g transform="translate(45, 55)">

@@ -270,6 +270,53 @@ commands.set('classement', async (sock, message) => {
   await sock.sendMessage(replyJid, { text });
 });
 
+// Command: /tagall and /all
+const tagAllCommand = async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  if (!replyJid.endsWith('@g.us')) {
+    return await sock.sendMessage(replyJid, { text: `❌ La commande /tagall ne peut être utilisée que dans un groupe WhatsApp.` });
+  }
+
+  // Check admin rights
+  const isAdmin = await isGroupAdmin(sock, message, jid);
+  if (!isAdmin) {
+    return await sock.sendMessage(replyJid, { text: `❌ *Sécurité eFootball* : Seuls les administrateurs du groupe peuvent faire un Tag All.` });
+  }
+
+  try {
+    const metadata = await sock.groupMetadata(replyJid);
+    const participants = metadata.participants || [];
+
+    if (participants.length === 0) {
+      return await sock.sendMessage(replyJid, { text: `❌ Aucun membre trouvé dans le groupe.` });
+    }
+
+    const mentions = participants.map(p => p.id);
+    const customMessage = args.join(' ').trim() || "Message de l'administrateur";
+
+    let tagText = `📢 *CONVOCATION eFOOTBALL LEAGUE - TAG ALL*\n\n`;
+    tagText += `📝 *Message :* ${customMessage}\n\n`;
+    participants.forEach((p, idx) => {
+      const num = p.id.split('@')[0];
+      tagText += `${idx + 1}. @${num}\n`;
+    });
+    tagText += `\n⚡ *Marque de Fabrique ARISE*`;
+
+    await sock.sendMessage(replyJid, {
+      text: tagText,
+      mentions: mentions
+    });
+  } catch (err) {
+    console.error('Error in tagall command:', err);
+    await sock.sendMessage(replyJid, { text: `Erreur lors de l'exécution de la commande /tagall.` });
+  }
+};
+
+commands.set('tagall', tagAllCommand);
+commands.set('all', tagAllCommand);
+
 // Command: /help
 commands.set('help', async (sock, message) => {
   const helpText = `╔══════════════════════════╗\n` +
@@ -279,9 +326,10 @@ commands.set('help', async (sock, message) => {
                    `• \`/start\` : Créer ou réactiver son profil de ligue eFootball.\n` +
                    `• \`/profil\` / \`/stats\` : Afficher sa carte de statistiques et performances ARISE.\n` +
                    `• \`/classement\` : Voir le classement de la ligue du groupe WhatsApp.\n` +
-                   `• \`/joueur <nom>\` : Afficher une carte eFootball détaillée (Messi, Ronaldo, Neymar, Yamal).\n\n` +
+                   `• \`/joueur <nom>\` : Afficher une carte eFootball détaillée (Messi, Mbappé, Haaland, Ronaldo).\n\n` +
                    `👮 *Commandes Administrateur* :\n` +
-                   `• \`/update_stats @mention <V/N/D> <buts_marqués> <buts_encaissés>\` : Met à jour les stats d'un joueur suite à un match.\n\n` +
+                   `• \`/update_stats @mention <V/N/D> <buts_marqués> <buts_encaissés>\` : Met à jour les stats d'un joueur suite à un match.\n` +
+                   `• \`/tagall\` / \`/all [message]\` : Mentionne tous les membres du groupe WhatsApp.\n\n` +
                    `⚡ *Marque de Fabrique ARISE*`;
 
   await sock.sendMessage(message.key.remoteJid, { text: helpText });
