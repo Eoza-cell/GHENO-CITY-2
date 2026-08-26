@@ -55,14 +55,28 @@ commands.set('start', async (sock, message) => {
   const senderName = message.pushName || 'Compétiteur eFootball';
 
   let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  const welcomeImagePath = path.join(__dirname, 'assets/efootball/victory_welcome.png');
+  const hasWelcomeImg = fs.existsSync(welcomeImagePath);
+
+  const captionText = `⚽ *Bienvenue dans la League eFootball ARISE !*\n\n` +
+                      `Profil créé/activé avec succès pour *${senderName}*.\n\n` +
+                      `Utilisez \`/profil\` pour voir vos stats, \`/classement\` pour voir le leaderboard, ou \`/help\` pour afficher l'aide.\n\n` +
+                      `🏆 *VICTORY* • *ARISE*`;
+
   if (!userStats) {
     userStats = await UserStats.create({
       whatsappId: jid,
       name: senderName
     });
-    await sock.sendMessage(replyJid, { text: `⚽ *Bienvenue dans la League eFootball ARISE !*\n\nProfil créé avec succès pour *${senderName}*.\n\nUtilisez \`/profil\` pour voir vos stats, \`/classement\` pour voir le leaderboard, ou \`/help\` pour afficher l'aide.` });
+  }
+
+  if (hasWelcomeImg) {
+    await sock.sendMessage(replyJid, {
+      image: fs.readFileSync(welcomeImagePath),
+      caption: captionText
+    });
   } else {
-    await sock.sendMessage(replyJid, { text: `⚽ Content de vous revoir, *${userStats.name}* !\nVos statistiques sont déjà prêtes dans la base de données. Tapez \`/profil\` pour les consulter.` });
+    await sock.sendMessage(replyJid, { text: captionText });
   }
 });
 
