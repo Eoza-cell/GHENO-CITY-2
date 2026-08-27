@@ -870,7 +870,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, 5000) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 7000);
     }
 
+    const { callTransformersJS } = require('./transformers-js-handler');
     const providers = [
+        { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
         { name: 'Ollama (Local Gemma 4)', fn: callOllama },
         { name: 'Hugging Face Transformers (Local Gemma)', fn: callHuggingFaceLocal },
         { name: 'GPT4Free (g4f) Engine', fn: callG4F },
