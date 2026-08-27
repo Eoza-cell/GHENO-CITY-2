@@ -1295,10 +1295,13 @@ CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 5. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans le RÉSUMÉ DES ACTIONS.
 6. STRUCTURE OBLIGATOIRE : Utilise [NOM_DU_JOUEUR] et le séparateur ▬▬▬▬▬▬▬▬▬▬▬▬.
 
+### ACTION EN COURS DU JOUEUR ${player.name.toUpperCase()} ###
+DERNIÈRE ACTION DE ${player.name.toUpperCase()} : "${actionText}"
+
 ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par les brackets des impacts statutaires.`;
 
   try {
-    let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false });
+    let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false, playerAction: actionText });
     if (!content) {
         content = "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...";
     }
