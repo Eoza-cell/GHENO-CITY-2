@@ -838,21 +838,50 @@ async function callLMStudio(system, prompt, options = {}) {
 /**
  * Local MJ Fallback in case all AI providers fail.
  */
-function callMJFallback(prompt) {
-    console.log("[AI] Utilisation du Moteur Narratif ATR.");
+function callMJFallback(prompt, options = {}) {
+    console.log("[AI Engine] Executing ATR Simulation Game Master Engine...");
 
-    let action = "ton action";
-    const actionMatch = prompt.match(/ACTION: (.*)$/i);
-    if (actionMatch) action = actionMatch[1].trim().replace(/[*_]/g, '');
+    let actionText = options && options.playerAction ? options.playerAction : "";
+    if (!actionText) {
+        const actionMatch = prompt.match(/DERNIÈRE ACTION DE\s+[^:\n]+:\s*["']?([^"\n\r\]]+)["']?/i) ||
+                            prompt.match(/(?:ACTION DU JOUEUR|ACTION EN COURS|ACTION)\s*:\s*(?:\[[^\]]+\]\s*:?\s*)?["']?([^"\n\r\]]+)["']?/i);
+        if (actionMatch && actionMatch[1] && !actionMatch[1].includes("TRUNCATED") && !actionMatch[1].includes("Aucune")) {
+            actionText = actionMatch[1].trim().replace(/[*_#]/g, '');
+        }
+    }
+    if (!actionText || actionText.length > 200) actionText = "ton action d'exploration stratégique";
 
-    const responses = [
-        `Dans la pénombre d'ATR, ton geste « ${action} » s'exécute avec une précision glaciale. Les échos de la Causalité résonnent autour de toi alors que tu poursuis ton chapitre obligatoire.`,
-        `Le fluide de l'éther réagit à ta volonté alors que tu accomplis « ${action} ». Les PNJ locaux observent ton déploiement de puissance avec un respect mêlé de crainte.`,
-        `Ton action « ${action} » tranche le silence ambiant. Ton essence d'Héritier s'affirme et le chemin vers ton prochain objectif s'ouvre.`,
-        `La résolution de ton être s'affirme lorsque tu réalises « ${action} ». Le destin d'ATR s'écrit à chacun de tes mouvements.`
-    ];
+    // Extract player name from prompt
+    let playerName = "l'Héritier";
+    const nameMatch = prompt.match(/PERSONNAGE ACTIF\s*:\s*([^\n|]+)/i) || prompt.match(/DERNIÈRE ACTION DE\s+([A-Za-z0-9\s\-_.]+)\s*:/i);
+    if (nameMatch && nameMatch[1]) {
+        playerName = nameMatch[1].trim().split(' ')[0];
+    }
 
-    return responses[Math.floor(Math.random() * responses.length)];
+    const lowerAction = actionText.toLowerCase();
+    let responseText = "";
+
+    if (lowerAction.includes('attaque') || lowerAction.includes('frappe') || lowerAction.includes('épée') || lowerAction.includes('lame') || lowerAction.includes('combat') || lowerAction.includes('monstre') || lowerAction.includes('tirer') || lowerAction.includes('frapper')) {
+        // Combat Action Narrative
+        responseText = `L'atmosphère d'ATR se tend brusquement alors que ${playerName} passe à l'offensive ! Lorsque tu accomplis « ${actionText} », ton arme découpe l'air avec une vitesse fulgurante. Un éclair d'énergie spirituelle jaillit au point d'impact, projetant des étincelles d'éther sur le sol de pierre.\n\nLe choc résonne à travers le secteur. Ton adversaire est sous le choc, incapable de parer la totalité de la force déployée par ton essence d'Héritier. Les témoins et gardes locaux retiennent leur souffle devant une telle démonstration de maîtrise tactique.\n\nLa menace est repoussée, affirmant ton autorité dans la zone et te rapprochant de l'accomplissement de ton chapitre obligatoire.
+
+[${playerName}: EXP +150]
+[${playerName}: GOLD +200]`;
+    } else if (lowerAction.includes('parle') || lowerAction.includes('demande') || lowerAction.includes('question') || lowerAction.includes('dialogue') || lowerAction.includes('cherche')) {
+        // Dialogue / Social Action Narrative
+        responseText = `Dans l'agitation de la cité d'ATR, ${playerName} s'adresse directement à ses interlocuteurs. Lorsque tu effectues « ${actionText} », ta voix résonne avec une assurance naturelle qui attire immédiatement l'attention des PNJ environnants.\n\nUn marchand d'élite et un garde de la milice s'arrêtent, écoutant attentivement tes paroles. Impressionnés par ton rang et ton calme, ils te révèlent des précieux renseignements sur la situation politique et les objectifs de ta Quête Principale Obligatoire.\n\nCes informations stratégiques te permettent de planifier ton prochain mouvement avec une clarté optimale.
+
+[${playerName}: EXP +100]
+[${playerName}: GOLD +100]`;
+    } else {
+        // Movement / Exploration Narrative
+        responseText = `Dans l'atmosphère majestueuse d'ATR, la lumière des lanternes à l'éther éclaire la progression de ${playerName}. En réalisant « ${actionText} », tes pas résonnent fermement sur le sol, traçant un chemin net à travers le territoire.\n\nLe vent frais de la région apporte des rumeurs d'aventures et le murmure des failles spirituelles. L'environnement s'adapte à ta présence, révélant de nouvelles opportunités d'action et confirmant l'ancrage de tes données dans la matrice du monde.\n\nTu poursuis ta marche avec détermination, guidé par les lois de la Causalité vers ton prochain objectif.
+
+[${playerName}: EXP +120]
+[${playerName}: GOLD +150]`;
+    }
+
+    return responseText;
 }
 
 /**
