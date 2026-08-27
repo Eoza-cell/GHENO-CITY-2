@@ -302,12 +302,8 @@ async function connectToWhatsApp() {
                             return;
                         }
                     } else {
-                         // Only warn if it's not a command
-                         const text = message.message.conversation || message.message.extendedTextMessage?.text || message.message.buttonsResponseMessage?.selectedButtonId;
-                         if (!text || !text.startsWith('/')) {
-                             await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
-                             return;
-                         }
+                         // If text is sent instead of image, clear awaitingProfilePic flag and continue to handle message
+                         await player.update({ awaitingProfilePic: false });
                     }
                 }
 
