@@ -186,7 +186,7 @@ const Player = sequelize.define('Player', {
   },
   mode: {
     type: DataTypes.STRING,
-    defaultValue: 'normal',
+    defaultValue: 'action',
   },
   characterDescription: {
     type: DataTypes.TEXT,

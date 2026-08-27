@@ -3414,15 +3414,10 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     return;
   }
 
-  // Handle free action mode
-  if (player?.mode === 'action' && !messageText.startsWith('/')) {
+  // Handle free RP action for all non-command messages when player is registered and not sleeping
+  if (player && player.mode !== 'sleep' && !messageText.startsWith('/')) {
     try {
-        if (player.tutorialStep >= 0 && player.tutorialStep < 3) {
-            const { handleTutorialAction } = require('./tutorial-handler');
-            await handleTutorialAction(sock, message, player, messageText);
-        } else {
-            await handleFreeAction(sock, message, player, messageText);
-        }
+        await handleFreeAction(sock, message, player, messageText);
     } catch (error) {
       console.error('Erreur action libre:', error);
       await sock.sendMessage(replyJid, { text: "Le MJ n'a pas pu interpréter ton action. Réessaie." });
