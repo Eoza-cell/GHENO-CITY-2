@@ -3361,6 +3361,17 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       }
   }
 
+  // Handle profile pic pending blocking
+  if (player && player.awaitingProfilePic) {
+      if (!messageText.startsWith('/')) {
+          await player.update({ awaitingProfilePic: false });
+          await sock.sendMessage(replyJid, { text: "Photo de profil ignorée (avatar par défaut attribué). Bienvenue dans After the Rebirth (ATR) !" });
+          const { startTutorial } = require('./tutorial-handler');
+          await startTutorial(sock, replyJid, player);
+          return;
+      }
+  }
+
   // Handle registration flow
   if (player && player.registrationStep) {
       if (player.registrationStep === 'awaiting_name') {

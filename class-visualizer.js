@@ -7,7 +7,18 @@ const CLASSES = [
         bg: '#3a1414',
         desc: 'Force et Défense',
         emblem: 'sword',
-        silhouetteSvg: '<g opacity="0.16"><circle cx="131" cy="100" r="60" fill="none" stroke="#ff4d4d" stroke-width="2" stroke-dasharray="4 8" /><path d="M 80,180 L 100,100 L 115,110 L 150,50 L 160,30 L 170,25 L 165,40 L 155,75 L 160,85 L 145,110 L 180,180 Z M 100,150 L 160,40" stroke="black" stroke-width="6" fill="black" /></g>'
+        // Guts-style warrior with broadsword and flowing cape silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Spiky anime hair & head -->
+            <path d="M 131,30 L 125,22 L 133,18 L 138,25 L 145,18 L 142,28 L 148,32 L 138,38 Z" fill="#000" />
+            <circle cx="135" cy="35" r="10" fill="#000" />
+            <!-- Broad shoulders & armor -->
+            <path d="M 110,50 L 160,50 L 175,70 L 160,110 L 110,110 L 95,70 Z" fill="#000" />
+            <!-- Massive Buster Greatsword resting on shoulder -->
+            <polygon points="150,20 165,15 175,120 155,125" fill="#000" stroke="#ff4d4d" stroke-width="1" />
+            <!-- Flowing Cape -->
+            <path d="M 100,60 Q 60,110 50,180 Q 110,160 160,180 Q 170,120 160,60 Z" fill="#000" />
+        </g>`
     },
     {
         name: 'MAGE',
@@ -15,7 +26,19 @@ const CLASSES = [
         bg: '#14213a',
         desc: 'Magie et Intelligence',
         emblem: 'staff',
-        silhouetteSvg: '<g opacity="0.16"><circle cx="131" cy="100" r="55" fill="none" stroke="#4d8bff" stroke-width="1.5" /><path d="M 110,180 L 125,120 L 100,110 L 131,50 L 162,110 L 137,120 L 152,180 Z M 80,80 L 180,80" stroke="black" stroke-width="5" fill="black" /><circle cx="131" cy="45" r="8" fill="black" /></g>'
+        // Megumin / Wizard hat & glowing staff silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Pointed Wizard Hat -->
+            <polygon points="135,10 105,45 165,45" fill="#000" />
+            <ellipse cx="135" cy="45" rx="35" ry="8" fill="#000" />
+            <!-- Hood & Head -->
+            <circle cx="135" cy="55" r="12" fill="#000" />
+            <!-- Long Wizard Robes -->
+            <path d="M 120,65 Q 100,120 80,180 L 190,180 Q 170,120 150,65 Z" fill="#000" />
+            <!-- Magic Staff with Crystal Orb -->
+            <line x1="175" y1="20" x2="175" y2="180" stroke="#000" stroke-width="6" />
+            <circle cx="175" cy="20" r="14" fill="#4d8bff" opacity="0.6" stroke="#000" stroke-width="2" />
+        </g>`
     },
     {
         name: 'ASSASSIN',
@@ -23,7 +46,16 @@ const CLASSES = [
         bg: '#143a1f',
         desc: 'Agilité et Vitesse',
         emblem: 'dagger',
-        silhouetteSvg: '<g opacity="0.16"><path d="M 80,180 Q 131,100 180,180 M 110,130 L 70,80 M 150,130 L 190,80" stroke="black" stroke-width="8" stroke-linecap="round" fill="none" /><circle cx="131" cy="120" r="14" fill="black" /></g>'
+        // Dual-wielding ninja crouching shadow silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Masked head & headband trailing ribbons -->
+            <circle cx="130" cy="40" r="11" fill="#000" />
+            <path d="M 120,38 Q 90,30 70,35 M 120,42 Q 85,45 65,40" stroke="#000" stroke-width="4" fill="none" />
+            <!-- Crouching Ninja Body -->
+            <path d="M 115,50 L 145,50 L 160,90 L 175,130 L 140,170 L 90,150 L 100,100 Z" fill="#000" />
+            <!-- Reverse-grip Dual Kunai/Daggers -->
+            <path d="M 160,85 L 205,65 L 195,60 Z M 95,95 L 50,75 L 60,70 Z" fill="#000" stroke="#4dff7a" stroke-width="1" />
+        </g>`
     },
     {
         name: 'ARCHER',
@@ -31,7 +63,19 @@ const CLASSES = [
         bg: '#3a2f14',
         desc: 'Précision et Distance',
         emblem: 'bow',
-        silhouetteSvg: '<g opacity="0.16"><circle cx="131" cy="100" r="65" fill="none" stroke="#ffd24d" stroke-width="1" stroke-dasharray="10 5" /><path d="M 100,40 A 80,80 0 0,0 100,160 M 90,100 L 170,100 L 160,95 M 170,100 L 160,105" stroke="black" stroke-width="5" stroke-linecap="round" fill="none" /></g>'
+        // Archer drawing full bow silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Hooded Archer head -->
+            <path d="M 115,25 Q 130,15 145,25 L 145,45 L 115,45 Z" fill="#000" />
+            <circle cx="130" cy="38" r="9" fill="#000" />
+            <!-- Archer Torsos & Quiver on back -->
+            <path d="M 110,45 L 150,45 L 140,110 L 165,180 L 105,180 L 120,110 Z" fill="#000" />
+            <rect x="100" y="35" width="10" height="40" fill="#000" transform="rotate(-20, 105, 55)" />
+            <!-- Extended Longbow & Nocked Arrow -->
+            <path d="M 175,20 Q 205,100 175,180" stroke="#000" stroke-width="6" fill="none" />
+            <line x1="175" y1="20" x2="175" y2="180" stroke="#ffd24d" stroke-width="2" />
+            <line x1="105" y1="100" x2="190" y2="100" stroke="#000" stroke-width="4" />
+        </g>`
     },
     {
         name: 'PRÊTRE',
@@ -39,7 +83,17 @@ const CLASSES = [
         bg: '#33373a',
         desc: 'Soin et Lumière',
         emblem: 'cross',
-        silhouetteSvg: '<g opacity="0.16"><path d="M 131,50 L 131,150 M 100,80 L 162,80" stroke="black" stroke-width="8" stroke-linecap="round" fill="none" /><path d="M 131,100 Q 80,60 70,120 Q 110,110 131,100 Q 182,60 192,120 Q 152,110 131,100" fill="black" /></g>'
+        // Priest with angelic wings silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Angelic Wings spread out -->
+            <path d="M 130,70 Q 60,20 40,90 Q 90,100 120,90 Z" fill="#000" />
+            <path d="M 130,70 Q 200,20 220,90 Q 170,100 140,90 Z" fill="#000" />
+            <!-- Saint Halo -->
+            <ellipse cx="130" cy="22" rx="18" ry="5" fill="none" stroke="#f5f5f5" stroke-width="3" />
+            <!-- Praying Cleric Body -->
+            <circle cx="130" cy="35" r="10" fill="#000" />
+            <path d="M 115,48 L 145,48 L 155,180 L 105,180 Z" fill="#000" />
+        </g>`
     },
     {
         name: 'MOINE',
@@ -47,7 +101,17 @@ const CLASSES = [
         bg: '#3a2414',
         desc: 'Combat et Esprit',
         emblem: 'fist',
-        silhouetteSvg: '<g opacity="0.16"><circle cx="131" cy="100" r="50" fill="none" stroke="#ffa64d" stroke-width="3" /><path d="M 100,100 L 120,90 L 140,110 L 160,90 L 180,110 L 160,130 L 110,130 Z" fill="black" /><circle cx="131" cy="70" r="15" fill="black" /></g>'
+        // Martial Artist / Dragon Ball Power Stance silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Spiky Hair head -->
+            <path d="M 130,20 L 120,10 L 128,25 L 115,22 L 125,32 L 110,35 L 125,40 L 135,20 Z" fill="#000" />
+            <circle cx="130" cy="36" r="10" fill="#000" />
+            <!-- Muscular martial arts gi stance -->
+            <path d="M 100,50 L 160,50 L 150,100 L 175,170 L 130,150 L 85,170 L 110,100 Z" fill="#000" />
+            <!-- Outstretched aura hands -->
+            <circle cx="75" cy="70" r="12" fill="#ffa64d" opacity="0.5" />
+            <circle cx="185" cy="70" r="12" fill="#ffa64d" opacity="0.5" />
+        </g>`
     },
     {
         name: 'PALADIN',
@@ -55,7 +119,19 @@ const CLASSES = [
         bg: '#0f3a3d',
         desc: 'Protection et Sacré',
         emblem: 'shield',
-        silhouetteSvg: '<g opacity="0.16"><path d="M 131,50 L 175,70 L 165,130 L 131,160 L 97,130 L 87,70 Z" fill="black" /><path d="M 131,30 L 131,180" stroke="#4df2ff" stroke-width="4" opacity="0.4" /></g>'
+        // Heavily Armored Knight with Tower Shield & War Hammer silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Horned Helmet -->
+            <path d="M 115,25 L 130,10 L 145,25 L 140,40 L 120,40 Z" fill="#000" />
+            <circle cx="130" cy="32" r="10" fill="#000" />
+            <!-- Heavy Plate Armor Body -->
+            <path d="M 105,42 L 155,42 L 165,110 L 150,180 L 110,180 L 95,110 Z" fill="#000" />
+            <!-- Tower Shield on Left Arm -->
+            <polygon points="65,40 105,40 100,150 65,120" fill="#000" stroke="#4df2ff" stroke-width="2" />
+            <!-- War Hammer on Right Arm -->
+            <rect x="170" y="30" width="25" height="15" fill="#000" />
+            <line x1="182" y1="45" x2="182" y2="150" stroke="#000" stroke-width="6" />
+        </g>`
     },
     {
         name: 'INVOCATEUR',
@@ -63,7 +139,17 @@ const CLASSES = [
         bg: '#3a143a',
         desc: 'Créatures et Pactes',
         emblem: 'summon',
-        silhouetteSvg: '<g opacity="0.16"><polygon points="131,40 150,90 200,100 150,110 131,160 112,110 62,100 112,90" fill="none" stroke="#ff66ff" stroke-width="2" /><circle cx="131" cy="100" r="16" fill="black" /></g>'
+        // Summoner with Magic Circle & Familiar shadow silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Magic Pentagram Circle on ground -->
+            <ellipse cx="130" cy="150" rx="75" ry="25" fill="none" stroke="#ff66ff" stroke-width="2" />
+            <!-- Summoner standing inside -->
+            <circle cx="130" cy="38" r="10" fill="#000" />
+            <path d="M 115,48 L 145,48 L 160,150 L 100,150 Z" fill="#000" />
+            <!-- Floating Familiar Shadow Creature above shoulder -->
+            <path d="M 65,40 Q 55,20 75,25 Q 85,45 65,40 Z" fill="#000" />
+            <circle cx="70" cy="30" r="3" fill="#ff66ff" />
+        </g>`
     },
     {
         name: 'NÉCROMANCIEN',
@@ -71,7 +157,15 @@ const CLASSES = [
         bg: '#26143a',
         desc: 'Mort et Ombres',
         emblem: 'skull',
-        silhouetteSvg: '<g opacity="0.16"><path d="M 90,60 Q 150,30 180,70 L 131,160 Z" fill="black" /><path d="M 80,180 L 160,50 L 200,80" stroke="black" stroke-width="6" stroke-linecap="round" fill="none" /></g>'
+        // Grim Reaper with giant Scythe silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Deep Tattered Hood -->
+            <path d="M 115,20 Q 130,5 145,20 L 150,45 L 110,45 Z" fill="#000" />
+            <!-- Tattered Grim Reaper Cloak -->
+            <path d="M 110,45 L 150,45 L 175,180 L 85,180 Z" fill="#000" />
+            <!-- Giant Curved Death Scythe -->
+            <path d="M 170,180 L 185,15 L 110,35 Q 150,20 185,15" fill="#000" stroke="#b14dff" stroke-width="2" />
+        </g>`
     },
     {
         name: 'SAMOURAÏ',
@@ -79,7 +173,17 @@ const CLASSES = [
         bg: '#3a1421',
         desc: 'Honneur et Lame',
         emblem: 'katana',
-        silhouetteSvg: '<g opacity="0.16"><circle cx="131" cy="100" r="50" fill="#ff4d77" opacity="0.2" /><path d="M 60,150 Q 131,60 200,120" stroke="black" stroke-width="8" stroke-linecap="round" fill="none" /><path d="M 180,105 L 200,120 L 185,130 Z" fill="black" /></g>'
+        // Samurai in Iaido draw stance silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Topknot / Chonmage & Samurai Helmet -->
+            <circle cx="130" cy="18" r="5" fill="#000" />
+            <path d="M 115,25 L 145,25 L 140,42 L 120,42 Z" fill="#000" />
+            <circle cx="130" cy="35" r="10" fill="#000" />
+            <!-- Samurai Armor & Hakama pants -->
+            <path d="M 105,45 L 155,45 L 170,110 L 180,180 L 80,180 L 90,110 Z" fill="#000" />
+            <!-- Curved Katana Slash Arc -->
+            <path d="M 70,130 Q 130,50 205,80" stroke="#ff4d77" stroke-width="4" fill="none" />
+        </g>`
     },
     {
         name: 'CH.-DRAGON',
@@ -87,7 +191,19 @@ const CLASSES = [
         bg: '#3a1c0f',
         desc: 'Dragon et Cieux',
         emblem: 'dragon',
-        silhouetteSvg: '<g opacity="0.16"><path d="M 131,40 L 131,170 M 110,60 L 152,60" stroke="black" stroke-width="6" stroke-linecap="round" /><path d="M 131,90 Q 70,50 60,110 Q 131,100 131,90 Q 192,50 202,110 Q 131,100 131,90" fill="black" /></g>'
+        // Dragon Slayer with Dragon Horns & Leaping Spear silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Draconic Horns on head -->
+            <path d="M 115,25 Q 95,5 105,2" stroke="#000" stroke-width="4" fill="none" />
+            <path d="M 145,25 Q 165,5 155,2" stroke="#000" stroke-width="4" fill="none" />
+            <circle cx="130" cy="32" r="10" fill="#000" />
+            <!-- Scale Armor & Dragon Tail -->
+            <path d="M 110,45 L 150,45 L 160,110 L 145,180 L 115,180 L 100,110 Z" fill="#000" />
+            <path d="M 145,140 Q 190,150 210,120" stroke="#000" stroke-width="8" fill="none" />
+            <!-- Dragoon Thrusting Spear -->
+            <line x1="60" y1="160" x2="200" y2="20" stroke="#000" stroke-width="5" />
+            <polygon points="200,20 215,10 205,30" fill="#ff7a33" />
+        </g>`
     },
     {
         name: 'ALCHIMISTE',
@@ -95,7 +211,19 @@ const CLASSES = [
         bg: '#0f3a2a',
         desc: 'Science et Potions',
         emblem: 'flask',
-        silhouetteSvg: '<g opacity="0.16"><circle cx="131" cy="100" r="60" fill="none" stroke="#4dffb0" stroke-width="2" /><polygon points="131,40 183,130 79,130" fill="none" stroke="#4dffb0" stroke-width="1.5" /><circle cx="131" cy="100" r="18" fill="black" /></g>'
+        // Alchemist with Goggles, Flasks & Steampunk coat silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Alchemist Hat & Goggles -->
+            <rect x="110" y="20" width="40" height="15" fill="#000" />
+            <circle cx="120" cy="35" r="5" fill="#4dffb0" />
+            <circle cx="140" cy="35" r="5" fill="#4dffb0" />
+            <circle cx="130" cy="38" r="10" fill="#000" />
+            <!-- Long Steampunk Coat with potion belt -->
+            <path d="M 110,50 L 150,50 L 165,180 L 95,180 Z" fill="#000" />
+            <!-- Bubbling Flasks held in hands -->
+            <path d="M 75,90 L 85,90 L 90,115 L 70,115 Z" fill="#000" stroke="#4dffb0" stroke-width="1.5" />
+            <path d="M 175,90 L 185,90 L 190,115 L 170,115 Z" fill="#000" stroke="#4dffb0" stroke-width="1.5" />
+        </g>`
     },
     {
         name: 'BARDE',
@@ -103,7 +231,18 @@ const CLASSES = [
         bg: '#3a1430',
         desc: 'Musique et Soutien',
         emblem: 'note',
-        silhouetteSvg: '<g opacity="0.16"><path d="M 100,60 Q 131,40 162,60 L 150,140 Q 131,160 112,140 Z" fill="black" stroke="black" stroke-width="2" /><path d="M 110,70 L 110,130 M 120,70 L 120,130 M 130,65 L 130,135 M 140,70 L 140,130 M 150,70 L 150,130" stroke="#ff66bb" stroke-width="2" /></g>'
+        // Bard playing Lute / Harp with musical notes silhouette
+        silhouetteSvg: `<g opacity="0.28">
+            <!-- Feathered Cap -->
+            <path d="M 110,25 Q 130,10 150,25 L 140,35 L 120,35 Z" fill="#000" />
+            <path d="M 140,20 Q 170,5 160,30" stroke="#ff66bb" stroke-width="3" fill="none" />
+            <circle cx="130" cy="38" r="9" fill="#000" />
+            <!-- Bard Body holding Lute -->
+            <path d="M 115,48 L 145,48 L 155,180 L 105,180 Z" fill="#000" />
+            <!-- Lute / Guitar Instrument -->
+            <ellipse cx="100" cy="100" rx="20" ry="25" fill="#000" stroke="#ff66bb" stroke-width="1" />
+            <line x1="100" y1="100" x2="160" y2="70" stroke="#000" stroke-width="5" />
+        </g>`
     }
 ];
 

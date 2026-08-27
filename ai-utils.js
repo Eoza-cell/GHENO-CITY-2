@@ -899,8 +899,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, 5000) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 7000);
     }
 
+    const { generateLocalLLMResponse } = require('./local-llm-engine');
     const { callTransformersJS } = require('./transformers-js-handler');
     const providers = [
+        { name: 'Unlimited Local LLM Story Engine', fn: generateLocalLLMResponse },
         { name: 'GPT4Free (g4f) Engine', fn: callG4F },
         { name: 'Blackbox AI (Free)', fn: callBlackbox },
         { name: 'Ollama (Local Gemma 4)', fn: callOllama },
@@ -908,9 +910,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'vLLM OpenAI Server', fn: callVLLM },
         { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
-        { name: 'Hugging Face Transformers (Local Gemma)', fn: callHuggingFaceLocal },
-        { name: 'Puter Pool Manager', fn: callPuterPoolManager },
-        { name: 'OmniBrain Proxy', fn: callOmniBrain }
+        { name: 'Hugging Face Transformers (Local Gemma)', fn: callHuggingFaceLocal }
     ];
 
     const timeouts = [];

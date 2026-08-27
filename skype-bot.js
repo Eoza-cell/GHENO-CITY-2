@@ -291,7 +291,7 @@ async function connectToWhatsApp() {
                             });
 
                             console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                            await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
+                            await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans After the Rebirth (ATR).` });
 
                             // Trigger tutorial after profile pic
                             await startTutorial(sock, message.key.remoteJid, player);
@@ -302,8 +302,11 @@ async function connectToWhatsApp() {
                             return;
                         }
                     } else {
-                         // If text is sent instead of image, clear awaitingProfilePic flag and continue to handle message
+                         // If text is sent instead of image, clear awaitingProfilePic flag and trigger tutorial without treating as free action
                          await player.update({ awaitingProfilePic: false });
+                         await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil ignorée (avatar par défaut attribué). Bienvenue dans After the Rebirth (ATR) !` });
+                         await startTutorial(sock, message.key.remoteJid, player);
+                         return;
                     }
                 }
 

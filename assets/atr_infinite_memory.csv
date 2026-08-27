@@ -44,3 +44,19 @@ L'écho de ton action confirme l'ancrage de tes données dans le registre d'ATR.
 
 Les PNJ aux alentours s'écartent avec empressement, comprenant que la volonté d'un aventurier déterminé ne saurait être freinée. Le chemin s'ouvre devant toi, marquant le franchissement d'un cap déterminant dans ton aventure.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
 "2026-08-27T17:39:08.008Z","test_full_loop_1787852346840","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « ton exploration » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T17:46:54.050Z","test_unlimited_llm_1787852813521","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","L'atmosphère de Empire Impérial d'Elion se tend brusquement alors que E.L.KING passe à l'offensive ! Lorsque tu accomplis « Je tire mon épée et frappe le monstre. », ton arme découpe l'air avec une vitesse fulgurante, traçant un arc de lumière d'éther pur au milieu de la pénombre.
+
+Le choc résonne à travers le secteur avec un fracas métallique assourdissant. Ton adversaire est ébranlé de plein fouet, incapable de parer la totalité de la force déployée par ton essence d'Héritier. Les témoins et gardes locaux retiennent leur souffle devant une telle démonstration de Battle IQ et de maîtrise tactique.
+
+La menace est repoussée de quelques mètres, affirmant ton autorité dans la zone et te rapprochant de l'accomplissement de ta Quête Principale Obligatoire.
+
+[E.L.KING: EXP +180]
+[E.L.KING: GOLD +250]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":350}"
+"2026-08-27T17:46:54.825Z","test_unlimited_llm_1787852813521","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Une brise chargée d'éther balaye la zone alors que E.L.KING accomplit « Je m'avance vers la porte principale d'Eldoria. ». Ton mouvement est fluide et méthodique, affirmant la maîtrise de ton personnage sur le terrain.
+
+Les détails de la citadelle et des structures environnantes se découpent avec netteté sous le ciel d'ATR. Ton passage marque les esprits et consolide ton empreinte dans la mémoire du monde.
+
+La voie vers ton chapitre principal s'éclaircit à chacun de tes gestes.
+
+[E.L.KING: EXP +150]
+[E.L.KING: GOLD +170]","{""health"":140,""maxHealth"":140,""mana"":140,""col"":520}"
