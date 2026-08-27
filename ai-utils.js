@@ -901,16 +901,16 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     const { callTransformersJS } = require('./transformers-js-handler');
     const providers = [
-        { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
-        { name: 'Ollama (Local Gemma 4)', fn: callOllama },
-        { name: 'Hugging Face Transformers (Local Gemma)', fn: callHuggingFaceLocal },
         { name: 'GPT4Free (g4f) Engine', fn: callG4F },
         { name: 'Blackbox AI (Free)', fn: callBlackbox },
-        { name: 'vLLM OpenAI Server', fn: callVLLM },
+        { name: 'Ollama (Local Gemma 4)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
+        { name: 'OpenRouter', fn: callOpenRouter },
+        { name: 'vLLM OpenAI Server', fn: callVLLM },
+        { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
+        { name: 'Hugging Face Transformers (Local Gemma)', fn: callHuggingFaceLocal },
         { name: 'Puter Pool Manager', fn: callPuterPoolManager },
-        { name: 'OmniBrain Proxy', fn: callOmniBrain },
-        { name: 'OpenRouter', fn: callOpenRouter }
+        { name: 'OmniBrain Proxy', fn: callOmniBrain }
     ];
 
     const timeouts = [];

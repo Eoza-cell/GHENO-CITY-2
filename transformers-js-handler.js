@@ -21,7 +21,7 @@ function extractTruePlayerAction(prompt) {
         if (clean.length > 2 && clean.length < 200) return clean;
     }
 
-    // 3. Fallback: extract last line that doesn't start with Aucune or System or Faction
+    // 3. Fallback: extract last line
     const lines = prompt.split('\n').map(l => l.trim()).filter(l => l && !l.includes("TRUNCATED") && !l.includes("Aucune") && !l.includes("Influence") && !l.startsWith("System:") && !l.startsWith("---") && !l.startsWith("PERSONNAGE"));
     if (lines.length > 0) {
         const lastLine = lines[lines.length - 1].replace(/^\[[^\]]+\]\s*/, '').replace(/[*_#]/g, '');
@@ -40,7 +40,7 @@ function extractTruePlayerAction(prompt) {
  * @param {string} system System prompt directives
  * @param {string} prompt User prompt action
  * @param {Object} options Execution options
- * @returns {Promise<string|null>} Clean narrative response
+ * @returns {Promise<string|null>} Clean narrative response or null to pass to next LLM
  */
 async function callTransformersJS(system, prompt, options = {}) {
     console.log(`[Transformers.js] Executing Hugging Face Transformers JS engine...`);
@@ -109,16 +109,8 @@ async function callTransformersJS(system, prompt, options = {}) {
         console.warn(`[Transformers.js] Python pipeline warning:`, pyErr.message);
     }
 
-    // 2. High-quality in-process ATR Transformers narrative generator (Deep Shonen/Seinen style)
-    const responses = [
-        `L'atmosphère d'ATR est lourde, saturée par le courant d'éther et l'odeur caractéristique de l'acier et du soufre. Lorsque tu accomplis « ${cleanAction} », ton mouvement est d'une précision chirurgicale, traçant une onde d'énergie spirituelle dans l'air ambiant.\n\nLes gardes de la milice et les témoins présents observent la scène avec stupeur. Un frisson parcourt la foule alors que ton aura d'Héritier résonne en harmonie avec la matrice du monde. Ton objectif principal se rapproche, affirmant ton emprise sur le chapitre en cours.`,
-
-        `Ton initiative « ${cleanAction} » fend la pénombre ambiante avec une intensité remarquable. Les fluides magiques qui parcourent les conduits de la cité se déforment sous la pression de ton essence, projetant des éclats de lumière translucide sur le sol de pierre.\n\nLes PNJ aux alentours s'écartent avec empressement, comprenant que la volonté d'un aventurier déterminé ne saurait être freinée. Le chemin s'ouvre devant toi, marquant le franchissement d'un cap déterminant dans ton aventure.`,
-
-        `En réalisant « ${cleanAction} », tu fais vibrer les lignes de force de l'Interstice. La poussière s'élève en spirale sous l'impulsion de ton mouvement, tandis que les répercussions physiques de ton geste se propagent à travers l'environnement.\n\nL'écho de ton action confirme l'ancrage de tes données dans le registre d'ATR. La suite de ton parcours se profile avec une clarté nouvelle.`
-    ];
-
-    return responses[Math.floor(Math.random() * responses.length)];
+    // Return null so callAI seamlessly falls back to real online/local LLM providers
+    return null;
 }
 
 module.exports = { callTransformersJS, extractTruePlayerAction };

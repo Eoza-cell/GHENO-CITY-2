@@ -11,16 +11,6 @@ def read_arg(arg):
             pass
     return arg
 
-def extract_user_action(prompt_text):
-    # Extracts only the player's action, removing system prompts or header blocks
-    match = re.search(r'ACTION\s*:\s*(.+)$', prompt_text, re.IGNORECASE | re.MULTILINE)
-    if match:
-        return match.group(1).strip()
-    match2 = re.search(r'User\s*:\s*(.+)$', prompt_text, re.IGNORECASE | re.DOTALL)
-    if match2:
-        return match2.group(1).strip()
-    return prompt_text.strip()
-
 def main():
     if len(sys.argv) < 3:
         system_prompt = "MJ D'ATR RPG Engine"
@@ -29,7 +19,7 @@ def main():
         system_prompt = read_arg(sys.argv[1])
         user_prompt = read_arg(sys.argv[2])
 
-    clean_action = extract_user_action(user_prompt)
+    clean_action = user_prompt.replace('ACTION:', '').strip()
 
     # Attempt Hugging Face Transformers local pipeline
     try:
@@ -54,20 +44,11 @@ def main():
         outputs = model.generate(**inputs, max_new_tokens=512, temperature=0.7, do_sample=True)
         response = tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tokens=True)
 
-        # Remove any system prompt echoes if model echoes system
         cleaned_response = re.sub(r'MJ D\'ATR[\s\S]*?RULES.*?\n', '', response, flags=re.IGNORECASE)
         print(cleaned_response.strip())
         return
     except Exception as e:
-        pass
-
-    # High-quality RPG local narrative engine fallback (never echo system prompt)
-    action_display = clean_action.replace('ACTION:', '').strip()
-    if not action_display or len(action_display) > 200:
-        action_display = "ton exploration"
-
-    narrative = f"Ton action « {action_display} » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution."
-    print(narrative)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
