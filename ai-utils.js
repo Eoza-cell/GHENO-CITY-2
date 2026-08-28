@@ -894,17 +894,15 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, 5000) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 7000);
     }
 
-    const { generateLocalLLMResponse } = require('./local-llm-engine');
     const { callTransformersJS } = require('./transformers-js-handler');
     const { callWebLLM } = require('./webllm-handler');
     const providers = [
-        { name: 'WebLLM Engine (@mlc-ai/web-llm)', fn: callWebLLM },
-        { name: 'Generative Local LLM Story Engine', fn: generateLocalLLMResponse },
         { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
+        { name: 'Ollama (Local Gemma 4)', fn: callOllama },
         { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
         { name: 'GPT4Free (g4f) Engine', fn: callG4F },
+        { name: 'WebLLM Engine (@mlc-ai/web-llm)', fn: callWebLLM },
         { name: 'Blackbox AI (Free)', fn: callBlackbox },
-        { name: 'Ollama (Local Gemma 4)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'vLLM OpenAI Server', fn: callVLLM }
