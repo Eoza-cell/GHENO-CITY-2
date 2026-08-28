@@ -142,3 +142,19 @@ Tu amènes ton personnage à la position souhaitée, prêt à interagir avec ce 
 
 [KAELEN: EXP +147]
 [KAELEN: GOLD +124]","{""health"":160,""maxHealth"":160,""mana"":160,""col"":822}"
+"2026-08-28T10:07:04.067Z","test_hf_tf_1787911623464","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","L'acier chante au milieu de Empire Impérial d'Elion ! Lorsque KAELEN exécute « Je tire mon épée et frappe le monstre. », la trajectoire de l'arme découpe l'air avec une vitesse fulgurante, laissant une traînée d'étincelles étincelantes au point d'impact.
+
+Le choc métallique résonne dans tout le secteur. La force brute de ton coup déséquilibre la posture de ton opposant, incapable d'absorber la totalité de ton Battle IQ. La violence du choc marque les esprits des combattants environnants.
+
+Tu rétablis ta garde avec une fluidité parfaite, affirmant ton autorité physique dans la zone et confortant ta progression.
+
+[KAELEN: EXP +136]
+[KAELEN: GOLD +198]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":298}"
+"2026-08-28T10:07:07.280Z","test_hf_tf_1787911623464","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Dans l'agitation de Empire Impérial d'Elion, KAELEN s'adresse directement à ses interlocuteurs. Lorsque tu accomplis « Je demande au garde les secrets du palais. », ta voix posée et la prestance de ton rang captent immédiatement l'attention.
+
+Les PNJ et observateurs locaux s'arrêtent, écoutant attentivement tes paroles. Impressionnés par ton assurance et l'aura qui émane de toi, ils te répondent avec respect et te révèlent des éléments stratégiques précieux concernant la région.
+
+Ces échanges te fournissent les clés nécessaires pour orienter tes prochaines décisions avec une clarté absolue.
+
+[KAELEN: EXP +120]
+[KAELEN: GOLD +180]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":478}"
