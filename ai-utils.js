@@ -896,7 +896,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     const { generateLocalLLMResponse } = require('./local-llm-engine');
     const { callTransformersJS } = require('./transformers-js-handler');
+    const { callWebLLM } = require('./webllm-handler');
     const providers = [
+        { name: 'WebLLM Engine (@mlc-ai/web-llm)', fn: callWebLLM },
         { name: 'Generative Local LLM Story Engine', fn: generateLocalLLMResponse },
         { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
         { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
