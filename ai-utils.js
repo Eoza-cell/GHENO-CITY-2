@@ -615,51 +615,46 @@ async function callHuggingFaceLocal(system, prompt, options = {}) {
  * Call a local Ollama instance if available.
  */
 async function callOllama(system, prompt, options = {}) {
-    let ollamaUrl = process.env.OLLAMA_URL || "http://192.168.1.66:12434";
-    const jsonMode = options.jsonMode !== false;
-
-    if (!ollamaUrl.startsWith('http')) {
-        ollamaUrl = 'http://' + ollamaUrl;
+    let ollamaHost = process.env.OLLAMA_URL || "http://192.168.1.66:12434";
+    if (!ollamaHost.startsWith('http')) {
+        ollamaHost = 'http://' + ollamaHost;
     }
 
-    const apiBaseUrl = ollamaUrl.replace(/\/$/, '') + (ollamaUrl.includes('/api') ? '' : '/api');
-    const isCloud = ollamaUrl.includes('ollama.com');
-
     try {
-        console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
+        console.log(`[AI] Ollama SDK - Tentative avec le package 'ollama' sur ${ollamaHost}...`);
+        const { Ollama } = require('ollama');
+        const ollamaClient = new Ollama({ host: ollamaHost });
 
-        const payload = {
-            // Default model is 'gemma4' local as requested by the user
-            model: process.env.OLLAMA_MODEL || 'gemma4',
+        const modelName = process.env.OLLAMA_MODEL || 'gemma4';
+
+        // Support optional embedding calculation using embeddinggemma if requested
+        if (options && options.getEmbeddings) {
+            try {
+                const embedRes = await ollamaClient.embed({
+                    model: 'embeddinggemma',
+                    input: prompt
+                });
+                if (embedRes && embedRes.embeddings) {
+                    console.log(`[Ollama Embeddings] Generated embeddings using embeddinggemma.`);
+                }
+            } catch (eEmbed) {
+                console.warn(`[Ollama Embeddings Warning]`, eEmbed.message);
+            }
+        }
+
+        const response = await ollamaClient.chat({
+            model: modelName,
             messages: [
                 { role: 'system', content: system },
                 { role: 'user', content: prompt }
             ],
-            stream: false,
-            options: {
-                temperature: 0.2,
-                num_predict: 2048,  // Higher predict limit for deep world details
-                num_ctx: 32768      // Expanding to 32k context window (Infinite Memory)
-            }
-        };
-        if (jsonMode) {
-            payload.format = 'json';
-        }
-
-        const headers = { 'Content-Type': 'application/json' };
-        if (isCloud && process.env.OLLAMA_API_KEY) {
-            headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
-        }
-
-        const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
-            headers,
-            timeout: 15000
+            stream: false
         });
 
-        const content = resp.data?.message?.content || resp.data?.response;
+        const content = response?.message?.content;
         if (isValidAIResponse(content)) return content;
     } catch (e) {
-        console.warn(`[AI] Ollama error on ${ollamaUrl}:`, e.response?.data || e.message);
+        console.warn(`[AI] Ollama SDK Error (${ollamaHost}):`, e.message);
     }
     return null;
 }
