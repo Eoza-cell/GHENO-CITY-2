@@ -902,15 +902,15 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const { generateLocalLLMResponse } = require('./local-llm-engine');
     const { callTransformersJS } = require('./transformers-js-handler');
     const providers = [
+        { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
+        { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
         { name: 'Unlimited Local LLM Story Engine', fn: generateLocalLLMResponse },
         { name: 'GPT4Free (g4f) Engine', fn: callG4F },
         { name: 'Blackbox AI (Free)', fn: callBlackbox },
         { name: 'Ollama (Local Gemma 4)', fn: callOllama },
         { name: 'Puter SDK', fn: callPuterSDK },
         { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'vLLM OpenAI Server', fn: callVLLM },
-        { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
-        { name: 'Hugging Face Transformers (Local Gemma)', fn: callHuggingFaceLocal }
+        { name: 'vLLM OpenAI Server', fn: callVLLM }
     ];
 
     const timeouts = [];
