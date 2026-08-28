@@ -902,9 +902,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const { generateLocalLLMResponse } = require('./local-llm-engine');
     const { callTransformersJS } = require('./transformers-js-handler');
     const providers = [
+        { name: 'Generative Local LLM Story Engine', fn: generateLocalLLMResponse },
         { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
         { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
-        { name: 'Unlimited Local LLM Story Engine', fn: generateLocalLLMResponse },
         { name: 'GPT4Free (g4f) Engine', fn: callG4F },
         { name: 'Blackbox AI (Free)', fn: callBlackbox },
         { name: 'Ollama (Local Gemma 4)', fn: callOllama },

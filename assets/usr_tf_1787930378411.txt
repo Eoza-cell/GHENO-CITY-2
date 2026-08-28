@@ -1,0 +1,128 @@
+### WORLD_PULSE (DICE/LUCK) ###
+{"luck_seed":13,"critical_success":false,"weather_impact":"Normal"}
+
+### ÉTAT PHYSIQUE ET DONNÉES DU MONDE DE JEU ###
+### ÉTAT DU MONDE D'AETHERYS ###
+- DATE: An 23, 31 Mars | 🌙 04:56
+- PÉRIODE: NUIT (Lune, ombres, visibilité réduite)
+- MÉTÉO: clair
+- ROYAUME ACTUEL: Empire Impérial d'Elion
+- DESCRIPTION DU ROYAUME: Royaume humain central. Villes: Eldoria (Capitale), Solis, Riverbend, Green-Fields, Portes d'Elion.
+- GÉOGRAPHIE ET FACTIONS:
+- [Aetheria] Empire Impérial d'Elion: Royaume humain central. Villes: Eldoria (Capitale), Solis, Riverbend, Green-Fields, Portes d'Elion.
+- [Aetheria] Royaume de Valkyrr: Centre technologique. Villes: Gearhead, Sparkwell, Grand Laboratoire, Marché de l'Éther, Lycée de l'Éther.
+- [Aetheria] Gheno souterrain: Cité criminelle. Villes: Marché Noir, Caveau des Ombres, Taverne de l'Exilé, École des Ombres, Bas-fonds.
+- [Aetheria] Forêt de l'Éveil: Refuge Elfique. Villes: Sylva-Lumia, Arbre-Mère, Sources d'Argent, Clairière du Destin, Racines Éternelles.
+- [Aetheria] Archipel des Murmures: Îles brumeuses. Villes: Port-Brume, Crique de Corail, Phare d'Écume, Atoll des Sirènes, Rocher Percé.
+- [Zendora] Terres Bestiales: Plaines sauvages. Villes: Oakhaven, Claw-reach, Jungle de Fer, Caverne Primordiale, Pic du Prédateur.
+- [Zendora] Bastion d'Orkh: Domaine Orc. Villes: Fort-Sang, Arène de Iron, Mines Rouges, Canyon des Crânes, Temple de la Rage.
+- [Zendora] Montagnes de Iron: Royaume Nain. Villes: Forge-Profonde, Cité-Sous-Montagne, Gouffre d'Or, Porte de Granit, Salle du Trône.
+- [Zendora] Désert d'Ambre: Étendue de sable. Villes: Oasis d'Or, Cité des Dunes, Souk des Mirages, Pyramide de Cristal, Temple Solaire.
+- [Umbra] Dominion Noir de Vharos: Terre morte. Villes: Marais Putrides, Donjon de la Liche, Champs Éternels, Fort-Désolation, Sépulture de Sang.
+- [Umbra] Nécropolis: Cité des morts. Villes: Le Seuil, Allée des Tombeaux, Trône du Jugement, Val des Pleurs, Nécropole d'Ébène.
+- [Umbra] L'Interstice: Zone de faille. Villes: Ravin des Âmes, Forêt des Béhérits, Tour de la Main, Miroir Déformé, Fissure du Néant.
+- [Umbra] Cité de Verre: Reflets et miroirs. Villes: Palais des Reflets, Prisme d'Ombre, Labyrinthe de Cristal, Tour de Verre, Miroir Brisé.
+- [Caelum] Royaume Céleste: Îles flottantes. Villes: Palais d'Argent, Jardins d'Éther, Cascade des Lumières, Portes du Ciel, Sanctuaire Ailé.
+- [Caelum] Abysse Inférieur: Domaine Démoniaque. Villes: Cité de Pandémonium, Lac de Soufre, Trône de Flammes, Bastion du Pêché, Fosse de Sang.
+- [Caelum] Origine de l'Existence: Sommet sacré. Villes: Autel de la Causalité, Mer de Conscience, Portes du Temps, Origine du Vide, Zenith Absolu.
+- [Caelum] Cité de l'Aube: Premier lever de soleil. Villes: Bastion de l'Aurore, Palais d'Or, Jardins Suspendus, Port de Lumière, Tour du Matin.
+- CONFLITS POLITIQUES ACTUELS: Paix relative.
+- ACADÉMIES ET ÉCOLES: [Académie Royale d'Elion] Spec:Escrime de Mana & Droit Impérial Kingdom:Empire Impérial d'Elion | [Garde Impériale de Fer] Spec:Milice & Maintien de l'Ordre Kingdom:Empire Impérial d'Elion | [Lycée Supérieur de l'Éther] Spec:Techno-magie & Ondes de Mana Kingdom:Royaume de Valkyrr | [Milice de Sparkwell] Spec:Patrouilles Mécanisées Kingdom:Royaume de Valkyrr | [École de l'Ombre Silencieuse] Spec:Infiltration, Dagues & Poisons Kingdom:Gheno souterrain | [Syndicat du Marché Noir] Spec:Fidélité et Contrebande Kingdom:Gheno souterrain | [Collège Elfique de Sylva-Lumia] Spec:Sorcellerie Végétale & Tir Sylvestre Kingdom:Forêt de l'Éveil | [Garde Blanche des Frontières] Spec:Escortes d'Archipel Kingdom:Archipel des Murmures | [Clan de la Griffe Sauvage] Spec:Combat Bestial et Instinct Kingdom:Terres Bestiales | [Arène des Sables Sanglants] Spec:Rage Brutale & Haches Lourdes Kingdom:Bastion d'Orkh | [Citadelle de Forge-Profonde] Spec:Métallurgie Runique & Défense Kingdom:Montagnes de Iron | [Académie Solaire des Dunes] Spec:Magie du Sable & Alchimie du Mirage Kingdom:Désert d'Ambre | [Sanctuaire de l'Abîme] Spec:Sorcellerie de la Mort & Squelettes Kingdom:Dominion Noir de Vharos | [Ordre de la Justice Céleste] Spec:Lumière Divine & Ailes de Volonté Kingdom:Royaume Céleste | [Lycée du Pandémonium] Spec:Magie du Feu Noir & Pactes Démoniaques Kingdom:Abysse Inférieur
+
+### PERSONNAGES PRÉSENTS DANS LA SCÈNE (SOCIÉTÉ) ###
+- Eoza :
+  * Classe: Aucune(Aucun) (Citoyen)
+  * Statut: Race:Humain | Sexe:Non-défini | Age:18 | Niv:1 | Rang:F | PV:100/100 | PM:100/100 | Faim:100 | Sommeil:45 | Argent(Col):100 | Banque:100 | FOR:5 AGI:5 INT:5 DEF:5 LUK:2 | SP:0
+  * Faction: Aucune (Influence: 0)
+  * Équipements & Inventaire: Aucun
+  * Techniques maîtrisées: Aucune
+  * Pactes d'entités: Aucun
+  * Quêtes actives: Aucune
+  * Récents gestes de ce joueur: Hors-champ ou Immobile
+- Eoza :
+  * Classe: Aucune(Aucun) (Citoyen)
+  * Statut: Race:Humain | Sexe:Non-défini | Age:18 | Niv:1 | Rang:F | PV:100/100 | PM:100/100 | Faim:100 | Sommeil:1 | Argent(Col):100 | Banque:100 | FOR:5 AGI:5 INT:5 DEF:
+...[TRUNCATED]...
+ Quêtes actives: Aucune
+  * Récents gestes de ce joueur: Je m'approche du maréchal et lui demande des renforts pour la frontière.
+
+### ENVIRONNEMENT IMMÉDIAT ET OBJECTIFS ###
+- PNJ PRÉSENTS PROCHES: PNJ_PRÉSENTS: Mira Nakamura #1434(Rôle:Voleur, Force:19, Spé:Calme) | Misaki Flame #8406(Rôle:Voleur, Force:51, Spé:Agressif) | Lyra Nakamura #9638(Rôle:Noble, Force:58, Spé:Mystérieux) | Elias Kobayashi #8756(Rôle:Aventurier, Force:79, Spé:Serviable) | Cyrus Soul #1451(Rôle:Noble, Force:65, Spé:Distrait)
+- MONSTRES LOCAUX: Monstres:
+- PROPRIÉTÉS ET DOMICILES: Aucun
+- DONJONS ET QUÊTES DISPONIBLES: Quêtes Dispo: Premiers Pas à Eldoria (Rang F), La Chasse aux Gobelins (Rang F), L'Antre du Chef Gobelin (Rang F), Infiltration de Spectres à Forêt #0 (Rang F), Exploration de Slimes à Ruines #10 (Rang F) | Donjon: Forêt des Gobelins(E)
+
+### HISTORIQUE_NARRATIF_RÉCENT_PAR_JOUEUR ###
+- Souvenirs récents de Eoza :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de Eoza :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de Eoza :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de E.L.King :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de E.L.King :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de TestHero :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de E.L.King :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de E.L.King :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de E.L.King :
+  * Aucun événement marquant enregistré.
+- Souvenirs récents de Kaelen :
+  * Aucun événement marquant enregistré.
+
+### HISTORIQUE DE TOUTE L'AVENTURE DE L'HÉRITIER (MÉMOIRE INFINIE - NE PAS OUBLIER !) ###
+Rappel de toutes les actions, accomplissements et passés historiques de Kaelen :
+- QUÊTES TERMINÉES : Aucune quête complétée pour le moment.
+- TIMELINE RP COMPLÈTE :
+- Début récent de l'aventure dans l'Interstice d'Aetherys.
+- ACTIONS RP ET DIALOGUES ANTÉRIEURS (SOUVENIRS INFINIS) :
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: L'acier chante au milieu de Empire Impérial d'Elion ! Lorsque KAELEN exécute « Je tranche le bouclier du garde avec mon katana d'ombre. », la trajecto
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: Les flux d'éther résonnent avec une intensité aveuglante à travers Empire Impérial d'Elion alors que KAELEN rassemble la puissance de son essence spir
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: Dans l'agitation de Empire Impérial d'Elion, KAELEN s'adresse directement à ses interlocuteurs. Lorsque tu accomplis « Je m'approche de l'alchimiste e
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: Au cœur de Empire Impérial d'Elion, KAELEN prend un moment d'arrêt stratégique. En accomplissant « Je bois la potion de soins et panse mes blessures.
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: Sous le ciel majestueux d'After the Rebirth, la progression de KAELEN se poursuit à Empire Impérial d'Elion. En réalisant « Je cours vers le sanctuair
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: L'acier chante au milieu de Empire Impérial d'Elion ! Lorsque KAELEN exécute « Je tire mon épée et frappe le monstre. », la trajectoire de l'arme déco
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: Dans l'agitation de Empire Impérial d'Elion, KAELEN s'adresse directement à ses interlocuteurs. Lorsque tu accomplis « Je demande au garde les secrets
+- [Empire Impérial d'Elion - Eldoria] Kaelen: Je canalise mon éther de foudre pour frapper le démon au torse avec mon épée.
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: Le sol de Empire Impérial d'Elion vibre sous le choc ! En lançant « Je canalise mon éther de foudre pour frapper le démon au torse avec mon épée. », K
+- [Empire Impérial d'Elion - Eldoria] Kaelen: Je récite l'incantation des flammes d'éther pour calciner la horde de squelettes.
+- [Empire Impérial d'Elion - Eldoria] ATR MJ: L'atmosphère de Empire Impérial d'Elion se tend brusquement sous la pression du mana alors que KAELEN passe à l'action ! Lorsque tu accomplis « Je réc
+- [Empire Impérial d'Elion - Eldoria] Kaelen: Je m'approche du maréchal et lui demande des renforts pour la frontière.
+
+### DONNÉES DE LA TABLE EXCEL DU JOUEUR (MÉMOIRE CHRONOLOGIQUE TABLEUR) ###
+- [2026-08-28] [MJ_NARRATIVE] : »
+- [2026-08-28] [MJ_NARRATIVE] : »
+
+### ANALYSE DU LIEU PHYSIQUE ET DE LA SCÈNE ###
+SCÈNE_COLLECTIVE: Empire Impérial d'Elion (Eldoria)
+CHRONOLOGIE_DES_ACTIONS (ORDRE STRICT):
+Kaelen: Je m'approche du maréchal et lui demande des renforts pour la frontière.
+
+RÉALITÉ PHYSIQUE:
+- ACTEURS DANS LA PIÈCE: Kaelen (Ils se voient et s'entendent parfaitement)
+- SPECTATEURS PROCHES: Eoza, Eoza, Eoza, E.L.King, E.L.King, TestHero, E.L.King, E.L.King, E.L.King (Ils sont là mais immobiles)
+- HORS_CHAMP (Même Royaume):
+- ENVIRONNEMENT: Royaume humain central. Villes: Eldoria (Capitale), Solis, Riverbend, Green-Fields, Portes d'Elion.
+
+### RÉSUMÉ DES ACTIONS À TRAITER ###
+[JOUEUR: Kaelen] ACTIONS: Je m'approche du maréchal et lui demande des renforts pour la frontière.
+
+CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
+1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
+2. RÉGIS LEURS INTERACTIONS AVEC UNE PRIO ABSOLUE : Si les joueurs s'adressent la parole, s'attaquent, coopèrent ou échangent des objets, décris l'action avec une extrême fluidité.
+   - DIALOGUES & COMMERCE : Décris l'échange de mots direct ou le transfert physique d'objets ou de Col.
+   - DUEL PVP : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies (FOR/AGI/DEF) pour arbitrer le choc. Une attaque ne peut JAMAIS être ignorée : elle est soit esquivée (AGI), soit bloquée (DEF), soit encaissée de plein fouet (dégâts massifs de HP selon la zone touchée : tête, torse, membres, etc., pouvant être mortelle). Tu DOIS obligatoirement déduire des points de vie (HP) au joueur ciblé en écrivant le bracket correspondant (ex: [JoueurB: HP -25]). Si tu n'écris pas le bracket de dégâts, les joueurs ne perdront aucun PV dans la base de données, ce qui viole la règle de létalité.
+   - COOPÉRATION : S'ils unissent leurs forces (attaque synchronisée), décris un combo spectaculaire combinant leurs éléments (ex: feu + vent) provoquant d'immenses dégâts collatéraux.
+3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
+4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.
+5. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans le RÉSUMÉ DES ACTIONS.
+6. STRUCTURE OBLIGATOIRE : Utilise [NOM_DU_JOUEUR] et le séparateur ▬▬▬▬▬▬▬▬▬▬▬▬.
+
+### ACTION EN COURS DU JOUEUR KAELEN ###
+DERNIÈRE ACTION DE KAELEN : "Je m'approche du maréchal et lui demande des renforts pour la frontière."
+
+ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par les brackets des impacts statutaires.
