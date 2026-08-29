@@ -627,47 +627,73 @@ async function callHuggingFaceLocal(system, prompt, options = {}) {
  * Call a local Ollama instance if available.
  */
 async function callOllama(system, prompt, options = {}) {
-    let ollamaHost = process.env.OLLAMA_URL || "http://192.168.1.66:12434";
+    let ollamaHost = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
     if (!ollamaHost.startsWith('http')) {
         ollamaHost = 'http://' + ollamaHost;
     }
 
-    try {
-        console.log(`[AI] Ollama SDK - Tentative avec le package 'ollama' sur ${ollamaHost}...`);
-        const { Ollama } = require('ollama');
-        const ollamaClient = new Ollama({ host: ollamaHost });
+    const modelName = process.env.OLLAMA_MODEL || 'gemma4:e4b';
+    const numCtx = parseInt(process.env.OLLAMA_NUM_CTX || '32768', 10);
+    const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '60000', 10);
+    const maxRetries = parseInt(process.env.OLLAMA_RETRIES || '2', 10);
 
-        const modelName = process.env.OLLAMA_MODEL || 'gemma4';
+    let lastError = null;
 
-        // Support optional embedding calculation using embeddinggemma if requested
-        if (options && options.getEmbeddings) {
-            try {
-                const embedRes = await ollamaClient.embed({
-                    model: 'embeddinggemma',
-                    input: prompt
-                });
-                if (embedRes && embedRes.embeddings) {
-                    console.log(`[Ollama Embeddings] Generated embeddings using embeddinggemma.`);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            console.log(`[AI] Ollama SDK - Tentative ${attempt + 1}/${maxRetries + 1} (${modelName}) sur ${ollamaHost}...`);
+            const { Ollama } = require('ollama');
+            const ollamaClient = new Ollama({ host: ollamaHost });
+
+            // Support optional embedding calculation using embeddinggemma if requested
+            if (options && options.getEmbeddings) {
+                try {
+                    const embedRes = await ollamaClient.embed({
+                        model: 'embeddinggemma',
+                        input: prompt
+                    });
+                    if (embedRes && embedRes.embeddings) {
+                        console.log(`[Ollama Embeddings] Generated embeddings using embeddinggemma.`);
+                    }
+                } catch (eEmbed) {
+                    console.warn(`[Ollama Embeddings Warning]`, eEmbed.message);
                 }
-            } catch (eEmbed) {
-                console.warn(`[Ollama Embeddings Warning]`, eEmbed.message);
+            }
+
+            const response = await ollamaClient.chat({
+                model: modelName,
+                messages: [
+                    { role: 'system', content: system },
+                    { role: 'user', content: prompt }
+                ],
+                options: { num_ctx: numCtx },
+                stream: false,
+                signal: controller.signal
+            });
+
+            clearTimeout(timer);
+            const content = response?.message?.content;
+            if (isValidAIResponse(content)) return content;
+            lastError = new Error("Réponse Ollama vide ou invalide");
+        } catch (e) {
+            clearTimeout(timer);
+            lastError = e;
+            const isModelMissing = /not found|pull the model|no such model/i.test(e.message || '');
+            if (isModelMissing) {
+                console.warn(`[AI] Ollama: le modèle "${modelName}" n'est pas installé. Lance : ollama pull ${modelName}`);
+                break; // retrying won't help if the model isn't pulled
+            }
+            console.warn(`[AI] Ollama SDK Error (${ollamaHost}), tentative ${attempt + 1}:`, e.message);
+            if (attempt < maxRetries) {
+                await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
             }
         }
-
-        const response = await ollamaClient.chat({
-            model: modelName,
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
-            ],
-            stream: false
-        });
-
-        const content = response?.message?.content;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] Ollama SDK Error (${ollamaHost}):`, e.message);
     }
+
+    if (lastError) console.warn(`[AI] Ollama a échoué après ${maxRetries + 1} tentative(s):`, lastError.message);
     return null;
 }
 
@@ -909,16 +935,16 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const { callTransformersJS } = require('./transformers-js-handler');
     const { callWebLLM } = require('./webllm-handler');
     const providers = [
+        { name: 'Ollama (Local Gemma 4)', fn: callOllama },
+        { name: 'vLLM OpenAI Server', fn: callVLLM },
+        { name: 'OpenRouter', fn: callOpenRouter },
         { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
         { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS },
         { name: 'DevToolbox AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'GPT4Free (g4f) Engine', fn: callG4F },
-        { name: 'Ollama (Local Gemma 4)', fn: callOllama },
         { name: 'WebLLM Engine (@mlc-ai/web-llm)', fn: callWebLLM },
         { name: 'Blackbox AI (Free)', fn: callBlackbox },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'vLLM OpenAI Server', fn: callVLLM }
+        { name: 'Puter SDK', fn: callPuterSDK }
     ];
 
     const timeouts = [];

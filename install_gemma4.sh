@@ -17,7 +17,13 @@ then
 fi
 
 echo "✅ Ollama détecté !"
-echo "📥 Téléchargement et lancement du modèle Gemma 4 (31B ou standard)..."
+
+# Modèle à installer : surchargeable via OLLAMA_MODEL, sinon la variante
+# e4b (rapide, tourne sur la plupart des machines). Pour plus de qualité si
+# tu as assez de VRAM : gemma4:12b, gemma4:26b ou gemma4:31b.
+MODEL="${OLLAMA_MODEL:-gemma4:e4b}"
+
+echo "📥 Téléchargement et lancement du modèle ${MODEL}..."
 echo "Cela peut prendre quelques minutes selon votre connexion internet."
 echo ""
 
@@ -29,10 +35,24 @@ then
     sleep 3
 fi
 
-# Run gemma4
-ollama run gemma4
+# Download the model explicitly first (clearer error if it fails than via `run`)
+ollama pull "$MODEL"
+
+echo ""
+echo "⚙️  Rappel : Ollama limite par défaut la fenêtre de contexte à 4K tokens,"
+echo "   ce qui est trop court pour les longues parties d'ATR/GHENO CITY."
+echo "   Le bot force déjà OLLAMA_NUM_CTX=32768 via ai-utils.js."
+echo ""
+
+echo "🔍 Vérification que le service répond..."
+if curl -s -m 5 http://127.0.0.1:11434/api/tags > /dev/null; then
+    echo "✅ Ollama répond bien sur http://127.0.0.1:11434"
+else
+    echo "⚠️  Ollama ne répond pas encore sur le port 11434. Vérifie 'ollama serve'."
+fi
 
 echo ""
 echo "=========================================================="
-echo "✅ Gemma 4 est maintenant actif localement et prêt pour le bot !"
+echo "✅ ${MODEL} est maintenant actif localement et prêt pour le bot !"
+echo "   (le bot l'utilisera automatiquement comme IA principale)"
 echo "=========================================================="
