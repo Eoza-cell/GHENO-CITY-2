@@ -21,11 +21,11 @@ def main():
 
     clean_action = user_prompt.replace('ACTION:', '').strip()
 
-    # Hugging Face Transformers Local Model Inference
+    # Hugging Face Transformers Fast Neural Model Pipeline
     try:
         from transformers import pipeline
 
-        model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+        model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
         pipe = pipeline(
             "text-generation",
             model=model_name,
@@ -33,17 +33,17 @@ def main():
         )
 
         formatted_messages = [
-            {"role": "system", "content": "Tu es le Meneur de Jeu (MJ) du jeu de rôle After the Rebirth (ATR). Rédige une narration immersive en français pour décrire la suite de l'action du joueur."},
+            {"role": "system", "content": "Tu es le Meneur de Jeu (MJ) d'After the Rebirth (ATR). Narre l'action RP en français avec suspense et détails."},
             {"role": "user", "content": clean_action}
         ]
 
-        result = pipe(formatted_messages, max_new_tokens=250, do_sample=True, temperature=0.7)
+        result = pipe(formatted_messages, max_new_tokens=150, do_sample=True, temperature=0.7)
         if result and len(result) > 0 and 'generated_text' in result[0]:
             response = result[0]['generated_text']
             if isinstance(response, list):
                 response = response[-1]['content']
 
-            if response and len(response.strip()) > 10:
+            if response and len(response.strip()) > 10 and not response.strip().startswith("Je suis désolé"):
                 print(response.strip())
                 return
     except Exception as e:
