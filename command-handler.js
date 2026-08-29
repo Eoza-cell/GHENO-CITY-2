@@ -2104,11 +2104,15 @@ commands.set('checkai', async (sock, message) => {
         let status = "🟢 *OPÉRATIONNEL*";
         if (!result || result.includes("instable")) status = "🔴 *LIMITE ATTEINTE*";
 
+        const primaryModel = process.env.OLLAMA_MODEL || 'gemma4:e4b';
+        const primaryUrl = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
+
         await sock.sendMessage(replyJid, {
             text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
                   `Statut: ${status}\n` +
                   `Latence: ${duration}s\n` +
-                  `Provider: Puter/Gemini\n` +
+                  `Moteur principal: Ollama Local (${primaryModel})\n` +
+                  `Serveur: ${primaryUrl}\n` +
                   `Réponse brute: ${typeof result === 'string' ? result.substring(0, 60) : 'Obj'}\n\n` +
                   `_Le MJ est prêt à tisser le destin._`
         });
