@@ -583,13 +583,25 @@ async function callBlackbox(system, prompt, options = {}) {
 }
 
 async function callHuggingFaceLocal(system, prompt, options = {}) {
+    // 1. Try background local python server if running
     try {
-        console.log(`[AI] Executing Hugging Face Transformers local model...`);
+        const resp = await axios.post("http://127.0.0.1:8088", {
+            system,
+            prompt
+        }, { timeout: 30000 });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        // Server not running yet, fallback to CLI script
+    }
+
+    try {
+        console.log(`[AI] Executing Hugging Face Transformers local model CLI...`);
         const { execSync } = require('child_process');
         const path = require('path');
         const scriptPath = path.join(__dirname, 'transformer_model.py');
 
-        // Pass system prompt and user action as separate clean JSON/arguments
         const tmpSys = path.join(__dirname, 'assets', `sys_${Date.now()}.txt`);
         const tmpUsr = path.join(__dirname, 'assets', `usr_${Date.now()}.txt`);
         const fs = require('fs');
@@ -984,7 +996,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                 }
             });
 
-            const nextDelay = index === 0 ? 1000 : 4000;
+            const nextDelay = index === 0 ? 250 : 1000;
             timeouts.push(setTimeout(() => launchAtIndex(index + 1), nextDelay));
         };
 
