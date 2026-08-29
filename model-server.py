@@ -3,18 +3,21 @@ import os
 import json
 import re
 import time
+import random
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-print("[Python Model Server] Pre-loading Transformers model into memory...")
-from transformers import pipeline
+print("[Python Model Server] Pre-loading Base Hugging Face Model (Qwen/Qwen2.5-0.5B) into memory...")
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-model_name = "Qwen/Qwen2.5-0.5B-Instruct"
+model_name = "Qwen/Qwen2.5-0.5B"
 try:
-    pipe = pipeline("text-generation", model=model_name, device_map="cpu")
-    print("[Python Model Server] Model loaded successfully into RAM!")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    print("[Python Model Server] Open-source Base Hugging Face model loaded successfully into RAM!")
 except Exception as e:
     print("[Python Model Server] Error loading model:", e)
-    pipe = None
+    tokenizer = None
+    model = None
 
 class ModelHandler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -42,22 +45,18 @@ class ModelHandler(BaseHTTPRequestHandler):
                 location = loc_match.group(1).strip()
 
             response_text = None
-            if pipe is not None:
-                messages = [
-                    {"role": "system", "content": "Tu es un écrivain de mangas de fantasy Shonen et le Meneur de Jeu d'After the Rebirth (ATR). Rédige la suite du récit de l'aventure fictive du héros en français, de manière vivante, fluide et spectaculaire."},
-                    {"role": "user", "content": f"Le héros {player_name} se trouve à {location} et accomplit l'action : « {action_text} ». Rédige la suite du récit de combat et de son aventure."}
-                ]
-                t0 = time.time()
-                res = pipe(messages, max_new_tokens=220, do_sample=True, temperature=0.75, top_p=0.9)
-                t1 = time.time()
-                print(f"[Python Model Server] Generated neural response in {t1 - t0:.2f}s")
-                if res and len(res) > 0 and 'generated_text' in res[0]:
-                    raw = res[0]['generated_text']
-                    if isinstance(raw, list):
-                        response_text = raw[-1]['content']
+            if model is not None and tokenizer is not None:
+                prompt = f"### Chroniques de jeu de rôle fantastique - After the Rebirth (ATR)\nLieu : {location}\nHéros : {player_name}\nAction : {player_name} accomplis l'action suivante : « {action_text} ».\n\nSuite du récit du Meneur de Jeu en français :\nL'atmosphère de {location} se tend alors que {player_name} passe à l'action."
 
-            if not response_text or len(response_text.strip()) < 10 or "ne peux pas vous aider" in response_text or "désolé" in response_text.lower():
-                import random
+                inputs = tokenizer(prompt, return_tensors='pt')
+                outputs = model.generate(**inputs, max_new_tokens=140, do_sample=True, temperature=0.75, top_p=0.9, repetition_penalty=1.15)
+                generated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                continuation = generated[len(prompt):].strip()
+
+                if continuation and len(continuation) > 20:
+                    response_text = f"L'atmosphère de {location} se tend alors que {player_name} passe à l'action. {continuation}"
+
+            if not response_text or len(response_text.strip()) < 10:
                 xp = random.randint(120, 250)
                 gold = random.randint(150, 280)
                 lower_act = action_text.lower()
@@ -65,14 +64,12 @@ class ModelHandler(BaseHTTPRequestHandler):
                 is_social = any(k in lower_act for k in ['parle', 'demande', 'question', 'dialogue', 'cherche', 'salue', 'dis', 'répond'])
 
                 if is_combat:
-                    response_text = f"L'atmosphère d'ATR se tend brusquement alors que {player_name} passe à l'offensive ! Lorsque tu accomplis « {action_text} », ton énergie spirituelle se déchaîne, traçant un arc de lumière d'éther pur au milieu de la pénombre.\n\nLe choc résonne à travers le secteur avec un fracas assourdissant. Ton adversaire est ébranlé de plein fouet, incapable de parer la totalité de la force déployée par ton essence d'Héritier. Les témoins et gardes locaux retiennent leur souffle devant une telle démonstration de Battle IQ et de maîtrise tactique.\n\nLa menace est repoussée, affirmant ton autorité dans la zone."
+                    response_text = f"L'atmosphère d'ATR se tend brusquement alors que {player_name} passe à l'offensive ! Lorsque tu accomplis « {action_text} », ton énergie spirituelle se déchaîne, traçant un arc de lumière d'éther pur au milieu de la pénombre.\n\nLe choc résonne à travers le secteur avec un fracas assourdissant. Ton adversaire est ébranlé de plein fouet, incapable de parer la totalité de la force déployée par ton essence d'Héritier."
                 elif is_social:
-                    response_text = f"Dans l'agitation d'After the Rebirth, {player_name} s'adresse directement à ses interlocuteurs. Lorsque tu effectues « {action_text} », ta voix résonne avec une assurance naturelle qui capte immédiatement l'attention des PNJ environnants.\n\nLes PNJ locaux s'arrêtent, écoutant attentivement tes paroles. Impressionnés par ton calme et la marque de ton rang, ils s'inclinent légèrement et te révèlent des informations précieuses concernant la région.\n\nCes renseignements te permettent d'orienter tes pas avec une clarté optimale."
+                    response_text = f"Dans l'agitation d'After the Rebirth, {player_name} s'adresse directement à ses interlocuteurs. Lorsque tu effectues « {action_text} », ta voix résonne avec une assurance naturelle qui capte immédiatement l'attention des PNJ environnants.\n\nLes PNJ locaux s'arrêtent, écoutant attentivement tes paroles. Impressionnés par ton calme et la marque de ton rang, ils te révèlent des informations précieuses."
                 else:
-                    response_text = f"Sous le ciel d'After the Rebirth, {player_name} poursuit sa progression. En accomplissant « {action_text} », tes pas résonnent fermement sur le sol, traçant un chemin net à travers le territoire.\n\nL'environnement s'adapte à ta présence, révélant de nouveaux détails sur la géographie et les mystères environnants.\n\nTu amènes ton personnage à la position souhaitée, prêt pour la suite de ton destin."
+                    response_text = f"Sous le ciel d'After the Rebirth, {player_name} poursuit sa progression. En accomplissant « {action_text} », tes pas résonnent fermement sur le sol, traçant un chemin net à travers le territoire.\n\nL'environnement s'adapte à ta présence, révélant de nouveaux détails sur la géographie et les mystères environnants."
 
-            # Append reward brackets and image prompt
-            import random
             xp = random.randint(120, 250)
             gold = random.randint(150, 280)
             full_response = f"{response_text.strip()}\n\n[{player_name}: EXP +{xp}]\n[{player_name}: GOLD +{gold}]\n[IMAGE: epic anime digital painting of {player_name} executing {action_text} in {location}, glowing magic effects, high detail fantasy art]"
