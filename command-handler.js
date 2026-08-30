@@ -1,5 +1,7 @@
 const { Player } = require('./database');
 const { handleRegistration } = require('./registration-handler');
+const { ARENAS, getArenaState, shiftArena, advanceGauge, formatArenaDisplay } = require('./arena-system');
+const { generateArenaGif } = require('./arena-gif-generator');
 
 const commands = new Map();
 
@@ -38,10 +40,98 @@ commands.set('help', async (sock, message) => {
     const helpText = "🏰 *Aide - Throne of Epsylion* 🏰\n\n" +
                      "/start - Commencer ou recommencer l'inscription.\n" +
                      "/profile - Voir ta fiche de personnage.\n" +
+                     "/arena - Afficher et gérer l'arène de combat.\n" +
+                     "/choix_arene [sylvar|abyssal|solarys|dracocrypt] - Sélectionner une arène.\n" +
+                     "/change_arene [montant] - Faire avancer la barre de changement d'arène.\n" +
                      "/ping - Vérifier la connexion du bot.\n" +
                      "/help - Afficher ce message.";
     await sock.sendMessage(message.key.remoteJid, { text: helpText });
 });
+
+// Arena command: /arena or /arene
+const handleArenaCommand = async (sock, message, args) => {
+  const remoteJid = message.key.remoteJid;
+  const state = getArenaState(remoteJid);
+  const arena = ARENAS[state.currentArenaId];
+
+  const gifBuffer = generateArenaGif(arena.shortName, state.changeGauge);
+  const captionText = formatArenaDisplay(remoteJid);
+
+  await sock.sendMessage(remoteJid, {
+    video: gifBuffer,
+    gifPlayback: true,
+    caption: captionText,
+    mimetype: 'image/gif'
+  });
+};
+
+commands.set('arena', handleArenaCommand);
+commands.set('arene', handleArenaCommand);
+
+// Arena Selection command: /choix_arene or /select_arena
+const handleArenaChoiceCommand = async (sock, message, args) => {
+  const remoteJid = message.key.remoteJid;
+  const targetArg = (args[0] || '').toLowerCase();
+
+  let selectedId = null;
+  for (const [key, arenaData] of Object.entries(ARENAS)) {
+    if (key === targetArg || arenaData.shortName.toLowerCase().includes(targetArg)) {
+      selectedId = key;
+      break;
+    }
+  }
+
+  if (!selectedId) {
+    const listText = "⚔️ *CHOIX DE L'ARÈNE DISPONIBLES :*\n\n" +
+                     "1. `sylvar` - 🏟️ Sylvar Arena\n" +
+                     "2. `abyssal` - 🌑 Abyssal Arena\n" +
+                     "3. `solarys` - 🏜️ Solarys Dune\n" +
+                     "4. `dracocrypt` - 🐉 Dracocrypt Arena\n\n" +
+                     "Exemple: `/choix_arene sylvar` ou `/arene` pour voir l'actuelle.";
+    await sock.sendMessage(remoteJid, { text: listText });
+    return;
+  }
+
+  const { arena } = shiftArena(remoteJid, selectedId);
+  const gifBuffer = generateArenaGif(arena.shortName, 0);
+  const captionText = `🔄 *NOUVELLE ARÈNE SÉLECTIONNÉE !*\n\n` + formatArenaDisplay(remoteJid);
+
+  await sock.sendMessage(remoteJid, {
+    video: gifBuffer,
+    gifPlayback: true,
+    caption: captionText,
+    mimetype: 'image/gif'
+  });
+};
+
+commands.set('choix_arene', handleArenaChoiceCommand);
+commands.set('choix_arena', handleArenaChoiceCommand);
+commands.set('select_arena', handleArenaChoiceCommand);
+
+// Arena gauge advance command: /change_arene or /shift_arene
+const handleArenaGaugeCommand = async (sock, message, args) => {
+  const remoteJid = message.key.remoteJid;
+  const amount = parseInt(args[0], 10) || 25;
+
+  const { shifted } = advanceGauge(remoteJid, amount);
+  const state = getArenaState(remoteJid);
+  const arena = ARENAS[state.currentArenaId];
+
+  const gifBuffer = generateArenaGif(arena.shortName, state.changeGauge);
+  const prefix = shifted ? "💥 *L'ARÈNE A BASCULÉ !*\n\n" : "⚡ *BARRE DE CHANGEMENT D'ARÈNE MISE À JOUR !*\n\n";
+  const captionText = prefix + formatArenaDisplay(remoteJid);
+
+  await sock.sendMessage(remoteJid, {
+    video: gifBuffer,
+    gifPlayback: true,
+    caption: captionText,
+    mimetype: 'image/gif'
+  });
+};
+
+commands.set('change_arene', handleArenaGaugeCommand);
+commands.set('change_arena', handleArenaGaugeCommand);
+commands.set('shift_arene', handleArenaGaugeCommand);
 
 commands.set('ping', async (sock, message) => {
     const start = Date.now();
