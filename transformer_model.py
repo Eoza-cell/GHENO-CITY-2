@@ -53,25 +53,8 @@ def main():
                 print(full_output)
                 return
     except Exception as e:
-        pass
-
-    # Neural Fallback Generator
-    import random
-    xp = random.randint(120, 220)
-    gold = random.randint(140, 250)
-
-    lower_act = action_text.lower()
-    is_combat = any(k in lower_act for k in ['attaque', 'frappe', 'épée', 'lame', 'sort', 'magie', 'monstre', 'combat', 'frapper', 'coup'])
-    is_social = any(k in lower_act for k in ['parle', 'demande', 'question', 'dialogue', 'cherche', 'salue', 'dis', 'répond'])
-
-    if is_combat:
-        output = f"L'atmosphère d'ATR se tend brusquement alors que {player_name} passe à l'offensive ! Lorsque tu accomplis « {action_text} », ton énergie spirituelle se déchaîne, traçant un arc de lumière d'éther pur au milieu de la pénombre.\n\nLe choc résonne à travers le secteur avec un fracas assourdissant. Ton adversaire est ébranlé de plein fouet, incapable de parer la totalité de la force déployée par ton essence d'Héritier. Les témoins et gardes locaux retiennent leur souffle devant une telle démonstration de Battle IQ et de maîtrise tactique.\n\nLa menace est repoussée, affirmant ton autorité dans la zone.\n\n[{player_name}: EXP +{xp}]\n[{player_name}: GOLD +{gold}]\n[IMAGE: epic anime digital painting of {player_name} executing {action_text}, glowing magic effects, high detail fantasy art]"
-    elif is_social:
-        output = f"Dans l'agitation d'After the Rebirth, {player_name} s'adresse directement à ses interlocuteurs. Lorsque tu effectues « {action_text} », ta voix résonne avec une assurance naturelle qui capte immédiatement l'attention des PNJ environnants.\n\nLes PNJ locaux s'arrêtent, écoutant attentivement tes paroles. Impressionnés par ton calme et la marque de ton rang, ils s'inclinent légèrement et te révèlent des informations précieuses concernant la région.\n\nCes renseignements te permettent d'orienter tes pas avec une clarté optimale.\n\n[{player_name}: EXP +{xp}]\n[{player_name}: GOLD +{gold}]\n[IMAGE: anime digital painting of {player_name} speaking with NPCs, expressive character art]"
-    else:
-        output = f"Sous le ciel d'After the Rebirth, {player_name} poursuit sa progression. En accomplissant « {action_text} », tes pas résonnent fermement sur le sol, traçant un chemin net à travers le territoire.\n\nL'environnement s'adapte à ta présence, révélant de nouveaux détails sur la géographie et les mystères environnants.\n\nTu amènes ton personnage à la position souhaitée, prêt pour la suite de ton destin.\n\n[{player_name}: EXP +{xp}]\n[{player_name}: GOLD +{gold}]\n[IMAGE: scenic anime background of {player_name} exploring, majestic landscape, detailed fantasy art]"
-
-    print(output)
+        print(f"[Transformer Error] {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
