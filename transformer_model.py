@@ -30,11 +30,13 @@ def main():
         if m:
             action_text = m.group(1).strip()
 
-    # Neural Story Generation with Hugging Face Transformers Qwen2.5-0.5B-Instruct
+    # Neural Story Generation with Empero AI / Hugging Face Transformers models
+    empero_models = ["empero-ai/Qwen3.8-2B", "empero-ai/Qwythos-9B-v2", "Qwen/Qwen2.5-0.5B-Instruct"]
     try:
         from transformers import pipeline
 
-        pipe = pipeline("text-generation", model="Qwen/Qwen2.5-0.5B-Instruct")
+        model_name = os.getenv("EMPERO_MODEL", empero_models[0])
+        pipe = pipeline("text-generation", model=model_name)
         prompt = f"Un grand récit fantastique de jeu de rôle dans le monde d'After the Rebirth (ATR).\nLe joueur {player_name} accomplis : « {action_text} ».\nVoici la suite directe et détaillée du récit en français :\n"
 
         result = pipe(prompt, max_new_tokens=180, do_sample=True, temperature=0.75, top_p=0.9)
