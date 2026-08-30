@@ -158,28 +158,34 @@ function extractMessageContent(content) {
 }
 
 async function callG4F(system, prompt, options = {}) {
-    try {
-        console.log(`[AI] Executing GPT4Free (g4f) python provider engine...`);
-        const { execSync } = require('child_process');
-        const path = require('path');
-        const scriptPath = path.join(__dirname, 'g4f_handler.py');
+    const { exec } = require('child_process');
+    const path = require('path');
+    const fs = require('fs');
 
-        const tmpSys = path.join(__dirname, 'assets', `sys_g4f_${Date.now()}.txt`);
-        const tmpUsr = path.join(__dirname, 'assets', `usr_g4f_${Date.now()}.txt`);
-        const fs = require('fs');
-        fs.writeFileSync(tmpSys, system);
-        fs.writeFileSync(tmpUsr, prompt);
+    return new Promise((resolve) => {
+        try {
+            console.log(`[AI] Executing GPT4Free (g4f) python provider engine...`);
+            const scriptPath = path.join(__dirname, 'g4f_handler.py');
+            const id = Date.now() + Math.random().toString(36).substring(2, 6);
+            const tmpSys = path.join(__dirname, 'assets', `sys_g4f_${id}.txt`);
+            const tmpUsr = path.join(__dirname, 'assets', `usr_g4f_${id}.txt`);
+            fs.writeFileSync(tmpSys, system);
+            fs.writeFileSync(tmpUsr, prompt);
 
-        const output = execSync(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 25000, stdio: ['pipe', 'pipe', 'ignore'] }).toString();
-        if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
-        if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
+            exec(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 20000 }, (error, stdout) => {
+                if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
+                if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
 
-        const cleanedOutput = output.replace(/System:[\s\S]*?User:/gi, '').trim();
-        if (isValidAIResponse(cleanedOutput)) return cleanedOutput;
-    } catch (e) {
-        console.warn(`[AI] GPT4Free (g4f) execution failed:`, e.message);
-    }
-    return null;
+                if (error || !stdout) return resolve(null);
+                const cleanedOutput = stdout.replace(/System:[\s\S]*?User:/gi, '').trim();
+                if (isValidAIResponse(cleanedOutput)) return resolve(cleanedOutput);
+                resolve(null);
+            });
+        } catch (e) {
+            console.warn(`[AI] GPT4Free (g4f) execution failed:`, e.message);
+            resolve(null);
+        }
+    });
 }
 
 /**
@@ -588,7 +594,7 @@ async function callHuggingFaceLocal(system, prompt, options = {}) {
         const resp = await axios.post("http://127.0.0.1:8088", {
             system,
             prompt
-        }, { timeout: 30000 });
+        }, { timeout: 15000 });
 
         const content = resp.data?.choices?.[0]?.message?.content;
         if (isValidAIResponse(content)) return content;
@@ -596,31 +602,42 @@ async function callHuggingFaceLocal(system, prompt, options = {}) {
         // Server not running yet, fallback to CLI script
     }
 
-    try {
-        console.log(`[AI] Executing Hugging Face Transformers local model CLI...`);
-        const { execSync } = require('child_process');
-        const path = require('path');
-        const scriptPath = path.join(__dirname, 'transformer_model.py');
+    const { exec } = require('child_process');
+    const path = require('path');
+    const fs = require('fs');
 
-        const tmpSys = path.join(__dirname, 'assets', `sys_${Date.now()}.txt`);
-        const tmpUsr = path.join(__dirname, 'assets', `usr_${Date.now()}.txt`);
-        const fs = require('fs');
-        fs.writeFileSync(tmpSys, system);
-        fs.writeFileSync(tmpUsr, prompt);
+    return new Promise((resolve) => {
+        try {
+            console.log(`[AI] Executing Hugging Face Transformers local model CLI...`);
+            const scriptPath = path.join(__dirname, 'transformer_model.py');
+            const id = Date.now() + Math.random().toString(36).substring(2, 6);
+            const tmpSys = path.join(__dirname, 'assets', `sys_${id}.txt`);
+            const tmpUsr = path.join(__dirname, 'assets', `usr_${id}.txt`);
+            fs.writeFileSync(tmpSys, system);
+            fs.writeFileSync(tmpUsr, prompt);
 
-        const output = execSync(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 25000, stdio: ['pipe', 'pipe', 'ignore'] }).toString();
-        if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
-        if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
+            const env = { ...process.env };
+            if (options && options.model) {
+                env.EMPERO_MODEL = options.model;
+            }
 
-        const cleanedOutput = output
-            .replace(/\[Python Transformer\][\s\S]*?\n/gi, '')
-            .replace(/System:[\s\S]*?User:/gi, '')
-            .trim();
-        if (isValidAIResponse(cleanedOutput)) return cleanedOutput;
-    } catch (e) {
-        console.warn(`[AI] Hugging Face Transformers local execution failed:`, e.message);
-    }
-    return null;
+            exec(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 20000, env }, (error, stdout) => {
+                if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
+                if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
+
+                if (error || !stdout) return resolve(null);
+                const cleanedOutput = stdout
+                    .replace(/\[Python Transformer\][\s\S]*?\n/gi, '')
+                    .replace(/System:[\s\S]*?User:/gi, '')
+                    .trim();
+                if (isValidAIResponse(cleanedOutput)) return resolve(cleanedOutput);
+                resolve(null);
+            });
+        } catch (e) {
+            console.warn(`[AI] Hugging Face Transformers local execution failed:`, e.message);
+            resolve(null);
+        }
+    });
 }
 
 /**
@@ -935,12 +952,12 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const { callTransformersJS } = require('./transformers-js-handler');
     const { callWebLLM } = require('./webllm-handler');
     const providers = [
-        { name: 'Empero AI Research Lab (Qwythos/Qwen3.8 PyTorch)', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: 'empero-ai/Qwythos-9B-v2' }) },
         { name: 'DevToolbox Free AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'GPT4Free (g4f)', fn: callG4F },
-        { name: 'Puter SDK AI', fn: callPuterSDK },
         { name: 'GPTOSS Open AI Proxy', fn: callGPTOSS },
+        { name: 'Empero AI Research Lab (Qwythos/Qwen3.8 PyTorch)', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: 'empero-ai/Qwythos-9B-v2' }) },
         { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
+        { name: 'Puter SDK AI', fn: callPuterSDK },
         { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS }
     ];
 
