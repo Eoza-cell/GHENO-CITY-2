@@ -973,9 +973,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         const globalTimeout = setTimeout(() => {
             if (!completed) {
                 completed = true;
-                console.warn("[AI] 🚨 GLOBAL TIMEOUT REACHED (35s)! Forcing local MJ Fallback response...");
+                console.warn("[AI] 🚨 GLOBAL TIMEOUT REACHED (35s)!");
                 timeouts.forEach(clearTimeout);
-                resolve(callMJFallback(userPrompt));
+                resolve(null);
             }
         }, 35000);
 
@@ -1011,7 +1011,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                                 }
                             }, 1000);
                         } else {
-                            resolveWithClear(callMJFallback(userPrompt));
+                            resolveWithClear(null);
                         }
                     }
                 } else {
