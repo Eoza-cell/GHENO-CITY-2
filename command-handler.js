@@ -536,6 +536,52 @@ commands.set('blackjack', async (sock, message, args) => {
   await sock.sendMessage(replyJid, { text: msg });
 });
 
+// Command: /vv or /viewonce (View Once Extractor)
+const viewOnceCommand = async (sock, message, args, downloadMediaMessage) => {
+  const replyJid = message.key.remoteJid;
+
+  // Locate view once message in message or quoted message
+  const quoted = message.message.extendedTextMessage?.contextInfo?.quotedMessage;
+  const targetMsg = quoted || message.message;
+
+  const viewOnceContent = targetMsg.viewOnceMessage?.message ||
+                          targetMsg.viewOnceMessageV2?.message ||
+                          targetMsg.viewOnceMessageV2Extension?.message ||
+                          (targetMsg.imageMessage?.viewOnce || targetMsg.videoMessage?.viewOnce ? targetMsg : null);
+
+  if (!viewOnceContent) {
+    return await sock.sendMessage(replyJid, { text: `❌ Veuillez répondre (citer) ou envoyer une photo/vidéo à vue unique avec \`/vv\`.` });
+  }
+
+  try {
+    const downloadMsg = quoted ? { message: viewOnceContent } : message;
+    const mediaBuffer = await downloadMediaMessage(downloadMsg, 'buffer');
+
+    const imageMsg = viewOnceContent.imageMessage;
+    const videoMsg = viewOnceContent.videoMessage;
+
+    if (imageMsg) {
+      await sock.sendMessage(replyJid, {
+        image: mediaBuffer,
+        caption: `🔓 *IMAGE À VUE UNIQUE EXTRAITE !*\n\n⚡ *Marque de Fabrique ARISE*`
+      });
+    } else if (videoMsg) {
+      await sock.sendMessage(replyJid, {
+        video: mediaBuffer,
+        caption: `🔓 *VIDÉO À VUE UNIQUE EXTRAITE !*\n\n⚡ *Marque de Fabrique ARISE*`
+      });
+    } else {
+      await sock.sendMessage(replyJid, { text: `❌ Format de vue unique non reconnu.` });
+    }
+  } catch (err) {
+    console.error('Error in viewonce command:', err);
+    await sock.sendMessage(replyJid, { text: `Erreur lors de l'extraction du média à vue unique.` });
+  }
+};
+
+commands.set('vv', viewOnceCommand);
+commands.set('viewonce', viewOnceCommand);
+
 // Command: /tagall and /all
 const tagAllCommand = async (sock, message, args) => {
   const jid = getJid(message);
@@ -583,6 +629,161 @@ const tagAllCommand = async (sock, message, args) => {
 commands.set('tagall', tagAllCommand);
 commands.set('all', tagAllCommand);
 
+/**
+ * Fetches latest football news & transfer updates from RMC Sport / Google News feeds.
+ */
+async function fetchFootballNews() {
+  try {
+    const res = await axios.get('https://rmcsport.bfmtv.com/rss/football/', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      timeout: 8000
+    });
+    const xml = res.data;
+    const items = xml.split('<item>').slice(1, 6).map(item => {
+      const title = (item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || item.match(/<title>(.*?)<\/title>/) || [])[1] || '';
+      const link = (item.match(/<link>(.*?)<\/link>/) || item.match(/<guid>(.*?)<\/guid>/) || [])[1] || '';
+      let desc = (item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || item.match(/<description>(.*?)<\/description>/) || [])[1] || '';
+      desc = desc.replace(/<[^>]+>/g, '').trim();
+      const media = (item.match(/url=\"(http[^\"]+)\"/) || item.match(/<enclosure url=\"(http[^\"]+)\"/) || item.match(/src=\"(http[^\"]+)\"/) || [])[1] || '';
+      return { title: title.trim(), link: link.trim(), desc: desc.trim(), media: media.trim() };
+    });
+    return items.filter(it => it.title);
+  } catch (err) {
+    console.error('Error fetching football news:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Generates an animated GIF slideshow buffer summarizing football news with ARISE branding.
+ */
+async function generateNewsGif(newsList) {
+  const width = 600;
+  const height = 350;
+  const rawFrames = [];
+
+  for (let i = 0; i < newsList.length; i++) {
+    const item = newsList[i];
+    let bgBuffer;
+    if (item.media) {
+      try {
+        const resp = await axios.get(item.media, { responseType: 'arraybuffer', timeout: 4000 });
+        bgBuffer = await sharp(resp.data)
+          .resize(width, height, { fit: 'cover' })
+          .modulate({ brightness: 0.4 })
+          .toBuffer();
+      } catch (e) {}
+    }
+
+    if (!bgBuffer) {
+      bgBuffer = await sharp({
+        create: { width, height, channels: 4, background: '#0b0f19' }
+      }).png().toBuffer();
+    }
+
+    const cleanTitle = (item.title || 'FOOTBALL ACTU').replace(/[\"<>&]/g, '').slice(0, 70);
+    const cleanDesc = (item.desc || '').replace(/[\"<>&]/g, '').slice(0, 100);
+
+    const overlaySvg = `
+      <svg width="${width}" height="${height}">
+        <rect x="0" y="0" width="${width}" height="${height}" fill="rgba(10, 15, 25, 0.45)" />
+        <rect x="15" y="15" width="130" height="28" rx="6" fill="#3b82f6" />
+        <text x="80" y="33" fill="white" font-size="13" font-family="sans-serif" font-weight="bold" text-anchor="middle">FOOT TV • ${i + 1}/${newsList.length}</text>
+
+        <text x="30" y="215" fill="#38bdf8" font-size="18" font-family="sans-serif" font-weight="bold">${cleanTitle}</text>
+        <text x="30" y="245" fill="#e2e8f0" font-size="12" font-family="sans-serif">${cleanDesc}</text>
+
+        <rect x="0" y="${height - 35}" width="${width}" height="35" fill="rgba(0, 0, 0, 0.85)" />
+        <text x="20" y="${height - 12}" fill="#38bdf8" font-size="12" font-family="sans-serif" font-weight="bold">ARISE eFootball Channel</text>
+        <text x="${width - 20}" y="${height - 12}" fill="#94a3b8" font-size="11" font-family="sans-serif" text-anchor="end">⚡ Direct Updates</text>
+      </svg>
+    `;
+
+    const frameRaw = await sharp(bgBuffer)
+      .composite([{ input: Buffer.from(overlaySvg) }])
+      .raw()
+      .toBuffer();
+
+    rawFrames.push(frameRaw);
+  }
+
+  const combined = Buffer.concat(rawFrames);
+  const delays = rawFrames.map(() => 2500);
+
+  return await sharp(combined, {
+    raw: { width, height, channels: 4 }
+  }).gif({ pageHeight: height, loop: 0, delay: delays }).toBuffer();
+}
+
+// Command: /tv (Football Highlights & News Summary)
+const tvCommand = async (sock, message) => {
+  const replyJid = message.key.remoteJid;
+  await sock.sendMessage(replyJid, { text: "📺 *FOOTBALL TV ARISE* : Récupération des résumés de matchs et dernières actus en direct..." });
+
+  const news = await fetchFootballNews();
+  if (news.length === 0) {
+    return await sock.sendMessage(replyJid, { text: "❌ Impossible de récupérer les actualités pour le moment." });
+  }
+
+  let textMsg = `╔══════════════════════════╗\n` +
+                `   📺 *FOOTBALL TV & HIGHLIGHTS* \n` +
+                `╚══════════════════════════╝\n\n`;
+
+  news.forEach((n, idx) => {
+    textMsg += `📌 *${idx + 1}. ${n.title}*\n` +
+               `📝 ${n.desc}\n` +
+               `🔗 ${n.link}\n\n`;
+  });
+
+  textMsg += `⚡ *Marque de Fabrique ARISE*`;
+
+  try {
+    const gifBuffer = await generateNewsGif(news);
+    await sock.sendMessage(replyJid, {
+      video: gifBuffer,
+      gifPlayback: true,
+      caption: textMsg
+    });
+  } catch (err) {
+    console.error('Error generating GIF for /tv:', err);
+    await sock.sendMessage(replyJid, { text: textMsg });
+  }
+};
+
+commands.set('tv', tvCommand);
+
+// Command: /actu, /news, /gif
+const actuCommand = async (sock, message) => {
+  const replyJid = message.key.remoteJid;
+  await sock.sendMessage(replyJid, { text: "🗞️ *ACTU FOOTBALL* : Génération du fil d'actualités animé..." });
+
+  const news = await fetchFootballNews();
+  if (news.length === 0) {
+    return await sock.sendMessage(replyJid, { text: "❌ Impossible de charger les actus foot." });
+  }
+
+  let textMsg = `📰 *DERNIÈRES INFOS FOOTBALL & MERCATO*\n\n`;
+  news.slice(0, 3).forEach((n, idx) => {
+    textMsg += `🔥 *${n.title}*\n${n.desc}\n\n`;
+  });
+  textMsg += `⚡ *Marque de Fabrique ARISE*`;
+
+  try {
+    const gifBuffer = await generateNewsGif(news);
+    await sock.sendMessage(replyJid, {
+      video: gifBuffer,
+      gifPlayback: true,
+      caption: textMsg
+    });
+  } catch (err) {
+    await sock.sendMessage(replyJid, { text: textMsg });
+  }
+};
+
+commands.set('actu', actuCommand);
+commands.set('news', actuCommand);
+commands.set('gif', actuCommand);
+
 // Command: /help
 commands.set('help', async (sock, message) => {
   const helpText = `╔══════════════════════════╗\n` +
@@ -592,7 +793,10 @@ commands.set('help', async (sock, message) => {
                    `• \`/start\` : Créer ou réactiver son profil de ligue eFootball.\n` +
                    `• \`/profil\` / \`/stats\` : Afficher sa carte de statistiques et performances ARISE.\n` +
                    `• \`/classement\` : Voir le classement de la ligue du groupe WhatsApp.\n` +
-                   `• \`/joueur <nom>\` : Afficher une carte eFootball détaillée (Messi, Mbappé, Haaland, Ronaldo).\n\n` +
+                   `• \`/joueur <nom>\` : Afficher une carte eFootball détaillée (Messi, Mbappé, Haaland, Ronaldo).\n` +
+                   `• \`/tv\` : Résumés de matchs et moments forts eFootball TV.\n` +
+                   `• \`/actu\` / \`/news\` / \`/gif\` : Actualités football et mercato en direct sous forme de GIF animé.\n` +
+                   `• \`/vv\` / \`/viewonce\` : Répondre à un média à vue unique pour l'extraire.\n\n` +
                    `🎰 *Jeux de Casino eFootball* :\n` +
                    `• \`/chips\` / \`/jetons\` : Afficher votre solde de jetons casino.\n` +
                    `• \`/slots <mise>\` : Machine à sous eFootball.\n` +
