@@ -52,13 +52,7 @@ def main():
     except Exception as e:
         pass
 
-    # High-quality RPG local narrative engine fallback if g4f package is not installed or offline
-    action_display = user_prompt.replace('ACTION:', '').strip()
-    if not action_display or len(action_display) > 200:
-        action_display = "ton exploration"
-
-    narrative = f"Ton action « {action_display} » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution."
-    print(narrative)
+    sys.exit(1)
 
 if __name__ == "__main__":
     main()
