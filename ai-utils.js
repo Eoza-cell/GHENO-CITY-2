@@ -935,6 +935,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const { callTransformersJS } = require('./transformers-js-handler');
     const { callWebLLM } = require('./webllm-handler');
     const providers = [
+        { name: 'DevToolbox Free AI (Llama 3.2)', fn: callDevToolbox },
+        { name: 'GPT4Free (g4f)', fn: callG4F },
+        { name: 'Puter SDK AI', fn: callPuterSDK },
+        { name: 'GPTOSS Open AI Proxy', fn: callGPTOSS },
         { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
         { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS }
     ];
