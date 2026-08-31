@@ -1986,23 +1986,23 @@ commands.set('help', async (sock, message) => {
 });
 
 // Command: /reset
-commands.set('reset', async (sock, message, args) => {
+const deletePlayerCommand = async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
 
     if (!player) {
-        await sock.sendMessage(replyJid, { text: "Tu n'as pas de personnage à réinitialiser." });
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de personnage à supprimer." });
         return;
     }
 
     if (args[0] !== 'confirm') {
-        await sock.sendMessage(replyJid, { text: "⚠️ *ATTENTION* ⚠️\n\nCette action supprimera définitivement ton personnage, tes statistiques, ton inventaire et ta progression.\n\nPour confirmer, tape : `/reset confirm`" });
+        await sock.sendMessage(replyJid, { text: "⚠️ *ATTENTION* ⚠️\n\nCette action supprimera définitivement et réellement ton personnage de la base de données, ainsi que toutes tes données et ta progression.\n\nPour confirmer la suppression, tape : `/supprimer confirm` ou `/reset confirm`" });
         return;
     }
 
     try {
-        // Complete bulletproof reset of player and all associations to ensure they are no longer an Apostle and start fresh
+        // Complete bulletproof deletion of player and all associations from DB
         await Bank.destroy({ where: { PlayerWhatsappId: jid } });
         await PlayerQuest.destroy({ where: { PlayerWhatsappId: jid } });
         await PlayerSkill.destroy({ where: { PlayerWhatsappId: jid } });
@@ -2013,12 +2013,16 @@ commands.set('reset', async (sock, message, args) => {
 
         await player.destroy();
 
-        await sock.sendMessage(replyJid, { text: "💥 *Personnage réinitialisé.* Ta présence et tes pouvoirs d'Apôtre ont été définitivement effacés de la matrice d'Aetherys. Utilise `/start` pour renaître de tes cendres." });
+        await sock.sendMessage(replyJid, { text: "💥 *Personnage définitivement supprimé de la base de données.* Tes données ont été effacées de la matrice d'ATR. Utilise `/start` pour créer un nouveau personnage." });
     } catch (error) {
-        console.error("Erreur reset personnage:", error);
-        await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la réinitialisation de ton personnage." });
+        console.error("Erreur suppression personnage:", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la suppression de ton personnage." });
     }
-});
+};
+
+commands.set('reset', deletePlayerCommand);
+commands.set('delete', deletePlayerCommand);
+commands.set('supprimer', deletePlayerCommand);
 
 // Command: /evenement
 commands.set('evenement', async (sock, message, args) => {

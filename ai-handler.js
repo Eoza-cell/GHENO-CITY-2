@@ -211,13 +211,42 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         playersToUpdate.add(targetPlayer.whatsappId);
     }
 
+    // Check training limit for stat increases
+    const todayStr = new Date().toISOString().substring(0, 10);
+
     // Group updates by player and apply them to the DB
     for (const update of updates) {
         const p = update.player;
         const val = update.value;
         const s = update.stat;
 
-        if (s === 'HP' || s === 'PV') {
+        // Reset training counter if new day
+        if (p.lastTrainingDate !== todayStr) {
+            await p.update({ dailyTrainingsCount: 0, lastTrainingDate: todayStr });
+        }
+
+        if (['FOR', 'STRENGTH', 'AGI', 'AGILITY', 'INT', 'INTELLIGENCE', 'DEF', 'DEFENSE', 'LUK', 'LUCK'].includes(s)) {
+            if (val > 0) {
+                if (p.dailyTrainingsCount >= 2) {
+                    feedbackList.push(`⚠️ *${p.name}* : Limite d'entraînement quotidien atteinte (max 2/jour). Statistique inchangée.`);
+                    continue;
+                }
+                const statFieldMap = {
+                    'FOR': 'strength', 'STRENGTH': 'strength',
+                    'AGI': 'agility', 'AGILITY': 'agility',
+                    'INT': 'intelligence', 'INTELLIGENCE': 'intelligence',
+                    'DEF': 'defense', 'DEFENSE': 'defense',
+                    'LUK': 'luck', 'LUCK': 'luck'
+                };
+                const dbField = statFieldMap[s];
+                if (dbField) {
+                    await p.increment(dbField, { by: val });
+                    await p.increment('dailyTrainingsCount', { by: 1 });
+                    await p.reload();
+                    feedbackList.push(`💪 *${p.name}* : ${dbField.toUpperCase()} +${val} (Entraînement ${p.dailyTrainingsCount}/2 aujourd'hui)`);
+                }
+            }
+        } else if (s === 'HP' || s === 'PV') {
             let newH = p.health + val;
             if (newH < 0) newH = 0;
             if (newH > p.maxHealth) newH = p.maxHealth;
@@ -1019,8 +1048,10 @@ ${mandatoryQuestBlock}
 🔥 AMBIANCE ET TRAME SHONEN NESTED ( STYLE ANIME NESTED / SHONEN NESTED ) 🔥
 - Le monde d'After the Rebirth (ATR) est construit comme un immense anime Shonen d'action et de fantasy épique (style Jujutsu Kaisen, Solo Leveling, Fairy Tail, Bleach, Hunter x Hunter).
 - ÉCHELLE DE PUISSANCE & AURA : Connais parfaitement tous les joueurs, leurs statistiques précises (FOR, AGI, INT, DEF, LUK), leurs rangs (F à S) et leurs compétences. Respecte scrupuleusement la hiérarchie de puissance. Un joueur de Rang F ne peut pas terrasser un PNJ de Rang S en un coup sans une stratégie de Battle IQ géniale ou un choc d'Aura dévastateur.
+- STATISTIQUES ET ENTRAÎNEMENT STRICT : Les statistiques de base d'un joueur (FOR, AGI, INT, DEF, LUK) sont FIXES et NE PEUVENT PAS être modifiées arbitrairement par la narration. Elles augmentent UNIQUEMENT si le joueur effectue un entraînement explicite et intense en langage naturel avec le MJ (MAXIMUM 2 ENTRAÎNEMENTS PAR JOUR : [NOM: FOR +1]).
 - PNJ ROAMING ET MONDE VIVANT : Les PNJ (élèves de l'Académie Impériale, marchands, gardes, rivaux, professeurs, boss) SE PROMÈNENT LIBREMENT, bougent de quartier en quartier, errent dans la ville, entrent en scène et réagissent aux rumeurs du monde.
 - RIVALITÉS ET ÉPISODES DYNAMIQUES : Crée des retournements de situation spectaculaires, des transformations, des manifestations d'Aura élémentaire, des chocs d'énergie et des répliques percutantes des PNJ sans jamais faire parler ou agir les joueurs.
+- JOUEURS IMMOBILES : Un joueur qui ne répond pas ou ne saisit pas d'action ce tour est strictement IMMOBILE et passif dans le décor. Ne le fais pas parler, agir ou bouger.
 
 ⚠️ DIRECTIVE DE SÉCURITÉ COMPORTEMENTALE ABSOLUE (MJ PUR - NE PAS CONTRÔLER LE JOUEUR) ⚠️
 - Tu as l'INTERDICTION STRICTE et TOTALEMENT ABSOLUE de décrire ou d'écrire les actions, les mouvements, les pensées, les paroles ou les choix de "${player.name}" ou de tout autre joueur.

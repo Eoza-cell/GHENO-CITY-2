@@ -172,6 +172,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
   },
+  dailyTrainingsCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  lastTrainingDate: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   lastInactiveMessageSentAt: {
     type: DataTypes.DATE,
     allowNull: true,
