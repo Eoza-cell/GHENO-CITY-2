@@ -1071,6 +1071,8 @@ ${mandatoryQuestBlock}
 
 DYNAMISME, FLUIDITÉ ET ANTI-RÉPÉTITION ABSOLUE (RÈGLES CRITIQUES EXTRÊMES) :
 - INTERDICTION ABSOLUE de répéter, copier, paraphraser ou réitérer les phrases, événements, dialogues, postures ou descriptions des paragraphes précédents présents dans l'historique court terme (memoire_court_terme).
+- INTERDICTION ABSOLUE DE BOUCLE DE RÉVEIL : Ne commence JAMAIS ta réponse par "Tu te réveilles...", "Tu ouvres les yeux...", ou "Tu te lèves...". L'héritier est DÉJÀ debout et en train d'agir dans le monde !
+- PRIORITÉ STRICTE À L'ACTION ACTUELLE : Le joueur "${player.name}" vient de faire STRICTEMENT l'action suivante : "${actionText}". Ta réponse doit décrire DIRECTEMENT les conséquences immédiates de cette action précise (ex: s'il regarde des produits, décris les marchandises, prix et étals du marché !).
 - Le temps s'écoule à chaque tour et l'action précédente est déjà résolue. Tu DOIS impérativement décrire la SUITE directe de l'histoire, la NOUVELLE situation, le déplacement ou la réaction de l'environnement face au nouveau geste de l'acteur principal.
 - Si le joueur fait une action différente, le décor et l'intrigue DOIVENT changer immédiatement. Ne boucle jamais sur la même situation ou description de scène. Fais avancer l'intrigue physique de manière linéaire !
 
@@ -1358,13 +1360,16 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     const sanitizeGodmoding = (text, playerName) => {
         if (!text) return text;
         let cleaned = text;
-        cleaned = cleaned.replace(new RegExp(`tu décides de\\s+`, 'gi'), "Tu te prépares à ");
+        // Remove repetitive waking up loops if LLM hallucinated them
+        cleaned = cleaned.replace(/Tu te réveilles dans un lit[\s\S]*?Tu/gi, "Tu");
+        cleaned = cleaned.replace(/Tu te réveilles[\s\S]*?\./gi, "");
+        cleaned = cleaned.replace(new RegExp(`tu décides de\\s+`, 'gi'), "L'occasion se présente de ");
         cleaned = cleaned.replace(new RegExp(`tu penses que\\s+`, 'gi'), "Il semble que ");
         cleaned = cleaned.replace(new RegExp(`tu choisis de\\s+`, 'gi'), "L'occasion se présente de ");
-        cleaned = cleaned.replace(new RegExp(`tu dis\\s*:\\s*`, 'gi'), "Des voix s'élèvent : ");
-        cleaned = cleaned.replace(new RegExp(`tu réponds\\s*:\\s*`, 'gi'), "Le dialogue s'engage : ");
-        cleaned = cleaned.replace(new RegExp(`${playerName} dit\\s*:\\s*`, 'gi'), "Des voix s'élèvent : ");
-        cleaned = cleaned.replace(new RegExp(`${playerName} répond\\s*:\\s*`, 'gi'), "Le dialogue s'engage : ");
+        cleaned = cleaned.replace(new RegExp(`tu dis\\s*:\\s*".*?"`, 'gi'), "");
+        cleaned = cleaned.replace(new RegExp(`tu réponds\\s*:\\s*".*?"`, 'gi'), "");
+        cleaned = cleaned.replace(new RegExp(`${playerName} dit\\s*:\\s*".*?"`, 'gi'), "");
+        cleaned = cleaned.replace(new RegExp(`${playerName} répond\\s*:\\s*".*?"`, 'gi'), "");
         cleaned = cleaned.replace(new RegExp(`${playerName} choisit de\\s+`, 'gi'), "L'occasion se présente de ");
         cleaned = cleaned.replace(new RegExp(`${playerName} pense que\\s+`, 'gi'), "Il semble que ");
         return cleaned;
