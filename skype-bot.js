@@ -251,7 +251,8 @@ async function connectToWhatsApp() {
       } catch (e) {}
 
       startDayNightCycle();
-      startProactiveAIEngagement(sock);
+      // Disabled proactive inbox spam per user instruction:
+      // startProactiveAIEngagement(sock);
     }
   });
 
