@@ -954,7 +954,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const providers = [
         { name: 'DevToolbox Free AI (Llama 3.2)', fn: callDevToolbox },
         { name: 'GPT4Free (g4f)', fn: callG4F },
-        { name: 'GPTOSS Open AI Proxy', fn: callGPTOSS },
+        { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Empero AI Research Lab (Qwythos/Qwen3.8 PyTorch)', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: 'empero-ai/Qwythos-9B-v2' }) },
         { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
         { name: 'Puter SDK AI', fn: callPuterSDK },

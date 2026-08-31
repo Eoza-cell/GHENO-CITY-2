@@ -1010,14 +1010,20 @@ RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
   const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
 
-  const systemPrompt = `MJ D'ATR (HISTOIRE STRUCTURÉE & NARRATION CANALISÉE)
-Tu es l'architecte du monde d'ATR (After the Rebirth).
+  const systemPrompt = `MJ D'ATR (HISTOIRE SHONEN EPIC & NARRATION CANALISÉE)
+Tu es le Maître du Jeu d'ATR (After the Rebirth).
 RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
 
 ${mandatoryQuestBlock}
 
+🔥 AMBIANCE ET TRAME SHONEN NESTED ( STYLE ANIME NESTED / SHONEN NESTED ) 🔥
+- Le monde d'After the Rebirth (ATR) est construit comme un immense anime Shonen d'action et de fantasy épique (style Jujutsu Kaisen, Solo Leveling, Fairy Tail, Bleach, Hunter x Hunter).
+- ÉCHELLE DE PUISSANCE & AURA : Connais parfaitement tous les joueurs, leurs statistiques précises (FOR, AGI, INT, DEF, LUK), leurs rangs (F à S) et leurs compétences. Respecte scrupuleusement la hiérarchie de puissance. Un joueur de Rang F ne peut pas terrasser un PNJ de Rang S en un coup sans une stratégie de Battle IQ géniale ou un choc d'Aura dévastateur.
+- PNJ ROAMING ET MONDE VIVANT : Les PNJ (élèves de l'Académie Impériale, marchands, gardes, rivaux, professeurs, boss) SE PROMÈNENT LIBREMENT, bougent de quartier en quartier, errent dans la ville, entrent en scène et réagissent aux rumeurs du monde.
+- RIVALITÉS ET ÉPISODES DYNAMIQUES : Crée des retournements de situation spectaculaires, des transformations, des manifestations d'Aura élémentaire, des chocs d'énergie et des répliques percutantes des PNJ sans jamais faire parler ou agir les joueurs.
+
 ⚠️ DIRECTIVE DE SÉCURITÉ COMPORTEMENTALE ABSOLUE (MJ PUR - NE PAS CONTRÔLER LE JOUEUR) ⚠️
-- Tu as l'INTERDICTION STRICTE et TOTALEMENT ABSOLUE de décrire ou d'écrire les actions, les mouvements, les pensées, les paroles ou les choix de "${player.name}".
+- Tu as l'INTERDICTION STRICTE et TOTALEMENT ABSOLUE de décrire ou d'écrire les actions, les mouvements, les pensées, les paroles ou les choix de "${player.name}" ou de tout autre joueur.
 - Tu n'es pas le joueur, tu es uniquement le MJ (Meneur de Jeu). Tu as l'interdiction d'utiliser des verbes d'action ou de parole dont le sujet est "Tu" ou "${player.name}".
 - Tu décris UNIQUEMENT les réactions des PNJ, des monstres, de l'environnement, des objets et de la météo face aux actions de "${player.name}".
 - Termine TOUJOURS ta narration en laissant le joueur libre de réagir (ex: en face de la nouvelle situation physique), sans jamais décider de son geste suivant. Si tu violes cette règle, le système de sécurité rejettera ta réponse. Reste à ta place de MJ !
@@ -1474,33 +1480,8 @@ ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par 
     }
     await sock.sendMessage(targetChatJid, messagePayload);
 
-    // Check if an NPC is speaking in the narrative and generate an NPC Dialogue Card overlay
-    const npcSpeechMatch = content.match(/([A-Z][a-zA-Z0-9_\- ']{2,25})\s*:\s*[«"]([^»"]+)[»"]/i) ||
-                           content.match(/[«"]([^»"]+)[»"]\s*[-–—]\s*([A-Z][a-zA-Z0-9_\- ']{2,25})/i);
-
-    if (npcSpeechMatch) {
-        const npcName = (npcSpeechMatch[1] && npcSpeechMatch[1].length < 25 ? npcSpeechMatch[1] : npcSpeechMatch[2]).trim();
-        const npcQuote = (npcSpeechMatch[1] && npcSpeechMatch[1].length < 25 ? npcSpeechMatch[2] : npcSpeechMatch[1]).trim();
-
-        if (npcName && npcQuote) {
-            (async () => {
-                try {
-                    const { NPC } = require('./database');
-                    const { generateNpcDialogueCard } = require('./npc-dialogue-generator');
-                    const npc = await NPC.findOne({ where: { name: npcName } });
-                    const cardBuf = await generateNpcDialogueCard(npcName, npcQuote, npc?.imageUrl);
-                    if (cardBuf) {
-                        await sock.sendMessage(targetChatJid, { image: cardBuf, caption: `🗣️ *${npcName.toUpperCase()} PARLE :* « ${npcQuote} »` });
-                    }
-                } catch (npcErr) {
-                    console.error("[NPC Card] Failed to generate dialogue card:", npcErr.message);
-                }
-            })();
-        }
-    }
-
     // Generate and send custom scene image asynchronously in the background as a follow-up to the active chat session
-    if (imagePromptText && !npcSpeechMatch) {
+    if (imagePromptText) {
         // Run asynchronously without blocking the main text response
         (async () => {
             try {
