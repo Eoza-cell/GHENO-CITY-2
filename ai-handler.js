@@ -975,20 +975,11 @@ async function handleFreeAction(sock, message, player, actionText) {
     : [];
 
   // Story Hooks: Persistent JSON Memory for each player's recent narrative arc
-  const { getOrAssignMandatoryMainQuest } = require('./quest-system');
-  const { quest: mandatoryQuest } = await getOrAssignMandatoryMainQuest(player);
-
-  const mandatoryQuestBlock = `
-❖ QUÊTE PRINCIPALE OBLIGATOIRE DU JOUEUR : "${mandatoryQuest.title}" ❖
-Description de la trame : ${mandatoryQuest.description}
-OBJECTIF OBLIGATOIRE EN COURS : "${mandatoryQuest.objective}"
-Rang Requis : ${mandatoryQuest.rank_required} | Récompense : +${mandatoryQuest.reward_xp} XP / +${mandatoryQuest.reward_col} COL
-
-RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
-- Le jeu d'ATR N'EST PAS un bac à sable sans fin : C'EST UNE HISTOIRE DENSE ET STRUCTURÉE GUIDÉE PAR LA QUÊTE PRINCIPALE OBLIGATOIRE.
-- Bien que le joueur soit libre dans la forme de ses actions RP, TOUS LES ÉVÉNEMENTS, PNJ ET RÉACTIONS DU MONDE DOIVENT IMPÉRATIVEMENT CANALISER, ORIENTER ET GUIDER ${player.name} VERS L'ACCOMPLISSEMENT DE SON OBJECTIF OBLIGATOIRE : "${mandatoryQuest.objective}".
-- Ne laisse pas le joueur errer sans but dans une liberté totale sans conséquences. Rappelle-lui constamment le poids de son destin et la nécessité d'accomplir son chapitre principal.
-- Si le joueur réalise l'Objectif Obligatoire dans sa scène, valide la quête avec le tag : [${player.name}: COMPLETED_QUEST: ${mandatoryQuest.title}] et accorde les récompenses !
+  const sandboxRuleBlock = `
+❖ MODE BAC À SABLE & LIBERTÉ TOTALE D'ACTION ❖
+- Le jeu d'ATR est un BAC À SABLE TOTAL. Il N'Y A AUCUNE MISSION OBLIGATOIRE IMPOSÉE AU JOUEUR.
+- Le joueur "${player.name}" est 100% libre d'explorer, de flâner, de regarder des produits, de discuter avec qui il veut, ou d'inventer son propre chemin.
+- Tu DOIS suivre STRICTEMENT et UNIQUEMENT l'action écrite par le joueur sans jamais imposer de mission, de PNJ forcé ou de scénario artificiel.
 `;
 
   const storyHooks = await Promise.all(scenePlayersData.map(async p => {
@@ -1039,11 +1030,11 @@ RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
   const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
 
-  const systemPrompt = `MJ D'ATR (HISTOIRE SHONEN EPIC & NARRATION CANALISÉE)
+  const systemPrompt = `MJ D'ATR (HISTOIRE SHONEN EPIC & LIBERTÉ BAC À SABLE)
 Tu es le Maître du Jeu d'ATR (After the Rebirth).
 RESTE EXCLUSIVEMENT DANS L'ACTION ET LA NARRATION BRUTE. NE RETOURNE JAMAIS DE JSON.
 
-${mandatoryQuestBlock}
+${sandboxRuleBlock}
 
 🔥 AMBIANCE ET TRAME SHONEN NESTED ( STYLE ANIME NESTED / SHONEN NESTED ) 🔥
 - Le monde d'After the Rebirth (ATR) est construit comme un immense anime Shonen d'action et de fantasy épique (style Jujutsu Kaisen, Solo Leveling, Fairy Tail, Bleach, Hunter x Hunter).
