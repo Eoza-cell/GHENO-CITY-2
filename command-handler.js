@@ -3433,8 +3433,34 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     return;
   }
 
-  // Handle free RP action for all non-command messages when player is registered and not sleeping
+  // If player is in tutorial, route to tutorial action handler instead of general AI free action
+  if (player && player.tutorialStep && player.tutorialStep < 3 && !messageText.startsWith('/')) {
+    try {
+        const { handleTutorialAction } = require('./tutorial-handler');
+        await handleTutorialAction(sock, message, player, messageText);
+    } catch (error) {
+      console.error('Erreur tutoriel:', error);
+      await sock.sendMessage(replyJid, { text: "Le superviseur n'a pas pu traiter votre réponse. Réessayez." });
+    } finally {
+        await player.update({ lastActivity: new Date() });
+    }
+    return;
+  }
+
+  // Handle free RP action for all non-command messages when player is registered, finished tutorial, and not sleeping
   if (player && player.mode !== 'sleep' && !messageText.startsWith('/')) {
+    // Check if the message is an uncaptioned image upload or standalone media message
+    let rawMsg = message.message || {};
+    if (rawMsg.ephemeralMessage) rawMsg = rawMsg.ephemeralMessage.message;
+    if (rawMsg.viewOnceMessage) rawMsg = rawMsg.viewOnceMessage.message;
+    if (rawMsg.viewOnceMessageV2) rawMsg = rawMsg.viewOnceMessageV2.message;
+
+    const isImageUploadWithoutText = rawMsg.imageMessage && (!messageText || messageText.trim() === '' || messageText.startsWith('mimetype:') || messageText === '[Image]');
+    if (isImageUploadWithoutText) {
+      console.log(`[MSG] Media image upload detected for ${player.name}, skipping AI RP interposition.`);
+      return;
+    }
+
     try {
         await handleFreeAction(sock, message, player, messageText);
     } catch (error) {

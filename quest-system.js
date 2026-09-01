@@ -211,32 +211,7 @@ async function getOrAssignMandatoryMainQuest(player) {
  * @returns {Promise<{ allowed: boolean, reason: string }>}
  */
 async function verifyRegionAccess(player, targetLocation) {
-    if (player.isGod) return { allowed: true, reason: "" };
-
-    const { quest } = await getOrAssignMandatoryMainQuest(player);
-    const currentStep = quest ? quest.step : 1;
-
-    // Region requirements map
-    const regionRequirements = {
-        "Empire Impérial d'Elion": 1,
-        "Royaume de Valkyrr": 2,
-        "Gheno souterrain": 3,
-        "Forêt de l'Éveil": 4,
-        "Interstice": 5,
-        "Nécropolis": 6,
-        "Abysse Inférieur": 7,
-        "Royaume Céleste": 8,
-        "Origine de l'Existence": 9
-    };
-
-    const reqStep = regionRequirements[targetLocation];
-    if (reqStep && currentStep < reqStep) {
-        return {
-            allowed: false,
-            reason: `🔒 **RÉGION VERROUILLÉE PAR L'HISTOIRE OBLIGATOIRE !**\n\nTu dois d'abord accomplir la Quête Principale : **« ${quest.title} »** pour débloquer l'accès à la région : **${targetLocation}**.`
-        };
-    }
-
+    // Mandate removed: Players are completely free to travel to any region without mandatory quest restrictions.
     return { allowed: true, reason: "" };
 }
 
