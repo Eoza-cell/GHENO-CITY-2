@@ -188,9 +188,33 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: "Empire Impérial d'Elion",
   },
+  zone: {
+    type: DataTypes.STRING,
+    defaultValue: 'Centre-ville',
+  },
   subLocation: {
     type: DataTypes.STRING,
-    defaultValue: 'Eldoria',
+    defaultValue: 'Place du Marché',
+  },
+  x: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100,
+  },
+  y: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100,
+  },
+  state: {
+    type: DataTypes.STRING,
+    defaultValue: 'idle', // 'idle', 'moving', 'sitting', 'sleeping', 'unconscious', 'in_combat'
+  },
+  lastAction: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  lastActionAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
   },
   mode: {
     type: DataTypes.STRING,
@@ -376,7 +400,7 @@ const Dungeon = sequelize.define('Dungeon', {
 const Quest = sequelize.define('Quest', {
     title: { type: DataTypes.STRING, unique: true },
     description: { type: DataTypes.TEXT },
-    type: { type: DataTypes.STRING, defaultValue: 'side' },
+    type: { type: DataTypes.STRING, defaultValue: 'SIDE' }, // 'MAIN', 'SIDE', 'EVENT', 'SECRET', 'POLITICAL', 'HUNT', 'ECONOMY', 'ACADEMY', 'INVESTIGATION'
     rank_required: { type: DataTypes.STRING, defaultValue: 'E' },
     reward_col: { type: DataTypes.INTEGER, defaultValue: 0 },
     reward_xp: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -384,8 +408,40 @@ const Quest = sequelize.define('Quest', {
     step: { type: DataTypes.INTEGER, defaultValue: 1 },
     objective: { type: DataTypes.TEXT, allowNull: true },
     nextQuestTitle: { type: DataTypes.STRING, allowNull: true },
+    nextQuestId: { type: DataTypes.INTEGER, allowNull: true },
+    questGiverId: { type: DataTypes.INTEGER, allowNull: true },
+    questGiverName: { type: DataTypes.STRING, allowNull: true },
     isMultiplayer: { type: DataTypes.BOOLEAN, defaultValue: false },
-    subLocation: { type: DataTypes.STRING, defaultValue: 'Bureau des Missions' }
+    location: { type: DataTypes.STRING, defaultValue: "Empire Impérial d'Elion" },
+    zone: { type: DataTypes.STRING, defaultValue: 'Centre-ville' },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Place du Marché' },
+    conditions: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const raw = this.getDataValue('conditions');
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        },
+        set(val) { this.setDataValue('conditions', JSON.stringify(val)); }
+    },
+    objectives: {
+        type: DataTypes.TEXT,
+        defaultValue: '[]',
+        get() {
+            const raw = this.getDataValue('objectives');
+            try { return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+        },
+        set(val) { this.setDataValue('objectives', JSON.stringify(val)); }
+    },
+    rewards: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const raw = this.getDataValue('rewards');
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        },
+        set(val) { this.setDataValue('rewards', JSON.stringify(val)); }
+    }
 });
 
 const PlayerQuest = sequelize.define('PlayerQuest', {
@@ -482,11 +538,26 @@ const NPC = sequelize.define('NPC', {
     name: { type: DataTypes.STRING, unique: true },
     role: { type: DataTypes.STRING },
     description: { type: DataTypes.TEXT },
-    location: { type: DataTypes.STRING },
-    subLocation: { type: DataTypes.STRING, defaultValue: 'Place Centrale' },
+    personality: { type: DataTypes.TEXT, allowNull: true },
+    location: { type: DataTypes.STRING, defaultValue: "Empire Impérial d'Elion" },
+    zone: { type: DataTypes.STRING, defaultValue: 'Centre-ville' },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Place du Marché' },
+    x: { type: DataTypes.INTEGER, defaultValue: 100 },
+    y: { type: DataTypes.INTEGER, defaultValue: 100 },
     powerLevel: { type: DataTypes.INTEGER, defaultValue: 50 },
     specialty: { type: DataTypes.STRING },
+    questGiver: { type: DataTypes.BOOLEAN, defaultValue: false },
+    faction: { type: DataTypes.STRING, allowNull: true },
     imageUrl: { type: DataTypes.STRING, allowNull: true }
+});
+
+const NPCRelationship = sequelize.define('NPCRelationship', {
+    PlayerWhatsappId: { type: DataTypes.STRING, primaryKey: true },
+    NPCId: { type: DataTypes.INTEGER, primaryKey: true },
+    trust: { type: DataTypes.INTEGER, defaultValue: 50 },
+    respect: { type: DataTypes.INTEGER, defaultValue: 50 },
+    fear: { type: DataTypes.INTEGER, defaultValue: 0 },
+    reputation: { type: DataTypes.INTEGER, defaultValue: 50 }
 });
 
 const Entity = sequelize.define('Entity', {
@@ -596,6 +667,11 @@ Club.belongsToMany(Player, { through: PlayerClub, as: 'Players' });
 Player.hasMany(House, { foreignKey: 'ownerId', as: 'Houses' });
 House.belongsTo(Player, { foreignKey: 'ownerId', as: 'Owner' });
 
+Player.hasMany(NPCRelationship, { foreignKey: 'PlayerWhatsappId' });
+NPCRelationship.belongsTo(Player, { foreignKey: 'PlayerWhatsappId' });
+NPC.hasMany(NPCRelationship, { foreignKey: 'NPCId' });
+NPCRelationship.belongsTo(NPC, { foreignKey: 'NPCId' });
+
 async function setupDatabase() {
   try {
     await sequelize.authenticate();
@@ -608,6 +684,7 @@ async function setupDatabase() {
       Players: Player.rawAttributes,
       Monsters: Monster.rawAttributes,
       NPCs: NPC.rawAttributes,
+      NPCRelationships: NPCRelationship.rawAttributes,
       Quests: Quest.rawAttributes,
       Items: Item.rawAttributes,
       PlayerQuests: PlayerQuest.rawAttributes,
@@ -1428,6 +1505,6 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   mediaSequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant, MediaAsset,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, NPCRelationship, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant, MediaAsset,
   setupDatabase,
 };

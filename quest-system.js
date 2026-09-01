@@ -1,4 +1,4 @@
-const { Quest, PlayerQuest, Player, sequelize } = require('./database');
+const { Quest, PlayerQuest, Player, NPCRelationship, sequelize } = require('./database');
 const { Op } = require('sequelize');
 
 // Mandatory 10-Chapter Main Storyline
@@ -240,8 +240,44 @@ async function verifyRegionAccess(player, targetLocation) {
     return { allowed: true, reason: "" };
 }
 
+async function getNPCRelationship(playerWhatsappId, npcId, npcName = '') {
+    const numericNpcId = typeof npcId === 'number' ? npcId : (parseInt(npcId, 10) || 1);
+    let rel = await NPCRelationship.findOne({
+        where: { PlayerWhatsappId: playerWhatsappId, NPCId: numericNpcId }
+    });
+    if (!rel) {
+        rel = await NPCRelationship.create({
+            PlayerWhatsappId: playerWhatsappId,
+            NPCId: numericNpcId,
+            trust: 50,
+            respect: 50,
+            fear: 0,
+            reputation: 50
+        });
+    }
+    return rel;
+}
+
+async function updateNPCRelationship(playerWhatsappId, npcId, npcName, changes = {}) {
+    const rel = await getNPCRelationship(playerWhatsappId, npcId, npcName);
+    const newTrust = Math.min(100, Math.max(0, rel.trust + (changes.trust || 0)));
+    const newRespect = Math.min(100, Math.max(0, rel.respect + (changes.respect || 0)));
+    const newFear = Math.min(100, Math.max(0, rel.fear + (changes.fear || 0)));
+    const newReputation = Math.min(100, Math.max(0, rel.reputation + (changes.reputation || 0)));
+
+    await rel.update({
+        trust: newTrust,
+        respect: newRespect,
+        fear: newFear,
+        reputation: newReputation
+    });
+    return rel;
+}
+
 module.exports = {
     MANDATORY_MAIN_QUESTS,
     getOrAssignMandatoryMainQuest,
-    verifyRegionAccess
+    verifyRegionAccess,
+    getNPCRelationship,
+    updateNPCRelationship
 };

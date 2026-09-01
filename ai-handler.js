@@ -715,37 +715,15 @@ async function handleFreeAction(sock, message, player, actionText) {
     }).join('\n')
     : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde.)";
 
-  // Query NPCs early to evaluate dynamic proactive events
+  // Query NPCs strictly located in the exact same location and subLocation
   const npcs = await NPC.findAll({
     where: {
-        [Op.and]: [
-            {
-                [Op.or]: [
-                    { location: { [Op.like]: `%${player.location}%` } },
-                    { powerLevel: { [Op.gte]: 95 } }
-                ]
-            },
-            { role: { [Op.notLike]: '%Garde%' } },
-            { role: { [Op.notLike]: '%Policier%' } }
-        ]
-    },
-    order: sequelize.random(),
-    limit: 5
+        location: player.location,
+        subLocation: player.subLocation
+    }
   });
 
-  // No arbitrary surprise random events: The world narrative is 100% deterministic and driven by player actions
   const hints = [];
-
-  // Inject active live rumors for PNJ bosses (such as the King attending Sovereign summits)
-  const pnjActiveLifeRumors = [
-      "L'Empereur Valerius II s'apprête à quitter Eldoria sous haute escorte militaire pour assister à la Rencontre d'Urgence des Souverains d'Aetherys à l'Origine de l'Existence.",
-      "Le Directeur Magnus a réuni les magiciens d'élite de l'Académie Impériale pour sceller une faille magique instable qui est apparue près des frontières.",
-      "La Princesse Seraphina mène actuellement des négociations diplomatiques confidentielles avec les diplomates elfes de la Forêt de l'Éveil.",
-      "Le Juge Orpheon prépare une convocation d'urgence à Nécropolis pour faire passer des jugements d'âmes corrompues.",
-      "L'Ombre organise une réunion secrète des chefs du Syndicat dans les bas-fonds de Gheno."
-  ];
-  const selectedNpcRumor = pnjActiveLifeRumors[Math.floor(Math.random() * pnjActiveLifeRumors.length)];
-  hints.push(`ℹ️ VIE ACTIVE DES PNJ ET RUMEURS D'AETHERYS (Les PNJ majeurs bougent et agissent) : ${selectedNpcRumor}`);
 
   if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise la description du nouveau lieu.");
   if (hasInteraction) {
@@ -1039,13 +1017,24 @@ RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
   const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
 
-  const systemPrompt = `Tu es le Maître du Jeu d'ATR (After the Rebirth), un RPG Shonen d'action et d'aventure.
+  const systemPrompt = `Tu es le Maître du Jeu / Narrateur d'ATR (After the Rebirth).
 
-DIRECTIVES DE NARRATION IMPÉRATIVES :
-1. RÈGLE D'OR : Le joueur "${player.name}" vient de saisir l'action exacte : "${actionText}". Décris uniquement les conséquences directes et physiques de CETTE action à ${player.location} (${player.subLocation}).
-2. ABSENCE TOTALE DE BOUCLE OU DE RÉVEIL : Ne commence JAMAIS par "Tu te réveilles...", "Tu te lèves...", "Tu te sens léger...", ou toute répétition de scène passée. Le joueur est déjà debout et agit immédiatement.
-3. ANTI-GODMODING STRICT : Ne fais jamais parler, penser ou décider le joueur. Décris l'environnement, la réaction des PNJ et le décor qui s'anime.
-4. STYLE : Anime Shonen vivant, direct, immersif (1 à 2 paragraphes).`;
+RÈGLE FONDAMENTALE : CHAQUE JOUEUR CONTRÔLE SON PERSONNAGE.
+- Le joueur qui envoie le message est le JOUEUR ACTIF.
+- Les autres joueurs présents sont des JOUEURS PASSIFS / IMMOBILES.
+
+INTERDICTIONS ABSOLUES POUR LES JOUEURS PASSIFS :
+L'IA ne doit JAMAIS, pour un joueur passif/silencieux :
+- inventer une action, un déplacement, une phrase, un dialogue, une pensée, une décision, une attaque volontaire, une fuite ou une réaction volontaire.
+- Si un joueur n'a pas envoyé de message, il reste dans son dernier état officiel (IMMOBILE & SILENCIEUX).
+- Exemple : Si Nevo dit «Salut White !», la narration peut dire «Nevo adresse un salut à White FORGER.», mais l'IA ne doit PAS dire «White sourit et répond bonjour.». L'IA peut dire «White FORGER reste immobile et ne répond pas immédiatement.»
+
+PNJ :
+- Seuls les PNJ autorisés réellement présents dans les données de la scène peuvent être contrôlés par le MJ IA.
+
+ENVIRONNEMENT ET EFFETS :
+- Une action courte ("Je marche", "Salut") doit produire une conséquence proportionnelle et simple. Ne transforme jamais une action simple en aventure majeure sans cause.
+- Les données fournies sont la vérité absolue du monde.`;
 
     const memoryJson = JSON.stringify({
         monde: {
@@ -1181,35 +1170,70 @@ ${scenePlayersData.map(p => {
         return `- Souvenirs récents de ${h.joueur} :\n${h.derniers_evenements.map(e => `  * ${e}`).join('\n') || "  * Aucun événement marquant enregistré."}`;
     }).join('\n');
 
-    const fullPrompt = `🎯 ACTION IMMÉDIATE DU JOUEUR ${player.name.toUpperCase()} (TA PRIORITÉ NARRATIVE ABSOLUE À TRAITER MAINTENANT) :
+    const otherPlayersInScene = nearbyPlayers.filter(p => p.whatsappId !== player.whatsappId);
+
+    const otherPlayersBlock = otherPlayersInScene.length > 0
+      ? otherPlayersInScene.map(p => {
+          const dx = (p.x || 100) - (player.x || 100);
+          const dy = (p.y || 100) - (player.y || 100);
+          const distMeters = Math.max(1, Math.round(Math.sqrt(dx*dx + dy*dy) / 10));
+          return `Nom : ${p.name}
+Position : ${distMeters} mètres du joueur actif (${p.location} > ${p.zone || 'Centre-ville'} > ${p.subLocation})
+État officiel : ${p.state || 'idle'} (IMMOBILE)
+
+⚠️ AUTORITÉ IA :
+INTERDICTION ABSOLUE DE CONTRÔLER CE JOUEUR.
+- Ne jamais inventer une action, un déplacement, une phrase, un dialogue, une pensée ou une décision pour ce joueur.`;
+      }).join('\n\n')
+      : "Aucun autre joueur dans la scène immédiate.";
+
+    const npcsInSceneBlock = npcs.length > 0
+      ? npcs.map(n => `Nom : ${n.name}
+Rôle : ${n.role || 'Citoyen'}
+Position : ${n.location} > ${n.zone || 'Centre-ville'} > ${n.subLocation}
+Personnalité : ${n.personality || n.description || 'Neutre'}
+
+AUTORITÉ IA :
+AUTORISÉ À CONTRÔLER ET FAIRE PARLER CE PNJ.`).join('\n\n')
+      : "Aucun PNJ présent dans la scène immédiate.";
+
+    const fullPrompt = `=== ÉTAT OFFICIEL DE LA SCÈNE ===
+
+JOUEUR ACTIF :
+Nom : ${player.name}
+Position : ${player.location} > ${player.zone || 'Centre-ville'} > ${player.subLocation} (X: ${player.x || 100}, Y: ${player.y || 100})
+État : ${player.state || 'idle'} (PV: ${player.health}/${player.maxHealth}, PM: ${player.mana}/${player.maxMana})
+
+ACTION DU JOUEUR ACTIF :
 "${actionText}"
 
-⚠️ CONTRAT DE NARRATION STRICT :
-- Tu DOIS répondre IMMÉDIATEMENT et EXCLUSIVEMENT aux conséquences de l'action ci-dessus : "${actionText}".
-- N'invente AUCUN réveil, AUCUNE chambre, AUCUN lit et AUCUN voyage non demandé. Le joueur est ACTUELLEMENT à ${player.location} (${player.subLocation}).
-- NE FAIS JAMAIS PARLER LE JOUEUR. Ne crée aucun dialogue entre guillemets pour ${player.name}.
+=== AUTRES JOUEURS PRÉSENTS ===
+${otherPlayersBlock}
 
-### ÉTAT PHYSIQUE ET DONNÉES DU MONDE DE JEU ###
-${memoryText}
+=== PNJ PRÉSENTS ===
+${npcsInSceneBlock}
 
-### HISTORIQUE DE NARRATION RÉCENT (DERNIERS MESSAGES) ###
-${infiniteRPState}
+=== ENVIRONNEMENT ===
+${player.location} - ${player.zone || 'Centre-ville'} - ${player.subLocation} : ${kingdom?.description || "Un secteur animé de la ville."}
 
-### ANALYSE DU LIEU PHYSIQUE ET DE LA SCÈNE ###
-${sceneAnalysis}
+=== ÉVÉNEMENTS ACTIFS ===
+${worldConflicts || "Aucun conflit majeur immédiat."}
 
-### RÉSUMÉ DES ACTIONS À TRAITER ###
-${actionSummary}
-
-CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
-1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
-2. RÉGIS LEURS INTERACTIONS AVEC UNE PRIO ABSOLUE : Si les joueurs s'adressent la parole, s'attaquent, coopèrent ou échangent des objets, décris l'action avec une extrême fluidité.
-3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
-4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.
-5. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans le RÉSUMÉ DES ACTIONS.
-
-🎯 RAPPEL FINAL : L'ACTION EXACTE À DÉCRIRE EST : "${actionText}" (Joueur: ${player.name}).
-Rédige une réponse immersive d'un seul bloc en TEXTE BRUT pur sans aucun JSON. Termine par les brackets des impacts statutaires.`;
+=== RÈGLES DU MJ ===
+1. Traiter uniquement l'action du JOUEUR ACTIF (${player.name}).
+2. Les autres joueurs contrôlent exclusivement leurs propres personnages.
+3. Un joueur silencieux reste dans son dernier état officiel.
+4. Un joueur silencieux ne parle pas.
+5. Un joueur silencieux ne se déplace pas volontairement.
+6. Un joueur silencieux ne prend aucune décision.
+7. Tu peux décrire la présence physique d'un joueur passif.
+8. Tu peux décrire les conséquences physiques directes d'une action sur un joueur, mais tu ne peux pas inventer sa réaction volontaire.
+9. Seuls les PNJ autorisés peuvent être contrôlés par le MJ IA.
+10. N'invente jamais un joueur ou un PNJ absent des données.
+11. N'invente jamais une nouvelle position officielle.
+12. Une action courte doit produire une conséquence proportionnelle.
+13. Ne transforme jamais une action simple en aventure majeure sans cause.
+14. Les données fournies sont la vérité absolue du monde.`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false, playerAction: actionText });
