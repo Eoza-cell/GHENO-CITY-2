@@ -456,7 +456,7 @@ async function callPuterSDK(system, prompt, options = {}) {
         console.warn("[AI] Puter SDK non initialisé ou indisponible.");
         return null;
     }
-    const models = ["google/gemma-4-31b-it", "google/gemma-4-26b-a4b-it", "gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
+    const models = ["claude-3-5-sonnet", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o", "gemini-1.5-flash"];
 
     for (const model of models) {
         try {
@@ -952,12 +952,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     const { callTransformersJS } = require('./transformers-js-handler');
     const { callWebLLM } = require('./webllm-handler');
     const providers = [
-        { name: 'DevToolbox Free AI (Llama 3.2)', fn: callDevToolbox },
+        { name: 'Puter SDK AI (Claude 3.5 / Gemini / Llama 70B RP Models)', fn: callPuterSDK },
+        { name: 'OpenRouter Free RP Models (Qwen 72B / Llama 70B)', fn: callOpenRouter },
         { name: 'GPT4Free (g4f)', fn: callG4F },
-        { name: 'Ollama (Local)', fn: callOllama },
         { name: 'Empero AI Research Lab (Qwythos/Qwen3.8 PyTorch)', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: 'empero-ai/Qwythos-9B-v2' }) },
         { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
-        { name: 'Puter SDK AI', fn: callPuterSDK },
+        { name: 'Ollama (Local)', fn: callOllama },
+        { name: 'DevToolbox Free AI (Fallback)', fn: callDevToolbox },
         { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS }
     ];
 
