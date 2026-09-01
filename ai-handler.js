@@ -1290,34 +1290,19 @@ ${scenePlayersData.map(p => {
         return `- Souvenirs récents de ${h.joueur} :\n${h.derniers_evenements.map(e => `  * ${e}`).join('\n') || "  * Aucun événement marquant enregistré."}`;
     }).join('\n');
 
-    const fullPrompt = `### WORLD_PULSE (DICE/LUCK) ###\n${JSON.stringify(worldPulse)}
+    const fullPrompt = `🎯 ACTION IMMÉDIATE DU JOUEUR ${player.name.toUpperCase()} (TA PRIORITÉ NARRATIVE ABSOLUE À TRAITER MAINTENANT) :
+"${actionText}"
+
+⚠️ CONTRAT DE NARRATION STRICT :
+- Tu DOIS répondre IMMÉDIATEMENT et EXCLUSIVEMENT aux conséquences de l'action ci-dessus : "${actionText}".
+- N'invente AUCUN réveil, AUCUNE chambre, AUCUN lit et AUCUN voyage non demandé. Le joueur est ACTUELLEMENT à ${player.location} (${player.subLocation}).
+- NE FAIS JAMAIS PARLER LE JOUEUR. Ne crée aucun dialogue entre guillemets pour ${player.name}.
 
 ### ÉTAT PHYSIQUE ET DONNÉES DU MONDE DE JEU ###
 ${memoryText}
 
-### HISTORIQUE_NARRATIF_RÉCENT_PAR_JOUEUR ###
-${storyHooksText}
-
-### HISTORIQUE DE TOUTE L'AVENTURE DE L'HÉRITIER (MÉMOIRE INFINIE - NE PAS OUBLIER !) ###
-Rappel de toutes les actions, accomplissements et passés historiques de ${player.name} :
-- QUÊTES TERMINÉES : ${completedQuestsState}
-- TIMELINE RP COMPLÈTE :
-${infiniteTimelineState}
-- ACTIONS RP ET DIALOGUES ANTÉRIEURS (SOUVENIRS INFINIS) :
+### HISTORIQUE DE NARRATION RÉCENT (DERNIERS MESSAGES) ###
 ${infiniteRPState}
-
-### DONNÉES DE LA TABLE EXCEL DU JOUEUR (MÉMOIRE CHRONOLOGIQUE TABLEUR) ###
-${(() => {
-    try {
-        const { getInfiniteMemoryForPlayer } = require('./excel-memory');
-        const excelHistory = getInfiniteMemoryForPlayer(player.whatsappId, 25);
-        return excelHistory.length > 0
-            ? excelHistory.map(h => `- [${h.timestamp ? h.timestamp.substring(0, 10) : 'Date'}] [${h.actionType}] : ${h.content.substring(0, 150)}`).join('\n')
-            : "- Aucune ligne historique dans le tableur Excel.";
-    } catch (e) {
-        return "- Initialisation de la mémoire Excel...";
-    }
-})()}
 
 ### ANALYSE DU LIEU PHYSIQUE ET DE LA SCÈNE ###
 ${sceneAnalysis}
@@ -1328,18 +1313,12 @@ ${actionSummary}
 CONSIGNE DE COHÉRENCE MULTI-JOUEUR:
 1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
 2. RÉGIS LEURS INTERACTIONS AVEC UNE PRIO ABSOLUE : Si les joueurs s'adressent la parole, s'attaquent, coopèrent ou échangent des objets, décris l'action avec une extrême fluidité.
-   - DIALOGUES & COMMERCE : Décris l'échange de mots direct ou le transfert physique d'objets ou de Col.
-   - DUEL PVP : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies (FOR/AGI/DEF) pour arbitrer le choc. Une attaque ne peut JAMAIS être ignorée : elle est soit esquivée (AGI), soit bloquée (DEF), soit encaissée de plein fouet (dégâts massifs de HP selon la zone touchée : tête, torse, membres, etc., pouvant être mortelle). Tu DOIS obligatoirement déduire des points de vie (HP) au joueur ciblé en écrivant le bracket correspondant (ex: [JoueurB: HP -25]). Si tu n'écris pas le bracket de dégâts, les joueurs ne perdront aucun PV dans la base de données, ce qui viole la règle de létalité.
-   - COOPÉRATION : S'ils unissent leurs forces (attaque synchronisée), décris un combo spectaculaire combinant leurs éléments (ex: feu + vent) provoquant d'immenses dégâts collatéraux.
 3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
 4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.
 5. VÉRIFICATION DE PERSISTANCE : Ta narration doit explicitement mentionner ou résoudre CHAQUE action listée dans le RÉSUMÉ DES ACTIONS.
-6. STRUCTURE OBLIGATOIRE : Utilise [NOM_DU_JOUEUR] et le séparateur ▬▬▬▬▬▬▬▬▬▬▬▬.
 
-### ACTION EN COURS DU JOUEUR ${player.name.toUpperCase()} ###
-DERNIÈRE ACTION DE ${player.name.toUpperCase()} : "${actionText}"
-
-ATTENTION : Rédige une réponse en TEXTE BRUT pur sans aucun JSON. Termine par les brackets des impacts statutaires.`;
+🎯 RAPPEL FINAL : L'ACTION EXACTE À DÉCRIRE EST : "${actionText}" (Joueur: ${player.name}).
+Rédige une réponse immersive d'un seul bloc en TEXTE BRUT pur sans aucun JSON. Termine par les brackets des impacts statutaires.`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false, playerAction: actionText });
