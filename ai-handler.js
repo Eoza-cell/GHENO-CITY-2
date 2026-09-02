@@ -1,4 +1,5 @@
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
+const { buildSceneVisual } = require('./world-visuals');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
 const { generateBlackboardImage } = require('./blackboard-generator');
@@ -1394,8 +1395,26 @@ ${infiniteRPState}
         await sock.sendPresenceUpdate('composing', jid);
     } catch (e) {}
 
-    // Send the final immersive output to the active group/chat session
+    // CURATED WORLD VISUALS:
+    // A location image is sent when the player enters a new visual scene.
+    // If an illustrated NPC is physically present, the NPC is composed over the real background.
+    // The same visual is never spammed every turn.
     const targetChatJid = message.key.remoteJid || jid;
+    let sceneVisual = null;
+    try {
+        sceneVisual = await buildSceneVisual({ player, npcs });
+        if (sceneVisual && sceneVisual.key !== player.lastVisualKey) {
+            await sock.sendMessage(targetChatJid, {
+                image: sceneVisual.buffer,
+                caption: sceneVisual.caption
+            });
+            await player.update({ lastVisualKey: sceneVisual.key });
+        }
+    } catch (visualErr) {
+        console.error('[WORLD VISUAL] Scene visual skipped:', visualErr.message);
+    }
+
+    // Send the final immersive output to the active group/chat session
     const messagePayload = { text: finalMsg };
     if (visualBuffer) {
         messagePayload.image = visualBuffer;
