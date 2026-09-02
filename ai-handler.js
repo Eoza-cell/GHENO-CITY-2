@@ -107,10 +107,6 @@ async function handleFreeAction(sock, message, player, actionText) {
     }
   });
 
-  const recentActions = [{
-      senderName: player.name,
-      content: actionText
-  }];
   const actingPlayerNames = new Set([player.name]);
 
   // Data for all players in the same scene
