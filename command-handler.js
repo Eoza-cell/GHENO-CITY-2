@@ -527,19 +527,42 @@ commands.set('equiper', async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
-    const outfitName = args.join(' ');
+    const requested = args.join(' ').trim();
 
-    if (!player || !outfitName) return;
-
-    const inventory = player.inventory || [];
-    const item = inventory.find(i => i.name.toLowerCase().includes(outfitName.toLowerCase()));
-
-    if (!item) {
-        return await sock.sendMessage(replyJid, { text: `❌ Tu ne possèdes pas "${outfitName}" dans ton inventaire.` });
+    if (!player || !requested) {
+        return await sock.sendMessage(replyJid, { text: "👗 Utilise : /equiper <nom de la tenue>" });
     }
 
-    await player.update({ equippedOutfit: item.name });
-    await sock.sendMessage(replyJid, { text: `👗 *Style mis à jour !* Tu portes désormais : ${item.name}.` });
+    const owned = (player.inventory || []).find(i => i.name.toLowerCase().includes(requested.toLowerCase()));
+    if (!owned) {
+        return await sock.sendMessage(replyJid, { text: `❌ Tu ne possèdes pas "${requested}".` });
+    }
+
+    const item = await Item.findOne({ where: { name: owned.name } });
+    if (!item || item.type !== 'clothing') {
+        return await sock.sendMessage(replyJid, { text: "❌ Cet objet n'est pas une tenue équipable." });
+    }
+
+    const visual = item.visualData || {};
+    const slot = item.slot || 'outfit';
+    const equipped = { ...(player.equippedClothing || {}) };
+    equipped[slot] = {
+        name: item.name,
+        style: visual.style || visual.collection || 'standard',
+        color: visual.color || 'standard',
+        collection: visual.collectionLabel || visual.collection || null
+    };
+
+    await player.update({
+        equippedOutfit: item.name,
+        equippedClothing: equipped,
+        wardrobeStyle: visual.style || visual.collection || 'standard',
+        lastVisualKey: null
+    });
+
+    await sock.sendMessage(replyJid, {
+        text: `👗 *TENUE ÉQUIPÉE*\n\n✨ ${item.name}\n🎨 Style : ${visual.style || visual.collectionLabel || 'Aetherys'}\n🎖️ Rareté : ${item.rarity}\n\n📸 Ton prochain visuel de scène utilisera cette tenue.`
+    });
 });
 
 // Command: /retirer
@@ -547,12 +570,54 @@ commands.set('retirer', async (sock, message) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
-
     if (!player) return;
 
-    await player.update({ equippedOutfit: null });
-    await sock.sendMessage(replyJid, { text: "👗 *Style mis à jour !* Tu as retiré ta tenue." });
+    await player.update({
+        equippedOutfit: null,
+        equippedClothing: {},
+        wardrobeStyle: 'standard',
+        lastVisualKey: null
+    });
+    await sock.sendMessage(replyJid, { text: "👕 *TENUE RETIRÉE*\nTon personnage revient à son apparence de base." });
 });
+
+// Command: /tenue — wardrobe dashboard
+commands.set('tenue', async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+    if (!player) return;
+
+    const clothes = (player.inventory || []).filter(i => i.name);
+    const equipped = player.equippedClothing || {};
+    const clothingItems = [];
+    for (const entry of clothes.slice(0, 200)) {
+        const dbItem = await Item.findOne({ where: { name: entry.name } });
+        if (dbItem?.type === 'clothing') clothingItems.push(dbItem);
+    }
+
+    let text = `👗 ════ *GARDE-ROBE D'AETHERYS* ════ 👗\n\n`;
+    text += `👤 *Tenue actuelle* : ${player.equippedOutfit || 'Aucune'}\n`;
+    text += `🎨 *Style* : ${player.wardrobeStyle || 'standard'}\n\n`;
+
+    if (Object.keys(equipped).length) {
+        text += '*ÉQUIPÉ :*\n';
+        Object.entries(equipped).forEach(([slot, value]) => {
+            text += `├ ${slot} : ${value.name}\n`;
+        });
+        text += '\n';
+    }
+
+    text += `🧥 *VÊTEMENTS POSSÉDÉS (${clothingItems.length})*\n`;
+    clothingItems.slice(0, 12).forEach((item, i) => {
+        text += `${i + 1}. *${item.name}* — ${item.rarity}\n`;
+    });
+    if (clothingItems.length > 12) text += `_... et ${clothingItems.length - 12} autres._\n`;
+    text += `\n🛍️ /boutique vetement\n👗 /equiper <nom>\n`;
+
+    await sock.sendMessage(replyJid, { text });
+});
+commands.set('tenues', commands.get('tenue'));
 
 // Command: /inspecter
 commands.set('inspecter', async (sock, message) => {
