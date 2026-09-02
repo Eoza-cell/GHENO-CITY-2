@@ -2,6 +2,7 @@ const sharp = require('sharp');
 const path = require('path');
 const axios = require('axios');
 const fs = require('fs');
+const { CATALOG, getEquipped } = require('./wardrobe-system');
 
 async function generateProfileCard(player) {
     const templatePath = path.join(__dirname, 'assets/templates/profile_template.jpg');
@@ -51,6 +52,11 @@ async function addOverlay(baseImg, player, width, height) {
 
     // Handle inventory categories
     const inventory = player.inventory || [];
+    const equippedOutfit = getEquipped(player);
+    const equippedNames = ['tops','bottoms','shoes','accessories'].map(slot => {
+        const item = CATALOG.find(i => i.id === equippedOutfit[slot]);
+        return item ? item.name : null;
+    }).filter(Boolean);
     // Enhanced filtering for weapons vs equipment
     const weaponKeywords = ['épée', 'lame', 'dague', 'bâton', 'arc', 'lance', 'hache', 'sword', 'blade', 'dagger', 'staff', 'bow', 'spear', 'axe', 'katana', 'rapier'];
     const weapons = inventory.filter(i => weaponKeywords.some(k => i.name.toLowerCase().includes(k))).slice(0, 4);
@@ -114,6 +120,12 @@ async function addOverlay(baseImg, player, width, height) {
                     </g>
                 `).join('') : '<text y="40" class="text value" style="fill: #555;">Aucune arme...</text>'}
             </g>
+
+            <!-- Outfit -->
+            <rect x="410" y="510" width="340" height="90" fill="rgba(0,0,0,0.8)" stroke="#ff66cc" stroke-width="1" rx="10" />
+            <text x="430" y="535" class="header" style="fill: #ff66cc;">👔 TENUE</text>
+            <text x="430" y="560" class="text item-text">${equippedNames.slice(0,2).join(' • ').substring(0,42) || 'Tenue de départ'}</text>
+            <text x="430" y="585" class="text item-qty">${equippedNames.slice(2).join(' • ').substring(0,42)}</text>
 
             <!-- Grid: Equipment -->
             <rect x="410" y="710" width="340" height="280" fill="rgba(0,0,0,0.6)" stroke="#4fb3ff" stroke-width="1" rx="10" />
