@@ -833,7 +833,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
 
   if (command) {
     try {
-      await command(sock, message, args);
+      await command(sock, message, args, downloadMediaMessage);
     } catch (error) {
       console.error(`Erreur commande ${commandName}:`, error);
       await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de l'exécution de la commande." });

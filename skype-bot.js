@@ -56,7 +56,8 @@ async function connectToWhatsApp() {
     if (!phoneNumber) {
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
-      console.error('!!! Définissez la variable d\'environnement PHONE_NUMBER.   !!!');
+      console.error('!!! Créez un fichier .env avec : PHONE_NUMBER=votre_numéro !!!');
+      console.error('!!! Exemple : PHONE_NUMBER=33612345678 (sans le signe +)  !!!');
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       process.exit(1);
     }
