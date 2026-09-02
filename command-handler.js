@@ -3,6 +3,8 @@ const path = require('path');
 
 // Memory map to track the last 8 items shown to each player for easy index-based purchases
 const lastViewedItems = new Map();
+// Memory map to track currently sleeping players
+const sleepingPlayers = new Map();
 const axios = require('axios');
 const sharp = require('sharp');
 const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, PlayerSkill, Entity, Pact, Club, PlayerClub, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
@@ -16,6 +18,7 @@ const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage, generateDetailedItemCard } = require('./shop-generator');
 const { generateSkillListImage } = require('./action-visual-generator');
 const { handleFreeAction } = require('./ai-handler');
+const { resolveMentions } = require('./message-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const referee = require('./referee-logic');
@@ -632,7 +635,7 @@ commands.set('map', async (sock, message) => {
     const kingdoms = await Kingdom.findAll();
     const dungeons = await Dungeon.findAll();
 
-    let mapText = `🗺️ *CARTE DU MONDE — AETHERYS*\n\n` +
+    let mapText = `🗺️ *CARTE DU MONDE — AFTER THE REBIRTH (ATR)*\n\n` +
                   `📍 *Position:* ${player.location} (${player.subLocation})\n\n` +
                   `🌍 *CONTINENTS ET ROYAUMES:*\n`;
 
@@ -1842,19 +1845,17 @@ commands.set('lore', async (sock, message, args) => {
 
     if (!loreData) {
         const worldLore = {
-            'one above all': "Source premiere de l'existence, One Above All est l'origine du temps, de la matiere, de la vie et de la mort. Aucun temple ne peut le contenir, aucun royaume ne peut le revendiquer.\n\nDans les archives anciennes, son silence n'est pas une absence mais une attente. Le monde d'Aetherys vit encore sous le poids de ce jugement suspendu.",
-            'idée du mal': "L'Idee du Mal est une conscience nee des peurs, de la haine et du desir d'explication de l'humanite. Elle ne regne pas par decret, mais par causalite, en poussant les mortels vers les moments ou leurs tenebres parlent a leur place.\n\nPlus les hommes desesperent, plus son influence gagne en densite dans l'Interstice.",
-            'béhérit': "Les Beherits sont des reliques vivantes, informes, presque humaines, qui n'apparaissent qu'aux etres brises. Ils ne se possedent pas vraiment: ils choisissent.\n\nQuand le desespoir atteint son point de rupture, le Beherit ouvre la voie vers un sacrifice irreparable et une metamorphose qui depasse la condition mortelle.",
-            'apôtres': "Les Apotres sont d'anciens humains qui ont livre ce qu'ils aimaient le plus pour recevoir une puissance monstrueuse. Leur force vient d'un marche absolu: abandonner leur humanite pour devenir les instruments d'une volonte plus obscure.\n\nIls conservent parfois des traces de leur ancienne personnalite, mais celles-ci servent surtout a rendre leur monstruosite encore plus troublante.",
-            'interstice': "L'Interstice est la faille entre le monde materiel, les royaumes spirituels et les plans interdits. Les esprits y errent, les entites y observent, et les pactes y laissent des cicatrices qui debordent parfois sur la realite.\n\nQuand ses frontieres s'amincissent, les monstres, les visions et les presages commencent a contaminer le quotidien.",
-            'origines': "Au commencement, One Above All donna forme aux puissances celestes et bestiales, puis le monde se developpa autour des mortels. Mais l'humanite, incapable d'assumer seule la somme de ses peurs, engendra peu a peu l'Idee du Mal dans les profondeurs de l'Interstice.\n\nAetherys est ne de cet equilibre instable: grandeur divine au-dessus, desir humain au centre, abime au-dessous.",
-            'nécropolis': "Necropolis est la cite des morts, gouvernee par Orpheon et enveloppee d'un calme qui n'a rien de paisible. Les ames qui y arrivent n'y sont ni libres ni tout a fait condamnees: elles attendent, se souviennent, et tremblent devant le verdict final.\n\nPour les vivants, ce lieu n'est pas une legende. C'est la preuve que la mort, ici, est une frontiere administrative avant d'etre un mystere.",
-            'missions historiques': "Les missions historiques projettent les Heritiers au coeur d'epoques disparues. Ils n'y vont pas comme spectateurs, mais comme temoins exposes aux decisions, aux tragedies et aux batailles qui ont forme le monde present.\n\nChute des royaumes, naissance des Apotres, guerres entre puissances antiques: chaque archive de ce type est un champ de memoire vivant.",
-            'histoire': "L'histoire recente d'Aetherys est celle d'un monde moderne qui croyait avoir domestique le mana, la politique et la violence. Cet equilibre s'effondre a mesure que reapparaissent les Beherits, que les anomalies se multiplient et que la Causalite reprend ses droits.\n\nLa paix n'est plus qu'une mince couche de vernis au-dessus d'une ere de rupture.",
-            'convergence': "La Convergence est le nom donne au moment ou les limites entre les dimensions cessent de tenir. Les phenomenes de l'Interstice gagnent le sol des vivants, les monstres traversent les failles, et les puissances anciennes retrouvent des relais humains.\n\nCe n'est pas seulement une apocalypse. C'est une reorganisation brutale de la realite.",
-            'aetherys': "Aetherys est un monde hybride, ou la technologie moderne cohabite avec le mana ancestral, les institutions académiques et les forces metaphysiques. Les villes brillent, les clubs prosperent, les armes evoluent, mais tout cela repose sur un socle fragile.\n\nSous la surface des routines et des ambitions, la Causalite tisse une guerre invisible qui finit toujours par rattraper les vivants.",
-            'mystères': "Les mysteres d'Aetherys ne se limitent pas a quelques reliques ou cultes caches. Ils concernent la logique meme du monde: pourquoi certains sont choisis, pourquoi certaines chutes semblent ecrites d'avance, et pourquoi l'Interstice repond si bien au desespoir.\n\nComprendre un mystere, ici, c'est souvent s'en approcher assez pour qu'il commence a vous regarder.",
-            'société': "La societe d'Aetherys tient sur un equilibre instable entre academies, guildes, clubs, noblesse, commerce et puissance militaire. Chacun veut imposer son ordre, mais personne ne controle totalement la circulation du mana, des secrets et des dettes.\n\nL'Academie Imperiale forme l'elite. Les clubs recrutent l'influence. Les royaumes negocient. Et dans l'ombre, d'autres forces preparent un avenir moins humain."
+            'one above all': "Source première et absolue de toute existence dans le cosmos d'After the Rebirth (ATR), One Above All est l'entité primordiale qui a forgé les dimensions, le temps, la matière et les lois fondamentales de la réalité. Aucun temple mortel ne peut prétendre le contenir, et aucun empire ne saurait revendiquer sa bénédiction exclusive. Dans les archives les plus anciennes gravées dans le cristal céleste, son silence n'est pas interprété comme une absence ou un abandon, mais comme une attente cosmique suspendue au-dessus du destin des Héritiers.\n\nLorsque les lois physiques du monde vacillent sous la pression de la magie noire ou des failles de l'Interstice, One Above All demeure la constante inébranlable vers laquelle tendent les esprits éveillés. Sa volonté ne s'exprime pas par des dogmes ou des prophéties simplistes, mais par la structure même de la Causalité qui régit les naissances, les apothéoses et les renaissances à travers les âges. Ceux qui cherchent à braver ses décrets finissent inévitablement par comprendre que chaque particule d'éther et chaque pulsation de mana ne sont que les échos distants de son souffle initial.",
+            'idée du mal': "L'Idée du Mal est une entité phénoménale unique née de la somme collective des peurs, du désespoir, de la rancœur et du besoin d'explication de l'humanité face aux tragédies de l'existence. Logée au plus profond du gouffre de l'Interstice, cette conscience noire ne gouverne pas par des décrets tyranniques, mais par une Causalité ténébreuse d'une précision effrayante. Elle tisse les fils du destin pour amener les mortels brisés vers l'instant exact où leurs ténèbres intérieures prennent le dessus sur leur conscience.\n\nPlus le monde souffre et plus la guerre de la Renaissance fait rage, plus l'empreinte de l'Idée du Mal s'épaissit et contamine le monde matériel. Elle est l'architecte invisible derrière l'émergence des Béhérits et la métamorphose des Apôtres. Face à elle, les prières traditionnelles restent muettes, car l'Idée du Mal est la création directe des désirs refoulés des mortels eux-mêmes. Comprendre son fonctionnement revient à scruter le miroir le plus sombre de l'âme humaine, là où la frontière entre la victime et le bourreau finit par s'effacer définitivement.",
+            'béhérit': "Les Béhérits sont des reliques vivantes, grotesques et fascinantes, sculptées sous la forme d'œufs de pierre aux traits faciaux humains désordonnés. Ces artefacts de l'Interstice n'apparaissent jamais par hasard : ils traversent le temps et l'espace pour trouver l'individu exact dont l'âme est au bord du gouffre ultime. On ne possède pas un Béhérit, c'est le Béhérit qui vous choisit et vous accompagne fidèlement jusqu'au jour inévitable de l'Éclipse.\n\nLorsque le désespoir d'un porteur atteint son paroxysme absolu, le Béhérit s'éveille : ses yeux, son nez et sa bouche s'alignent dans un hurlement de sang vers le ciel, déchirant le voile entre le monde physique et le domaine des entités supérieures. À cet instant précis, un pacte de sang est proposé : sacrifier ce que l'on a de plus cher au monde en échange d'une puissance monstrueuse et de la transcendance vers le rang d'Apôtre. Rien dans ATR ne possède une charge causale aussi terrifiante que ces pierres hurlantes.",
+            'apôtres': "Les Apôtres sont de puissants seigneurs d'autrefois qui ont franchi le point de non-retour en cédant à l'appel d'un Béhérit. En offrant leurs proches, leurs compagnons d'armes ou leurs royaumes en sacrifice rituel lors d'une Éclipse, ils ont abandonné leur condition charnelle pour revêtir une forme monstrueuse, incarnant leurs désirs les plus sombres. Dotés d'une durabilité physique colossale, d'une régénération prodigieuse et d'une force capable de briser l'acier, ils règnent en tyrans dans l'ombre des grands continents.\n\nBien qu'ils conservent parfois une apparence humaine pour s'intégrer parmi les élites politiques ou militaires d'After the Rebirth, leur véritable nature resurgit dès que le sang coule. Certains Apôtres cherchent à oublier leur humanité perdue dans la violence et la luxure, tandis que d'autres élaborent des plans à l'échelle planétaire pour précipiter la Convergence. Affronter un Apôtre exige une préparation tactique hors du commun, car leur chair ténébreuse repousse la majorité des sorts conventionnels.",
+            'interstice': "L'Interstice représente la dimension intermédiaire et instable située exactement entre le monde matériel d'After the Rebirth (ATR) et les plans spirituels supérieurs. C'est un royaume de brume, d'ombres mouvantes et de géométrie altérée où la notion de temps perd toute cohérence. C'est dans l'Interstice que séjournent les esprits errants, les démons mineurs et les résonances maudites générées par les guerres et les souffrances des mortels.\n\nPour un Héritier, pénétrer dans l'Interstice ou subir une baisse de sa frontière protectrice signifie faire face à des hallucinations viscérales et à l'assaut permanent de créatures cauchemardesques. Les cicatrices magiques laissées par les pactes d'entités et les invocations de haut niveau trouvent leur origine dans ce milieu fluide. À mesure que la Convergence approche, les ouvertures de l'Interstice se multiplient à la surface de la planète, transformant des cités entières en zones d'anomalies où les morts marchent parmi les vivants.",
+            'origines': "Aux origines du monde d'After the Rebirth (ATR), les continents n'étaient que des blocs de pierre brute baignés par l'éther primordial de One Above All. Pour équilibrer les forces de l'existence, les grands souffles célestes ont donné naissance aux bêtes ancestrales : Dragons de Lumière, Phénix d'Or et Hydres Abyssales. Lorsque les mortels ont commencé à bâtir des cités et à domestiquer le mana, leur quête de pouvoir a engendré les premières fractures dimensionnelles.\n\nNe pouvant supporter seuls la terreur du néant et l'injustice de la mort, les esprits condensés des hommes ont façonné l'Idée du Mal dans les tréfonds de l'Interstice. C'est ainsi qu'est né le grand cycle de la Causalité et de la Renaissance : une ère où chaque civilisation s'élève jusqu'à son apogée avant de subir l'Éclipse purificatrice. L'histoire d'ATR est le théâtre de ce combat éternel entre la volonté mortelle de liberté et la force inévitable du destin.",
+            'nécropolis': "Nécropolis est la légendaire cité monolithique des morts située sur le continent sombre d'Umbra. Bâtie en deuil d'obsidienne et en marbre noir, elle est le domaine souverain d'Orphéon, le Seigneur des Âmes. Dans cette métropole silencieuse, les esprits des défunts ne souffrent pas de supplice éternel, mais attendent dans un ordre strict la pesée de leurs actes et le jugement final de leur conscience.\n\nPour les aventuriers et les érudits de l'Académie Impériale, Nécropolis n'est pas une simple légende : c'est un lieu physique doté de lois douanières et d'une milice spectrale impitoyable. Franchir les portes de Nécropolis sans autorisation rituelle équivaut à condamner sa propre essence à l'errance. Les cryptes de la cité recèlent des grimoires d'alchimie interdtite et des armes forgées dans le fer d'âme capables de blesser les entités intangibles de l'Interstice.",
+            'histoire': "L'histoire d'After the Rebirth (ATR) est jalonnée de cycles de grande prospérité technomagique suivis d'effondrements dévastateurs provoqués par la Résurgence. Durant l'Ère de Cristal, les quatre continents (Aetheria, Zendora, Umbra et Caelum) vivaient en harmonie sous la tutelle de la Haute Académie. Mais la découverte des Béhérits et la trahison des premiers Apôtres ont plongé la planète dans un siècle de ténèbres.\n\nAujourd'hui, l'Empire d'Elion et le Royaume de Valkyrr tentent de maintenir une paix armée grâce à la diplomatie et à la puissance de la milice. Cependant, la multiplication des apparitions de bêtes célestes et les tensions politiques croissant au sein des syndicats criminels de Gheno prouvent que la Causalité prépare un nouveau tournant majeur. Les Héritiers actuels sont la génération sacrée destinée à briser ce cycle éternel ou à sombrer avec lui.",
+            'convergence': "La Convergence est le phénomène cosmologique redouté au cours duquel les barrières dimensionnelles séparant le monde physique, l'Interstice et les plans abyssaux s'effondrent simultanément. Lorsque la Convergence survient, le ciel se colore d'une lueur pourpre, les boussoles s'affolent et la géographie elle-même se déforme, rapprochant des lieux séparés par des milliers de kilomètres.\n\nDurant la Convergence, la magie n'a plus de limite et la durabilité des protections mortelles s'effondre. Les bêtes célestes sortent de leur sommeil millénaire, les Apôtres rassemblent leurs armées d'ombres et la milice impériale doit déployer toutes ses réserves de mana pour protéger les citoyens. Pour un Héritier de Rang S, la Convergence est l'unique moment où l'Extension du Territoire peut atteindre une puissance planétaire et altérer définitivement la trame du monde.",
+            'aetherys': "Aetherys est la planète monumentale au cœur de l'univers d'After the Rebirth (ATR). Divisée en quatre continents majestueux aux climats et biomes extrêmes (la côte high-fantasy d'Aetheria, les terres sauvages de Zendora, le continent d'ombre d'Umbra et les îles flottantes de Caelum), elle abrite une civilisation où la technologie moderne (réseaux de données, puces magiques, armes à plasma) coexiste avec les rituels de mana ancestraux.\n\nSur Aetherys, la puissance individuelle d'un combattant est mesurée par son Rang (de F à S) et sa maîtrise de l'Aura. Les cités étincelantes comme Eldoria ou Sparkwell dissimulent des réseaux complexes de guildes, de syndicats du marché noir et de factions politiques rivales. But sous le vernis de cette prospérité technologique, la trame de la Causalité continue de régir le destin de chaque habitant.",
+            'société': "La société d'After the Rebirth (ATR) repose sur une hiérarchie stricte dominée par la puissance magique, le Rang militaire et l'influence politique. L'Académie Impériale forme la jeunesse dorée et les futurs combattants d'élite, tandis que les clubs académiques et les guildes marchandes se disputent le contrôle des ressources en Col et des artefacts de mana.\n\nDans cette société hautement compétitive, l'apparence physique, l'élégance vestimentaire et la réputation jouent un rôle capital : un aventurier à la tenue propre et prestigieuse obtiendra le respect des chanceliers et des rabais chez les marchands, tandis qu'un individu aux vêtements déchirés et couverts de sang sera traqué par la milice urbaine. Les campagnes électorales, la corruption d'influence et les duels d'honneur PVP font partie intégrante du quotidien des grandes métropoles d'Aetherys."
         };
         const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const topicNormalized = normalize(topic);
@@ -1985,23 +1986,23 @@ commands.set('help', async (sock, message) => {
 });
 
 // Command: /reset
-commands.set('reset', async (sock, message, args) => {
+const deletePlayerCommand = async (sock, message, args) => {
     const jid = getJid(message);
     const replyJid = message.key.remoteJid;
     const player = await Player.findOne({ where: { whatsappId: jid } });
 
     if (!player) {
-        await sock.sendMessage(replyJid, { text: "Tu n'as pas de personnage à réinitialiser." });
+        await sock.sendMessage(replyJid, { text: "Tu n'as pas de personnage à supprimer." });
         return;
     }
 
     if (args[0] !== 'confirm') {
-        await sock.sendMessage(replyJid, { text: "⚠️ *ATTENTION* ⚠️\n\nCette action supprimera définitivement ton personnage, tes statistiques, ton inventaire et ta progression.\n\nPour confirmer, tape : `/reset confirm`" });
+        await sock.sendMessage(replyJid, { text: "⚠️ *ATTENTION* ⚠️\n\nCette action supprimera définitivement et réellement ton personnage de la base de données, ainsi que toutes tes données et ta progression.\n\nPour confirmer la suppression, tape : `/supprimer confirm` ou `/reset confirm`" });
         return;
     }
 
     try {
-        // Complete bulletproof reset of player and all associations to ensure they are no longer an Apostle and start fresh
+        // Complete bulletproof deletion of player and all associations from DB
         await Bank.destroy({ where: { PlayerWhatsappId: jid } });
         await PlayerQuest.destroy({ where: { PlayerWhatsappId: jid } });
         await PlayerSkill.destroy({ where: { PlayerWhatsappId: jid } });
@@ -2012,12 +2013,41 @@ commands.set('reset', async (sock, message, args) => {
 
         await player.destroy();
 
-        await sock.sendMessage(replyJid, { text: "💥 *Personnage réinitialisé.* Ta présence et tes pouvoirs d'Apôtre ont été définitivement effacés de la matrice d'Aetherys. Utilise `/start` pour renaître de tes cendres." });
+        await sock.sendMessage(replyJid, { text: "💥 *Personnage définitivement supprimé de la base de données.* Tes données ont été effacées de la matrice d'ATR. Utilise `/start` pour créer un nouveau personnage." });
     } catch (error) {
-        console.error("Erreur reset personnage:", error);
-        await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la réinitialisation de ton personnage." });
+        console.error("Erreur suppression personnage:", error);
+        await sock.sendMessage(replyJid, { text: "Une erreur est survenue lors de la suppression de ton personnage." });
     }
-});
+};
+
+commands.set('reset', deletePlayerCommand);
+commands.set('delete', deletePlayerCommand);
+commands.set('supprimer', deletePlayerCommand);
+
+// Command: /clearmemory / /purger_histoire
+const clearMemoryCommand = async (sock, msg, args, player) => {
+    const { purgeNarrativeMemory } = require('./ai-handler');
+    const jid = msg.key.remoteJid;
+    const sender = player.whatsappId;
+
+    await purgeNarrativeMemory(sender);
+
+    await sock.sendMessage(jid, {
+        text: `🧹 **PURGE DE LA MÉMOIRE NARRATIVE ACCOMPLIE !**\n\n` +
+              `✅ Les anciennes hallucinations et réponses narratives de l'IA ont été effacées.\n\n` +
+              `🛡️ **TES DONNÉES OFFICIELLES SONT CONSERVÉES (100% INTACTES) :**\n` +
+              `- Position officielle : **${player.location} (${player.subLocation || 'Zone'})**\n` +
+              `- Niveau & Rang : **Niv.${player.level} (${player.rank})**\n` +
+              `- Inventaire & Argent : **${(player.inventory||[]).length} objets / ${player.col} COL**\n` +
+              `- Quêtes & Statistiques : **Inchangés**\n\n` +
+              `✨ Tu peux maintenant reprendre le jeu avec un contexte RP 100% propre !`
+    }, { quoted: msg });
+};
+
+commands.set('clearmemory', clearMemoryCommand);
+commands.set('purger_histoire', clearMemoryCommand);
+commands.set('purge_memoire', clearMemoryCommand);
+commands.set('purgememory', clearMemoryCommand);
 
 // Command: /evenement
 commands.set('evenement', async (sock, message, args) => {
@@ -2038,7 +2068,7 @@ commands.set('evenement', async (sock, message, args) => {
 
     await sock.sendMessage(replyJid, { text: "🌍 *Manipulation de la réalité en cours...*" });
 
-    const systemPrompt = `Tu es le MJ d'Arise. Un administrateur déclenche un événement spécial.
+    const systemPrompt = `Tu es le MJ d'After the Rebirth (ATR). Un administrateur déclenche un événement spécial.
 LORE: Convergence, Éveil, Monstres, Entités.
 RÈGLES: Décris l'apparition brutale d'un monstre, d'une entité ou d'un événement environnemental.
 FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
@@ -2062,7 +2092,7 @@ FORMAT: JSON STRICT {"narrative":"...","actions":[],"imagePrompt":"..."}`;
         // Save event to history
         await RPMessage.create({
             senderJid: 'system',
-            senderName: 'Arise MJ',
+            senderName: 'ATR MJ',
             content: aiResponse.narrative,
             location: player.location,
             subLocation: player.subLocation
@@ -2103,11 +2133,15 @@ commands.set('checkai', async (sock, message) => {
         let status = "🟢 *OPÉRATIONNEL*";
         if (!result || result.includes("instable")) status = "🔴 *LIMITE ATTEINTE*";
 
+        const primaryModel = process.env.OLLAMA_MODEL || 'gemma4:e4b';
+        const primaryUrl = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
+
         await sock.sendMessage(replyJid, {
             text: `--- 🧠 ÉTAT DE L'IA --- \n\n` +
                   `Statut: ${status}\n` +
                   `Latence: ${duration}s\n` +
-                  `Provider: Puter/Gemini\n` +
+                  `Moteur principal: Ollama Local (${primaryModel})\n` +
+                  `Serveur: ${primaryUrl}\n` +
                   `Réponse brute: ${typeof result === 'string' ? result.substring(0, 60) : 'Obj'}\n\n` +
                   `_Le MJ est prêt à tisser le destin._`
         });
@@ -2122,7 +2156,7 @@ commands.set('status', async (sock, message) => {
     const uptime = Math.floor(process.uptime() / 60);
     const mem = Math.round(process.memoryUsage().rss / 1024 / 1024);
 
-    let text = "⚙️ *SYSTÈME ARISE - ÉTAT ACTUEL*\n\n";
+    let text = "⚙️ *SYSTÈME ATR - ÉTAT ACTUEL*\n\n";
     text += `🟢 Bot Opérationnel\n`;
     text += `⏱️ Uptime: ${uptime} minutes\n`;
     text += `💾 Mémoire: ${mem} MB\n`;
@@ -2323,6 +2357,13 @@ commands.set('voyager', async (sock, message, args) => {
   }
 
   const dest = destinations[targetKey];
+
+  const { verifyRegionAccess } = require('./quest-system');
+  const accessCheck = await verifyRegionAccess(player, dest.kingdom);
+  if (!accessCheck.allowed) {
+      await sock.sendMessage(replyJid, { text: accessCheck.reason });
+      return;
+  }
 
   if (player.col < dest.price && !player.isGod) {
       await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de pièces pour acheter un billet de bateau pour ${dest.kingdom} (${dest.price} Col requis, tu en as *${player.col}*).` });
@@ -2845,44 +2886,64 @@ commands.set('reparer', async (sock, message) => {
 // Command: /menu
 commands.set('menu', async (sock, message) => {
   const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player) {
     await player.update({ mode: 'normal' });
   }
 
-  const menuText = "╔══════════════════════════╗\n" +
-                   "   🌐  *ARISE : GHENO CITY*  🌐\n" +
-                   "╚══════════════════════════╝\n" +
-                   "_Portes d'Aetherys, archives vivantes et conflits de l'Interstice._\n\n" +
-                   "🕹️ *IMMERSION*\n" +
-                   "└ `/action` - Entrer dans le RP\n\n" +
-                   "👤 *HÉRITIER*\n" +
-                   "├ `/profil` - Statut & Stats\n" +
-                   "├ `/inventory` - Sac à dos\n" +
-                   "└ `/competences` - Sorts & Skills\n\n" +
-                   "📍 *NAVIGATION*\n" +
-                   "├ `/map` - Monde & Donjons\n" +
-                   "├ `/quests` - Journal d'objectifs\n" +
-                   "├ `/joueurs` - Qui est ici ?\n" +
-                   "└ `/lieux` - Ta position actuelle\n\n" +
-                   "💰 *ÉCONOMIE*\n" +
-                   "├ `/bank` - Ton compte (Col)\n" +
-                   "├ `/boutique` - Armes & Items\n" +
-                   "└ `/vetements` - Mode Aetherys\n\n" +
-                   "🏛️ *SOCIÉTÉ*\n" +
-                   "├ `/lore` - Bibliothèque\n" +
-                   "├ `/pacts` - Entités & Pactes\n" +
-                   "├ `/maison` - Ton domicile\n" +
-                   "└ `/clubs` - Clubs Académiques\n\n" +
-                   "🏆 *COMPÉTITION*\n" +
-                   "├ `/top` - Classement Global\n" +
-                   "└ `/tournoi` - Événements PVP\n\n" +
-                   "⚙️ *SYSTÈME*\n" +
-                   "├ `/help` - Aide complète\n" +
-                   "├ `/guide` - Guides en images\n" +
-                   "├ `/journal` - Mises à jour & News\n" +
-                   "└ `/save` - Sauvegarder\n\n" +
-                   "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬";
+  // Promise delay helper
+  const delayHelper = ms => new Promise(res => setTimeout(res, ms));
+
+  // Stylish loading bar sequence
+  const loadingMsg = await sock.sendMessage(replyJid, { text: "🔷 [◽◽◽◽◽◽◽◽◽◽] 0% - Initialisation de l'interface ATR..." });
+
+  await delayHelper(350);
+  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷◽◽◽◽◽◽◽] 30% - Synchronisation avec la matrice...", edit: loadingMsg.key });
+
+  await delayHelper(350);
+  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷🔷🔷🔷◽◽◽◽] 60% - Récupération de l'Héritier...", edit: loadingMsg.key });
+
+  await delayHelper(350);
+  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷🔷🔷🔷🔷🔷🔷◽] 90% - Rendu de la carte d'accès tactique...", edit: loadingMsg.key });
+
+  await delayHelper(250);
+  await sock.sendMessage(replyJid, { delete: loadingMsg.key });
+
+  const menuText = "╔══════════════════════════════════╗\n" +
+                   "   🌐  *AFTER THE REBIRTH (ATR)*  🌐\n" +
+                   "╚══════════════════════════════════╝\n" +
+                   "_Matrice Tactique • Chroniques & Destin d'Aetherys_\n\n" +
+                   "✦ ⚔️ *AVENTURE & COMBAT*\n" +
+                   "  ├ `/action` (`/a`) - Entrer dans le RP (Mode Action)\n" +
+                   "  └ `/dormir` (`/d`) - Sommeil (3 min, +100% Énergie)\n\n" +
+                   "✦ 👤 *PROFIL & STATISTIQUES*\n" +
+                   "  ├ `/profil` (`/p`) - Carte d'identité & aura\n" +
+                   "  ├ `/inventory` (`/i`) - Sac à dos & équipements\n" +
+                   "  └ `/competences` (`/s`) - Sorts & compétences\n\n" +
+                   "✦ 📍 *EXPLORATION & MONDE*\n" +
+                   "  ├ `/map` - Carte interactive des 17 Royaumes\n" +
+                   "  ├ `/quests` (`/q`) - Journal de quêtes & objectifs\n" +
+                   "  ├ `/lieux` - Position actuelle & environnements\n" +
+                   "  └ `/joueurs` - Héritiers actifs à proximité\n\n" +
+                   "✦ 🪙 *ÉCONOMIE & MARCHÉ*\n" +
+                   "  ├ `/bank` - Banque centrale Col & comptes\n" +
+                   "  ├ `/boutique` - Armes, armures & nourriture\n" +
+                   "  └ `/vetements` - Tenues, réparations & lavage\n\n" +
+                   "✦ 🏛️ *SOCIÉTÉ & FACTIONS*\n" +
+                   "  ├ `/maison` - Domicile & stockage privé\n" +
+                   "  ├ `/clubs` - Factions académiques & guildes\n" +
+                   "  ├ `/pacts` - Pactes d'entités mystiques\n" +
+                   "  └ `/lore` - Archives historiques d'ATR\n\n" +
+                   "✦ 🏆 *COMPÉTITION & RANGS*\n" +
+                   "  ├ `/top` - Classement mondial des Héritiers\n" +
+                   "  └ `/tournoi` - Événements PVP & Arènes\n\n" +
+                   "✦ ⚙️ *SYSTÈME & RACCOURCIS*\n" +
+                   "  ├ `/menu` (`/m`) - Réafficher ce menu\n" +
+                   "  ├ `/status` - Diagnostic système\n" +
+                   "  └ `/help` - Aide complète\n\n" +
+                   "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
+                   "💡 *Astuce:* Utilisez les boutons ci-dessous ou les raccourcis (`/a`, `/p`, `/d`, `/m`) !";
 
   try {
     const menuImage = await generateMainMenuImage(player);
@@ -2896,11 +2957,405 @@ commands.set('menu', async (sock, message) => {
   }
 });
 
+// Command: /dormir & /sleep
+const dormirCommand = async (sock, message) => {
+    const jid = getJid(message);
+    const replyJid = message.key.remoteJid;
+    const player = await Player.findOne({ where: { whatsappId: jid } });
+
+    if (!player) {
+        await sock.sendMessage(replyJid, { text: "Tu dois d'abord commencer le jeu avec /start." });
+        return;
+    }
+
+    if (player.mode === 'sleep' || sleepingPlayers.has(player.whatsappId)) {
+        await sock.sendMessage(replyJid, { text: "Tu es déjà en train de dormir !" });
+        return;
+    }
+
+    // Enter sleep cycle
+    await player.update({ mode: 'sleep' });
+
+    const duration = 180 * 1000; // 3 minutes
+    const endTime = Date.now() + duration;
+
+    const sent = await sock.sendMessage(replyJid, {
+        text: `💤 *AFTER THE REBIRTH (ATR) - Cycle de Sommeil* 💤\n\n` +
+              `Tu t'allonges pour récupérer tes forces pendant 3 minutes...\n\n` +
+              `🔷 [◽◽◽◽◽◽◽◽◽◽] 0%`
+    });
+
+    const intervalId = setInterval(async () => {
+        const p = await Player.findOne({ where: { whatsappId: jid } });
+        if (!p || p.mode !== 'sleep') {
+            clearInterval(intervalId);
+            sleepingPlayers.delete(jid);
+            return;
+        }
+
+        const now = Date.now();
+        if (now >= endTime) {
+            clearInterval(intervalId);
+            sleepingPlayers.delete(jid);
+            await p.update({ mode: 'normal', sleep: 100 });
+
+            await sock.sendMessage(replyJid, {
+                text: `🔷 *AFTER THE REBIRTH (ATR) - Réveil !* 🔷\n\n` +
+                      `Tu te réveilles en pleine forme ! Ta jauge d'énergie/sommeil a été entièrement restaurée (+100%).\n\n` +
+                      `🔷 [🔷🔷🔷🔷🔷🔷🔷🔷🔷🔷] 100%`,
+                edit: sent.key
+            }).catch(e => console.warn("Erreur réveil message:", e.message));
+        } else {
+            const elapsed = now - (endTime - duration);
+            const percent = Math.min(99, Math.floor((elapsed / duration) * 100));
+            const filled = Math.floor(percent / 10);
+            const empty = 10 - filled;
+            const progressBar = "🔷".repeat(filled) + "◽".repeat(empty);
+
+            let statusText = "Transition vers le sommeil...";
+            if (percent >= 15 && percent < 35) {
+                statusText = "Sommeil léger. Votre esprit dérive dans les limbes d'After the Rebirth...";
+            } else if (percent >= 35 && percent < 55) {
+                statusText = "Sommeil lourd. Restauration de vos flux de mana et réparation corporelle...";
+            } else if (percent >= 55 && percent < 75) {
+                statusText = "Sommeil profond. Rêves lucides de victoires et de renaissance...";
+            } else if (percent >= 75) {
+                statusText = "Réveil progressif. L'énergie déborde à nouveau dans votre âme...";
+            }
+
+            await sock.sendMessage(replyJid, {
+                text: `💤 *AFTER THE REBIRTH (ATR) - Cycle de Sommeil* 💤\n\n` +
+                      `${statusText}\n\n` +
+                      `🔷 [${progressBar}] ${percent}%`,
+                edit: sent.key
+            }).catch(e => console.warn("Erreur d'édition du sommeil:", e.message));
+        }
+    }, 20000);
+
+    sleepingPlayers.set(jid, {
+        endTime,
+        duration,
+        intervalId,
+        messageKey: sent.key
+    });
+};
+
+commands.set('dormir', dormirCommand);
+commands.set('sleep', dormirCommand);
+commands.set('d', dormirCommand);
+
+// Restructured Modular Command Shortcuts/Aliases
+commands.set('a', (...args) => commands.get('action')(...args));
+commands.set('m', (...args) => commands.get('menu')(...args));
+commands.set('p', (...args) => commands.get('profil')(...args));
+commands.set('i', (...args) => commands.get('inventory')(...args));
+commands.set('q', (...args) => commands.get('quests')(...args));
+commands.set('s', (...args) => commands.get('competences')(...args));
+
+// OVL-MD-V2 Inspired RP Feature: Marriage / Soulbond System
+const pendingProposals = new Map(); // targetJid -> { proposerJid, time }
+
+commands.set('marry', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  if (player.spouseJid) {
+    await sock.sendMessage(replyJid, { text: `💍 Tu es déjà uni(e) à un(e) partenaire dans le monde d'ATR ! Tape /divorce pour rompre ton lien.` });
+    return;
+  }
+
+  const { mentions } = await resolveMentions(message.message.extendedTextMessage?.text || "");
+  const targetJid = mentions[0] || (message.message.extendedTextMessage?.contextInfo?.participant);
+
+  if (!targetJid || targetJid === jid) {
+    await sock.sendMessage(replyJid, { text: `💍 Mentionne la personne avec qui tu souhaites t'unir ! Ex: \`/marry @Joueur\`` });
+    return;
+  }
+
+  const spouse = await Player.findOne({ where: { whatsappId: targetJid } });
+  if (!spouse) {
+    await sock.sendMessage(replyJid, { text: `❌ Ce joueur n'est pas enregistré dans la matrice ATR.` });
+    return;
+  }
+
+  if (spouse.spouseJid) {
+    await sock.sendMessage(replyJid, { text: `💔 ${spouse.name} est déjà marié(e) avec un autre aventurier !` });
+    return;
+  }
+
+  pendingProposals.set(targetJid, { proposerJid: jid, proposerName: player.name });
+  await sock.sendMessage(replyJid, { text: `💍 *PROPOSITION DE MARIAGE / SOULBOND* 💍\n\n✨ **${player.name}** demande la main de **${spouse.name}** !\n\n👉 **${spouse.name}**, tape \`/accepter_mariage\` pour sceller cette union sacrée et débloquer +10% de régénération d'énergie et de points de vie !` });
+});
+
+commands.set('marier', commands.get('marry'));
+
+commands.set('accepter_mariage', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const proposal = pendingProposals.get(jid);
+
+  if (!proposal) {
+    await sock.sendMessage(replyJid, { text: `❌ Tu n'as aucune demande de mariage en attente.` });
+    return;
+  }
+
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  const spouse = await Player.findOne({ where: { whatsappId: proposal.proposerJid } });
+
+  if (!player || !spouse) return;
+
+  await player.update({ spouseJid: spouse.whatsappId });
+  await spouse.update({ spouseJid: player.whatsappId });
+  pendingProposals.delete(jid);
+
+  await sock.sendMessage(replyJid, { text: `💖 *UNION SCELLÉE DANS ATR !* 💖\n\n✨ **${player.name}** et **${spouse.name}** sont désormais unis par le Soulbond !\n\n🎁 *Bonus de Couple :* +10% de Récupération de Vitalité & SP lors de vos aventures communes !` });
+});
+
+commands.set('divorce', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player || !player.spouseJid) {
+    await sock.sendMessage(replyJid, { text: `❌ Tu n'es marié(e) à personne.` });
+    return;
+  }
+
+  const spouse = await Player.findOne({ where: { whatsappId: player.spouseJid } });
+  await player.update({ spouseJid: null });
+  if (spouse) await spouse.update({ spouseJid: null });
+
+  await sock.sendMessage(replyJid, { text: `💔 **RUPTURE DU LIEN !** L'union entre ${player.name} et ${spouse ? spouse.name : 'son partenaire'} est dissoute.` });
+});
+
+commands.set('couple', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player || !player.spouseJid) {
+    await sock.sendMessage(replyJid, { text: `💍 Tu n'es pas marié(e). Tape \`/marry @joueur\` pour te lier à quelqu'un !` });
+    return;
+  }
+
+  const spouse = await Player.findOne({ where: { whatsappId: player.spouseJid } });
+  await sock.sendMessage(replyJid, { text: `💖 *CARTE DE COUPLE - SOULBOND ATR* 💖\n\n👩‍❤️‍👨 **Partenaires :** ${player.name} 💞 ${spouse ? spouse.name : 'Inconnu'}\n✨ **Niveau du Lien :** Rang S\n🛡️ **Bonus d'Union :** +10% Vitalité & Régénération Énergie\n📍 **Lieu d'origine :** ${player.location}` });
+});
+
+// OVL-MD-V2 Inspired RP Feature: PvP Turn-Based Duel System
+const activeDuels = new Map(); // targetJid -> { challengerJid, betCol }
+
+commands.set('duel', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  const { mentions } = await resolveMentions(message.message.extendedTextMessage?.text || "");
+  const targetJid = mentions[0] || (message.message.extendedTextMessage?.contextInfo?.participant);
+  const betCol = parseInt(args.find(a => !isNaN(a) && parseInt(a) > 0)) || 0;
+
+  if (!targetJid || targetJid === jid) {
+    await sock.sendMessage(replyJid, { text: `⚔️ Mentionne ton adversaire pour le défier en duel ! Ex: \`/duel @Adversaire 100\`` });
+    return;
+  }
+
+  if (betCol > player.col) {
+    await sock.sendMessage(replyJid, { text: `🪙 Tu n'as pas assez de Col (${player.col} Col dispos) pour miser ${betCol} Col.` });
+    return;
+  }
+
+  const opponent = await Player.findOne({ where: { whatsappId: targetJid } });
+  if (!opponent) {
+    await sock.sendMessage(replyJid, { text: `❌ Cet adversaire n'est pas enregistré.` });
+    return;
+  }
+
+  activeDuels.set(targetJid, { challengerJid: jid, betCol });
+  await sock.sendMessage(replyJid, { text: `⚔️ *DEFIS EN ARÈNE DE DUEL ATR !* ⚔️\n\n🛡️ **${player.name}** (Niv.${player.level}) défie **${opponent.name}** (Niv.${opponent.level}) en duel d'honneur !\n🪙 **Mise en jeu :** ${betCol} Col\n\n👉 **${opponent.name}**, tape \`/accepter_duel\` pour entrer dans l'arène ou \`/refuser_duel\` pour décliner !` });
+});
+
+commands.set('arene', commands.get('duel'));
+
+commands.set('accepter_duel', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const duel = activeDuels.get(jid);
+
+  if (!duel) {
+    await sock.sendMessage(replyJid, { text: `❌ Aucun duel en attente.` });
+    return;
+  }
+
+  const defender = await Player.findOne({ where: { whatsappId: jid } });
+  const attacker = await Player.findOne({ where: { whatsappId: duel.challengerJid } });
+
+  if (!defender || !attacker) return;
+  activeDuels.delete(jid);
+
+  // Combat calculation based on stats
+  const p1Power = (attacker.strength * 2.5) + (attacker.agility * 2.0) + (attacker.intelligence * 1.5) + (attacker.level * 10);
+  const p2Power = (defender.strength * 2.5) + (defender.agility * 2.0) + (defender.intelligence * 1.5) + (defender.level * 10);
+
+  const roll1 = Math.floor(Math.random() * 30);
+  const roll2 = Math.floor(Math.random() * 30);
+
+  const total1 = p1Power + roll1;
+  const total2 = p2Power + roll2;
+
+  let winner, loser;
+  if (total1 >= total2) {
+    winner = attacker;
+    loser = defender;
+  } else {
+    winner = defender;
+    loser = attacker;
+  }
+
+  if (duel.betCol > 0) {
+    await winner.increment('col', { by: duel.betCol });
+    await loser.decrement('col', { by: Math.min(loser.col, duel.betCol) });
+  }
+
+  await winner.increment('xp', { by: 50 });
+  await winner.increment('rankPoints', { by: 15 });
+
+  await sock.sendMessage(replyJid, {
+    text: `🏟️ *RÉSULTAT DU DUEL EN ARÈNE !* 🏟️\n\n` +
+          `💥 **${attacker.name}** [Puissance: ${Math.round(total1)}] ⚔️ **${defender.name}** [Puissance: ${Math.round(total2)}]\n\n` +
+          `🏆 **VICTOIRE ÉCLATANTE DE ${winner.name.toUpperCase()} !**\n` +
+          `🪙 **Gain :** +${duel.betCol} Col • ✨ +50 XP • 🏆 +15 Points d'Arène !`
+  });
+});
+
+commands.set('refuser_duel', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  if (activeDuels.has(jid)) {
+    activeDuels.delete(jid);
+    await sock.sendMessage(replyJid, { text: `🛡️ Tu as décliné le duel.` });
+  }
+});
+
+// OVL-MD-V2 Inspired RP Feature: Titles & Badges System
+commands.set('titre', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  const availableTitles = [
+    "Aventurier Novice",
+    "Chasseur de Béhérits",
+    "Épée de l'Ombre",
+    "Souverain du Néant",
+    "Maître des Flammes",
+    "Héros d'Eldoria",
+    "Légende d'ATR"
+  ];
+
+  if (args[0] === 'equip' && args.slice(1).length > 0) {
+    const chosen = args.slice(1).join(' ');
+    const match = availableTitles.find(t => t.toLowerCase() === chosen.toLowerCase());
+    if (match) {
+      await player.update({ equippedTitle: match });
+      await sock.sendMessage(replyJid, { text: `✨ *TITRE ÉQUIPÉ !* Tu portes désormais le titre de : **« ${match} »** !` });
+      return;
+    } else {
+      await sock.sendMessage(replyJid, { text: `❌ Titre inconnu. Choisis parmi la liste.` });
+      return;
+    }
+  }
+
+  let text = `📜 *GESTION DES TITRES ATR* 📜\n\n` +
+             `👤 **Titre Actuel :** « ${player.equippedTitle || "Aventurier Novice"} »\n\n` +
+             `🏆 **Titres disponibles à équiper :**\n`;
+  availableTitles.forEach((t, i) => {
+    text += `${i + 1}. « ${t} »\n`;
+  });
+  text += `\n👉 Pour équiper un titre : \`/titre equip [Nom du titre]\` (Ex: \`/titre equip Héros d'Eldoria\`)`;
+
+  await sock.sendMessage(replyJid, { text });
+});
+
+commands.set('titres', commands.get('titre'));
+
+commands.set('badges', async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  let badgeList = [];
+  try { badgeList = JSON.parse(player.badges || '[]'); } catch(e) { badgeList = ["🔰 Novice"]; }
+
+  if (player.level >= 10 && !badgeList.includes("⚔️ Vétéran")) badgeList.push("⚔️ Vétéran");
+  if (player.isGod && !badgeList.includes("👑 Dieu Créateur")) badgeList.push("👑 Dieu Créateur");
+  if (player.spouseJid && !badgeList.includes("💍 Âme Soeur")) badgeList.push("💍 Âme Soeur");
+
+  await player.update({ badges: JSON.stringify(badgeList) });
+
+  let text = `🎖️ *BADGES D'HONNEUR - ${player.name.toUpperCase()}* 🎖️\n\n`;
+  badgeList.forEach(b => {
+    text += `├ ${b}\n`;
+  });
+  text += `\n✨ Accomplis des hauts faits dans le monde d'ATR pour débloquer de nouveaux badges d'élite !`;
+
+  await sock.sendMessage(replyJid, { text });
+});
+
+// OVL-MD-V2 Inspired RP Feature: Casino & Dice Betting System
+commands.set('casino', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+  const player = await Player.findOne({ where: { whatsappId: jid } });
+  if (!player) return;
+
+  const bet = parseInt(args[0]);
+  if (isNaN(bet) || bet <= 0) {
+    await sock.sendMessage(replyJid, { text: `🎰 *CASINO DU MARCHÉ NOIR ATR* 🎰\n\nUsage: \`/casino [montant en Col]\` (Ex: \`/casino 100\`)` });
+    return;
+  }
+
+  if (bet > player.col) {
+    await sock.sendMessage(replyJid, { text: `🪙 Tu n'as pas assez de Col ! Solde : ${player.col} Col.` });
+    return;
+  }
+
+  const pRoll = Math.floor(Math.random() * 6) + 1;
+  const houseRoll = Math.floor(Math.random() * 6) + 1;
+
+  if (pRoll > houseRoll) {
+    const winAmount = bet * 2;
+    await player.increment('col', { by: bet });
+    await sock.sendMessage(replyJid, { text: `🎲 *VICTOIRE AU CASINO !* 🎲\n\n🎲 Ton dé : *${pRoll}* 🆚 Dé de la Banque : *${houseRoll}*\n🎉 Tu remportes **+${winAmount} Col** ! (Nouveau solde : ${player.col + bet} Col)` });
+  } else if (pRoll < houseRoll) {
+    await player.decrement('col', { by: bet });
+    await sock.sendMessage(replyJid, { text: `🎲 *DÉFAITE AU CASINO !* 🎲\n\n🎲 Ton dé : *${pRoll}* 🆚 Dé de la Banque : *${houseRoll}*\n💸 Tu perds **-${bet} Col**. (Nouveau solde : ${player.col - bet} Col)` });
+  } else {
+    await sock.sendMessage(replyJid, { text: `🎲 *ÉGALITÉ !* 🎲\n\n🎲 Ton dé : *${pRoll}* 🆚 Dé de la Banque : *${houseRoll}*\n🪙 La banque te rembourse ta mise de ${bet} Col.` });
+  }
+});
+
+commands.set('des', commands.get('casino'));
+
 // Main command handler
 async function handleCommand(sock, message, downloadMediaMessage) {
   if (message.key.fromMe) return;
 
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
+  let messageText = message.message.conversation ||
+                    message.message.extendedTextMessage?.text ||
+                    message.message.buttonsResponseMessage?.selectedButtonId ||
+                    message.message.templateButtonReplyMessage?.selectedId ||
+                    message.message.listResponseMessage?.singleSelectReply?.selectedRowId;
+
+  if (!messageText && message.message.interactiveResponseMessage) {
+      try {
+          const params = JSON.parse(message.message.interactiveResponseMessage.nativeFlowResponseMessage?.paramsJson || '{}');
+          messageText = params.id || params.display_text;
+      } catch (e) {}
+  }
+
   if (!messageText) return;
 
   const jid = getJid(message);
@@ -2910,6 +3365,45 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   console.log(`[MSG] From "${senderName}" (${jid}) in ${replyJid}: "${messageText}"`);
 
   const player = await Player.findOne({ where: { whatsappId: jid } });
+
+  // Handle sleep blocking logic
+  if (player && (player.mode === 'sleep' || sleepingPlayers.has(player.whatsappId))) {
+      const now = Date.now();
+      const sleepInfo = sleepingPlayers.get(player.whatsappId);
+
+      if (sleepInfo && now < sleepInfo.endTime) {
+          const elapsed = now - (sleepInfo.endTime - sleepInfo.duration);
+          const percent = Math.min(99, Math.floor((elapsed / sleepInfo.duration) * 100));
+          const filled = Math.floor(percent / 10);
+          const empty = 10 - filled;
+          const progressBar = "🔷".repeat(filled) + "◽".repeat(empty);
+          const timeLeft = Math.ceil((sleepInfo.endTime - now) / 1000);
+
+          await sock.sendMessage(replyJid, {
+              text: `💤 *AFTER THE REBIRTH (ATR) - Cycle de Sommeil en cours* 💤\n\n` +
+                    `Chuuut... Tu dors profondément en ce moment. Attends de te réveiller avant d'agir !\n\n` +
+                    `🔷 [${progressBar}] ${percent}%\n` +
+                    `⏳ Temps restant : ${timeLeft} secondes.`
+          });
+          return; // BLOCK ALL ACTIONS
+      } else {
+          // If the timer ended or isn't set up (e.g. server restart), wake them up!
+          if (sleepInfo) clearInterval(sleepInfo.intervalId);
+          sleepingPlayers.delete(player.whatsappId);
+          await player.update({ mode: 'normal', sleep: 100 });
+      }
+  }
+
+  // Handle profile pic pending blocking
+  if (player && player.awaitingProfilePic) {
+      if (!messageText.startsWith('/')) {
+          await player.update({ awaitingProfilePic: false });
+          await sock.sendMessage(replyJid, { text: "Photo de profil ignorée (avatar par défaut attribué). Bienvenue dans After the Rebirth (ATR) !" });
+          const { startTutorial } = require('./tutorial-handler');
+          await startTutorial(sock, replyJid, player);
+          return;
+      }
+  }
 
   // Handle registration flow
   if (player && player.registrationStep) {
@@ -2939,21 +3433,21 @@ async function handleCommand(sock, message, downloadMediaMessage) {
           const age = parseInt(messageText.trim());
           if (!isNaN(age) && age > 0 && age < 150) {
               await player.update({ age, registrationStep: 'awaiting_description' });
-              await sock.sendMessage(replyJid, { text: `Très bien. Maintenant, décris ton personnage en une phrase (ex: "un épéiste rapide aux cheveux argentés", "une mage spécialisée dans les sorts de glace").` });
+              await sock.sendMessage(replyJid, { text: `Très bien. Maintenant, décris l'apparence physique détaillée de ton personnage (jusqu'à 1000 caractères max : yeux, cheveux, tenue, cicatrices, aura, style, etc.). Cette description sera utilisée pour générer tes images de jeu !` });
           } else {
               await sock.sendMessage(replyJid, { text: "Âge invalide. Réessaie." });
           }
       } else if (player.registrationStep === 'awaiting_description') {
         const description = messageText.trim();
-        if (description.length > 10 && description.length <= 150) {
+        if (description.length >= 5 && description.length <= 1000) {
             await player.update({
                 characterDescription: description,
                 registrationStep: null, // Registration finished
                 awaitingProfilePic: true
             });
-            await sock.sendMessage(replyJid, { text: `« Je vois... Ton essence commence à se stabiliser. »\n\nDescription enregistrée ! Pour terminer, envoie une image qui représentera ton personnage. Elle sera gravée dans la matrice d'Aetherys.` });
+            await sock.sendMessage(replyJid, { text: `« Je vois... Ton essence commence à se stabiliser. »\n\nDescription enregistrée (${description.length}/1000 caractères) ! Pour terminer, envoie une image qui représentera ton personnage. Elle sera gravée dans la matrice d'ATR.` });
         } else {
-            await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (10-150 caractères). Réessaie." });
+            await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (5-1000 caractères). Réessaie." });
         }
       }
       return;
@@ -2964,15 +3458,10 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     return;
   }
 
-  // Handle free action mode
-  if (player?.mode === 'action' && !messageText.startsWith('/')) {
+  // Handle free RP action for all non-command messages when player is registered and not sleeping
+  if (player && player.mode !== 'sleep' && !messageText.startsWith('/')) {
     try {
-        if (player.tutorialStep >= 0 && player.tutorialStep < 3) {
-            const { handleTutorialAction } = require('./tutorial-handler');
-            await handleTutorialAction(sock, message, player, messageText);
-        } else {
-            await handleFreeAction(sock, message, player, messageText);
-        }
+        await handleFreeAction(sock, message, player, messageText);
     } catch (error) {
       console.error('Erreur action libre:', error);
       await sock.sendMessage(replyJid, { text: "Le MJ n'a pas pu interpréter ton action. Réessaie." });

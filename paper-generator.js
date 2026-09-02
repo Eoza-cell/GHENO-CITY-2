@@ -98,30 +98,40 @@ async function generateMissionBoard(player, activeQuests) {
     const height = 600;
 
     let questRows = activeQuests.map((q, i) => {
-        const progress = q.PlayerQuest.progress || 0;
-        const barWidth = (progress / 100) * 400;
+        const progress = (q.PlayerQuest && q.PlayerQuest.progress) ? q.PlayerQuest.progress : 0;
+        const barWidth = (progress / 100) * 380;
         return `
             <g transform="translate(100, ${150 + i * 120})">
-                <text x="0" y="0" font-family="Arial" font-size="24" fill="#ffd700" font-weight="bold">${escapeXml(q.title)}</text>
-                <text x="0" y="30" font-family="Arial" font-size="16" fill="#ffffff" opacity="0.8">${escapeXml(q.objective || q.description).substring(0, 70)}...</text>
-                <rect x="0" y="50" width="400" height="20" fill="rgba(255,255,255,0.1)" rx="5" />
-                <rect x="0" y="50" width="${barWidth}" height="20" fill="#00ffcc" rx="5" />
-                <text x="410" y="65" font-family="Arial" font-size="16" fill="#00ffcc">${progress}%</text>
+                <!-- Slanted Quest Item Rhombus Box -->
+                <polygon points="12,0 580,0 562,95 0,95" fill="rgba(15,10,30,0.85)" stroke="#ffd700" stroke-width="1.5"/>
+
+                <g transform="translate(25, 25)">
+                    <text x="0" y="0" font-family="'Segoe UI', sans-serif" font-size="20" fill="#ffd700" font-weight="bold">❖ ${escapeXml(q.title)}</text>
+                    <text x="0" y="24" font-family="'Segoe UI', sans-serif" font-size="14" fill="#ffffff" opacity="0.8">${escapeXml(q.objective || q.description).substring(0, 65)}...</text>
+
+                    <!-- Oblique Progress Bar -->
+                    <polygon points="0,38 380,38 368,52 -12,52" fill="rgba(255,255,255,0.1)" />
+                    <polygon points="0,38 ${barWidth},38 ${barWidth - 12},52 -12,52" fill="#00ffcc" />
+                    <text x="395" y="50" font-family="monospace" font-size="14" fill="#00ffcc" font-weight="bold">${progress}%</text>
+                </g>
             </g>
         `;
     }).join('');
 
     const svg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-        <rect width="100%" height="100%" fill="#050510" />
-        <rect x="20" y="20" width="${width-40}" height="${height-40}" fill="none" stroke="#ffd700" stroke-width="2" opacity="0.3" rx="10" />
+        <rect width="100%" height="100%" fill="#05030e" />
 
-        <text x="50%" y="80" font-family="Arial" font-size="40" fill="#ffffff" text-anchor="middle" font-weight="900" letter-spacing="5">TABLEAU DES MISSIONS</text>
-        <line x1="200" y1="100" x2="600" y2="100" stroke="#ffd700" stroke-width="3" />
+        <!-- Outer Oblique Rhomboid Border -->
+        <polygon points="30,20 ${width-30},20 ${width-50},${height-20} 10,${height-20}" fill="none" stroke="#ffd700" stroke-width="2.5" opacity="0.8" />
+
+        <!-- Header -->
+        <polygon points="150,35 650,35 630,90 130,90" fill="rgba(20,15,40,0.8)" stroke="#ffd700" stroke-width="1.8" />
+        <text x="50%" y="70" font-family="'Segoe UI', sans-serif" font-size="30" fill="#ffffff" text-anchor="middle" font-weight="900" letter-spacing="4">❖ TABLEAU DES MISSIONS ATR ❖</text>
 
         ${questRows}
 
-        <text x="50%" y="${height - 40}" font-family="monospace" font-size="12" fill="#ffd700" text-anchor="middle" opacity="0.5">SYSTÈME DE SUIVI ARISE II // ${player.name.toUpperCase()}</text>
+        <text x="50%" y="${height - 40}" font-family="monospace" font-size="12" fill="#ffd700" text-anchor="middle" opacity="0.6">SYSTÈME DE SUIVI TACTIQUE ATR // ${player.name.toUpperCase()}</text>
     </svg>
     `;
 

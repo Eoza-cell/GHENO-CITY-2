@@ -88,18 +88,16 @@ async function checkAndTriggerProactiveHooks(sock) {
 
       const timeHeader = getWorldHeader();
 
-      const systemPrompt = `MJ D'AETHERYS (INTERACTION PROACTIVE)
-Tu es le Maître du Jeu d'un RPG littéraire Seinen sombre et viscéral.
-Ton but est de réveiller un joueur inactif avec un événement surprise d'un seul paragraphe puissant, mystérieux et intrigant.
-Cet événement doit se passer exactement là où il dort, se repose ou se trouve (${player.location} - ${player.subLocation}).
+      const systemPrompt = `MJ D'ATR (RAPPEL DE MONDE PROACTIF)
+Tu es le Maître du Jeu d'ATR (After the Rebirth).
+Ton but est d'envoyer une mise à jour d'ambiance deterministe du monde là où se trouve le joueur (${player.location} - ${player.subLocation}).
 
 NARRATION DIRECTE :
-- Écris UNIQUEMENT le paragraphe de narration. Pas d'introduction, pas de questions hors RP.
-- Ton style doit être sombre, sensoriel (les bruits de pas, les courants d'air froid, une dague qui glisse, un corbeau qui s'écrase).
-- L'événement doit inciter le joueur à réagir (quelqu'un frappe à sa porte de manière frénétique, un messager blessé s'effondre devant lui, un murmure magique résonne à son oreille, etc.).
+- Écris UNIQUEMENT le paragraphe de narration d'ambiance. Pas d'introduction, pas de questions hors RP.
+- Ton style doit être sombre et atmosphérique.
 - NE RETOURNE JAMAIS DE JSON.`;
 
-      const prompt = `Génère un événement surprise et immersif pour réengager ce joueur :
+      const prompt = `Génère un rappel d'ambiance du monde pour réengager ce joueur :
 Nom : ${player.name}
 Lieu : ${player.location} (${player.subLocation})
 Classe : ${player.class} (Rang ${player.rank})
@@ -114,7 +112,7 @@ Rédige un seul paragraphe immersif et sensoriel d'action ou d'ambiance se termi
       if (!narrative) continue;
 
       // Ensure the narration starts with a beautiful title block
-      const fullMessage = `🔔 *ÉVÉNEMENT SURPRISE* 🔔\n${timeHeader}\n\n${narrative.trim()}`;
+      const fullMessage = `🔔 *STATUT DU MONDE ATR* 🔔\n${timeHeader}\n\n${narrative.trim()}`;
 
       // Dispatch directly via WhatsApp
       console.log(`[PROACTIVE AI] Dispatching re-engagement hook to ${player.name} (${player.whatsappId})`);
@@ -128,7 +126,7 @@ Rédige un seul paragraphe immersif et sensoriel d'action ou d'ambiance se termi
       // Log the proactive message in the RP logs
       await RPMessage.create({
         senderJid: 'bot',
-        senderName: 'Arise MJ',
+        senderName: 'ATR MJ',
         content: `[PROACTIVE HOOK] ${narrative.trim()}`,
         location: player.location,
         subLocation: player.subLocation

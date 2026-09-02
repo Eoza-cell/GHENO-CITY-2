@@ -240,20 +240,20 @@ async function addOverlay(baseImg, player, width, height) {
             <g transform="translate(60, 55)">
                 <rect x="-10" y="-12" width="4" height="28" fill="${rankColor}" />
                 <text x="10" y="8" font-family="'Segoe UI', sans-serif" font-size="20" font-weight="900" fill="#ffffff" letter-spacing="3">FICHE D'IDENTITÉ HÉRITIER</text>
-                <text x="350" y="6" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.3)" letter-spacing="2">INTERFACE SECURE IV • GHENO CITY</text>
+                <text x="350" y="6" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.3)" letter-spacing="2">AFTER THE REBIRTH (ATR) • INTERFACE SECURE</text>
             </g>
 
-            <!-- CADRANT 1 (Top-Left): Identity -->
+            <!-- CADRANT 1 (Top-Left): Identity Oblique Container -->
             <g transform="translate(60, 120)">
-                <!-- Glass frame -->
-                <rect width="330" height="260" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.06)" rx="8" />
-                <rect x="5" y="5" width="320" height="250" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.1" rx="6" />
+                <!-- Slanted Rhomboid Glass frame -->
+                <polygon points="18,0 330,0 312,260 0,260" fill="rgba(255,255,255,0.015)" stroke="rgba(0,255,255,0.2)" stroke-width="1.5" />
+                <polygon points="22,6 322,6 306,254 6,254" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.25" />
 
-                <g transform="translate(20, 30)">
+                <g transform="translate(25, 30)">
                     <text x="0" y="32" class="rank" filter="url(#glow)">${player.rank}</text>
-                    <text x="85" y="-5" class="rank-label">RANG</text>
+                    <text x="85" y="-5" class="rank-label">RANG ❖</text>
 
-                    <text x="0" y="70" class="aka">${escapeXml(player.derivative || "Shadow Monarch").toUpperCase()} • A.K.A</text>
+                    <text x="0" y="70" class="aka">❖ ${escapeXml(player.derivative || "Shadow Monarch").toUpperCase()} • A.K.A</text>
                     <text x="0" y="105" class="name">${escapeXml(player.name)}</text>
 
                     <g transform="translate(0, 140)">
@@ -264,13 +264,13 @@ async function addOverlay(baseImg, player, width, height) {
                 </g>
             </g>
 
-            <!-- CADRANT 2 (Top-Right): Stats & Finances -->
+            <!-- CADRANT 2 (Top-Right): Stats & Finances Oblique Container -->
             <g transform="translate(420, 120)">
-                <rect width="320" height="260" fill="rgba(255,255,255,0.015)" stroke="rgba(255,255,255,0.06)" rx="8" />
-                <rect x="5" y="5" width="310" height="250" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.1" rx="6" />
+                <polygon points="18,0 320,0 302,260 0,260" fill="rgba(255,255,255,0.015)" stroke="rgba(0,255,255,0.2)" stroke-width="1.5" />
+                <polygon points="22,6 312,6 296,254 6,254" fill="none" stroke="${rankColor}" stroke-width="1.2" opacity="0.25" />
 
-                <g transform="translate(20, 30)">
-                    <text x="0" y="12" class="about-header">● VITALITÉ &amp; STATUT</text>
+                <g transform="translate(25, 30)">
+                    <text x="0" y="12" class="about-header">❖ VITALITÉ &amp; STATUT</text>
 
                     <text x="0" y="42" class="label">NIVEAU ACTUEL</text>
                     <text x="0" y="62" class="stat-val">LVL ${player.level} (XP : ${player.xp})</text>

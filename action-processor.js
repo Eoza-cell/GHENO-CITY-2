@@ -794,7 +794,7 @@ async function handlePromotePlayer(actor, target, params, questFeedback, players
 }
 
 async function handleNPCTrade(player, params, questFeedback, playersToUpdate) {
-    const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${params.npc_name}%` }, location: player.location } });
+    const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${params.npc_name}%` }, location: player.location, subLocation: player.subLocation } });
     if (!npc) return;
 
     const item = await Item.findOne({ where: { name: { [Op.like]: `%${params.itemName}%` } } });

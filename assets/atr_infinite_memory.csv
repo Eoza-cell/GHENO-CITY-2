@@ -1,0 +1,184 @@
+Timestamp,WhatsappID,PlayerName,Location,SubLocation,ActionType,Content,StatsSnapshot
+"2026-08-16T13:50:59.048Z","test@s.whatsapp.net","Eoza","Eldoria","Place","TEST","Test memory action","{""hp"":100}"
+"2026-08-17T15:42:55.820Z","test@s.whatsapp.net","Eoza","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","[🤖 MJ FALLBACK]
+
+""ton action"" est accompli. Tu sens le poids de tes décisions peser sur l'air ambiant, même si le monde reste étrangement silencieux.
+
+_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-17T15:47:29.414Z","test@s.whatsapp.net","Eoza","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","[🤖 MJ FALLBACK]
+
+Le destin semble incertain alors que tu tentes ""ton action"". L'énergie ambiante crépite mais ne se stabilise pas. Tu agis avec prudence.
+
+_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-17T21:16:11.238Z","test@s.whatsapp.net","Eoza","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","[🤖 MJ FALLBACK]
+
+Alors que tu effectues ""ton action"", tu as l'impression d'être observé. Ton geste est précis, mais le flux magique est trop instable.
+
+_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-18T22:40:49.567Z","user_123@s.whatsapp.net","Eoza","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","[🤖 MJ FALLBACK]
+
+Alors que tu effectues ""ton action"", tu as l'impression d'être observé. Ton geste est précis, mais le flux magique est trop instable.
+
+_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T04:26:01.978Z","test_dispatch_1787804761022","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « Aucune (Influence: 0) » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:10:53.911Z","test_check_ai_123","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « Aucune (Influence: 0) » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:16:08.323Z","test_actions_check_1787818567492","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « Aucune (Influence: 0) » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:16:09.428Z","test_actions_check_1787818567492","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « Aucune (Influence: 0) » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:17:14.114Z","test_actions_check_1787818633333","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « Aucune (Influence: 0) » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:17:15.074Z","test_actions_check_1787818633333","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « Aucune (Influence: 0) » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:18:24.933Z","test_actions_check_1787818704174","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « Aucune (Influence: 0) » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:18:25.865Z","test_actions_check_1787818704174","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « Aucune (Influence: 0) » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:21:18.002Z","test_actions_check_1787818877220","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","L'atmosphère d'ATR est lourde, saturée par le courant d'éther et l'odeur caractéristique de l'acier et du soufre. Lorsque tu accomplis « Je marche vers la forteresse de pierre. », ton mouvement est d'une précision chirurgicale, traçant une onde d'énergie spirituelle dans l'air ambiant.
+
+Les gardes de la milice et les témoins présents observent la scène avec stupeur. Un frisson parcourt la foule alors que ton aura d'Héritier résonne en harmonie avec la matrice du monde. Ton objectif principal se rapproche, affirmant ton emprise sur le chapitre en cours.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T08:21:19.009Z","test_actions_check_1787818877220","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton initiative « Je tire mon épée et frappe le monstre. » fend la pénombre ambiante avec une intensité remarquable. Les fluides magiques qui parcourent les conduits de la cité se déforment sous la pression de ton essence, projetant des éclats de lumière translucide sur le sol de pierre.
+
+Les PNJ aux alentours s'écartent avec empressement, comprenant que la volonté d'un aventurier déterminé ne saurait être freinée. Le chemin s'ouvre devant toi, marquant le franchissement d'un cap déterminant dans ton aventure.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T11:09:21.203Z","test_msg_mode_1787828960062","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","L'atmosphère d'ATR est lourde, saturée par le courant d'éther et l'odeur caractéristique de l'acier et du soufre. Lorsque tu accomplis « Je m'avance vers la porte de la cité d'Eldoria. », ton mouvement est d'une précision chirurgicale, traçant une onde d'énergie spirituelle dans l'air ambiant.
+
+Les gardes de la milice et les témoins présents observent la scène avec stupeur. Un frisson parcourt la foule alors que ton aura d'Héritier résonne en harmonie avec la matrice du monde. Ton objectif principal se rapproche, affirmant ton emprise sur le chapitre en cours.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T11:19:59.192Z","test_sim_engine_1787829598375","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","En réalisant « Je tire mon épée et frappe le gardien. », tu fais vibrer les lignes de force de l'Interstice. La poussière s'élève en spirale sous l'impulsion de ton mouvement, tandis que les répercussions physiques de ton geste se propagent à travers l'environnement.
+
+L'écho de ton action confirme l'ancrage de tes données dans le registre d'ATR. La suite de ton parcours se profile avec une clarté nouvelle.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T11:20:00.245Z","test_sim_engine_1787829598375","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton initiative « Je m'avance vers la porte principale de la citadelle. » fend la pénombre ambiante avec une intensité remarquable. Les fluides magiques qui parcourent les conduits de la cité se déforment sous la pression de ton essence, projetant des éclats de lumière translucide sur le sol de pierre.
+
+Les PNJ aux alentours s'écartent avec empressement, comprenant que la volonté d'un aventurier déterminé ne saurait être freinée. Le chemin s'ouvre devant toi, marquant le franchissement d'un cap déterminant dans ton aventure.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T17:39:08.008Z","test_full_loop_1787852346840","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Ton action « ton exploration » résonne à travers l'éther d'ATR. Le flux d'énergie spirituelle de ton essence s'embrase alors que l'environnement s'adapte à ta résolution.","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-08-27T17:46:54.050Z","test_unlimited_llm_1787852813521","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","L'atmosphère de Empire Impérial d'Elion se tend brusquement alors que E.L.KING passe à l'offensive ! Lorsque tu accomplis « Je tire mon épée et frappe le monstre. », ton arme découpe l'air avec une vitesse fulgurante, traçant un arc de lumière d'éther pur au milieu de la pénombre.
+
+Le choc résonne à travers le secteur avec un fracas métallique assourdissant. Ton adversaire est ébranlé de plein fouet, incapable de parer la totalité de la force déployée par ton essence d'Héritier. Les témoins et gardes locaux retiennent leur souffle devant une telle démonstration de Battle IQ et de maîtrise tactique.
+
+La menace est repoussée de quelques mètres, affirmant ton autorité dans la zone et te rapprochant de l'accomplissement de ta Quête Principale Obligatoire.
+
+[E.L.KING: EXP +180]
+[E.L.KING: GOLD +250]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":350}"
+"2026-08-27T17:46:54.825Z","test_unlimited_llm_1787852813521","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Une brise chargée d'éther balaye la zone alors que E.L.KING accomplit « Je m'avance vers la porte principale d'Eldoria. ». Ton mouvement est fluide et méthodique, affirmant la maîtrise de ton personnage sur le terrain.
+
+Les détails de la citadelle et des structures environnantes se découpent avec netteté sous le ciel d'ATR. Ton passage marque les esprits et consolide ton empreinte dans la mémoire du monde.
+
+La voie vers ton chapitre principal s'éclaircit à chacun de tes gestes.
+
+[E.L.KING: EXP +150]
+[E.L.KING: GOLD +170]","{""health"":140,""maxHealth"":140,""mana"":140,""col"":520}"
+"2026-08-27T20:34:56.816Z","test_verify_actions_1787862896058","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Les fluides magiques qui parcourent la matrice d'ATR s'embrasent sous l'impulsion de ton geste. En exécutant « Je tire mon épée et frappe le monstre au torse avec une fente. », une onde de choc spirituelle s'élève du sol, dissipant les ombres qui entouraient la scène.
+
+Ton impact est d'une létalité chirurgicale. Les ennemis reculent précipitamment devant la puissance de ton aura d'Héritier, comprenant que la volonté d'un guerrier déterminé ne saurait être entravée.
+
+Alors que la poussière et les étincelles d'éther retombent, tu consolides ta position avec assurance.
+
+[E.L.KING: EXP +181]
+[E.L.KING: GOLD +270]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":370}"
+"2026-08-27T20:34:57.674Z","test_verify_actions_1787862896058","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Les fluides magiques qui parcourent la matrice d'ATR s'embrasent sous l'impulsion de ton geste. En exécutant « Je lance une boule de feu dévastatrice vers le spectre. », une onde de choc spirituelle s'élève du sol, dissipant les ombres qui entouraient la scène.
+
+Ton impact est d'une létalité chirurgicale. Les ennemis reculent précipitamment devant la puissance de ton aura d'Héritier, comprenant que la volonté d'un guerrier déterminé ne saurait être entravée.
+
+Alors que la poussière et les étincelles d'éther retombent, tu consolides ta position avec assurance.
+
+[E.L.KING: EXP +230]
+[E.L.KING: GOLD +183]","{""health"":140,""maxHealth"":140,""mana"":140,""col"":553}"
+"2026-08-27T20:34:58.193Z","test_verify_actions_1787862896058","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","En réalisant « Je parle au marchand pour lui demander le prix d'un élixir. », tu établis un contact décisif au cœur de la cité. Les regards calculateurs des témoins s'adoucissent à mesure que ton intention se précise.
+
+Les PNJ locaux te répondent avec un respect mêlé de prudence, t'ouvrant l'accès à des pistes couvertes par le secret de la Causalité. Tu obtiens les indices nécessaires pour poursuivre ta progression.
+
+Ton intégration dans le tissu social de la région se renforce durablement.
+
+[E.L.KING: EXP +111]
+[E.L.KING: GOLD +170]","{""health"":140,""maxHealth"":140,""mana"":140,""col"":723}"
+"2026-08-27T20:34:58.976Z","test_verify_actions_1787862896058","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Au cœur de Empire Impérial d'Elion, E.L.KING prend un moment pour se concentrer. En réalisant « Je mange du pain grillé et bois une gorgée d'eau pure. », la sensation de restauration se diffuse immédiatement à travers tes membres fatigués.
+
+Ton énergie vitale et ton esprit se stabilisent. Les stigmates du voyage s'atténuent, te redonnant la pleine maîtrise de tes compétences de combat.
+
+Prêt pour les défis à venir, tu te redresses avec une détermination renouvelée.
+
+[E.L.KING: HP +20]
+[E.L.KING: MP +20]
+[E.L.KING: EXP +80]","{""health"":160,""maxHealth"":160,""mana"":160,""col"":723}"
+"2026-08-27T20:34:59.683Z","test_verify_actions_1787862896058","E.L.King","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Une brise chargée d'éther balaye la zone alors que E.L.KING accomplit « Je marche vers les grandes portes d'Eldoria. ». Ton mouvement est fluide et méthodique, affirmant la maîtrise de ton personnage sur le terrain.
+
+Les détails de la citadelle et des structures environnantes se découpent avec netteté sous le ciel d'ATR. Ton passage marque les esprits et consolide ton empreinte dans la mémoire du monde.
+
+La voie vers ton chapitre principal s'éclaircit à chacun de tes gestes.
+
+[E.L.KING: EXP +156]
+[E.L.KING: GOLD +152]","{""health"":160,""maxHealth"":160,""mana"":160,""col"":875}"
+"2026-08-28T07:27:48.937Z","test_gen_engine_1787902068187","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","L'acier chante au milieu de Empire Impérial d'Elion ! Lorsque KAELEN exécute « Je tranche le bouclier du garde avec mon katana d'ombre. », la trajectoire de l'arme découpe l'air avec une vitesse fulgurante, laissant une traînée d'étincelles étincelantes au point d'impact.
+
+Le choc métallique résonne dans tout le secteur. La force brute de ton coup déséquilibre la posture de ton opposant, incapable d'absorber la totalité de ton Battle IQ. La violence du choc marque les esprits des combattants environnants.
+
+Tu rétablis ta garde avec une fluidité parfaite, affirmant ton autorité physique dans la zone et confortant ta progression.
+
+[KAELEN: EXP +170]
+[KAELEN: GOLD +150]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":250}"
+"2026-08-28T07:27:49.782Z","test_gen_engine_1787902068187","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Les flux d'éther résonnent avec une intensité aveuglante à travers Empire Impérial d'Elion alors que KAELEN rassemble la puissance de son essence spirituelle ! En accomplissant « Je récite l'incantation de la tempête d'éther pour calciner la zone. », des faisceaux de mana condensé s'élèvent du sol, illuminant la scène d'une lueur mystique.
+
+L'incantation frappe avec une précision dévastatrice. Le choc magique se répercute contre la structure du décor, projetant des éclats d'énergie purifiée et faisant chanceler tes adversaires. La pression de ton aura d'Héritier subjugue les témoins et la milice locale.
+
+Alors que les crépitements d'éther s'estompent doucement dans l'air, la trajectoire vers l'accomplissement de ton destin d'Héritier s'affirme nettement.
+
+[KAELEN: EXP +206]
+[KAELEN: GOLD +258]","{""health"":140,""maxHealth"":140,""mana"":140,""col"":508}"
+"2026-08-28T07:27:50.276Z","test_gen_engine_1787902068187","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Dans l'agitation de Empire Impérial d'Elion, KAELEN s'adresse directement à ses interlocuteurs. Lorsque tu accomplis « Je m'approche de l'alchimiste et lui demande la formule du remède. », ta voix posée et la prestance de ton rang captent immédiatement l'attention.
+
+Les PNJ et observateurs locaux s'arrêtent, écoutant attentivement tes paroles. Impressionnés par ton assurance et l'aura qui émane de toi, ils te répondent avec respect et te révèlent des éléments stratégiques précieux concernant la région.
+
+Ces échanges te fournissent les clés nécessaires pour orienter tes prochaines décisions avec une clarté absolue.
+
+[KAELEN: EXP +135]
+[KAELEN: GOLD +190]","{""health"":140,""maxHealth"":140,""mana"":140,""col"":698}"
+"2026-08-28T07:27:51.007Z","test_gen_engine_1787902068187","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Au cœur de Empire Impérial d'Elion, KAELEN prend un moment d'arrêt stratégique. En accomplissant « Je bois la potion de soins et panse mes blessures. », une sensation de vitalité et de régénération se diffuse à travers tout ton corps.
+
+Tes jauges de vitalité et de mana se stabilisent rapidement, effaçant les séquelles des précédents affrontements et dissipant la fatigue acumulee.
+
+Totalement restauré, tu te redresses prêt à affronter la suite des événements.
+
+[KAELEN: HP +25]
+[KAELEN: MP +25]
+[KAELEN: EXP +75]","{""health"":140,""maxHealth"":140,""mana"":140,""col"":698}"
+"2026-08-28T07:27:51.713Z","test_gen_engine_1787902068187","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Sous le ciel majestueux d'After the Rebirth, la progression de KAELEN se poursuit à Empire Impérial d'Elion. En réalisant « Je cours vers le sanctuaire des étoiles. », tes pas résonnent fermement sur le sol, traçant une trajectoire claire à travers le territoire.
+
+L'environnement répond à ta présence : le murmure du vent et les lueurs d'éther révèlent de nouveaux détails sur la géographie et les mystères environnants. Les passants remarquent ta démarche assurée d'Héritier.
+
+Tu amènes ton personnage à la position souhaitée, prêt à interagir avec ce que ce lieu réserve à ton destin.
+
+[KAELEN: EXP +147]
+[KAELEN: GOLD +124]","{""health"":160,""maxHealth"":160,""mana"":160,""col"":822}"
+"2026-08-28T10:07:04.067Z","test_hf_tf_1787911623464","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","L'acier chante au milieu de Empire Impérial d'Elion ! Lorsque KAELEN exécute « Je tire mon épée et frappe le monstre. », la trajectoire de l'arme découpe l'air avec une vitesse fulgurante, laissant une traînée d'étincelles étincelantes au point d'impact.
+
+Le choc métallique résonne dans tout le secteur. La force brute de ton coup déséquilibre la posture de ton opposant, incapable d'absorber la totalité de ton Battle IQ. La violence du choc marque les esprits des combattants environnants.
+
+Tu rétablis ta garde avec une fluidité parfaite, affirmant ton autorité physique dans la zone et confortant ta progression.
+
+[KAELEN: EXP +136]
+[KAELEN: GOLD +198]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":298}"
+"2026-08-28T10:07:07.280Z","test_hf_tf_1787911623464","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Dans l'agitation de Empire Impérial d'Elion, KAELEN s'adresse directement à ses interlocuteurs. Lorsque tu accomplis « Je demande au garde les secrets du palais. », ta voix posée et la prestance de ton rang captent immédiatement l'attention.
+
+Les PNJ et observateurs locaux s'arrêtent, écoutant attentivement tes paroles. Impressionnés par ton assurance et l'aura qui émane de toi, ils te répondent avec respect et te révèlent des éléments stratégiques précieux concernant la région.
+
+Ces échanges te fournissent les clés nécessaires pour orienter tes prochaines décisions avec une clarté absolue.
+
+[KAELEN: EXP +120]
+[KAELEN: GOLD +180]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":478}"
+"2026-08-28T15:17:50.039Z","test_gen_ai_final_1787930218488","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Le sol de Empire Impérial d'Elion vibre sous le choc ! En lançant « Je canalise mon éther de foudre pour frapper le démon au torse avec mon épée. », KAELEN libère une force brute qui captive le regard des témoins environnants.
+
+Le choc résonne à travers toute la zone. Des arborescences d'éclairs bleutés parcourent le point d'impact, aveuglant la cible et brisant sa garde instantanément. Incapable d'absorber la totalité de la force déployée par ton essence, l'ennemi cède du terrain et grimace sous l'impact.
+
+Alors que les crépitements d'énergie retombent doucement sur le sol, tu consolides ta position stratégique avec une confiance inébranlable.
+
+[KAELEN: EXP +232]
+[KAELEN: GOLD +261]","{""health"":120,""maxHealth"":120,""mana"":120,""col"":361}"
+"2026-08-28T15:18:54.366Z","test_gen_ai_final_1787930218488","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","L'atmosphère de Empire Impérial d'Elion se tend brusquement sous la pression du mana alors que KAELEN passe à l'action ! Lorsque tu accomplis « Je récite l'incantation des flammes d'éther pour calciner la horde de squelettes. », l'air environnant crépite d'une énergie spirituelle intense.
+
+Le choc résonne à travers toute la zone. Une vague de chaleur ardente s'élève de l'attaque, calcinant l'air et projetant des flammèches incandescentes dans tout le secteur. Incapable d'absorber la totalité de la force déployée par ton essence, l'ennemi cède du terrain et grimace sous l'impact.
+
+Alors que les crépitements d'énergie retombent doucement sur le sol, tu consolides ta position stratégique avec une confiance inébranlable.
+
+[KAELEN: EXP +235]
+[KAELEN: GOLD +224]","{""health"":140,""maxHealth"":140,""mana"":140,""col"":585}"
+"2026-08-28T15:20:03.557Z","test_gen_ai_final_1787930218488","Kaelen","Empire Impérial d'Elion","Eldoria","MJ_NARRATIVE","Au cœur de l'agitation de Empire Impérial d'Elion, KAELEN s'avance avec assurance. En accomplissant « Je m'approche du maréchal et lui demande des renforts pour la frontière. », ta voix claire et la prestance de ton rang captent immédiatement l'attention des PNJ proches.
+
+Un garde de la milice d'élite et un marchand influent s'arrêtent, écoutant attentivement ton intervention. Impressionnés par ton calme et la marque de ton essence, ils te répondent avec égards et te révèlent des détails stratégiques précieux sur la région.
+
+Ton intégration dans le tissu social d'After the Rebirth se renforce durablement.
+
+[KAELEN: EXP +175]
+[KAELEN: GOLD +178]","{""health"":160,""maxHealth"":160,""mana"":160,""col"":763}"

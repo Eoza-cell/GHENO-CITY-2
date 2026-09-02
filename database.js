@@ -172,6 +172,14 @@ const Player = sequelize.define('Player', {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
   },
+  dailyTrainingsCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+  },
+  lastTrainingDate: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   lastInactiveMessageSentAt: {
     type: DataTypes.DATE,
     allowNull: true,
@@ -180,13 +188,37 @@ const Player = sequelize.define('Player', {
     type: DataTypes.STRING,
     defaultValue: "Empire Impérial d'Elion",
   },
+  zone: {
+    type: DataTypes.STRING,
+    defaultValue: 'Centre-ville',
+  },
   subLocation: {
     type: DataTypes.STRING,
-    defaultValue: 'Eldoria',
+    defaultValue: 'Place du Marché',
+  },
+  x: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100,
+  },
+  y: {
+    type: DataTypes.INTEGER,
+    defaultValue: 100,
+  },
+  state: {
+    type: DataTypes.STRING,
+    defaultValue: 'idle', // 'idle', 'moving', 'sitting', 'sleeping', 'unconscious', 'in_combat'
+  },
+  lastAction: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  lastActionAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
   },
   mode: {
     type: DataTypes.STRING,
-    defaultValue: 'normal',
+    defaultValue: 'action',
   },
   characterDescription: {
     type: DataTypes.TEXT,
@@ -211,6 +243,18 @@ const Player = sequelize.define('Player', {
   profilePicUrl: {
     type: DataTypes.STRING,
     allowNull: true,
+  },
+  spouseJid: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  equippedTitle: {
+    type: DataTypes.STRING,
+    defaultValue: "Aventurier Novice",
+  },
+  badges: {
+    type: DataTypes.TEXT,
+    defaultValue: '["🔰 Novice"]',
   },
   schoolName: {
     type: DataTypes.STRING,
@@ -356,7 +400,7 @@ const Dungeon = sequelize.define('Dungeon', {
 const Quest = sequelize.define('Quest', {
     title: { type: DataTypes.STRING, unique: true },
     description: { type: DataTypes.TEXT },
-    type: { type: DataTypes.STRING, defaultValue: 'side' },
+    type: { type: DataTypes.STRING, defaultValue: 'SIDE' }, // 'MAIN', 'SIDE', 'EVENT', 'SECRET', 'POLITICAL', 'HUNT', 'ECONOMY', 'ACADEMY', 'INVESTIGATION'
     rank_required: { type: DataTypes.STRING, defaultValue: 'E' },
     reward_col: { type: DataTypes.INTEGER, defaultValue: 0 },
     reward_xp: { type: DataTypes.INTEGER, defaultValue: 0 },
@@ -364,8 +408,40 @@ const Quest = sequelize.define('Quest', {
     step: { type: DataTypes.INTEGER, defaultValue: 1 },
     objective: { type: DataTypes.TEXT, allowNull: true },
     nextQuestTitle: { type: DataTypes.STRING, allowNull: true },
+    nextQuestId: { type: DataTypes.INTEGER, allowNull: true },
+    questGiverId: { type: DataTypes.INTEGER, allowNull: true },
+    questGiverName: { type: DataTypes.STRING, allowNull: true },
     isMultiplayer: { type: DataTypes.BOOLEAN, defaultValue: false },
-    subLocation: { type: DataTypes.STRING, defaultValue: 'Bureau des Missions' }
+    location: { type: DataTypes.STRING, defaultValue: "Empire Impérial d'Elion" },
+    zone: { type: DataTypes.STRING, defaultValue: 'Centre-ville' },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Place du Marché' },
+    conditions: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const raw = this.getDataValue('conditions');
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        },
+        set(val) { this.setDataValue('conditions', JSON.stringify(val)); }
+    },
+    objectives: {
+        type: DataTypes.TEXT,
+        defaultValue: '[]',
+        get() {
+            const raw = this.getDataValue('objectives');
+            try { return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+        },
+        set(val) { this.setDataValue('objectives', JSON.stringify(val)); }
+    },
+    rewards: {
+        type: DataTypes.TEXT,
+        defaultValue: '{}',
+        get() {
+            const raw = this.getDataValue('rewards');
+            try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+        },
+        set(val) { this.setDataValue('rewards', JSON.stringify(val)); }
+    }
 });
 
 const PlayerQuest = sequelize.define('PlayerQuest', {
@@ -462,11 +538,26 @@ const NPC = sequelize.define('NPC', {
     name: { type: DataTypes.STRING, unique: true },
     role: { type: DataTypes.STRING },
     description: { type: DataTypes.TEXT },
-    location: { type: DataTypes.STRING },
-    subLocation: { type: DataTypes.STRING, defaultValue: 'Place Centrale' },
+    personality: { type: DataTypes.TEXT, allowNull: true },
+    location: { type: DataTypes.STRING, defaultValue: "Empire Impérial d'Elion" },
+    zone: { type: DataTypes.STRING, defaultValue: 'Centre-ville' },
+    subLocation: { type: DataTypes.STRING, defaultValue: 'Place du Marché' },
+    x: { type: DataTypes.INTEGER, defaultValue: 100 },
+    y: { type: DataTypes.INTEGER, defaultValue: 100 },
     powerLevel: { type: DataTypes.INTEGER, defaultValue: 50 },
     specialty: { type: DataTypes.STRING },
+    questGiver: { type: DataTypes.BOOLEAN, defaultValue: false },
+    faction: { type: DataTypes.STRING, allowNull: true },
     imageUrl: { type: DataTypes.STRING, allowNull: true }
+});
+
+const NPCRelationship = sequelize.define('NPCRelationship', {
+    PlayerWhatsappId: { type: DataTypes.STRING, primaryKey: true },
+    NPCId: { type: DataTypes.INTEGER, primaryKey: true },
+    trust: { type: DataTypes.INTEGER, defaultValue: 50 },
+    respect: { type: DataTypes.INTEGER, defaultValue: 50 },
+    fear: { type: DataTypes.INTEGER, defaultValue: 0 },
+    reputation: { type: DataTypes.INTEGER, defaultValue: 50 }
 });
 
 const Entity = sequelize.define('Entity', {
@@ -562,8 +653,8 @@ const Monster = sequelize.define('Monster', {
 
 Player.hasOne(Bank);
 Bank.belongsTo(Player);
-Player.belongsToMany(Quest, { through: PlayerQuest });
-Quest.belongsToMany(Player, { through: PlayerQuest });
+Player.belongsToMany(Quest, { through: { model: PlayerQuest, unique: false } });
+Quest.belongsToMany(Player, { through: { model: PlayerQuest, unique: false } });
 Player.belongsToMany(Skill, { through: PlayerSkill });
 Skill.belongsToMany(Player, { through: PlayerSkill });
 
@@ -575,6 +666,11 @@ Club.belongsToMany(Player, { through: PlayerClub, as: 'Players' });
 
 Player.hasMany(House, { foreignKey: 'ownerId', as: 'Houses' });
 House.belongsTo(Player, { foreignKey: 'ownerId', as: 'Owner' });
+
+Player.hasMany(NPCRelationship, { foreignKey: 'PlayerWhatsappId' });
+NPCRelationship.belongsTo(Player, { foreignKey: 'PlayerWhatsappId' });
+NPC.hasMany(NPCRelationship, { foreignKey: 'NPCId' });
+NPCRelationship.belongsTo(NPC, { foreignKey: 'NPCId' });
 
 async function setupDatabase() {
   try {
@@ -588,6 +684,7 @@ async function setupDatabase() {
       Players: Player.rawAttributes,
       Monsters: Monster.rawAttributes,
       NPCs: NPC.rawAttributes,
+      NPCRelationships: NPCRelationship.rawAttributes,
       Quests: Quest.rawAttributes,
       Items: Item.rawAttributes,
       PlayerQuests: PlayerQuest.rawAttributes,
@@ -617,8 +714,19 @@ async function setupDatabase() {
       }
     }
 
-    await sequelize.sync({ alter: true });
-    await mediaSequelize.sync({ alter: true });
+    try {
+        const qI = sequelize.getQueryInterface();
+        await qI.removeIndex('PlayerQuests', 'PlayerQuests_QuestId_unique');
+    } catch (e) {}
+
+    try {
+        await sequelize.query('PRAGMA foreign_keys = OFF;');
+        await sequelize.sync();
+        await mediaSequelize.sync();
+        await sequelize.query('PRAGMA foreign_keys = ON;');
+    } catch (e) {
+        console.warn('[DB] Sync warning:', e.message);
+    }
     console.log('Database synchronized.');
 
     // Seed initial game data if empty
@@ -821,6 +929,59 @@ async function setupDatabase() {
                         style: adj.toLowerCase()
                     },
                     statBonuses
+                });
+            }
+            await Item.bulkCreate(batch, { ignoreDuplicates: true });
+        }
+    }
+
+    // Seed 1100 Culinary Specialties (After the Rebirth - ATR Food)
+    const currentFoodCount = await Item.count({ where: { type: 'food' } });
+    if (currentFoodCount < 1100) {
+        console.log(`[SEED] Generating ${1100 - currentFoodCount} additional culinary specialties...`);
+        const foodBases = ["Ramen", "Onigiri", "Sushi", "Tempura", "Bento", "Udon", "Soba", "Yakitori", "Takoyaki", "Okonomiyaki", "Dorayaki", "Taiyaki", "Mochi", "Daifuku", "Tartare", "Ragoût", "Brochette", "Gâteau", "Soupe", "Rôti", "Fondue", "Pâtisserie", "Beignet", "Tarte", "Salade", "Brioche", "Velouté", "Gratin", "Poêlée", "Confit"];
+        const foodAdjectives = ["Légendaire", "Céleste", "Infernal", "Abyssal", "Lunaire", "Solaire", "Ancestral", "Magique", "d'Éther", "d'Or", "d'Argent", "Royal", "de Dragon", "de Phénix", "Étoilé", "Parfumé", "Épicé", "Sucré", "Salé", "Divin", "Secret", "Impérial", "Croustillant", "Fondant", "Moelleux", "Volcanique", "Givré", "Spectral", "Brillant", "Suprême", "Sombre", "Pur", "Éthéré", "Mystique", "Exotique", "Onctueux", "Parfait", "d'Aetherys", "d'Après la Renaissance"];
+        const foodIngredients = ["au Poulet de braise", "au Bœuf d'Asgard", "au Saumon des glaces", "aux Champignons de l'Ombre", "aux Baies d'Émeraudes", "au Miel de fée", "aux Épices de feu", "aux Algues de Poséidon", "aux Truffes des cavernes", "au Fromage céleste", "au Chocolat d'obsession", "aux Fruits du verger perdu", "aux Épices de l'Abîme", "au Nectar d'Olympe", "au Riz de Lune", "aux Pommes d'Éden", "au Crabe de cristal", "à la Truite d'argent", "aux Noix de mana", "aux Cerises de sang", "au Thé d'Étoiles", "à la Crème d'Éther", "au Sucre de givre", "au Basilic magique", "au Safran impérial", "à la Vanille des Songes", "au Gingembre sauvage", "au Citron de foudre", "à la Pêche céleste", "au Melon royal", "à la Goyave de feu", "à l'Avocat magique", "au Wasabi de lave", "au Rôti d'hydre", "au Ragoût de chimère"];
+        const foodColors = ["#ffd700", "#ffaa00", "#ff66cc", "#ff3c00", "#00ffff", "#00e5ff", "#00e676", "#ffa64d"];
+
+        const foodBatchSize = 100;
+        const targetFoodCount = 1100;
+        for (let i = currentFoodCount; i < targetFoodCount; i += foodBatchSize) {
+            const batch = [];
+            for (let j = 0; j < foodBatchSize && (i + j) < targetFoodCount; j++) {
+                const base = foodBases[Math.floor(Math.random() * foodBases.length)];
+                const adj = foodAdjectives[Math.floor(Math.random() * foodAdjectives.length)];
+                const ing = foodIngredients[Math.floor(Math.random() * foodIngredients.length)];
+
+                // Construct a completely unique name using index to avoid rare name collisions
+                const name = `${base} ${adj} ${ing} (Spécialité #${i + j + 1})`;
+
+                const rarityRoll = Math.random();
+                let rarity = 'common';
+                let statMult = 1;
+                if (rarityRoll < 0.05) { rarity = 'legendary'; statMult = 3; }
+                else if (rarityRoll < 0.15) { rarity = 'epic'; statMult = 2; }
+                else if (rarityRoll < 0.35) { rarity = 'rare'; statMult = 1.5; }
+
+                const hungerBonus = Math.floor((Math.random() * 20 + 20) * statMult);
+                const sleepBonus = Math.floor((Math.random() * 15 + 15) * statMult);
+
+                batch.push({
+                    name,
+                    description: `Une spécialité culinaire exquise du jeu After the Rebirth (ATR). Style: ${adj}, avec ${ing}. Restaure l'énergie et rassasie l'Héritier.`,
+                    price: Math.floor((Math.random() * 80 + 20) * statMult),
+                    type: 'food',
+                    rarity,
+                    slot: 'none',
+                    durability: 100,
+                    visualData: {
+                        color: foodColors[Math.floor(Math.random() * foodColors.length)],
+                        style: adj.toLowerCase()
+                    },
+                    statBonuses: {
+                        hunger: hungerBonus,
+                        sleep: sleepBonus
+                    }
                 });
             }
             await Item.bulkCreate(batch, { ignoreDuplicates: true });
@@ -1102,11 +1263,11 @@ async function setupDatabase() {
     }
 
     const npcsToSeed = [
-        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', subLocation: 'Tour de la Main', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20Griffith%20Berserk%20femto%20look,%20god%20hand,%20interstice%20background?model=flux-anime' },
-        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', subLocation: 'Miroir Déformé', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20mysterious%20Void%20character%20with%20brain%20exposed,%20Berserk%20inspired?model=flux-anime' },
-        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', subLocation: 'Trône du Jugement', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20majestic%20judge%20of%20souls%20Orpheon?model=flux-anime' },
-        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', subLocation: 'Bureau du Directeur', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20elderly%20powerful%20wizard%20Magnus?model=flux-anime' },
-        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', subLocation: "Château d'Eldoria", powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: 'https://images.pollinations.ai/prompt/Anime%20style%20stern%20emperor%20with%20golden%20crown%20and%20heavy%20armor?model=flux-anime' },
+        { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', subLocation: 'Tour de la Main', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: null },
+        { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', subLocation: 'Miroir Déformé', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: null },
+        { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', subLocation: 'Trône du Jugement', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: null },
+        { name: 'Directeur Magnus', role: 'Directeur de l\'Académie', description: 'Cherche désespérément un moyen de sceller les Béhérits.', location: 'Académie Impériale', subLocation: 'Bureau du Directeur', powerLevel: 98, specialty: 'Sceaux Interdits', imageUrl: null },
+        { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', subLocation: "Château d'Eldoria", powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: null },
     ];
     for (const npc of npcsToSeed) {
         const [npcInstance, created] = await NPC.findOrCreate({
@@ -1169,7 +1330,7 @@ async function setupDatabase() {
                     location,
                     powerLevel: power,
                     specialty: behavior,
-                    imageUrl: `https://images.pollinations.ai/prompt/Anime%20style%20portrait%20of%20${role}%20character%20${firstName}%20in%20${location}?model=flux-anime`
+                    imageUrl: null
                 });
             }
             await NPC.bulkCreate(batch, { ignoreDuplicates: true });
@@ -1240,7 +1401,42 @@ async function setupDatabase() {
                 title: "L'Antre du Chef Gobelin", description: 'Le chef gobelin doit tomber.',
                 objective: 'Affronte et vaincs le Chef Gobelin au fond de la forêt.',
                 type: 'main', chain: "L'Ascension de l'Aventurier", step: 3,
-                nextQuestTitle: null, rank_required: 'F', reward_col: 500, reward_xp: 400
+                nextQuestTitle: 'Chasse au Loup-Gris Sauvage', rank_required: 'F', reward_col: 500, reward_xp: 400
+            },
+            {
+                title: 'Chasse au Loup-Gris Sauvage', description: 'Les loups féroces rôdent aux abords d\'Eldoria.',
+                objective: 'Traque et neutralise le Loup-Gris des Terres Sauvages.',
+                type: 'side', rank_required: 'F', reward_col: 300, reward_xp: 200, subLocation: 'Forêt des Gobelins'
+            },
+            {
+                title: 'Exploration des Mines de Cobalt', description: 'Des anomalies magiques perturbent la mine.',
+                objective: 'Explore la Mine de Cobalt et sécurise le secteur.',
+                type: 'side', rank_required: 'E', reward_col: 600, reward_xp: 450, subLocation: 'Valkyrr'
+            },
+            {
+                title: 'Escorte du Convoi d\'Éther', description: 'Un convoi marchand traverse la vallée des ombres.',
+                objective: 'Protège les marchands contre les attaques de bandits.',
+                type: 'side', rank_required: 'D', reward_col: 1200, reward_xp: 800, subLocation: 'Solis'
+            },
+            {
+                title: 'Infiltration du Marché Noir de Gheno', description: 'Obtiens des renseignements sur le syndicat criminel.',
+                objective: 'Infiltre le Marché Noir de Gheno sans te faire repérer.',
+                type: 'side', rank_required: 'C', reward_col: 2500, reward_xp: 1800, subLocation: 'Gheno souterrain'
+            },
+            {
+                title: 'Purification du Sanctuaire de Nécropolis', description: 'Des esprits affolés menacent la frontière des morts.',
+                objective: 'Purifie 3 stèles rituelles dans Nécropolis.',
+                type: 'side', rank_required: 'B', reward_col: 5000, reward_xp: 3500, subLocation: 'Nécropolis'
+            },
+            {
+                title: 'Traque de la Bête Céleste : Phénix d\'Or', description: 'Une bête légendaire s\'est éveillée dans le désert.',
+                objective: 'Affronte le Phénix d\'Or et récupère sa plume magique.',
+                type: 'boss', rank_required: 'A', reward_col: 12000, reward_xp: 8000, subLocation: 'Désert d\'Ambre'
+            },
+            {
+                title: 'Subjugation de l\'Hydre Abyssale', description: 'L\'entité primordiale émerge des profondeurs de Caelum.',
+                objective: 'Vaincs l\'Hydre Abyssale au sommet de l\'Abysse Inférieur.',
+                type: 'boss', rank_required: 'S', reward_col: 30000, reward_xp: 25000, subLocation: 'Caelum'
             }
         ];
 
@@ -1309,6 +1505,6 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   mediaSequelize,
-  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant, MediaAsset,
+  Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, NPCRelationship, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant, MediaAsset,
   setupDatabase,
 };

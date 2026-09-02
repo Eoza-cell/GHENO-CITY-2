@@ -45,7 +45,7 @@ function getRPTime(playerActionsCount = 0) {
 
 function getWorldHeader() {
     const time = getRPTime();
-    return `╔════════════════════════╗\n   📅 ${time.formatted}\n╚════════════════════════╝`;
+    return `❖ ═════ ◈ AFTER THE REBIRTH ◈ ═════ ❖\n   📅 ${time.formatted}\n❖ ═════════════════════════════════ ❖`;
 }
 
 module.exports = { getRPTime, getWorldHeader };

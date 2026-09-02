@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
         return res.end(`
             <html>
                 <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #121b22; color: white; margin: 0; padding: 20px; box-sizing: border-box; text-align: center;">
-                    <h1>🔗 GHENO-CITY : Connexion</h1>
+                    <h1>🔗 AFTER THE REBIRTH (ATR) : Connexion</h1>
 
                     ${isWhatsAppConnected ? `
                         <div style="border: 2px solid #00a884; padding: 40px; border-radius: 15px;">
@@ -247,11 +247,12 @@ async function connectToWhatsApp() {
 
       try {
           const botJid = jidNormalizedUser(sock.user.id);
-          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - Gheno-City est en ligne." });
+          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - After the Rebirth (ATR) est en ligne." });
       } catch (e) {}
 
       startDayNightCycle();
-      startProactiveAIEngagement(sock);
+      // Disabled proactive inbox spam per user instruction:
+      // startProactiveAIEngagement(sock);
     }
   });
 
@@ -291,7 +292,7 @@ async function connectToWhatsApp() {
                             });
 
                             console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                            await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
+                            await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans After the Rebirth (ATR).` });
 
                             // Trigger tutorial after profile pic
                             await startTutorial(sock, message.key.remoteJid, player);
@@ -302,12 +303,11 @@ async function connectToWhatsApp() {
                             return;
                         }
                     } else {
-                         // Only warn if it's not a command
-                         const text = message.message.conversation || message.message.extendedTextMessage?.text;
-                         if (!text || !text.startsWith('/')) {
-                             await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
-                             return;
-                         }
+                         // If text is sent instead of image, clear awaitingProfilePic flag and trigger tutorial without treating as free action
+                         await player.update({ awaitingProfilePic: false });
+                         await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil ignorée (avatar par défaut attribué). Bienvenue dans After the Rebirth (ATR) !` });
+                         await startTutorial(sock, message.key.remoteJid, player);
+                         return;
                     }
                 }
 

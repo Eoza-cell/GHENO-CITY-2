@@ -157,6 +157,37 @@ function extractMessageContent(content) {
     return null;
 }
 
+async function callG4F(system, prompt, options = {}) {
+    const { exec } = require('child_process');
+    const path = require('path');
+    const fs = require('fs');
+
+    return new Promise((resolve) => {
+        try {
+            console.log(`[AI] Executing GPT4Free (g4f) python provider engine...`);
+            const scriptPath = path.join(__dirname, 'g4f_handler.py');
+            const id = Date.now() + Math.random().toString(36).substring(2, 6);
+            const tmpSys = path.join(__dirname, 'assets', `sys_g4f_${id}.txt`);
+            const tmpUsr = path.join(__dirname, 'assets', `usr_g4f_${id}.txt`);
+            fs.writeFileSync(tmpSys, system);
+            fs.writeFileSync(tmpUsr, prompt);
+
+            exec(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 20000 }, (error, stdout) => {
+                if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
+                if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
+
+                if (error || !stdout) return resolve(null);
+                const cleanedOutput = stdout.replace(/System:[\s\S]*?User:/gi, '').trim();
+                if (isValidAIResponse(cleanedOutput)) return resolve(cleanedOutput);
+                resolve(null);
+            });
+        } catch (e) {
+            console.warn(`[AI] GPT4Free (g4f) execution failed:`, e.message);
+            resolve(null);
+        }
+    });
+}
+
 /**
  * Call the Khoj AI assistant self-hosted endpoint if available.
  */
@@ -222,6 +253,77 @@ async function callKimiK3(system, prompt, options = {}) {
 /**
  * Call the OmniBrain AI Proxy Smart endpoint if available.
  */
+/**
+ * Call a vLLM OpenAI-compatible online serving server.
+ * Documentation: https://docs.vllm.ai/en/stable/serving/online_serving/#openai-compatible-server
+ */
+/**
+ * Calls local Python Hugging Face Transformers pipeline (Gemma 4B / 2B).
+ */
+async function callLocalGemmaTransformers(system, prompt, options = {}) {
+    const { exec } = require('child_process');
+    const path = require('path');
+
+    return new Promise((resolve) => {
+        const scriptPath = path.join(__dirname, 'transformer_model.py');
+        const sysArg = JSON.stringify(system);
+        const userArg = JSON.stringify(prompt);
+
+        console.log("[AI] Launching Local Gemma 4B Hugging Face Transformers Python Process...");
+        exec(`python3 "${scriptPath}" ${sysArg} ${userArg}`, { timeout: 30000 }, (error, stdout, stderr) => {
+            if (error) {
+                console.warn("[AI] Local Gemma Transformers Process Error:", error.message);
+                return resolve(null);
+            }
+            if (stdout && stdout.includes("--- RESPONSE ---")) {
+                const match = stdout.match(/--- RESPONSE ---\s*([\s\S]*?)\s*----------------/);
+                if (match && match[1]) {
+                    const text = match[1].trim();
+                    if (isValidAIResponse(text)) return resolve(text);
+                }
+            }
+            resolve(null);
+        });
+    });
+}
+
+async function callVLLM(system, prompt, options = {}) {
+    let vllmUrl = process.env.VLLM_URL || "http://192.168.1.66:8000/v1/chat/completions";
+    if (!vllmUrl.startsWith('http')) vllmUrl = 'http://' + vllmUrl;
+    if (!vllmUrl.includes('/v1/chat/completions')) {
+        vllmUrl = vllmUrl.replace(/\/$/, '') + '/v1/chat/completions';
+    }
+
+    const apiKey = process.env.VLLM_API_KEY || "token-dummy";
+    const model = process.env.VLLM_MODEL || "zai-org/GLM-5.2";
+
+    try {
+        console.log(`[AI] vLLM Server - Tentative sur ${vllmUrl} (Modèle: ${model})...`);
+        const resp = await axios.post(vllmUrl, {
+            model: model,
+            messages: [
+                { role: "system", content: system },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.7,
+            max_tokens: 2048,
+            stream: false
+        }, {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 20000
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        console.warn(`[AI] vLLM Server Error (${vllmUrl}):`, e.message);
+    }
+    return null;
+}
+
 async function callOmniBrain(system, prompt, options = {}) {
     const url = process.env.OMNIBRAIN_URL || "http://localhost:8080/v1/chat/completions";
     const apiKey = process.env.OMNIBRAIN_API_KEY || "dummy";
@@ -354,7 +456,7 @@ async function callPuterSDK(system, prompt, options = {}) {
         console.warn("[AI] Puter SDK non initialisé ou indisponible.");
         return null;
     }
-    const models = ["google/gemma-4-31b-it", "google/gemma-4-26b-a4b-it", "gemini-1.5-flash", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o"];
+    const models = ["claude-3-5-sonnet", "gemini-1.5-pro", "meta-llama-3.1-70b-instruct", "gpt-4o", "gemini-1.5-flash"];
 
     for (const model of models) {
         try {
@@ -486,157 +588,129 @@ async function callBlackbox(system, prompt, options = {}) {
     return null;
 }
 
-async function callPollinationsGen(system, prompt, options = {}) {
-    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'searchgpt'];
-    const key = process.env.POLLINATIONS_API_KEY;
-    const jsonMode = options.jsonMode !== false;
+async function callHuggingFaceLocal(system, prompt, options = {}) {
+    // 1. Try background local python server if running
+    try {
+        const resp = await axios.post("http://127.0.0.1:8088", {
+            system,
+            prompt
+        }, { timeout: 15000 });
 
-    for (const model of models) {
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+    } catch (e) {
+        // Server not running yet, fallback to CLI script
+    }
+
+    const { exec } = require('child_process');
+    const path = require('path');
+    const fs = require('fs');
+
+    return new Promise((resolve) => {
         try {
-            console.log(`[AI] Pollinations Gen - Tentative avec ${model}...`);
-            const headers = { 'Content-Type': 'application/json' };
-            if (key) headers['Authorization'] = `Bearer ${key}`;
+            console.log(`[AI] Executing Hugging Face Transformers local model CLI...`);
+            const scriptPath = path.join(__dirname, 'transformer_model.py');
+            const id = Date.now() + Math.random().toString(36).substring(2, 6);
+            const tmpSys = path.join(__dirname, 'assets', `sys_${id}.txt`);
+            const tmpUsr = path.join(__dirname, 'assets', `usr_${id}.txt`);
+            fs.writeFileSync(tmpSys, system);
+            fs.writeFileSync(tmpUsr, prompt);
 
-            const payload = {
-                model: model,
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                stream: false
-            };
-            if (jsonMode) {
-                payload.jsonMode = true;
+            const env = { ...process.env };
+            if (options && options.model) {
+                env.EMPERO_MODEL = options.model;
             }
 
-            const resp = await axios.post("https://gen.pollinations.ai/v1/chat/completions", payload, {
-                headers,
-                timeout: 20000
+            exec(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 20000, env }, (error, stdout) => {
+                if (fs.existsSync(tmpSys)) fs.unlinkSync(tmpSys);
+                if (fs.existsSync(tmpUsr)) fs.unlinkSync(tmpUsr);
+
+                if (error || !stdout) return resolve(null);
+                const cleanedOutput = stdout
+                    .replace(/\[Python Transformer\][\s\S]*?\n/gi, '')
+                    .replace(/System:[\s\S]*?User:/gi, '')
+                    .trim();
+                if (isValidAIResponse(cleanedOutput)) return resolve(cleanedOutput);
+                resolve(null);
             });
-
-            const content = resp.data?.choices?.[0]?.message?.content;
-            if (isValidAIResponse(content)) return content;
         } catch (e) {
-            console.warn(`[AI] Pollinations Gen Error (${model}):`, e.response?.data || e.message);
-            continue;
+            console.warn(`[AI] Hugging Face Transformers local execution failed:`, e.message);
+            resolve(null);
         }
-    }
-    return null;
-}
-
-async function callPollinationsPOST(system, prompt, options = {}) {
-    const models = ['openai', 'mistral', 'llama', 'qwen-coder', 'unity', 'evil', 'p1', 'searchgpt'];
-    const jsonMode = options.jsonMode !== false;
-
-    for (const model of models) {
-        try {
-            console.log(`[AI] Pollinations POST (Keyless) - Tentative avec ${model}...`);
-            const payload = {
-                messages: [
-                    { role: "system", content: system },
-                    { role: "user", content: prompt }
-                ],
-                model: model,
-                seed: Math.floor(Math.random() * 1000000),
-                cache: false
-            };
-            if (jsonMode) {
-                payload.jsonMode = true;
-            }
-
-            const resp = await axios.post("https://text.pollinations.ai/", payload, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36`
-                },
-                timeout: 30000
-            });
-
-            const content = parsePuterResponse(resp.data);
-            if (isValidAIResponse(content)) return content;
-        } catch (e) {
-            console.warn(`[AI] Pollinations POST Error (${model}):`, e.response?.data || e.message);
-            continue;
-        }
-    }
-    return null;
-}
-
-async function callPollinationsGET(system, prompt, options = {}) {
-    const models = ['openai-fast', 'gpt-oss-20b'];
-    const jsonMode = options.jsonMode !== false;
-    for (const model of models) {
-        try {
-            console.log(`[AI] Pollinations GET - Tentative avec ${model}...`);
-            const cleanedPrompt = prompt.substring(prompt.length - 1000).replace(/["']/g, '');
-            const fullPrompt = encodeURIComponent(cleanedPrompt);
-            const systemEncoded = encodeURIComponent(system.substring(0, 800).replace(/["']/g, ''));
-            const seed = Math.floor(Math.random() * 1000000);
-
-            let url = `https://text.pollinations.ai/${fullPrompt}?model=${model}&seed=${seed}&system=${systemEncoded}`;
-            if (jsonMode) {
-                url += `&json=true`;
-            }
-
-            const resp = await axios.get(url, { timeout: 25000 });
-            if (isValidAIResponse(resp.data)) return resp.data;
-        } catch (e) {
-            console.warn(`[AI] Pollinations GET Error (${model}):`, e.message);
-        }
-    }
-    return null;
+    });
 }
 
 /**
  * Call a local Ollama instance if available.
  */
 async function callOllama(system, prompt, options = {}) {
-    let ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-    const jsonMode = options.jsonMode !== false;
-
-    if (!ollamaUrl.startsWith('http')) {
-        ollamaUrl = 'http://' + ollamaUrl;
+    let ollamaHost = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
+    if (!ollamaHost.startsWith('http')) {
+        ollamaHost = 'http://' + ollamaHost;
     }
 
-    const apiBaseUrl = ollamaUrl.replace(/\/$/, '') + (ollamaUrl.includes('/api') ? '' : '/api');
-    const isCloud = ollamaUrl.includes('ollama.com');
+    const modelName = process.env.OLLAMA_MODEL || 'gemma4:e4b';
+    const numCtx = parseInt(process.env.OLLAMA_NUM_CTX || '32768', 10);
+    const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '60000', 10);
+    const maxRetries = parseInt(process.env.OLLAMA_RETRIES || '2', 10);
 
-    try {
-        console.log(`[AI] Ollama - Tentative sur ${apiBaseUrl}`);
+    let lastError = null;
 
-        const payload = {
-            // Default model is 'mistral' (creative writing and roleplay standard from https://ollama.com/library)
-            model: process.env.OLLAMA_MODEL || 'mistral',
-            messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt }
-            ],
-            stream: false,
-            options: {
-                temperature: 0.2,
-                num_predict: 2048,  // Higher predict limit for deep world details
-                num_ctx: 32768      // Expanding to 32k context window (Infinite Memory)
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            console.log(`[AI] Ollama SDK - Tentative ${attempt + 1}/${maxRetries + 1} (${modelName}) sur ${ollamaHost}...`);
+            const { Ollama } = require('ollama');
+            const ollamaClient = new Ollama({ host: ollamaHost });
+
+            // Support optional embedding calculation using embeddinggemma if requested
+            if (options && options.getEmbeddings) {
+                try {
+                    const embedRes = await ollamaClient.embed({
+                        model: 'embeddinggemma',
+                        input: prompt
+                    });
+                    if (embedRes && embedRes.embeddings) {
+                        console.log(`[Ollama Embeddings] Generated embeddings using embeddinggemma.`);
+                    }
+                } catch (eEmbed) {
+                    console.warn(`[Ollama Embeddings Warning]`, eEmbed.message);
+                }
             }
-        };
-        if (jsonMode) {
-            payload.format = 'json';
+
+            const response = await ollamaClient.chat({
+                model: modelName,
+                messages: [
+                    { role: 'system', content: system },
+                    { role: 'user', content: prompt }
+                ],
+                options: { num_ctx: numCtx },
+                stream: false,
+                signal: controller.signal
+            });
+
+            clearTimeout(timer);
+            const content = response?.message?.content;
+            if (isValidAIResponse(content)) return content;
+            lastError = new Error("Réponse Ollama vide ou invalide");
+        } catch (e) {
+            clearTimeout(timer);
+            lastError = e;
+            const isModelMissing = /not found|pull the model|no such model/i.test(e.message || '');
+            if (isModelMissing) {
+                console.warn(`[AI] Ollama: le modèle "${modelName}" n'est pas installé. Lance : ollama pull ${modelName}`);
+                break; // retrying won't help if the model isn't pulled
+            }
+            console.warn(`[AI] Ollama SDK Error (${ollamaHost}), tentative ${attempt + 1}:`, e.message);
+            if (attempt < maxRetries) {
+                await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            }
         }
-
-        const headers = { 'Content-Type': 'application/json' };
-        if (isCloud && process.env.OLLAMA_API_KEY) {
-            headers['Authorization'] = `Bearer ${process.env.OLLAMA_API_KEY}`;
-        }
-
-        const resp = await axios.post(`${apiBaseUrl}/chat`, payload, {
-            headers,
-            timeout: 15000
-        });
-
-        const content = resp.data?.message?.content || resp.data?.response;
-        if (isValidAIResponse(content)) return content;
-    } catch (e) {
-        console.warn(`[AI] Ollama error on ${ollamaUrl}:`, e.response?.data || e.message);
     }
+
+    if (lastError) console.warn(`[AI] Ollama a échoué après ${maxRetries + 1} tentative(s):`, lastError.message);
     return null;
 }
 
@@ -814,22 +888,50 @@ async function callLMStudio(system, prompt, options = {}) {
 /**
  * Local MJ Fallback in case all AI providers fail.
  */
-function callMJFallback(prompt) {
-    console.log("[AI] Utilisation du MJ Fallback Local.");
+function callMJFallback(prompt, options = {}) {
+    console.log("[AI Engine] Executing ATR Simulation Game Master Engine...");
 
-    let action = "ton action";
-    const actionMatch = prompt.match(/ACTION: (.*)$/);
-    if (actionMatch) action = actionMatch[1].trim();
+    let actionText = options && options.playerAction ? options.playerAction : "";
+    if (!actionText) {
+        const actionMatch = prompt.match(/DERNIÈRE ACTION DE\s+[^:\n]+:\s*["']?([^"\n\r\]]+)["']?/i) ||
+                            prompt.match(/(?:ACTION DU JOUEUR|ACTION EN COURS|ACTION)\s*:\s*(?:\[[^\]]+\]\s*:?\s*)?["']?([^"\n\r\]]+)["']?/i);
+        if (actionMatch && actionMatch[1] && !actionMatch[1].includes("TRUNCATED") && !actionMatch[1].includes("Aucune")) {
+            actionText = actionMatch[1].trim().replace(/[*_#]/g, '');
+        }
+    }
+    if (!actionText || actionText.length > 200) actionText = "ton action d'exploration stratégique";
 
-    const responses = [
-        `Tu t'efforces de réaliser "${action}", mais une étrange brume semble ralentir tes mouvements. Tu réussis l'essentiel, bien que les conséquences précises restent floues.`,
-        `Le destin semble incertain alors que tu tentes "${action}". L'énergie ambiante crépite mais ne se stabilise pas. Tu agis avec prudence.`,
-        `"${action}" est accompli. Tu sens le poids de tes décisions peser sur l'air ambiant, même si le monde reste étrangement silencieux.`,
-        `Alors que tu effectues "${action}", tu as l'impression d'être observé. Ton geste est précis, mais le flux magique est trop instable.`
-    ];
+    // Extract player name from prompt
+    let playerName = "l'Héritier";
+    const nameMatch = prompt.match(/PERSONNAGE ACTIF\s*:\s*([^\n|]+)/i) || prompt.match(/DERNIÈRE ACTION DE\s+([A-Za-z0-9\s\-_.]+)\s*:/i);
+    if (nameMatch && nameMatch[1]) {
+        playerName = nameMatch[1].trim().split(' ')[0];
+    }
 
-    const narrative = responses[Math.floor(Math.random() * responses.length)];
-    return `[🤖 MJ FALLBACK]\n\n${narrative}\n\n_Note: Les flux magiques (IA) sont actuellement instables. Ton action a été traitée en mode dégradé._`;
+    const lowerAction = actionText.toLowerCase();
+    let responseText = "";
+
+    if (lowerAction.includes('attaque') || lowerAction.includes('frappe') || lowerAction.includes('épée') || lowerAction.includes('lame') || lowerAction.includes('combat') || lowerAction.includes('monstre') || lowerAction.includes('tirer') || lowerAction.includes('frapper')) {
+        // Combat Action Narrative
+        responseText = `L'atmosphère d'ATR se tend brusquement alors que ${playerName} passe à l'offensive ! Lorsque tu accomplis « ${actionText} », ton arme découpe l'air avec une vitesse fulgurante. Un éclair d'énergie spirituelle jaillit au point d'impact, projetant des étincelles d'éther sur le sol de pierre.\n\nLe choc résonne à travers le secteur. Ton adversaire est sous le choc, incapable de parer la totalité de la force déployée par ton essence d'Héritier. Les témoins et gardes locaux retiennent leur souffle devant une telle démonstration de maîtrise tactique.\n\nLa menace est repoussée, affirmant ton autorité dans la zone et te rapprochant de l'accomplissement de ton chapitre obligatoire.
+
+[${playerName}: EXP +150]
+[${playerName}: GOLD +200]`;
+    } else if (lowerAction.includes('parle') || lowerAction.includes('demande') || lowerAction.includes('question') || lowerAction.includes('dialogue') || lowerAction.includes('cherche')) {
+        // Dialogue / Social Action Narrative
+        responseText = `Dans l'agitation de la cité d'ATR, ${playerName} s'adresse directement à ses interlocuteurs. Lorsque tu effectues « ${actionText} », ta voix résonne avec une assurance naturelle qui attire immédiatement l'attention des PNJ environnants.\n\nUn marchand d'élite et un garde de la milice s'arrêtent, écoutant attentivement tes paroles. Impressionnés par ton rang et ton calme, ils te révèlent des précieux renseignements sur la situation politique et les objectifs de ta Quête Principale Obligatoire.\n\nCes informations stratégiques te permettent de planifier ton prochain mouvement avec une clarté optimale.
+
+[${playerName}: EXP +100]
+[${playerName}: GOLD +100]`;
+    } else {
+        // Movement / Exploration Narrative
+        responseText = `Dans l'atmosphère majestueuse d'ATR, la lumière des lanternes à l'éther éclaire la progression de ${playerName}. En réalisant « ${actionText} », tes pas résonnent fermement sur le sol, traçant un chemin net à travers le territoire.\n\nLe vent frais de la région apporte des rumeurs d'aventures et le murmure des failles spirituelles. L'environnement s'adapte à ta présence, révélant de nouvelles opportunités d'action et confirmant l'ancrage de tes données dans la matrice du monde.\n\nTu poursuis ta marche avec détermination, guidé par les lois de la Causalité vers ton prochain objectif.
+
+[${playerName}: EXP +120]
+[${playerName}: GOLD +150]`;
+    }
+
+    return responseText;
 }
 
 /**
@@ -847,12 +949,17 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, 5000) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 7000);
     }
 
+    const { callTransformersJS } = require('./transformers-js-handler');
+    const { callWebLLM } = require('./webllm-handler');
     const providers = [
+        { name: 'Puter SDK AI (Claude 3.5 / Gemini / Llama 70B RP Models)', fn: callPuterSDK },
+        { name: 'OpenRouter Free RP Models (Qwen 72B / Llama 70B)', fn: callOpenRouter },
+        { name: 'GPT4Free (g4f)', fn: callG4F },
+        { name: 'Empero AI Research Lab (Qwythos/Qwen3.8 PyTorch)', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: 'empero-ai/Qwythos-9B-v2' }) },
+        { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
         { name: 'Ollama (Local)', fn: callOllama },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'Puter Pool Manager', fn: callPuterPoolManager },
-        { name: 'OmniBrain Proxy', fn: callOmniBrain },
-        { name: 'OpenRouter', fn: callOpenRouter }
+        { name: 'DevToolbox Free AI (Fallback)', fn: callDevToolbox },
+        { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS }
     ];
 
     const timeouts = [];
@@ -880,6 +987,25 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         let failedCount = 0;
         const launched = new Set();
 
+        // Safety Global Timeout: 35 seconds max for the entire AI call
+        const globalTimeout = setTimeout(() => {
+            if (!completed) {
+                completed = true;
+                console.warn("[AI] 🚨 GLOBAL TIMEOUT REACHED (35s)!");
+                timeouts.forEach(clearTimeout);
+                resolve(null);
+            }
+        }, 35000);
+
+        const resolveWithClear = (res) => {
+            if (!completed) {
+                completed = true;
+                clearTimeout(globalTimeout);
+                timeouts.forEach(clearTimeout);
+                resolve(res);
+            }
+        };
+
         const launchAtIndex = (index) => {
             if (completed || index >= providers.length || launched.has(index)) return;
 
@@ -888,26 +1014,22 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
             const provider = providers[index];
 
             callProvider(provider).then(res => {
-                if (!completed) {
-                    completed = true;
-                    timeouts.forEach(clearTimeout);
-                    resolve(res);
-                }
+                resolveWithClear(res);
             }).catch(err => {
                 failedCount++;
                 console.warn(`[AI] Provider ${provider.name} (index ${index}) failed: ${err.message}`);
 
                 if (failedCount >= providers.length) {
                     if (!completed) {
-                        completed = true;
-                        timeouts.forEach(clearTimeout);
                         if (depth < 1) {
                             console.log("[AI] All providers failed. Retrying depth 1...");
                             setTimeout(() => {
-                                resolve(callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 }));
+                                if (!completed) {
+                                    resolve(callAI(systemPrompt, userPrompt, { ...options, depth: depth + 1 }));
+                                }
                             }, 1000);
                         } else {
-                            resolve(callMJFallback(userPrompt));
+                            resolveWithClear(null);
                         }
                     }
                 } else {
@@ -915,7 +1037,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                 }
             });
 
-            const nextDelay = index === 0 ? 1000 : 4000;
+            const nextDelay = index === 0 ? 250 : 1000;
             timeouts.push(setTimeout(() => launchAtIndex(index + 1), nextDelay));
         };
 
