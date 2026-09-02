@@ -612,13 +612,8 @@ async function handleFreeAction(sock, message, player, actionText) {
       order: [['id', 'DESC']]
   });
 
-  // If no MJ message exists in this specific sub-location yet, look for the last MJ message globally
-  if (!lastMJMessage) {
-      lastMJMessage = await RPMessage.findOne({
-          where: { senderName: 'ATR MJ' },
-          order: [['id', 'DESC']]
-      });
-  }
+  // IMPORTANT: Never borrow an MJ turn from another scene.
+  // Each location/sub-location has its own timeline.
 
   // Calculate time advancement: 10 mins per action
   const actionsSinceLastMJ = await RPMessage.count({
@@ -632,23 +627,9 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   });
 
-  if (!isTriggerWord && !isSolo) {
-      // Logic to remind the player of the sync mechanic if they send many messages
-      const recentPlayerMsgs = await RPMessage.count({
-          where: {
-              senderJid: player.whatsappId,
-              id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 }
-          }
-      });
-
-      let reminder = "";
-      if (recentPlayerMsgs >= 3) {
-          reminder = "\n\n💡 *Note:* Tu as envoyé plusieurs messages. N'oublie pas de taper `next` quand tu as fini pour obtenir une réponse du MJ.";
-      }
-
-      await sock.sendMessage(jid, {
-          text: `⏳ *Action enregistrée.*${reminder}\nAttendez les autres joueurs pour \`next\`. S'ils ne sont pas là, ils sont immobiles devant vous et ne réagissent à rien.`
-      });
+  // Every real action is processed immediately. Passive players never block the scene.
+  if (isTriggerWord) {
+      await sock.sendMessage(jid, { text: "⏳ *Le monde attend une action réelle.* Ton personnage n'avance pas automatiquement." });
       return;
   }
 
@@ -848,10 +829,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const actingPlayerNames = new Set(recentActions.map(a => a.senderName));
 
-  // Data for all players in the same kingdom (to see potential targets for movement)
-  const allInKingdom = await Player.findAll({ where: { location: player.location } });
-
-  const scenePlayersData = await Promise.all(allInKingdom.map(async p => {
+  // STRICT SCENE AUTHORITY: only players physically in the exact same sub-location
+  // are part of this scene. Everyone else stays completely outside the narration.
+  const scenePlayersData = await Promise.all(nearbyPlayers.map(async p => {
       const pSkills = await p.getSkills();
       const pPacts = await p.getEntities();
       const pClubs = await p.getClubs();
