@@ -41,42 +41,25 @@ async function handleFreeAction(sock, message, player, actionText) {
       }
   }
 
-  // Only trigger AI on 'next'
+  // ATR TURN AUTHORITY: every real action is processed immediately.
+  // 'next' cannot create an autonomous world turn.
   const isTriggerWord = actionText.toLowerCase().trim() === 'next';
-
-  if (!isTriggerWord) {
+  if (isTriggerWord) {
       await sock.sendMessage(jid, {
-          text: "⏳ *Action enregistrée.*\nAttendez les autres joueurs pour `next`. S'ils ne sont pas là, ils sont immobiles devant vous et ne réagissent à rien."
+          text: "⏳ *ATR attend une action réelle.*\nLe monde ne fait pas avancer ton personnage automatiquement."
       });
       return;
   }
 
-  // If "Next" is sent, aggregate all messages since the last MJ response
-  const lastMJMessage = await RPMessage.findOne({
-      where: { senderName: 'Arise MJ', location: player.location },
-      order: [['id', 'DESC']]
-  });
+  // Only the current player's real message is an active action in this turn.
+  // Other players may be visible, but remain passive unless they themselves send a message.
+  const recentActions = [{
+      senderName: player.name,
+      senderJid: player.whatsappId,
+      content: actionText
+  }];
 
-  const messageQuery = {
-      location: player.location,
-      senderName: { [Op.ne]: 'Arise MJ' }
-  };
-  if (lastMJMessage) {
-      messageQuery.id = { [Op.gt]: lastMJMessage.id };
-  }
-
-  const recentActions = await RPMessage.findAll({
-      where: {
-          ...messageQuery,
-          content: { [Op.notLike]: 'next' } // Filter out the trigger word itself
-      },
-      order: [['id', 'ASC']]
-  });
-
-  // If 'next' is sent but there are NO actions, we still let the MJ intervene if they want
-  const aggregatedActions = recentActions.length > 0
-    ? recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n')
-    : "(Aucune action récente des joueurs. Aucune action réelle : le MJ ne fait pas avancer automatiquement le personnage.)";
+  const aggregatedActions = `${player.name}: ${actionText}`;
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
