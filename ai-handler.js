@@ -1209,6 +1209,8 @@ JOUEUR ACTIF :
 - Nom : ${player.name}
 - Rang & Niveau : Niv.${player.level} (${player.rank}) | Classe: ${player.class}
 - État Physique : ${player.state || 'idle'} (PV: ${player.health}/${player.maxHealth}, PM: ${player.mana}/${player.maxMana})
+- TENUE OFFICIELLE : ${player.equippedOutfit || 'Tenue de base'} (Style: ${player.wardrobeStyle || 'standard'})
+⚠️ Continuité visuelle : lorsque tu décris l'apparence de ${player.name}, respecte cette tenue et ne la remplace pas sans action explicite du joueur.
 
 === ACTION ACTUELLE DU JOUEUR ===
 "${actionText}"
@@ -1283,7 +1285,8 @@ ${infiniteRPState}
     let imagePromptText = null;
     const imageRegex = /\[IMAGE:\s*([^\]]+)\]/i;
     const imageMatch = content.match(imageRegex);
-    const charDescPrompt = player.characterDescription ? `Character visual appearance: (${player.characterDescription}). ` : '';
+    const outfitPrompt = player.equippedOutfit ? `Current outfit (must remain visually consistent): ${player.equippedOutfit}. ` : '';
+    const charDescPrompt = `${player.characterDescription ? `Character visual appearance: (${player.characterDescription}). ` : ''}${outfitPrompt}`;
 
     if (imageMatch) {
         imagePromptText = `${charDescPrompt}${imageMatch[1].trim()}`;
