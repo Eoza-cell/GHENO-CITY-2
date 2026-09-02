@@ -356,6 +356,11 @@ const Player = sequelize.define('Player', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  // Prevents the same location/NPC illustration from being resent every turn.
+  lastVisualKey: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 });
 
 const Item = sequelize.define('Item', {
