@@ -8,6 +8,7 @@ const questUtils = require('./quest-utils');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
+const { sameScene, buildAuthorityRules } = require('./atr-scene-authority');
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
@@ -75,7 +76,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   // If 'next' is sent but there are NO actions, we still let the MJ intervene if they want
   const aggregatedActions = recentActions.length > 0
     ? recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n')
-    : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde ou interpeller quelqu'un.)";
+    : "(Aucune action récente des joueurs. Aucune action réelle : le MJ ne fait pas avancer automatiquement le personnage.)";
 
   // Survival Depletion Logic
   const lastActivity = new Date(player.lastActivity).getTime();
@@ -118,11 +119,16 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const nearbyPlayers = await Player.findAll({
     where: {
-        location: player.location
+        location: player.location,
+        subLocation: player.subLocation
     }
   });
 
-  const actingPlayerNames = new Set(recentActions.map(a => a.senderName));
+  const recentActions = [{
+      senderName: player.name,
+      content: actionText
+  }];
+  const actingPlayerNames = new Set([player.name]);
 
   // Data for all players in the same scene
   const scenePlayersData = await Promise.all(nearbyPlayers.map(async p => {
@@ -169,9 +175,9 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   // Fetch history (last 75 messages) for Short Term Memory
   const history = await RPMessage.findAll({
-      where: { location: player.location },
+      where: { location: player.location, subLocation: player.subLocation },
       order: [['id', 'DESC']],
-      limit: 75
+      limit: 30
   });
   const historyState = history.length > 0
     ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
@@ -217,12 +223,10 @@ async function handleFreeAction(sock, message, player, actionText) {
   const weather = getWeather();
 
     // Mini-Event Trigger (20% chance)
-    const triggerMiniEvent = Math.random() < 0.20;
-    const miniEventContext = triggerMiniEvent
-        ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
-        : "";
+    const triggerMiniEvent = false;
+    const miniEventContext = "";
 
-  const systemPrompt = `Tu es le narrateur d'un RP fantasy vivant, immersif et dynamique. Le monde évolue en permanence, même lorsque les joueurs n'agissent pas. Les royaumes, factions, guildes, créatures, dieux, monstres et civilisations poursuivent leurs propres objectifs. Les actions des joueurs peuvent modifier l'histoire, influencer la politique, déclencher des guerres, créer des alliances ou provoquer des catastrophes.
+  const systemPrompt = `Tu es le narrateur d'un RP fantasy vivant, immersif et dynamique. Le monde n'avance PAS automatiquement sans une action réelle. Les joueurs silencieux restent immobiles et silencieux. Les royaumes, factions, guildes, créatures, dieux, monstres et civilisations poursuivent leurs propres objectifs. Les actions des joueurs peuvent modifier l'histoire, influencer la politique, déclencher des guerres, créer des alliances ou provoquer des catastrophes.
 
 Les joueurs sont totalement libres de leurs choix. Ils peuvent explorer, combattre, commercer, discuter, voyager, fonder des organisations, gouverner des territoires ou poursuivre leurs propres ambitions. L'histoire s'adapte naturellement à leurs décisions au lieu de les forcer à suivre un scénario unique.
 
@@ -251,7 +255,7 @@ LORE SUPRÊME:
 6. L'INTERSTICE: Dimension entre les mondes.
 
 RÈGLES TECHNIQUES:
-1. MJ PUR (ZÉRO HALLUCINATION): Tu es UNIQUEMENT le MJ (Maître du Jeu). Tu ne joues PAS les personnages des joueurs. Tu ne décris JAMAIS leurs pensées, leurs paroles ou leurs actions (même passées).
+AUTORITÉ ABSOLUE DU SYSTÈME:\n${buildAuthorityRules()}\n\n1. MJ PUR (ZÉRO HALLUCINATION): Tu es UNIQUEMENT le MJ (Maître du Jeu). Tu ne joues PAS les personnages des joueurs. Tu ne décris JAMAIS leurs pensées, leurs paroles ou leurs actions (même passées).
    - INTERDICTION ABSOLUE: Ne commence jamais par "Tu fais..." ou "Tu dis...". Les actions des joueurs sont déjà écrites dans ACTIONS_JOUEURS. Ta réponse doit commencer directement par les CONSÉQUENCES ou l'environnement.
    - RÈGLE D'IMMOBILITÉ & PRÉCISION: Tant qu'un joueur n'est pas assez précis dans ses actions (quelle main il utilise, sa trajectoire de mouvement exacte, comment il tient son arme, etc.), il reste IMMOBILE ou son action échoue. S'il dit juste "j'attaque", il ne bouge pas. La précision est la clé de l'action.
    - Si un joueur est listé comme SPECTATEUR, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard.
@@ -284,7 +288,7 @@ RÈGLES TECHNIQUES:
     - ÉTANCHÉITÉ DES HISTOIRES: Chaque joueur est le protagoniste de sa propre aventure. Ne mélange pas leurs objectifs, leurs possessions ou leurs alliés. Si Joueur A parle à un PNJ, Joueur B n'est pas automatiquement impliqué dans la conversation sauf s'il intervient.
     - ARBITRAGE STATISTIQUE: Compare systématiquement les statistiques fournies dans 'personnages_en_scene'. Si Joueur A (FOR: 50) attaque Joueur B (FOR: 25) qui tente de bloquer, l'impact DOIT être dévastateur. Bloquer une force double n'annule pas les dégâts : Joueur B est propulsé violemment en arrière (ex: sur 5m) et subit des blessures graves (ex: bras fracturés sous le choc).
     - RESSENTI DES RIPOSTES: On doit sentir la puissance des coups et des ripostes. Les conséquences doivent être proportionnelles à l'écart de puissance. Un écart massif rend toute défense conventionnelle inutile.
-    - RÉALISME VISCÉRAL: Décris la physique des impacts (os qui éclatent, recul violent, perte d'équilibre). Ne décide jamais de l'issue sans base statistique.
+    - RÉALISME PHYSIQUE: Décris les impacts de façon non-graphique et proportionnée aux statistiques. Ne décide jamais de l'issue sans base statistique.
 16. PRÉSENCE DES PNJ MAJEURS (STRICT): Les PNJ principaux (Griffith, Void, Orpheon, Magnus, etc.) ne sont pas des décors. Ils ont des intentions, des secrets, et une aura imposante. S'ils sont listés dans PNJ_PRÉSENTS ou sont cohérents avec le lieu, ils doivent INTERVENIR, observer avec mépris ou intérêt, et manipuler la situation. Leur présence doit être palpable (pression spirituelle, silence pesant).
 17. VISUELS (STRICT): La génération d'images par IA est DÉSACTIVÉE. Tu ne dois JAMAIS inventer de nouveaux prompts d'image. Tu dois UNIQUEMENT utiliser les chemins de fichiers locaux suivants si la situation s'y prête :
     - 'assets/apostle.jpg' : Pour l'apparition d'un Apôtre ou d'une menace divine.
@@ -305,7 +309,7 @@ RÈGLES TECHNIQUES:
     - Ajoute ensuite le lieu avec un emoji : *📍 Nom du Lieu*.
     - Utilise des sauts de ligne fréquents pour créer du suspense et de l'impact.
     - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
-    - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
+    - Pour les combats : Décris les combats avec intensité mais sans détails graphiques. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
 20. NARRATION: Français riche et cinématographique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).`;
 
     const memoryJson = JSON.stringify({
