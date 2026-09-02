@@ -227,6 +227,23 @@ const Player = sequelize.define('Player', {
     type: DataTypes.INTEGER,
     defaultValue: 10,
   },
+  // Cosmetic wardrobe. Clothes do not alter combat stats.
+  wardrobe: {
+    type: DataTypes.TEXT,
+    defaultValue: '[]',
+    get() {
+      try { return JSON.parse(this.getDataValue('wardrobe') || '[]'); } catch { return []; }
+    },
+    set(value) { this.setDataValue('wardrobe', JSON.stringify(Array.isArray(value) ? value : [])); }
+  },
+  equippedOutfit: {
+    type: DataTypes.TEXT,
+    defaultValue: '{}',
+    get() {
+      try { return JSON.parse(this.getDataValue('equippedOutfit') || '{}'); } catch { return {}; }
+    },
+    set(value) { this.setDataValue('equippedOutfit', JSON.stringify(value || {})); }
+  },
 });
 
 const Item = sequelize.define('Item', {
