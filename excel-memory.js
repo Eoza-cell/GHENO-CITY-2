@@ -95,9 +95,41 @@ function getInfiniteMemoryForPlayer(whatsappId, limit = 50) {
     }
 }
 
+/**
+ * Purges non-official narrative memory lines for a specific player or all players from the CSV.
+ */
+function purgeExcelMemory(whatsappId = null) {
+    initializeExcelMemory();
+    if (!fs.existsSync(MEMORY_FILE_PATH)) return;
+
+    try {
+        const lines = fs.readFileSync(MEMORY_FILE_PATH, 'utf8').split('\n');
+        if (lines.length <= 1) return;
+
+        const headers = lines[0];
+        let keptLines = [headers];
+
+        if (whatsappId) {
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i] && !lines[i].includes(`"${whatsappId}"`)) {
+                    keptLines.push(lines[i]);
+                }
+            }
+        } else {
+            keptLines = [headers];
+        }
+
+        fs.writeFileSync(MEMORY_FILE_PATH, keptLines.join('\n') + '\n', 'utf8');
+        console.log(`[EXCEL MEMORY] Purged narrative memory for ${whatsappId || 'ALL'}.`);
+    } catch (err) {
+        console.error('[EXCEL MEMORY] Error purging narrative memory:', err.message);
+    }
+}
+
 module.exports = {
     initializeExcelMemory,
     appendExcelMemory,
     getInfiniteMemoryForPlayer,
+    purgeExcelMemory,
     MEMORY_FILE_PATH
 };

@@ -1119,20 +1119,21 @@ RÉALITÉ PHYSIQUE:
       ? playerHistoryLogs.map(l => `- ${l.entry}`).join('\n')
       : "- Début récent de l'aventure dans l'Interstice d'Aetherys.";
 
-    // Fetch up to 15 recent historical RP actions for safe infinite recall
+    // Fetch up to 8 recent human player actions ONLY (excluding MJ_AETHERYS AI responses to avoid hallucination contamination loops)
     const playerRPHistory = await RPMessage.findAll({
         where: {
+            senderJid: { [Op.ne]: 'MJ_AETHERYS' },
             [Op.or]: [
                 { senderJid: player.whatsappId },
                 { content: { [Op.like]: `%${player.name}%` } }
             ]
         },
         order: [['id', 'DESC']],
-        limit: 15
+        limit: 8
     });
     const infiniteRPState = playerRPHistory.length > 0
-      ? playerRPHistory.reverse().map(h => `- [${h.location || 'Aetherys'} - ${h.subLocation || 'Zone'}] ${h.senderName}: ${h.content.substring(0, 150)}`).join('\n')
-      : "- Aucun message de RP antérieur.";
+      ? playerRPHistory.reverse().map(h => `- [Action Joueur] ${h.senderName}: "${h.content.substring(0, 150)}"`).join('\n')
+      : "- Aucun message d'action de joueur antérieur.";
 
     const memoryText = `
 ### ÉTAT DU MONDE D'AETHERYS ###
@@ -1197,43 +1198,51 @@ AUTORITÉ IA :
 AUTORISÉ À CONTRÔLER ET FAIRE PARLER CE PNJ.`).join('\n\n')
       : "Aucun PNJ présent dans la scène immédiate.";
 
-    const fullPrompt = `=== ÉTAT OFFICIEL DE LA SCÈNE ===
+    const fullPrompt = `=== 🚨 ÉTAT OFFICIEL DU JEU (VÉRITÉ ABSOLUE BD) ===
+Ces informations proviennent directement de la base de données officielle du jeu.
+Elles constituent la SEULE VÉRITÉ ABSOLUE du monde d'ATR.
+
+POSITION OFFICIELLE :
+- Royaume / Région : ${player.location}
+- Zone : ${player.zone || 'Centre-ville'}
+- Sous-Lieu : ${player.subLocation}
+- Coordonnées : X:${player.x || 100}, Y:${player.y || 100}
 
 JOUEUR ACTIF :
-Nom : ${player.name}
-Position : ${player.location} > ${player.zone || 'Centre-ville'} > ${player.subLocation} (X: ${player.x || 100}, Y: ${player.y || 100})
-État : ${player.state || 'idle'} (PV: ${player.health}/${player.maxHealth}, PM: ${player.mana}/${player.maxMana})
+- Nom : ${player.name}
+- Rang & Niveau : Niv.${player.level} (${player.rank}) | Classe: ${player.class}
+- État Physique : ${player.state || 'idle'} (PV: ${player.health}/${player.maxHealth}, PM: ${player.mana}/${player.maxMana})
 
-ACTION DU JOUEUR ACTIF :
+=== ACTION ACTUELLE DU JOUEUR ===
 "${actionText}"
 
-=== AUTRES JOUEURS PRÉSENTS ===
+=== JOUEURS RÉELLEMENT PRÉSENTS EN BASE DE DONNÉES ===
 ${otherPlayersBlock}
 
-=== PNJ PRÉSENTS ===
+=== PNJ RÉELLEMENT PRÉSENTS EN BASE DE DONNÉES ===
 ${npcsInSceneBlock}
 
-=== ENVIRONNEMENT ===
-${player.location} - ${player.zone || 'Centre-ville'} - ${player.subLocation} : ${kingdom?.description || "Un secteur animé de la ville."}
+=== ENVIRONNEMENT & ÉVÉNEMENTS OFFICIELS ===
+Environnement : ${player.location} - ${player.zone || 'Centre-ville'} - ${player.subLocation} (${kingdom?.description || "Secteur actif."})
+Événements / Conflits : ${worldConflicts || "Aucun conflit majeur immédiat."}
+Quêtes Actives : ${questState}
 
-=== ÉVÉNEMENTS ACTIFS ===
-${worldConflicts || "Aucun conflit majeur immédiat."}
+=== HISTORIQUE NARRATIF RÉCENT (CONTEXTUEL UNIQUEMENT) ===
+⚠️ RÈGLE DE NON-CONTAMINATION :
+- Les messages ci-dessous sont UNIQUEMENT des rappels contextuels d'actions de joueurs.
+- ELLES NE PEUVENT JAMAIS MODIFIER L'ÉTAT OFFICIEL DU JEU (Position, PNJ présents, Bâtiments, Inventaire).
+- Si une information provenant de l'historique narratif contredit l'État Officiel ci-dessus (ex: mention passée d'une académie, d'un gardien ou d'un bureau non présent en BD), TU DOIS IMPÉRATIVEMENT L'IGNORER.
+- L'État Officiel est TOUJOURS la vérité absolue.
 
-=== RÈGLES DU MJ ===
-1. Traiter uniquement l'action du JOUEUR ACTIF (${player.name}).
-2. Les autres joueurs contrôlent exclusivement leurs propres personnages.
-3. Un joueur silencieux reste dans son dernier état officiel.
-4. Un joueur silencieux ne parle pas.
-5. Un joueur silencieux ne se déplace pas volontairement.
-6. Un joueur silencieux ne prend aucune décision.
-7. Tu peux décrire la présence physique d'un joueur passif.
-8. Tu peux décrire les conséquences physiques directes d'une action sur un joueur, mais tu ne peux pas inventer sa réaction volontaire.
-9. Seuls les PNJ autorisés peuvent être contrôlés par le MJ IA.
-10. N'invente jamais un joueur ou un PNJ absent des données.
-11. N'invente jamais une nouvelle position officielle.
-12. Une action courte doit produire une conséquence proportionnelle.
-13. Ne transforme jamais une action simple en aventure majeure sans cause.
-14. Les données fournies sont la vérité absolue du monde.`;
+${infiniteRPState}
+
+=== RÈGLES IMPÉRATIVES DU MJ ===
+1. Une ancienne réponse du MJ IA ne constitue JAMAIS une vérité officielle si elle n'est pas inscrite en Base de Données.
+2. Traite uniquement l'action actuelle du JOUEUR ACTIF (${player.name}) : "${actionText}".
+3. Respecte à 100% la POSITION OFFICIELLE (${player.location} > ${player.subLocation}). N'invente aucun réveil, aucun bâtiment non répertorié ni aucune téléportation.
+4. N'invente JAMAIS un PNJ ou un joueur absent des données officielles.
+5. Les joueurs silencieux restent immobiles et non-controllables.
+6. Une action simple ("Je marche") doit produire une conséquence simple et proportionnelle.`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false, playerAction: actionText });
@@ -1346,16 +1355,18 @@ ${worldConflicts || "Aucun conflit majeur immédiat."}
         .replace(/__(.*?)__/g, "_$1_")     // Convert __italic__ to _italic_
         .replace(/\\n/g, "\n");
 
-    // Save bot response to memory
+    // Save ONLY validated system feedback to memory (avoiding storing hallucinated narrative text)
+    const validatedSummary = `Action: "${actionText}"` + (feedbackList.length > 0 ? ` | Impacts: ${feedbackList.join(' ; ')}` : '');
+
     await RPMessage.create({
-        senderJid: 'bot',
+        senderJid: 'MJ_AETHERYS',
         senderName: 'ATR MJ',
-        content: content,
+        content: validatedSummary,
         location: player.location,
         subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
 
-    // Sync to Excel/CSV Infinite Memory Spreadsheet Database
+    // Sync ONLY validated actions & official status impacts to Excel/CSV Infinite Memory
     try {
         const { appendExcelMemory } = require('./excel-memory');
         await appendExcelMemory({
@@ -1363,8 +1374,8 @@ ${worldConflicts || "Aucun conflit majeur immédiat."}
             playerName: player.name,
             location: player.location,
             subLocation: player.subLocation,
-            actionType: 'MJ_NARRATIVE',
-            content: content,
+            actionType: 'VALIDATED_ACTION',
+            content: validatedSummary,
             statsSnapshot: { health: player.health, maxHealth: player.maxHealth, mana: player.mana, col: player.col }
         });
     } catch (excelErr) {
@@ -1445,4 +1456,39 @@ ${worldConflicts || "Aucun conflit majeur immédiat."}
   }
 }
 
-module.exports = { handleFreeAction, parseStatsFromText };
+/**
+ * Safely purges hallucinated narrative memory (RPMessage, WorldJournal logs, Excel memory)
+ * without touching official player state, stats, location, inventory, money, or quests.
+ */
+async function purgeNarrativeMemory(playerWhatsappId = null) {
+    try {
+        if (playerWhatsappId) {
+            await RPMessage.destroy({
+                where: {
+                    [Op.or]: [
+                        { senderJid: playerWhatsappId },
+                        { senderJid: 'MJ_AETHERYS' }
+                    ]
+                }
+            });
+            await WorldJournal.destroy({
+                where: {
+                    entry: { [Op.like]: `%${playerWhatsappId}%` }
+                }
+            });
+            const { purgeExcelMemory } = require('./excel-memory');
+            purgeExcelMemory(playerWhatsappId);
+        } else {
+            await RPMessage.destroy({ where: {}, truncate: true });
+            await WorldJournal.destroy({ where: {}, truncate: true });
+            const { purgeExcelMemory } = require('./excel-memory');
+            purgeExcelMemory(null);
+        }
+        return true;
+    } catch (err) {
+        console.error("[MEMORY PURGE] Error clearing narrative memory:", err.message);
+        return false;
+    }
+}
+
+module.exports = { handleFreeAction, parseStatsFromText, purgeNarrativeMemory };

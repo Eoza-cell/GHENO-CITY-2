@@ -2024,6 +2024,31 @@ commands.set('reset', deletePlayerCommand);
 commands.set('delete', deletePlayerCommand);
 commands.set('supprimer', deletePlayerCommand);
 
+// Command: /clearmemory / /purger_histoire
+const clearMemoryCommand = async (sock, msg, args, player) => {
+    const { purgeNarrativeMemory } = require('./ai-handler');
+    const jid = msg.key.remoteJid;
+    const sender = player.whatsappId;
+
+    await purgeNarrativeMemory(sender);
+
+    await sock.sendMessage(jid, {
+        text: `🧹 **PURGE DE LA MÉMOIRE NARRATIVE ACCOMPLIE !**\n\n` +
+              `✅ Les anciennes hallucinations et réponses narratives de l'IA ont été effacées.\n\n` +
+              `🛡️ **TES DONNÉES OFFICIELLES SONT CONSERVÉES (100% INTACTES) :**\n` +
+              `- Position officielle : **${player.location} (${player.subLocation || 'Zone'})**\n` +
+              `- Niveau & Rang : **Niv.${player.level} (${player.rank})**\n` +
+              `- Inventaire & Argent : **${(player.inventory||[]).length} objets / ${player.col} COL**\n` +
+              `- Quêtes & Statistiques : **Inchangés**\n\n` +
+              `✨ Tu peux maintenant reprendre le jeu avec un contexte RP 100% propre !`
+    }, { quoted: msg });
+};
+
+commands.set('clearmemory', clearMemoryCommand);
+commands.set('purger_histoire', clearMemoryCommand);
+commands.set('purge_memoire', clearMemoryCommand);
+commands.set('purgememory', clearMemoryCommand);
+
 // Command: /evenement
 commands.set('evenement', async (sock, message, args) => {
     const jid = getJid(message);
