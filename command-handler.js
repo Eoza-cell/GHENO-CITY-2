@@ -12,6 +12,7 @@ const { generateMainMenuImage } = require('./menu-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage } = require('./message-handler');
+const { CATALOG, getItem, getOwned, getEquipped } = require('./wardrobe-system');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -1566,6 +1567,57 @@ commands.set('menu', async (sock, message) => {
     console.warn("Erreur génération image menu:", error.message);
     await sock.sendMessage(message.key.remoteJid, { text: menuText });
   }
+});
+
+// ===================== ATR WARDROBE =====================
+commands.set('boutique', async (sock, message, args) => {
+  const player = await Player.findOne({ where: { whatsappId: getJid(message) } });
+  const replyJid = message.key.remoteJid;
+  if (!player) return;
+  const page = Math.max(1, parseInt(args[0]) || 1), perPage = 12;
+  const pages = Math.ceil(CATALOG.length / perPage), start = (page - 1) * perPage;
+  const items = CATALOG.slice(start, start + perPage);
+  let text = `╔═══ 👗 *BOUTIQUE ATR* 👗 ═══╗\n💰 *${player.col.toLocaleString()} Col* | 📦 ${CATALOG.length} pièces\n📄 Page ${page}/${pages}\n╚══════════════════════╝\n\n`;
+  for (const i of items) text += `• *${i.id}* — ${i.name}\n  ✦ ${i.rarity} | 💰 ${i.price} Col\n`;
+  text += `\n🛍️ */acheter <id>*\n➡️ */boutique ${Math.min(page+1,pages)}*`;
+  await sock.sendMessage(replyJid,{text});
+});
+
+commands.set('acheter', async (sock, message, args) => {
+  const player = await Player.findOne({ where: { whatsappId: getJid(message) } });
+  const replyJid = message.key.remoteJid; if (!player) return;
+  const item = getItem(args.join(' '));
+  if (!item) return sock.sendMessage(replyJid,{text:'❌ Pièce introuvable. Utilise /boutique.'});
+  const owned = getOwned(player);
+  if (owned.includes(item.id)) return sock.sendMessage(replyJid,{text:'👗 Tu possèdes déjà cette pièce.'});
+  if (player.col < item.price) return sock.sendMessage(replyJid,{text:`❌ Il te manque ${item.price-player.col} Col.`});
+  player.wardrobe=[...(player.wardrobe||[]),item.id]; player.col-=item.price; await player.save();
+  await sock.sendMessage(replyJid,{text:`✨ *ACHAT RÉUSSI*\n\n👗 ${item.name}\n✦ ${item.rarity}\n💰 -${item.price} Col\n\n/equiper ${item.id}`});
+});
+
+commands.set('garde-robe', async (sock, message) => {
+  const player=await Player.findOne({where:{whatsappId:getJid(message)}}), replyJid=message.key.remoteJid; if(!player)return;
+  const owned=getOwned(player).map(id=>CATALOG.find(i=>i.id===id)).filter(Boolean), eq=getEquipped(player);
+  let text=`╔══ 👔 *GARDE-ROBE DE ${player.name.toUpperCase()}* ══╗\n📦 ${owned.length}/${CATALOG.length} pièces\n╚══════════════════════╝\n\n`;
+  for(const slot of ['tops','bottoms','shoes','accessories']){const i=CATALOG.find(x=>x.id===eq[slot]);text+=`▸ *${slot}* : ${i?i.name:'—'}\n`;}
+  text+='\n📚 *Collection :*\n'; owned.slice(0,30).forEach(i=>text+=`• ${i.id} — ${i.name}\n`);
+  if(owned.length>30)text+=`… et ${owned.length-30} autres.\n`; text+='\n👗 */equiper <id>*';
+  await sock.sendMessage(replyJid,{text});
+});
+
+commands.set('equiper', async (sock,message,args)=>{
+  const player=await Player.findOne({where:{whatsappId:getJid(message)}}),replyJid=message.key.remoteJid;if(!player)return;
+  const item=getItem(args.join(' ')); if(!item)return sock.sendMessage(replyJid,{text:'❌ Pièce introuvable.'});
+  if(!getOwned(player).includes(item.id))return sock.sendMessage(replyJid,{text:'🔒 Tu ne possèdes pas cette pièce.'});
+  const outfit=getEquipped(player);outfit[item.slot]=item.id;player.equippedOutfit=outfit;await player.save();
+  await sock.sendMessage(replyJid,{text:`👔 *TENUE MISE À JOUR*\n\n✓ ${item.name}\n📌 ${item.slot}\n\n✨ Ton apparence officielle a changé.`});
+});
+
+commands.set('tenue', async (sock,message)=>{
+  const player=await Player.findOne({where:{whatsappId:getJid(message)}}),replyJid=message.key.remoteJid;if(!player)return;
+  const eq=getEquipped(player);let text=`╔══ ✨ *TENUE ACTUELLE* ✨ ══╗\n👤 ${player.name}\n╚══════════════════╝\n\n`;
+  for(const slot of ['tops','bottoms','shoes','accessories']){const i=CATALOG.find(x=>x.id===eq[slot]);text+=i?`◆ ${i.name}\n`:'◇ Aucun\n';}
+  text+='\n🎭 Les vêtements sont cosmétiques et n\'altèrent pas les statistiques.';await sock.sendMessage(replyJid,{text});
 });
 
 // Main command handler
