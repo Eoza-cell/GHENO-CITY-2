@@ -1,5 +1,6 @@
 const { Sequelize, DataTypes } = require('sequelize');
 const { execSync } = require('child_process');
+const { buildWardrobeCatalog } = require('./wardrobe-catalog');
 
 let sequelize;
 const dbUrl = process.env.DATABASE_URL;
@@ -307,6 +308,19 @@ const Player = sequelize.define('Player', {
   equippedOutfit: {
     type: DataTypes.STRING,
     allowNull: true,
+  },
+  // Layered wardrobe used by the visual world and profile renderer.
+  equippedClothing: {
+    type: DataTypes.TEXT,
+    defaultValue: '{}',
+    get() {
+      try { return JSON.parse(this.getDataValue('equippedClothing') || '{}'); } catch (e) { return {}; }
+    },
+    set(value) { this.setDataValue('equippedClothing', JSON.stringify(value || {})); }
+  },
+  wardrobeStyle: {
+    type: DataTypes.STRING,
+    defaultValue: 'standard',
   },
   outfitDurability: {
     type: DataTypes.INTEGER,
@@ -884,6 +898,13 @@ async function setupDatabase() {
     for (const item of itemsToSeed) {
         await Item.findOrCreate({ where: { name: item.name }, defaults: item });
     }
+
+    // Curated wardrobe: deterministic collections instead of only random clothing.
+    const curatedWardrobe = buildWardrobeCatalog();
+    for (const outfit of curatedWardrobe) {
+        await Item.findOrCreate({ where: { name: outfit.name }, defaults: outfit });
+    }
+    console.log(`[WARDROBE] Curated catalog ready: ${curatedWardrobe.length} outfits.`);
 
     // Seed 3000 Varied Items
     const currentItemCount = await Item.count();
