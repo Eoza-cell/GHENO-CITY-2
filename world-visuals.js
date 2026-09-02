@@ -81,7 +81,8 @@ async function buildSceneVisual({ player, npcs = [] }) {
   if (!background && !featuredNpc) return null;
 
   const npcKey = featuredNpc ? `npc:${featuredNpc.id || featuredNpc.name}` : 'no-npc';
-  const visualKey = `${background ? background.key : 'no-bg'}|${npcKey}`;
+  const outfitName = player.equippedOutfit || 'base-outfit';
+  const visualKey = `${background ? background.key : 'no-bg'}|${npcKey}|outfit:${outfitName}`;
 
   try {
     const backgroundBuffer = background ? await fs.promises.readFile(background.file) : null;
@@ -112,7 +113,7 @@ async function buildSceneVisual({ player, npcs = [] }) {
       return {
         buffer: composed,
         key: visualKey,
-        caption: `📍 *${player.location} — ${player.subLocation}*\n👤 *${featuredNpc.name}* est présent dans cette scène.`
+        caption: `📍 *${player.location} — ${player.subLocation}*\n👤 *${featuredNpc.name}* est présent dans cette scène.\n👗 *Style de ${player.name} :* ${outfitName}`
       };
     }
 
@@ -120,7 +121,7 @@ async function buildSceneVisual({ player, npcs = [] }) {
       return {
         buffer: backgroundBuffer,
         key: visualKey,
-        caption: `📍 *${player.location} — ${player.subLocation}*`
+        caption: `📍 *${player.location} — ${player.subLocation}*\n👗 *Style :* ${outfitName}`
       };
     }
 
