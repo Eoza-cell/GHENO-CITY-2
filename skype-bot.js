@@ -274,8 +274,13 @@ async function connectToWhatsApp() {
 
                 // Handle profile picture submission
                 if (player && player.awaitingProfilePic) {
-                    const type = getContentType(message.message);
-                    if (type === 'imageMessage') {
+                    let msgContent = message.message;
+                    if (msgContent.ephemeralMessage) msgContent = msgContent.ephemeralMessage.message;
+                    if (msgContent.viewOnceMessage) msgContent = msgContent.viewOnceMessage.message;
+                    if (msgContent.viewOnceMessageV2) msgContent = msgContent.viewOnceMessageV2.message;
+
+                    const type = getContentType(msgContent);
+                    if (type === 'imageMessage' || msgContent.imageMessage) {
                         try {
                             console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
                             const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
