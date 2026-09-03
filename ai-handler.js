@@ -13,6 +13,7 @@ const { processActions } = require('./action-processor');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
+const { getNarrativeContext, formatMemoryContext, rememberValidatedAction } = require('./upstash-memory');
 
 /**
  * Searches Google Images for an anime representation of a technique name,
@@ -1195,6 +1196,22 @@ AUTORITÉ IA :
 AUTORISÉ À CONTRÔLER ET FAIRE PARLER CE PNJ.`).join('\n\n')
       : "Aucun PNJ présent dans la scène immédiate.";
 
+    // Persistent narrative memory survives Render restarts through Upstash Redis.
+    // PostgreSQL remains authoritative for gameplay state.
+    let persistentMemoryText = '';
+    try {
+      const persistentMemory = await getNarrativeContext({
+        player,
+        location: player.location,
+        subLocation: player.subLocation,
+        limit: 24
+      });
+      persistentMemoryText = formatMemoryContext(persistentMemory);
+    } catch (memoryErr) {
+      console.error('[UPSTASH MEMORY] Read failed:', memoryErr.message);
+      persistentMemoryText = 'Mémoire persistante temporairement indisponible.';
+    }
+
     const fullPrompt = `=== 🚨 ÉTAT OFFICIEL DU JEU (VÉRITÉ ABSOLUE BD) ===
 Ces informations proviennent directement de la base de données officielle du jeu.
 Elles constituent la SEULE VÉRITÉ ABSOLUE du monde d'ATR.
@@ -1225,6 +1242,14 @@ ${npcsInSceneBlock}
 Environnement : ${player.location} - ${player.zone || 'Centre-ville'} - ${player.subLocation} (${kingdom?.description || "Secteur actif."})
 Événements / Conflits : ${worldConflicts || "Aucun conflit majeur immédiat."}
 Quêtes Actives : ${questState}
+
+=== MÉMOIRE PERSISTANTE UPSTASH (CONTINUITÉ NARRATIVE) ===
+Cette mémoire contient des événements VALIDÉS et persistants entre les redémarrages.
+- Utilise-la pour te souvenir des relations, promesses, événements et conséquences.
+- Elle ne remplace JAMAIS les statistiques, positions, inventaires ou quêtes fournis par la base officielle.
+- En cas de contradiction, la base officielle gagne.
+
+${persistentMemoryText}
 
 === HISTORIQUE NARRATIF RÉCENT (CONTEXTUEL UNIQUEMENT) ===
 ⚠️ RÈGLE DE NON-CONTAMINATION :
@@ -1368,6 +1393,21 @@ ${infiniteRPState}
         location: player.location,
         subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
+
+    // Persist validated narrative continuity in Upstash.
+    // We intentionally save the action + validated impacts, not uncontrolled AI prose.
+    try {
+        await rememberValidatedAction({
+            player,
+            action: actionText,
+            summary: validatedSummary,
+            location: player.location,
+            subLocation: player.subLocation,
+            impacts: feedbackList
+        });
+    } catch (memoryErr) {
+        console.error('[UPSTASH MEMORY] Write failed:', memoryErr.message);
+    }
 
     // Sync ONLY validated actions & official status impacts to Excel/CSV Infinite Memory
     try {
