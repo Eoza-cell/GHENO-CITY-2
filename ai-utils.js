@@ -989,9 +989,11 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     // each other, so the fastest (often weak) model could "win" and produce bizarre narration.
     const preferredHFModel = process.env.HF_RP_MODEL || 'Qwen/Qwen2.5-1.5B-Instruct';
     const providers = [
-        { name: 'Hugging Face Transformers RP Core (' + preferredHFModel + ')', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: preferredHFModel }) },
+        // Native Transformers.js is the main ATR brain.
+        { name: 'Transformers.js RP Core (@huggingface/transformers)', fn: callTransformersJS },
+        // Hosted HF is a fallback when the Render instance cannot keep the model in RAM.
+        { name: 'Hugging Face Inference Fallback (' + preferredHFModel + ')', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: preferredHFModel }) },
         { name: 'Ollama RP Fallback', fn: callOllama },
-        { name: 'Transformers.js Fallback (@huggingface/transformers)', fn: callTransformersJS },
         { name: 'OpenRouter Fallback', fn: callOpenRouter },
         { name: 'Puter Fallback', fn: callPuterSDK }
     ];
