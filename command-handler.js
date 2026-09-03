@@ -237,6 +237,114 @@ commands.set('update_stats', async (sock, message, args) => {
   }
 });
 
+// Command: /edit_stats and /set_stats (Modify own stats)
+const editStatsCommand = async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  if (!userStats) {
+    userStats = await UserStats.create({
+      whatsappId: jid,
+      name: message.pushName || 'Compétiteur'
+    });
+  }
+
+  // Format: /edit_stats <victoires> <nuls> <défaites> <buts_marqués> <buts_encaissés>
+  const wins = parseInt(args[0]);
+  const draws = parseInt(args[1]);
+  const losses = parseInt(args[2]);
+  const goalsP = parseInt(args[3]);
+  const goalsC = parseInt(args[4]);
+
+  if (isNaN(wins) || isNaN(draws) || isNaN(losses) || isNaN(goalsP) || isNaN(goalsC) || wins < 0 || draws < 0 || losses < 0 || goalsP < 0 || goalsC < 0) {
+    return await sock.sendMessage(replyJid, {
+      text: `❌ Usage : \`/edit_stats <victoires> <nuls> <défaites> <buts_marqués> <buts_encaissés>\`\n\nExemple : \`/edit_stats 5 2 1 12 6\``
+    });
+  }
+
+  userStats.wins = wins;
+  userStats.draws = draws;
+  userStats.losses = losses;
+  userStats.goalsScored = goalsP;
+  userStats.goalsConceded = goalsC;
+  userStats.points = (wins * 3) + (draws * 1);
+
+  await userStats.save();
+
+  try {
+    const cardBuffer = await generateUserStatsCard(userStats);
+    await sock.sendMessage(replyJid, {
+      image: cardBuffer,
+      caption: `✅ *Vos statistiques eFootball ont été modifiées avec succès !*\n\n` +
+               `👤 *Compétiteur :* ${userStats.name}\n` +
+               `📊 *Bilan :* ${wins}V - ${draws}N - ${losses}D (${goalsP} BP / ${goalsC} BC)\n` +
+               `🏆 *Total Points :* ${userStats.points} pts\n\n` +
+               `⚡ *Marque de Fabrique ARISE*`
+    });
+  } catch (err) {
+    await sock.sendMessage(replyJid, { text: `✅ *Statistiques modifiées !* Total points : ${userStats.points} pts.` });
+  }
+};
+
+commands.set('edit_stats', editStatsCommand);
+commands.set('set_stats', editStatsCommand);
+
+// Command: /reset_stats (Reset player stats)
+commands.set('reset_stats', async (sock, message, args) => {
+  const senderJid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+
+  if (!targetJid && args[0] && args[0].startsWith('@')) {
+    const cleanNumber = args[0].replace(/[^0-9]/g, '');
+    targetJid = `${cleanNumber}@s.whatsapp.net`;
+  }
+
+  // If resetting another player, enforce admin check
+  if (targetJid && targetJid !== senderJid) {
+    const isAdmin = await isGroupAdmin(sock, message, senderJid);
+    if (!isAdmin) {
+      return await sock.sendMessage(replyJid, {
+        text: `❌ *Sécurité eFootball* : Seuls les administrateurs du groupe peuvent réinitialiser les statistiques d'un autre joueur.`
+      });
+    }
+  } else {
+    targetJid = senderJid;
+  }
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: targetJid } });
+  if (!userStats) {
+    userStats = await UserStats.create({
+      whatsappId: targetJid,
+      name: message.pushName || 'Compétiteur'
+    });
+  }
+
+  userStats.wins = 0;
+  userStats.draws = 0;
+  userStats.losses = 0;
+  userStats.goalsScored = 0;
+  userStats.goalsConceded = 0;
+  userStats.points = 0;
+
+  await userStats.save();
+
+  try {
+    const cardBuffer = await generateUserStatsCard(userStats);
+    await sock.sendMessage(replyJid, {
+      image: cardBuffer,
+      caption: `🔄 *Réinitialisation des Statistiques Réussie !*\n\n` +
+               `👤 *Compétiteur :* ${userStats.name}\n` +
+               `📊 Le compteur de matchs, buts et points a été remis à zéro.\n\n` +
+               `⚡ *Marque de Fabrique ARISE*`
+    });
+  } catch (err) {
+    await sock.sendMessage(replyJid, { text: `🔄 Statistiques réinitialisées pour ${userStats.name}.` });
+  }
+});
+
 // Command: /classement
 commands.set('classement', async (sock, message) => {
   const replyJid = message.key.remoteJid;
@@ -711,7 +819,7 @@ async function generateNewsGif(newsList) {
   const delays = rawFrames.map(() => 2500);
 
   return await sharp(combined, {
-    raw: { width, height, channels: 4 }
+    raw: { width, height: height * rawFrames.length, channels: 4 }
   }).gif({ pageHeight: height, loop: 0, delay: delays }).toBuffer();
 }
 

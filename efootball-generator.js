@@ -69,115 +69,115 @@ async function generatePlayerCard(p) {
                 <stop offset="100%" style="stop-color:${cardBgEnd};stop-opacity:1" />
             </linearGradient>
             <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:${strokeColor};stop-opacity:0.95" />
-                <stop offset="50%" style="stop-color:#ffffff;stop-opacity:0.4" />
-                <stop offset="100%" style="stop-color:${strokeColor};stop-opacity:0.8" />
+                <stop offset="0%" style="stop-color:${strokeColor};stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#ffffff;stop-opacity:0.8" />
+                <stop offset="100%" style="stop-color:${strokeColor};stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="goldBadge" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ef4444;stop-opacity:1" />
             </linearGradient>
             <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" style="stop-color:${strokeColor};stop-opacity:0.25" />
                 <stop offset="100%" style="stop-color:${strokeColor};stop-opacity:0.05" />
             </linearGradient>
             <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="12" result="blur" />
+                <feGaussianBlur stdDeviation="10" result="blur" />
                 <feComposite in="SourceGraphic" in2="blur" operator="over" />
             </filter>
         </defs>
 
-        <!-- Outer Card Frame -->
+        <!-- Outer Authentic eFootball Card Shape -->
         <rect width="${width}" height="${height}" fill="url(#bgGrad)" rx="36" />
-        <rect x="16" y="16" width="${width - 32}" height="${height - 32}" rx="30" fill="none" stroke="url(#glowGrad)" stroke-width="4" filter="url(#neonGlow)" />
+        <rect x="12" y="12" width="${width - 24}" height="${height - 24}" rx="30" fill="none" stroke="url(#glowGrad)" stroke-width="5" filter="url(#neonGlow)" />
 
-        <!-- High-tech eFootball Stadium Aura background geometry -->
-        <g opacity="0.12" stroke="${strokeColor}" stroke-width="2">
-            <circle cx="320" cy="240" r="280" fill="none" stroke-dasharray="10 15" />
-            <circle cx="320" cy="240" r="210" fill="none" />
-            <circle cx="320" cy="240" r="140" fill="none" stroke-dasharray="5 10" />
-            <line x1="0" y1="240" x2="640" y2="240" />
-            <line x1="320" y1="0" x2="320" y2="480" />
+        <!-- Top Header: Official eFOOTBALL Logo Tag & Card Type -->
+        <rect x="25" y="25" width="180" height="34" rx="8" fill="rgba(0, 0, 0, 0.8)" stroke="${strokeColor}" stroke-width="1.5" />
+        <text x="115" y="47" font-family="'Impact', 'Arial Black', sans-serif" font-size="16" fill="#38bdf8" text-anchor="middle" letter-spacing="1">eFOOTBALL DB</text>
+
+        <rect x="${width - 185}" y="25" width="160" height="34" rx="8" fill="rgba(0, 0, 0, 0.8)" stroke="${strokeColor}" stroke-width="1.5" />
+        <text x="${width - 105}" y="47" font-family="'Impact', 'Arial Black', sans-serif" font-size="16" fill="#ffd700" text-anchor="middle" letter-spacing="1">${typeLabel.toUpperCase()}</text>
+
+        <!-- Top-Left Player Rating & Position Capsule -->
+        <g transform="translate(35, 80)">
+            <circle cx="50" cy="50" r="45" fill="url(#goldBadge)" stroke="#ffffff" stroke-width="3" />
+            <text x="50" y="60" font-family="'Impact', 'Arial Black', sans-serif" font-size="46" fill="#ffffff" text-anchor="middle" font-weight="900">${p.rating}</text>
+
+            <rect x="10" y="102" width="80" height="30" rx="8" fill="rgba(0,0,0,0.85)" stroke="${strokeColor}" stroke-width="2" />
+            <text x="50" y="123" font-family="'Arial Black', sans-serif" font-size="18" fill="${strokeColor}" text-anchor="middle" font-weight="900">${p.position}</text>
         </g>
 
-        <!-- ARISE Watermark Overlay at bottom -->
-        ${watermarkBase64 ? `
-            <image href="${watermarkBase64}" x="190" y="800" width="260" height="75" opacity="0.75" />
-        ` : `
-            <text x="320" y="845" font-family="'Impact', Arial" font-size="38" fill="rgba(255,255,255,0.2)" text-anchor="middle" letter-spacing="8">ARISE</text>
-        `}
-
-        <!-- Vector Football Silhouette / Emblem when cropped asset is absent -->
+        <!-- Player Portrait Cutout or Silhouette -->
         ${playerImageBase64 ? `
             <image href="${playerImageBase64}" x="140" y="110" width="360" height="360" />
         ` : `
-            <g transform="translate(320, 290)" opacity="0.85">
-                <circle r="120" fill="rgba(255,255,255,0.03)" stroke="${strokeColor}" stroke-width="2" />
-                <path d="M -60 -40 L 0 -100 L 60 -40 L 40 50 L -40 50 Z" fill="none" stroke="${strokeColor}" stroke-width="3" />
-                <circle r="40" fill="rgba(255,255,255,0.08)" stroke="${strokeColor}" stroke-width="2" />
-                <text y="14" font-family="'Arial Black', sans-serif" font-size="32" fill="#ffffff" text-anchor="middle" font-weight="900">${p.position}</text>
+            <g transform="translate(320, 270)" opacity="0.9">
+                <circle r="110" fill="rgba(255,255,255,0.05)" stroke="${strokeColor}" stroke-width="2" />
+                <path d="M -50 -30 L 0 -80 L 50 -30 L 30 40 L -30 40 Z" fill="none" stroke="${strokeColor}" stroke-width="3" />
+                <text y="10" font-family="'Arial Black', sans-serif" font-size="28" fill="#ffffff" text-anchor="middle" font-weight="900">${p.position}</text>
             </g>
         `}
 
-        <!-- Top-Left UI: Overall Rating and Position Hex-Badge -->
-        <g transform="translate(45, 55)">
-            <rect width="105" height="105" rx="20" fill="rgba(10, 5, 25, 0.75)" stroke="${strokeColor}" stroke-width="2" />
-            <text x="52.5" y="50" font-family="'Arial Black', sans-serif" font-size="44" fill="#ffffff" text-anchor="middle" font-weight="900">${p.rating}</text>
-            <text x="52.5" y="88" font-family="'Arial Black', sans-serif" font-size="24" fill="${strokeColor}" text-anchor="middle" font-weight="900">${p.position}</text>
-        </g>
-
-        <!-- Top-Right UI: Card Type Tag -->
-        <g transform="translate(450, 55)">
-            <rect width="145" height="42" rx="10" fill="rgba(0,0,0,0.7)" stroke="${strokeColor}" stroke-width="1.5" />
-            <text x="72.5" y="27" font-family="'Arial Black', sans-serif" font-size="16" fill="#ffffff" font-weight="900" text-anchor="middle" letter-spacing="1">${typeLabel.toUpperCase()}</text>
-        </g>
-
         <!-- Player Main Banner Info -->
-        <g transform="translate(320, 500)">
-            <text font-family="'Arial Black', sans-serif" font-size="40" fill="#ffffff" text-anchor="middle" font-weight="900">${p.name.toUpperCase()}</text>
-            <text y="40" font-family="'Arial', sans-serif" font-size="22" fill="${strokeColor}" font-weight="bold" text-anchor="middle">${p.club} • ${p.country}</text>
+        <g transform="translate(320, 480)">
+            <rect x="-260" y="-15" width="520" height="65" rx="14" fill="rgba(0, 0, 0, 0.85)" stroke="${strokeColor}" stroke-width="2" />
+            <text y="28" font-family="'Impact', 'Arial Black', sans-serif" font-size="36" fill="#ffffff" text-anchor="middle" letter-spacing="1">${p.name.toUpperCase()}</text>
+            <text y="75" font-family="'Arial', sans-serif" font-size="20" fill="${strokeColor}" font-weight="bold" text-anchor="middle">${p.club} • ${p.country}</text>
         </g>
 
-        <!-- Detailed Stat Pills Section -->
-        <g transform="translate(50, 600)">
+        <!-- Detailed Stat Pills Section (6 Key Attributes) -->
+        <g transform="translate(40, 595)">
             <!-- Speed (VIT) -->
             <g transform="translate(0, 0)">
-                <rect width="80" height="85" rx="12" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-                <text x="40" y="28" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.6)" text-anchor="middle">VIT</text>
-                <text x="40" y="66" font-family="'Arial Black', sans-serif" font-size="28" fill="#ffffff" font-weight="900" text-anchor="middle">${p.speed}</text>
+                <rect width="85" height="90" rx="14" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+                <text x="42.5" y="30" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.7)" text-anchor="middle">VIT</text>
+                <text x="42.5" y="70" font-family="'Impact', sans-serif" font-size="32" fill="#38bdf8" text-anchor="middle">${p.speed}</text>
             </g>
 
             <!-- Dribbling (DRI) -->
-            <g transform="translate(92, 0)">
-                <rect width="80" height="85" rx="12" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-                <text x="40" y="28" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.6)" text-anchor="middle">DRI</text>
-                <text x="40" y="66" font-family="'Arial Black', sans-serif" font-size="28" fill="#ffffff" font-weight="900" text-anchor="middle">${p.dribbling}</text>
+            <g transform="translate(95, 0)">
+                <rect width="85" height="90" rx="14" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+                <text x="42.5" y="30" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.7)" text-anchor="middle">DRI</text>
+                <text x="42.5" y="70" font-family="'Impact', sans-serif" font-size="32" fill="#38bdf8" text-anchor="middle">${p.dribbling}</text>
             </g>
 
             <!-- Shooting (TIR) -->
-            <g transform="translate(184, 0)">
-                <rect width="80" height="85" rx="12" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-                <text x="40" y="28" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.6)" text-anchor="middle">TIR</text>
-                <text x="40" y="66" font-family="'Arial Black', sans-serif" font-size="28" fill="#ffffff" font-weight="900" text-anchor="middle">${p.shooting}</text>
+            <g transform="translate(190, 0)">
+                <rect width="85" height="90" rx="14" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+                <text x="42.5" y="30" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.7)" text-anchor="middle">TIR</text>
+                <text x="42.5" y="70" font-family="'Impact', sans-serif" font-size="32" fill="#38bdf8" text-anchor="middle">${p.shooting}</text>
             </g>
 
             <!-- Passing (PAS) -->
-            <g transform="translate(276, 0)">
-                <rect width="80" height="85" rx="12" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-                <text x="40" y="28" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.6)" text-anchor="middle">PAS</text>
-                <text x="40" y="66" font-family="'Arial Black', sans-serif" font-size="28" fill="#ffffff" font-weight="900" text-anchor="middle">${p.passing}</text>
+            <g transform="translate(285, 0)">
+                <rect width="85" height="90" rx="14" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+                <text x="42.5" y="30" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.7)" text-anchor="middle">PAS</text>
+                <text x="42.5" y="70" font-family="'Impact', sans-serif" font-size="32" fill="#38bdf8" text-anchor="middle">${p.passing}</text>
             </g>
 
             <!-- Defense (DEF) -->
-            <g transform="translate(368, 0)">
-                <rect width="80" height="85" rx="12" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-                <text x="40" y="28" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.6)" text-anchor="middle">DEF</text>
-                <text x="40" y="66" font-family="'Arial Black', sans-serif" font-size="28" fill="#ffffff" font-weight="900" text-anchor="middle">${p.defense}</text>
+            <g transform="translate(380, 0)">
+                <rect width="85" height="90" rx="14" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+                <text x="42.5" y="30" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.7)" text-anchor="middle">DEF</text>
+                <text x="42.5" y="70" font-family="'Impact', sans-serif" font-size="32" fill="#38bdf8" text-anchor="middle">${p.defense}</text>
             </g>
 
             <!-- Physical (PHY) -->
-            <g transform="translate(460, 0)">
-                <rect width="80" height="85" rx="12" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
-                <text x="40" y="28" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.6)" text-anchor="middle">PHY</text>
-                <text x="40" y="66" font-family="'Arial Black', sans-serif" font-size="28" fill="#ffffff" font-weight="900" text-anchor="middle">${p.physical}</text>
+            <g transform="translate(475, 0)">
+                <rect width="85" height="90" rx="14" fill="url(#badgeGrad)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+                <text x="42.5" y="30" font-family="'Arial Black', sans-serif" font-size="15" fill="rgba(255,255,255,0.7)" text-anchor="middle">PHY</text>
+                <text x="42.5" y="70" font-family="'Impact', sans-serif" font-size="32" fill="#38bdf8" text-anchor="middle">${p.physical}</text>
             </g>
         </g>
+
+        <!-- Bottom Footer Watermark (ARISE eFootball) -->
+        <rect x="0" y="${height - 50}" width="${width}" height="50" fill="rgba(0, 0, 0, 0.95)" />
+        ${watermarkBase64 ? `
+            <image href="${watermarkBase64}" x="190" y="${height - 48}" width="260" height="45" opacity="0.9" />
+        ` : `
+            <text x="25" y="${height - 18}" fill="#38bdf8" font-size="14" font-family="sans-serif" font-weight="bold">⚡ ARISE eFootball League</text>
+            <text x="${width - 25}" y="${height - 18}" fill="#ffd700" font-size="13" font-family="sans-serif" text-anchor="end">Official eFootballdb Card</text>
+        `}
     </svg>
     `;
 
