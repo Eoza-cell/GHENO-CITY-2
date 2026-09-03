@@ -49,7 +49,7 @@ commands.set('ping', async (sock, message) => {
 // Command: /start
 commands.set('start', async (sock, message) => {
   const jid = getJid(message);
-  const player = await Player.findOne({ where: { whatsappId: jid } });
+  let player = await Player.findOne({ where: { whatsappId: jid } });
   const replyJid = message.key.remoteJid;
 
   const sendStep = async (step, caption) => {
