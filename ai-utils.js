@@ -618,7 +618,7 @@ async function callHuggingFaceLocal(system, prompt, options = {}) {
 
             const env = { ...process.env };
             if (options && options.model) {
-                env.EMPERO_MODEL = options.model;
+                env.HF_RP_MODEL = options.model;
             }
 
             exec(`python3 "${scriptPath}" "${tmpSys}" "${tmpUsr}"`, { timeout: 20000, env }, (error, stdout) => {
@@ -951,15 +951,15 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
     const { callTransformersJS } = require('./transformers-js-handler');
     const { callWebLLM } = require('./webllm-handler');
+    // ATR prefers one coherent RP brain. Previously several unrelated providers raced
+    // each other, so the fastest (often weak) model could "win" and produce bizarre narration.
+    const preferredHFModel = process.env.HF_RP_MODEL || 'Qwen/Qwen2.5-1.5B-Instruct';
     const providers = [
-        { name: 'Puter SDK AI (Claude 3.5 / Gemini / Llama 70B RP Models)', fn: callPuterSDK },
-        { name: 'OpenRouter Free RP Models (Qwen 72B / Llama 70B)', fn: callOpenRouter },
-        { name: 'GPT4Free (g4f)', fn: callG4F },
-        { name: 'Empero AI Research Lab (Qwythos/Qwen3.8 PyTorch)', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: 'empero-ai/Qwythos-9B-v2' }) },
-        { name: 'Hugging Face Transformers Neural Model (Local PyTorch)', fn: callHuggingFaceLocal },
-        { name: 'Ollama (Local)', fn: callOllama },
-        { name: 'DevToolbox Free AI (Fallback)', fn: callDevToolbox },
-        { name: 'Transformers.js Engine (@huggingface/transformers)', fn: callTransformersJS }
+        { name: 'Hugging Face Transformers RP Core (' + preferredHFModel + ')', fn: async (sys, usr, opts) => callHuggingFaceLocal(sys, usr, { ...opts, model: preferredHFModel }) },
+        { name: 'Ollama RP Fallback', fn: callOllama },
+        { name: 'Transformers.js Fallback (@huggingface/transformers)', fn: callTransformersJS },
+        { name: 'OpenRouter Fallback', fn: callOpenRouter },
+        { name: 'Puter Fallback', fn: callPuterSDK }
     ];
 
     const timeouts = [];
@@ -1037,7 +1037,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                 }
             });
 
-            const nextDelay = index === 0 ? 250 : 1000;
+            const nextDelay = index === 0 ? 8000 : 5000;
             timeouts.push(setTimeout(() => launchAtIndex(index + 1), nextDelay));
         };
 
