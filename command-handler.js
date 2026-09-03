@@ -22,7 +22,7 @@ const { resolveMentions } = require('./message-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const referee = require('./referee-logic');
-const { generateRegistrationPanel, generateTacticalStatus, generateMenuPanel } = require('./atr-interface');
+const { generateRegistrationPanel, generateTacticalStatus, generateMenuPanel, generateArchivePanel } = require('./atr-interface');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -1864,8 +1864,13 @@ commands.set('lore', async (sock, message, args) => {
     const topic = args.join(' ').trim();
 
     if (!topic) {
-        const categories = `📚 *BIBLIOTHÈQUE D'AETHERYS*\n\nUtilise \`/lore <nom>\` pour lire une archive en texte.\n\nEntrées conseillées :\n- *Origines* : One Above All, Idee du Mal\n- *Mysteres* : Beherit, Apotres, Interstice\n- *Evenements* : Histoire, Convergence, Missions historiques\n- *Societe* : Aetherys, Academie, Clubs\n- *Royaumes* : Elion, Valkyr, Necropolis`;
-        return await sock.sendMessage(replyJid, { text: categories });
+        const categories = `📚 *ARCHIVES D'AETHERYS*\n\nTape */lore <sujet>* pour ouvrir une archive.\n\n🔹 One Above All • Idée du Mal\n🔹 Béhérit • Apôtres • Interstice\n🔹 Elion • Valkyr • Nécropolis\n🔹 Académie • Clubs • Personnages`;
+        try {
+            const archiveImage = await generateArchivePanel();
+            return await sock.sendMessage(replyJid, { image: archiveImage, caption: categories });
+        } catch {
+            return await sock.sendMessage(replyJid, { text: categories });
+        }
     }
 
     await sock.sendMessage(replyJid, { text: "🔍 _Recherche dans les archives d'Aetherys..._" });
