@@ -22,6 +22,7 @@ const { resolveMentions } = require('./message-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const referee = require('./referee-logic');
+const { generateRegistrationPanel, generateTacticalStatus, generateMenuPanel } = require('./atr-interface');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -51,26 +52,34 @@ commands.set('start', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: jid } });
   const replyJid = message.key.remoteJid;
 
-  if (!player) {
-    await Player.create({
-        whatsappId: jid,
-        registrationStep: 'awaiting_name'
-    });
-    await sock.sendMessage(replyJid, { text: "*Bienvenue dans Aetheris, Héritier...*\n\nLe monde que tu connaissais n'est plus. Les sceaux se brisent, et l'Essence Primordiale s'éveille en toi. Entre la protection des Célestes et la menace des Bestiaux, ta lignée déterminera le futur de l'existence.\n\nTraverse l'Interstice, défie le Roi Vide et forge ton destin dans la matrice d'Aetheris.\n\n*...3_2_1...*\n\n*LINK START!!*\n\nPour commencer, quel est ton nom, Héritier ?" });
-  } else if (player.registrationStep) {
-    // Resume registration
-    if (player.registrationStep === 'awaiting_name') {
-        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton nom, Héritier ?" });
-    } else if (player.registrationStep === 'awaiting_gender') {
-        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton sexe, Héritier ?" });
-    } else if (player.registrationStep === 'awaiting_age') {
-        await sock.sendMessage(replyJid, { text: "Rappel: Quel est ton âge, Héritier ?" });
-    } else if (player.registrationStep === 'awaiting_description') {
-        await sock.sendMessage(replyJid, { text: `Rappel: Enchanté ${player.name}. Décris ton personnage en une phrase.` });
+  const sendStep = async (step, caption) => {
+    try {
+      const panel = await generateRegistrationPanel(step, { name: player?.name });
+      await sock.sendMessage(replyJid, { image: panel, caption });
+    } catch {
+      await sock.sendMessage(replyJid, { text: caption });
     }
-  } else {
-    await sock.sendMessage(replyJid, { text: `« Te revoilà, ${player.name}. L'Interstice s'agite en ton absence... Ne tarde pas trop. »\n\nUtilise /quests pour voir tes objectifs.` });
+  };
+
+  if (!player) {
+    const created = await Player.create({ whatsappId: jid, registrationStep: 'awaiting_name' });
+    player = created;
+    return sendStep(0, `*BIENVENUE DANS AFTER THE REBIRTH*\n\nLa Matrice vient de détecter un nouvel Héritier.\n\n📝 *ÉTAPE 1/4 — NOM*\nEntre maintenant le nom de ton personnage.`);
   }
+
+  if (player.registrationStep) {
+    const map = { awaiting_name:0, awaiting_gender:1, awaiting_age:2, awaiting_description:3 };
+    const step = map[player.registrationStep] ?? 0;
+    const prompts = [
+      '📝 *ÉTAPE 1/4 — NOM*\nEntre le nom de ton personnage.',
+      '👤 *ÉTAPE 2/4 — IDENTITÉ*\nIndique le genre/identité de ton personnage.',
+      '🎂 *ÉTAPE 3/4 — ÂGE*\nEntre un âge valide.',
+      '🎨 *ÉTAPE 4/4 — APPARENCE*\nDécris ton personnage : cheveux, yeux, style, tenue et détails visuels.'
+    ];
+    return sendStep(step, prompts[step]);
+  }
+
+  await sock.sendMessage(replyJid, { text: `◈ *ATR • MATRICE ACTIVE*\n\nBienvenue, *${player.name}*.\nUtilise */menu* pour ouvrir l'interface.` });
 });
 
 // Command: /quests
@@ -1752,49 +1761,24 @@ commands.set('statut', async (sock, message) => {
     const jid = getJid(message);
     const player = await Player.findOne({ where: { whatsappId: jid } });
     const replyJid = message.key.remoteJid;
+    if (!player) return await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
 
-    if (!player) {
-        await sock.sendMessage(replyJid, { text: "Commence le jeu avec /start." });
-        return;
+    const equipped = { head:false, chest:false, arms:false, legs:false, weapon:false };
+    const inventory = Array.isArray(player.inventory) ? player.inventory : [];
+    const itemNames = inventory.map(i => i?.name).filter(Boolean);
+    if (itemNames.length) {
+      const dbItems = await Item.findAll({ where: { name: { [Op.in]: itemNames } } });
+      dbItems.forEach(item => { if (item.slot in equipped) equipped[item.slot] = true; });
     }
 
-    const inventory = player.inventory;
-    const equipped = {
-        head: false,
-        chest: false,
-        arms: false,
-        legs: false,
-        weapon: false
-    };
-
-    // For each item in inventory, check if it's in the DB and get its slot
-    // Optimization: find all items from DB that are in inventory
-    const itemNames = inventory.map(i => i.name);
-    const dbItems = await Item.findAll({ where: { name: { [Op.in]: itemNames } } });
-
-    dbItems.forEach(item => {
-        if (equipped[item.slot] !== undefined) {
-            equipped[item.slot] = true;
-        }
-    });
+    const caption = `🛡️ *STATUT TACTIQUE — ${player.name}*\n❤️ ${player.health}/${player.maxHealth}  |  🌀 ${player.mana}/${player.maxMana}\n💰 ${player.col} COL\n📍 ${player.location} — ${player.subLocation}\n👗 ${player.equippedOutfit || 'Tenue de base'}`;
 
     try {
-        const imageBuffer = await generateEquipmentStatusImage(equipped);
-        let caption = `*État de l'équipement de ${player.name}*\n\n`;
-        caption += `🟢 Protégé | ⚪ Non protégé\n\n`;
-        caption += `${equipped.head ? '🟢' : '⚪'} Tête\n`;
-        caption += `${equipped.chest ? '🟢' : '⚪'} Torse\n`;
-        caption += `${equipped.arms ? '🟢' : '⚪'} Bras\n`;
-        caption += `${equipped.legs ? '🟢' : '⚪'} Jambes\n`;
-        caption += `${equipped.weapon ? '⚔️' : '⚪'} Arme\n`;
-
-        await sock.sendMessage(replyJid, {
-            image: imageBuffer,
-            caption: caption
-        });
+      const imageBuffer = await generateTacticalStatus(player, equipped);
+      await sock.sendMessage(replyJid, { image: imageBuffer, caption });
     } catch (error) {
-        console.error("Erreur génération statut visuel:", error);
-        await sock.sendMessage(replyJid, { text: "Impossible de générer le visuel de l'équipement." });
+      console.error('[UI] Tactical status fallback:', error.message);
+      await sock.sendMessage(replyJid, { text: caption });
     }
 });
 
@@ -2953,72 +2937,16 @@ commands.set('menu', async (sock, message) => {
   const jid = getJid(message);
   const replyJid = message.key.remoteJid;
   const player = await Player.findOne({ where: { whatsappId: jid } });
-  if (player) {
-    await player.update({ mode: 'normal' });
-  }
+  if (player) await player.update({ mode: 'normal' });
 
-  // Promise delay helper
-  const delayHelper = ms => new Promise(res => setTimeout(res, ms));
-
-  // Stylish loading bar sequence
-  const loadingMsg = await sock.sendMessage(replyJid, { text: "🔷 [◽◽◽◽◽◽◽◽◽◽] 0% - Initialisation de l'interface ATR..." });
-
-  await delayHelper(350);
-  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷◽◽◽◽◽◽◽] 30% - Synchronisation avec la matrice...", edit: loadingMsg.key });
-
-  await delayHelper(350);
-  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷🔷🔷🔷◽◽◽◽] 60% - Récupération de l'Héritier...", edit: loadingMsg.key });
-
-  await delayHelper(350);
-  await sock.sendMessage(replyJid, { text: "🔷 [🔷🔷🔷🔷🔷🔷🔷🔷🔷◽] 90% - Rendu de la carte d'accès tactique...", edit: loadingMsg.key });
-
-  await delayHelper(250);
-  await sock.sendMessage(replyJid, { delete: loadingMsg.key });
-
-  const menuText = "╔══════════════════════════════════╗\n" +
-                   "   🌐  *AFTER THE REBIRTH (ATR)*  🌐\n" +
-                   "╚══════════════════════════════════╝\n" +
-                   "_Matrice Tactique • Chroniques & Destin d'Aetherys_\n\n" +
-                   "✦ ⚔️ *AVENTURE & COMBAT*\n" +
-                   "  ├ `/action` (`/a`) - Entrer dans le RP (Mode Action)\n" +
-                   "  └ `/dormir` (`/d`) - Sommeil (3 min, +100% Énergie)\n\n" +
-                   "✦ 👤 *PROFIL & STATISTIQUES*\n" +
-                   "  ├ `/profil` (`/p`) - Carte d'identité & aura\n" +
-                   "  ├ `/inventory` (`/i`) - Sac à dos & équipements\n" +
-                   "  └ `/competences` (`/s`) - Sorts & compétences\n\n" +
-                   "✦ 📍 *EXPLORATION & MONDE*\n" +
-                   "  ├ `/map` - Carte interactive des 17 Royaumes\n" +
-                   "  ├ `/quests` (`/q`) - Journal de quêtes & objectifs\n" +
-                   "  ├ `/lieux` - Position actuelle & environnements\n" +
-                   "  └ `/joueurs` - Héritiers actifs à proximité\n\n" +
-                   "✦ 🪙 *ÉCONOMIE & MARCHÉ*\n" +
-                   "  ├ `/bank` - Banque centrale Col & comptes\n" +
-                   "  ├ `/boutique` - Armes, armures & nourriture\n" +
-                   "  └ `/vetements` - Tenues, réparations & lavage\n\n" +
-                   "✦ 🏛️ *SOCIÉTÉ & FACTIONS*\n" +
-                   "  ├ `/maison` - Domicile & stockage privé\n" +
-                   "  ├ `/clubs` - Factions académiques & guildes\n" +
-                   "  ├ `/pacts` - Pactes d'entités mystiques\n" +
-                   "  └ `/lore` - Archives historiques d'ATR\n\n" +
-                   "✦ 🏆 *COMPÉTITION & RANGS*\n" +
-                   "  ├ `/top` - Classement mondial des Héritiers\n" +
-                   "  └ `/tournoi` - Événements PVP & Arènes\n\n" +
-                   "✦ ⚙️ *SYSTÈME & RACCOURCIS*\n" +
-                   "  ├ `/menu` (`/m`) - Réafficher ce menu\n" +
-                   "  ├ `/status` - Diagnostic système\n" +
-                   "  └ `/help` - Aide complète\n\n" +
-                   "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
-                   "💡 *Astuce:* Utilisez les boutons ci-dessous ou les raccourcis (`/a`, `/p`, `/d`, `/m`) !";
+  const menuText = `🎮 *AFTER THE REBIRTH — MENU RAPIDE*\n\n⚔️ /action • 👤 /profil • 🛡️ /statut\n🗺️ /map • 📜 /quests • 📍 /lieux\n👗 /tenue • 🛒 /boutique • 📚 /lore\n⚙️ /status • ❓ /help\n\n_Choisis ta prochaine action._`;
 
   try {
-    const menuImage = await generateMainMenuImage(player);
-    await sock.sendMessage(message.key.remoteJid, {
-        image: menuImage,
-        caption: menuText
-    });
+    const menuImage = await generateMenuPanel(player);
+    await sock.sendMessage(replyJid, { image: menuImage, caption: menuText });
   } catch (error) {
-    console.warn("Erreur génération image menu:", error.message);
-    await sock.sendMessage(message.key.remoteJid, { text: menuText });
+    console.warn('[UI] Menu visual fallback:', error.message);
+    await sock.sendMessage(replyJid, { text: menuText });
   }
 });
 
@@ -3470,52 +3398,65 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       }
   }
 
-  // Handle registration flow
+  // Handle registration flow — deterministic and isolated from the AI.
+  // Character creation must NEVER be interpreted as free RP.
   if (player && player.registrationStep) {
-      if (player.registrationStep === 'awaiting_name') {
-          const playerName = messageText.trim();
-          if (playerName.length > 2 && playerName.length <= 20 && !playerName.startsWith('/')) {
-              await player.update({ name: playerName, registrationStep: 'awaiting_gender' });
-
-              // Create a bank account if not exists
-              await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
-
-              // Assign starting quests
-              const startingQuest = await Quest.findOne({ where: { title: 'La Chasse aux Gobelins' } });
-              if (startingQuest) {
-                  await player.addQuest(startingQuest, { through: { status: 'not_started' } });
-              }
-
-              await sock.sendMessage(replyJid, { text: `« ${playerName}... Un nom qui résonnera bientôt dans les couloirs de l'Interstice, je l'espère. »\n\nEnchanté. Quel est ton sexe, Héritier ?` });
-          } else {
-              await sock.sendMessage(replyJid, { text: "Nom invalide (3-20 caractères, pas de '/'). Réessaie." });
+      const sendRegistration = async (step, caption) => {
+          try {
+              const panel = await generateRegistrationPanel(step, { name: player.name });
+              await sock.sendMessage(replyJid, { image: panel, caption });
+          } catch {
+              await sock.sendMessage(replyJid, { text: caption });
           }
-      } else if (player.registrationStep === 'awaiting_gender') {
-          const gender = messageText.trim();
-          await player.update({ gender, registrationStep: 'awaiting_age' });
-          await sock.sendMessage(replyJid, { text: `« Très bien. Et quel est ton âge, Héritier ? Le temps s'écoule différemment ici, mais ton enveloppe charnelle a bien une origine. »` });
-      } else if (player.registrationStep === 'awaiting_age') {
-          const age = parseInt(messageText.trim());
-          if (!isNaN(age) && age > 0 && age < 150) {
-              await player.update({ age, registrationStep: 'awaiting_description' });
-              await sock.sendMessage(replyJid, { text: `Très bien. Maintenant, décris l'apparence physique détaillée de ton personnage (jusqu'à 1000 caractères max : yeux, cheveux, tenue, cicatrices, aura, style, etc.). Cette description sera utilisée pour générer tes images de jeu !` });
-          } else {
-              await sock.sendMessage(replyJid, { text: "Âge invalide. Réessaie." });
-          }
-      } else if (player.registrationStep === 'awaiting_description') {
-        const description = messageText.trim();
-        if (description.length >= 5 && description.length <= 1000) {
-            await player.update({
-                characterDescription: description,
-                registrationStep: null, // Registration finished
-                awaitingProfilePic: true
-            });
-            await sock.sendMessage(replyJid, { text: `« Je vois... Ton essence commence à se stabiliser. »\n\nDescription enregistrée (${description.length}/1000 caractères) ! Pour terminer, envoie une image qui représentera ton personnage. Elle sera gravée dans la matrice d'ATR.` });
-        } else {
-            await sock.sendMessage(replyJid, { text: "Description trop courte ou trop longue (5-1000 caractères). Réessaie." });
-        }
+      };
+
+      const input = messageText.trim();
+      if (input.startsWith('/')) {
+          await sock.sendMessage(replyJid, { text: "⛔ La création est en cours. Réponds simplement à l'étape affichée." });
+          return;
       }
-      return;
+
+      if (player.registrationStep === 'awaiting_name') {
+          const playerName = input.replace(/\s+/g, ' ');
+          if (playerName.length >= 3 && playerName.length <= 20) {
+              await player.update({ name: playerName, registrationStep: 'awaiting_gender' });
+              await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+              const startingQuest = await Quest.findOne({ where: { title: 'La Chasse aux Gobelins' } });
+              if (startingQuest) await player.addQuest(startingQuest, { through: { status: 'not_started' } });
+              await sendRegistration(1, `👤 *ÉTAPE 2/4 — IDENTITÉ*\nHéritier enregistré : *${playerName}*.\nIndique maintenant le genre/identité de ton personnage.`);
+          } else await sendRegistration(0, "⚠️ *Nom invalide.* Entre un nom de 3 à 20 caractères.");
+          return;
+      }
+
+      if (player.registrationStep === 'awaiting_gender') {
+          const gender = input.slice(0, 40);
+          if (gender.length < 1) return sendRegistration(1, "⚠️ Indique une identité pour continuer.");
+          await player.update({ gender, registrationStep: 'awaiting_age' });
+          await sendRegistration(2, `🎂 *ÉTAPE 3/4 — ÂGE*\nIdentité enregistrée. Entre maintenant l'âge du personnage.`);
+          return;
+      }
+
+      if (player.registrationStep === 'awaiting_age') {
+          const age = Number.parseInt(input, 10);
+          if (Number.isInteger(age) && age >= 1 && age <= 149) {
+              await player.update({ age, registrationStep: 'awaiting_description' });
+              await sendRegistration(3, "🎨 *ÉTAPE 4/4 — APPARENCE*\nDécris ton personnage en quelques phrases : cheveux, yeux, vêtements, style et détails distinctifs.");
+          } else await sendRegistration(2, "⚠️ *Âge invalide.* Entre un nombre entre 1 et 149.");
+          return;
+      }
+
+      if (player.registrationStep === 'awaiting_description') {
+          const description = input;
+          if (description.length >= 5 && description.length <= 1000) {
+              await player.update({
+                  characterDescription: description,
+                  registrationStep: null,
+                  awaitingProfilePic: true
+              });
+              await sendRegistration(4, `✅ *PERSONNAGE CRÉÉ*\n\n*${player.name}* est maintenant enregistré dans la Matrice.\n📸 Envoie une image de référence pour ton personnage, ou écris *passer* pour utiliser la description comme référence visuelle.`);
+          } else await sendRegistration(3, "⚠️ Description trop courte ou trop longue (5–1000 caractères).");
+          return;
+      }
   }
 
   if (!player && !messageText.startsWith('/start')) {
