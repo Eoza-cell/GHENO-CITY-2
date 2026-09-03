@@ -118,6 +118,22 @@ async function resolveExplicitDestination(player, actionText) {
     const text = normalizeSceneText(raw);
 
     const movementIntent = /\b(je me dirige vers|je vais vers|je vais voir|je me rends vers|je marche vers|je pars vers|je cours vers|je vais a|je vais au|je vais a la|je vais dans)\b/.test(text);
+
+    // Contextual continuation: after arriving somewhere, "j'entre / je rentre à l'intérieur"
+    // must refer to the CURRENT official place, never let the LLM pick a random building.
+    const entersCurrentPlace = /\b(je rentre|je entre|j entre|je vais a l interieur|je penetre|je pénètre)\b/.test(text) &&
+        /\b(a l interieur|à l intérieur|dans|dedans|a l interieur)\b/.test(text);
+
+    if (entersCurrentPlace && player.subLocation && player.subLocation !== 'Centre-ville') {
+        return {
+            location: player.location,
+            zone: player.zone || 'Centre-ville',
+            subLocation: player.subLocation,
+            anchor: player.subLocation,
+            source: 'contextual-enter'
+        };
+    }
+
     if (!movementIntent) return null;
 
     const aliases = [
@@ -1469,7 +1485,9 @@ ${infiniteRPState}
 6. Une action simple ("Je marche") doit produire une conséquence simple, naturelle et proportionnelle.
 7. N'explique jamais les règles du système au joueur et ne transforme jamais ta réponse en rapport technique.
 8. Pour une action hostile contre un civil anonyme réellement plausible dans un lieu public, résous la scène de façon crédible : réaction de la cible, témoins, gardes ou conséquences possibles, sans prétendre que la cible « n'existe pas ».
-9. Privilégie toujours une narration fluide et humaine à une répétition mécanique des données officielles.`;
+9. Privilégie toujours une narration fluide et humaine à une répétition mécanique des données officielles.
+10. CONTINUITÉ STRICTE : si l'action est une suite contextuelle comme "je rentre à l'intérieur", "j'entre", "je continue", "je marche", elle se produit obligatoirement dans ou depuis le SOUS-LIEU OFFICIEL ACTUEL. Tu n'as PAS le droit de choisir un autre bâtiment.
+11. Ne réponds JAMAIS avec des étiquettes techniques comme "User Safety: safe", "assistant:", "system:", ni avec une analyse de sécurité. Réponds uniquement par la narration RP.`;
 
   try {
     let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false, playerAction: actionText });
