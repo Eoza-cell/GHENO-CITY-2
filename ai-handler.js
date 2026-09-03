@@ -1566,8 +1566,17 @@ ${infiniteRPState}
         .replace(/__(.*?)__/g, "_$1_")     // Convert __italic__ to _italic_
         .replace(/\\n/g, "\n");
 
-    // Save ONLY validated system feedback to memory (avoiding storing hallucinated narrative text)
+    // Persist two layers of continuity:
+    // 1) official impacts for gameplay truth;
+    // 2) a compact narrative scene recap so the next turn remembers the conversation.
     const validatedSummary = `Action: "${actionText}"` + (feedbackList.length > 0 ? ` | Impacts: ${feedbackList.join(' ; ')}` : '');
+    const narrativeSceneSummary = String(content || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 1400);
+    const continuitySummary = narrativeSceneSummary
+        ? `SCÈNE: ${narrativeSceneSummary}`
+        : validatedSummary;
 
     await RPMessage.create({
         senderJid: 'MJ_AETHERYS',
@@ -1583,7 +1592,7 @@ ${infiniteRPState}
         await rememberValidatedAction({
             player,
             action: actionText,
-            summary: validatedSummary,
+            summary: continuitySummary,
             location: player.location,
             subLocation: player.subLocation,
             impacts: feedbackList
