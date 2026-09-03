@@ -63,6 +63,11 @@ function isValidAIResponse(input) {
     if (cleaned.length < 3) return false;
 
     const lower = cleaned.toLowerCase();
+
+    // Classifier/debug leakage is not a roleplay answer.
+    if (/^(user safety|safety|content safety)\s*:/i.test(cleaned)) return false;
+    if (/^safe\s*$/i.test(cleaned)) return false;
+
     const errorMarkers = [
         '"error":',
         '"message":"unauthorized"',
