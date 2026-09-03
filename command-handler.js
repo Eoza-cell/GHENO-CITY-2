@@ -3392,13 +3392,40 @@ async function handleCommand(sock, message, downloadMediaMessage) {
       }
   }
 
-  // Handle profile pic pending blocking
+  // Handle profile reference image after character creation.
+  // This is deterministic and never sent to the RP AI.
   if (player && player.awaitingProfilePic) {
-      if (!messageText.startsWith('/')) {
+      const imageMessage = message.message.imageMessage;
+      const skip = /^passer$/i.test(messageText.trim());
+
+      if (imageMessage && typeof downloadMediaMessage === 'function') {
+          try {
+              const avatarDir = path.join(__dirname, 'assets', 'player-avatars');
+              fs.mkdirSync(avatarDir, { recursive: true });
+              const safeId = String(jid).replace(/[^a-zA-Z0-9_-]/g, '_');
+              const avatarPath = path.join(avatarDir, `${safeId}.jpg`);
+              const buffer = await downloadMediaMessage(message, 'buffer');
+              if (buffer && buffer.length) {
+                  fs.writeFileSync(avatarPath, buffer);
+                  await player.update({ awaitingProfilePic: false, profilePicUrl: avatarPath });
+                  await sock.sendMessage(replyJid, { text: "📸 *RÉFÉRENCE VISUELLE ENREGISTRÉE*\nTon personnage possède maintenant une référence pour les futurs rendus." });
+                  await startTutorial(sock, replyJid, player);
+                  return;
+              }
+          } catch (avatarErr) {
+              console.error('[AVATAR] Upload failed:', avatarErr.message);
+          }
+      }
+
+      if (skip) {
           await player.update({ awaitingProfilePic: false });
-          await sock.sendMessage(replyJid, { text: "Photo de profil ignorée (avatar par défaut attribué). Bienvenue dans After the Rebirth (ATR) !" });
-          const { startTutorial } = require('./tutorial-handler');
+          await sock.sendMessage(replyJid, { text: "✨ *CRÉATION TERMINÉE*\nLa description officielle servira de référence visuelle à ton personnage." });
           await startTutorial(sock, replyJid, player);
+          return;
+      }
+
+      if (!messageText.startsWith('/')) {
+          await sock.sendMessage(replyJid, { text: "📸 Envoie une image pour ton personnage, ou écris *passer* pour continuer sans image." });
           return;
       }
   }
