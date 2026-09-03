@@ -589,6 +589,40 @@ async function callBlackbox(system, prompt, options = {}) {
 }
 
 async function callHuggingFaceLocal(system, prompt, options = {}) {
+    const requestedModel = (options && options.model) || process.env.HF_RP_MODEL || 'Qwen/Qwen2.5-1.5B-Instruct';
+
+    // 0. Hugging Face Inference Providers: best option for Render/Node hosting.
+    // The bot does not need to download a multi-GB model on every deploy.
+    const hfToken = process.env.HF_TOKEN || process.env.HF_API_KEY;
+    if (hfToken) {
+        try {
+            const remoteModel = process.env.HF_RP_REMOTE_MODEL || requestedModel;
+            console.log('[AI] Hugging Face Inference Providers - ' + remoteModel);
+            const resp = await axios.post('https://router.huggingface.co/v1/chat/completions', {
+                model: remoteModel,
+                messages: [
+                    { role: 'system', content: system },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: Number(process.env.HF_RP_TEMPERATURE || 0.82),
+                top_p: Number(process.env.HF_RP_TOP_P || 0.92),
+                max_tokens: Number(process.env.HF_RP_MAX_NEW_TOKENS || 420),
+                stream: false
+            }, {
+                headers: {
+                    Authorization: 'Bearer ' + hfToken,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 30000
+            });
+
+            const content = resp.data?.choices?.[0]?.message?.content;
+            if (isValidAIResponse(content)) return content;
+        } catch (e) {
+            console.warn('[AI] Hugging Face remote provider unavailable:', e.response?.data || e.message);
+        }
+    }
+
     // 1. Try background local python server if running
     try {
         const resp = await axios.post("http://127.0.0.1:8088", {
