@@ -99,6 +99,79 @@ async function fetchTechniqueImage(techniqueName) {
 /**
  * Helper to fuzzy-match player names, stripping out symbols, @mentions, spaces, and punctuation.
  */
+/**
+ * Resolve explicit movement intents BEFORE the AI narrates.
+ * This makes the player's physical scene persistent in PostgreSQL instead of
+ * trusting an LLM sentence such as "Nevo arrives at the captain".
+ */
+function normalizeSceneText(value = '') {
+    return String(value)
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+async function resolveExplicitDestination(player, actionText) {
+    const raw = String(actionText || '').trim();
+    const text = normalizeSceneText(raw);
+
+    const movementIntent = /\b(je me dirige vers|je vais vers|je vais voir|je me rends vers|je marche vers|je pars vers|je cours vers|je vais a|je vais au|je vais a la|je vais dans)\b/.test(text);
+    if (!movementIntent) return null;
+
+    const aliases = [
+        { keys: ['capitaine', 'milice'], subLocation: 'Poste de la Milice' },
+        { keys: ['poste', 'milice'], subLocation: 'Poste de la Milice' },
+        { keys: ['caserne'], subLocation: 'Poste de la Milice' },
+        { keys: ['academie'], subLocation: 'Académie Impériale' },
+        { keys: ['inscription'], subLocation: 'Bureau des Inscriptions' },
+        { keys: ['marche'], subLocation: 'Marché Central' },
+        { keys: ['hopital'], subLocation: 'Hôpital' }
+    ];
+
+    const npcsInLocation = await NPC.findAll({ where: { location: player.location } }).catch(() => []);
+    const targetTokens = text.split(' ').filter(w => w.length >= 4);
+    let bestNpc = null;
+    let bestScore = 0;
+
+    for (const npc of npcsInLocation) {
+        const haystack = normalizeSceneText((npc.name || '') + ' ' + (npc.role || '') + ' ' + (npc.specialty || '') + ' ' + (npc.description || ''));
+        let score = 0;
+        for (const token of targetTokens) {
+            if (haystack.includes(token)) score += token.length >= 7 ? 2 : 1;
+        }
+        if (score > bestScore) {
+            bestScore = score;
+            bestNpc = npc;
+        }
+    }
+
+    if (bestNpc && bestScore >= 2 && bestNpc.subLocation) {
+        return {
+            location: bestNpc.location || player.location,
+            zone: bestNpc.zone || player.zone,
+            subLocation: bestNpc.subLocation,
+            anchor: (bestNpc.name || 'PNJ') + ' (' + (bestNpc.role || 'PNJ') + ')',
+            source: 'npc'
+        };
+    }
+
+    for (const alias of aliases) {
+        if (alias.keys.every(k => text.includes(k))) {
+            return {
+                location: player.location,
+                zone: player.zone || 'Centre-ville',
+                subLocation: alias.subLocation,
+                anchor: alias.subLocation,
+                source: 'alias'
+            };
+        }
+    }
+
+    return null;
+}
+
 function findMatchingPlayer(targetName, player, nearbyPlayers) {
     if (!targetName) return null;
     const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
@@ -526,6 +599,39 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
   const survivalWarnings = [];
+
+  // "." / "…" means: no new voluntary action. It must NEVER reset or relocate the scene.
+  const rawActionText = String(actionText || '').trim();
+  const isPassiveTick = /^[.…。·]+$/.test(rawActionText);
+  if (isPassiveTick) {
+      actionText = 'Le joueur n’effectue aucune nouvelle action volontaire. Le monde continue exactement depuis la scène actuelle.';
+  }
+
+  // Persist explicit destinations before the narrator runs.
+  // This fixes the classic bug: "je vais voir le capitaine" is narrated,
+  // but the next turn still reloads the player at the old city center.
+  if (!isPassiveTick) {
+      try {
+          const destination = await resolveExplicitDestination(player, rawActionText);
+          if (destination && destination.subLocation) {
+              const changed = destination.location !== player.location ||
+                  destination.zone !== player.zone ||
+                  destination.subLocation !== player.subLocation;
+
+              if (changed) {
+                  await player.update({
+                      location: destination.location || player.location,
+                      zone: destination.zone || player.zone || 'Centre-ville',
+                      subLocation: destination.subLocation
+                  });
+                  await player.reload();
+                  console.log('[SCENE STATE] ' + player.name + ': ' + player.location + ' > ' + player.subLocation + ' (' + destination.source + ')');
+              }
+          }
+      } catch (movementErr) {
+          console.error('[SCENE STATE] Movement resolution failed:', movementErr.message);
+      }
+  }
 
   // Logic: Always save the message first
   try {
