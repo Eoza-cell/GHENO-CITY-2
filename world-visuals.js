@@ -74,6 +74,20 @@ function chooseFeaturedNpc(npcs = []) {
   return npcs.find(n => n.imageUrl) || null;
 }
 
+function sceneHudSvg(width, height, player, npc) {
+  const esc = v => String(v || '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const location = esc(player.location || 'Aetherys');
+  const sub = esc(player.subLocation || 'Zone inconnue');
+  const npcLine = npc ? `PNJ : ${esc(npc.name)}` : 'ZONE ACTIVE';
+  return Buffer.from(`<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="${height-145}" width="${Math.min(width,620)}" height="145" fill="#071019" fill-opacity="0.88"/>
+    <rect x="0" y="${height-145}" width="10" height="145" fill="#33c7ff"/>
+    <text x="34" y="${height-102}" fill="#dff7ff" font-family="Arial" font-size="30" font-weight="700">${location}</text>
+    <text x="34" y="${height-66}" fill="#8ca7bb" font-family="Arial" font-size="19">${sub}</text>
+    <text x="34" y="${height-28}" fill="#ffffff" font-family="Arial" font-size="17">${npcLine} • STYLE : ${esc(player.equippedOutfit || 'Base')}</text>
+  </svg>`);
+}
+
 async function buildSceneVisual({ player, npcs = [] }) {
   const background = findBackground(player);
   const featuredNpc = chooseFeaturedNpc(npcs);
@@ -106,7 +120,7 @@ async function buildSceneVisual({ player, npcs = [] }) {
 
       const composed = await bg
         .resize(width, height, { fit: 'cover' })
-        .composite([{ input: portrait, gravity: 'southeast' }])
+        .composite([{ input: portrait, gravity: 'southeast' }, { input: sceneHudSvg(width, height, player, featuredNpc), top: 0, left: 0 }])
         .jpeg({ quality: 88 })
         .toBuffer();
 
@@ -119,7 +133,7 @@ async function buildSceneVisual({ player, npcs = [] }) {
 
     if (backgroundBuffer) {
       return {
-        buffer: backgroundBuffer,
+        buffer: await sharp(backgroundBuffer).resize(1280, 720, { fit: 'cover' }).composite([{ input: sceneHudSvg(1280, 720, player, null), top: 0, left: 0 }]).jpeg({ quality: 88 }).toBuffer(),
         key: visualKey,
         caption: `📍 *${player.location} — ${player.subLocation}*\n👗 *Style :* ${outfitName}`
       };
@@ -142,5 +156,6 @@ async function buildSceneVisual({ player, npcs = [] }) {
 module.exports = {
   SCENE_BACKGROUNDS,
   findBackground,
-  buildSceneVisual
+  buildSceneVisual,
+  sceneHudSvg
 };
