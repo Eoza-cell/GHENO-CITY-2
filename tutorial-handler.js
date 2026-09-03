@@ -8,13 +8,17 @@ const { callAI } = require('./ai-utils');
 const { Skill, Op } = require('./database');
 
 async function startTutorial(sock, jid, player) {
-    await player.update({ tutorialStep: 1, mode: 'action' });
+    await player.update({ tutorialStep: 0.1, mode: 'creation' });
 
-    const welcomeText = "--- 🧬 *START: INITIALISATION DE LA MATRICE* --- \n\n" +
-                        "Tu te réveilles dans une salle blanche et stérile. Un homme en costume sombre, l'air fatigué, te regarde à travers une vitre.\n\n" +
-                        "Superviseur : 'Encore un... Ne te fais pas d'illusions. Tu n'es pas un héros, juste une autre personne essayant de survivre dans ce système.'\n\n" +
-                        "Il pianote sur une console virtuelle.\n\n" +
-                        "'Pour t'enregistrer, nous devons définir ton profil de base. *Quelle voie souhaites-tu suivre ?* (Guerrier, Mage, Assassin, etc.)'";
+    const welcomeText = "╔════════════════════════════╗\n" +
+                        "     ⚡ AFTER THE REBIRTH ⚡\n" +
+                        "        CRÉATION DU PERSONNAGE\n" +
+                        "╚════════════════════════════╝\n\n" +
+                        "La lumière s'allume brutalement. Devant toi, une interface impériale flotte dans l'obscurité.\n\n" +
+                        "📁 *DOSSIER D'IDENTITÉ — PHASE 1/5*\n\n" +
+                        "Le monde ne te connaît pas encore. Avant ton histoire, il lui faut un nom.\n\n" +
+                        "✦ *Quel sera le nom de ton personnage ?*\n" +
+                        "_Exemple : Nevo, Kazuta Star, Ivy Iron_";
 
     try {
         // Send Link Start Intro first
@@ -36,6 +40,86 @@ async function startTutorial(sock, jid, player) {
 async function handleTutorialAction(sock, message, player, actionText) {
     const jid = message.key.remoteJid;
     console.log(`[TUTORIAL] Step: ${player.tutorialStep}, Action: "${actionText}"`);
+
+    // ═══════════════════════════════════════════════════════════════
+    // CHARACTER CREATOR — identity first, then appearance, origin and build.
+    // ═══════════════════════════════════════════════════════════════
+    if (player.tutorialStep === 0.1) {
+        const name = String(actionText || '').trim().replace(/[^\p{L}\p{N} '\-_.]/gu, '').slice(0, 24);
+        if (name.length < 2) {
+            await sock.sendMessage(jid, { text: "⚠️ *IDENTITÉ INVALIDE*\nChoisis un nom RP de 2 à 24 caractères." });
+            return;
+        }
+        await player.update({ name, tutorialStep: 0.2 });
+        await sock.sendMessage(jid, { text:
+            "╔═══ 🧬 IDENTITÉ ENREGISTRÉE ═══╗\n" +
+            "👤 *" + name + "*\n╚════════════════════════════╝\n\n" +
+            "📁 *PHASE 2/5 — IDENTITÉ SOCIALE*\n" +
+            "Comment ton personnage se présente-t-il ?\n\n" +
+            "• Homme\n• Femme\n• Autre / Non précisé\n\n" +
+            "_Tu peux simplement écrire ton choix._"
+        });
+        return;
+    }
+
+    if (player.tutorialStep === 0.2) {
+        const lower = String(actionText || '').toLowerCase();
+        let gender = 'Non précisé';
+        if (/\b(homme|masculin|garcon)\b/.test(lower)) gender = 'Homme';
+        else if (/\b(femme|feminin|fille)\b/.test(lower)) gender = 'Femme';
+        await player.update({ gender, tutorialStep: 0.3 });
+        await sock.sendMessage(jid, { text:
+            "📁 *PHASE 3/5 — APPARENCE*\n\n" +
+            "Décris ton personnage en quelques lignes : cheveux, yeux, silhouette, style vestimentaire ou signes distinctifs.\n\n" +
+            "🎨 *Exemple :* Cheveux noirs courts, yeux dorés, manteau sombre et cicatrice sur la joue.\n\n" +
+            "_Cette description servira au profil et aux visuels du personnage._"
+        });
+        return;
+    }
+
+    if (player.tutorialStep === 0.3) {
+        const description = String(actionText || '').trim().slice(0, 600);
+        await player.update({
+            characterDescription: description || 'Apparence encore inconnue.',
+            tutorialStep: 0.4
+        });
+        await sock.sendMessage(jid, { text:
+            "📁 *PHASE 4/5 — ORIGINE*\n\n" +
+            "Quelle est l'origine de ton personnage ?\n\n" +
+            "1️⃣ Humain\n2️⃣ Elfe\n3️⃣ Nain\n4️⃣ Homme-bête\n5️⃣ Autre origine autorisée par le lore\n\n" +
+            "💡 Tu peux écrire directement le nom de l'origine."
+        });
+        return;
+    }
+
+    if (player.tutorialStep === 0.4) {
+        const rawRace = String(actionText || '').trim();
+        const lower = rawRace.toLowerCase();
+        let race = 'Humain';
+        if (lower.includes('elf')) race = 'Elfe';
+        else if (lower.includes('nain')) race = 'Nain';
+        else if (lower.includes('bête') || lower.includes('animal')) race = 'Homme-bête';
+        else if (rawRace.length >= 2 && rawRace.length <= 40) race = rawRace;
+
+        await player.update({ race, tutorialStep: 1 });
+
+        await sock.sendMessage(jid, { text:
+            "╔════════════════════════════╗\n" +
+            "      🧬 PROFIL INITIAL PRÊT\n" +
+            "╚════════════════════════════╝\n\n" +
+            "👤 *Nom :* " + player.name + "\n" +
+            "🧬 *Origine :* " + race + "\n\n" +
+            "📁 *PHASE 5/5 — VOIE DE COMBAT*\n\n" +
+            "Choisis une classe :\n" +
+            "⚔️ Guerrier   🔮 Mage   🗡️ Assassin\n" +
+            "🏹 Archer     ✝️ Prêtre  🧘 Moine\n" +
+            "🛡️ Paladin    🌀 Invocateur\n" +
+            "💀 Nécromancien  ⚔️ Samouraï\n" +
+            "🐉 Chevalier-Dragon  ⚗️ Alchimiste  🎵 Barde\n\n" +
+            "_Ton choix définit ton équipement et ton orientation initiale._"
+        });
+        return;
+    }
 
     if (player.tutorialStep === 1.5) {
         const lowerAction = actionText.toLowerCase();
