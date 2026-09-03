@@ -97,4 +97,21 @@ async function generateMenuPanel(player) {
   return render(shell('AFTER THE REBIRTH', `ACCÈS RAPIDE • ${player?.name || 'HÉRITIER'}`, body));
 }
 
-module.exports={generateRegistrationPanel,generateTacticalStatus,generateMenuPanel};
+
+async function generateArchivePanel() {
+  const entries=[
+    ['ORIGINES','One Above All • Idée du Mal'],
+    ['INTERSTICE','Béhérits • Apôtres • Causalité'],
+    ['ROYAUMES','Elion • Valkyr • Nécropolis'],
+    ['ACADÉMIE','Écoles • Clubs • Techniques'],
+    ['CHRONIQUES','Convergence • Guerres • Histoire'],
+    ['PERSONNAGES','PNJ importants et légendes']
+  ];
+  const body=entries.map((e,i)=>{
+    const x=i%2?650:85, y=175+Math.floor(i/2)*150;
+    return `<rect x="${x}" y="${y}" width="545" height="118" rx="14" fill="#0a1420" stroke="#2c445d"/><text x="${x+30}" y="${y+45}" fill="#dff7ff" font-size="25" font-family="Arial" font-weight="700">${e[0]}</text><text x="${x+30}" y="${y+82}" fill="#8ea7bb" font-size="17" font-family="Arial">${e[1]}</text>`;
+  }).join('');
+  return render(shell('ARCHIVES D’AETHERYS','BASE DE DONNÉES HISTORIQUE • /lore <sujet>',body));
+}
+
+module.exports={generateRegistrationPanel,generateTacticalStatus,generateMenuPanel,generateArchivePanel};
