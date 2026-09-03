@@ -32,7 +32,7 @@ async function startTutorial(sock, jid, player) {
         });
     } catch (error) {
         console.error("Erreur démarrage tutoriel:", error);
-        await sock.sendMessage(jid, { text: welcomeText + "\n\n(Désolé, l'image n'a pas pu être générée. Choisis entre : Guerrier, Mage ou Assassin)" });
+        await sock.sendMessage(jid, { text: welcomeText + "\n\n⚠️ L'illustration n'a pas pu être chargée, mais la création continue normalement." });
     }
 }
 
@@ -286,6 +286,7 @@ async function handleTutorialAction(sock, message, player, actionText) {
             'nécromancien': 'Nécromancien',
             'samouraï': 'Samouraï',
             'chevalier-dragon': 'Chevalier-Dragon',
+            'chevalier dragon': 'Chevalier-Dragon',
             'alchimiste': 'Alchimiste',
             'barde': 'Barde'
         };
