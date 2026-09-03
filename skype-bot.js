@@ -56,7 +56,8 @@ async function connectToWhatsApp() {
     if (!phoneNumber) {
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
-      console.error('!!! Définissez la variable d\'environnement PHONE_NUMBER.   !!!');
+      console.error('!!! Créez un fichier .env avec : PHONE_NUMBER=votre_numéro !!!');
+      console.error('!!! Exemple : PHONE_NUMBER=33612345678 (sans le signe +)  !!!');
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       process.exit(1);
     }
@@ -113,49 +114,7 @@ async function connectToWhatsApp() {
                 const jid = getJid(message);
                 if (!jid) return;
 
-                const player = await Player.findOne({ where: { whatsappId: jid } });
-
-                // Handle profile picture submission
-                if (player && player.awaitingProfilePic) {
-                    const type = getContentType(message.message);
-                    if (type === 'imageMessage') {
-                        try {
-                            console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
-                            const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
-
-                            const idPart = jid.includes('@') ? jid.split('@')[0] : jid;
-                            const filename = `${idPart}.jpg`;
-                            const filepath = path.join('assets', 'profiles', filename);
-
-                            fs.writeFileSync(filepath, buffer);
-
-                            await player.update({
-                                profilePicUrl: filepath,
-                                awaitingProfilePic: false
-                            });
-
-                            console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                            await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans Skype.` });
-
-                            // Trigger tutorial after profile pic
-                            await startTutorial(sock, message.key.remoteJid, player);
-                            return;
-                        } catch (error) {
-                            console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
-                            await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
-                            return;
-                        }
-                    } else {
-                         // Only warn if it's not a command
-                         const text = message.message.conversation || message.message.extendedTextMessage?.text;
-                         if (!text || !text.startsWith('/')) {
-                             await sock.sendMessage(message.key.remoteJid, { text: 'Veuillez envoyer une image pour votre profil.' });
-                             return;
-                         }
-                    }
-                }
-
-                // If not a profile pic submission, handle as a normal command/message
+                // Handle as an eFootball command/message
                 await handleCommand(sock, message, downloadMediaMessage);
             } catch (globalError) {
                 console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
@@ -168,9 +127,6 @@ async function connectToWhatsApp() {
 setupDatabase()
   .then(() => {
     console.log('[CORE] Base de données prête. Lancement du bot...');
-
-    // Démarre le 2ème serveur pour le modèle DARK LUST
-    startModelServer();
 
     connectToWhatsApp();
   })

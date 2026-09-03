@@ -481,6 +481,34 @@ const Monster = sequelize.define('Monster', {
     imageUrl: { type: DataTypes.STRING, allowNull: true }
 });
 
+const FootballPlayer = sequelize.define('FootballPlayer', {
+  name: { type: DataTypes.STRING, unique: true },
+  rating: { type: DataTypes.INTEGER, defaultValue: 90 },
+  position: { type: DataTypes.STRING, defaultValue: 'CF' },
+  country: { type: DataTypes.STRING, defaultValue: 'Unknown' },
+  club: { type: DataTypes.STRING, defaultValue: 'Free Agent' },
+  imagePath: { type: DataTypes.STRING, allowNull: true },
+  cardType: { type: DataTypes.STRING, defaultValue: 'Epic' }, // e.g. Epic, Big Time, Show Time, Highlight
+  speed: { type: DataTypes.INTEGER, defaultValue: 80 },
+  dribbling: { type: DataTypes.INTEGER, defaultValue: 80 },
+  shooting: { type: DataTypes.INTEGER, defaultValue: 80 },
+  passing: { type: DataTypes.INTEGER, defaultValue: 80 },
+  defense: { type: DataTypes.INTEGER, defaultValue: 50 },
+  physical: { type: DataTypes.INTEGER, defaultValue: 70 },
+});
+
+const UserStats = sequelize.define('UserStats', {
+  whatsappId: { type: DataTypes.STRING, primaryKey: true },
+  name: { type: DataTypes.STRING, defaultValue: 'Joueur eFootball' },
+  wins: { type: DataTypes.INTEGER, defaultValue: 0 },
+  draws: { type: DataTypes.INTEGER, defaultValue: 0 },
+  losses: { type: DataTypes.INTEGER, defaultValue: 0 },
+  goalsScored: { type: DataTypes.INTEGER, defaultValue: 0 },
+  goalsConceded: { type: DataTypes.INTEGER, defaultValue: 0 },
+  points: { type: DataTypes.INTEGER, defaultValue: 0 },
+  casinoChips: { type: DataTypes.INTEGER, defaultValue: 500 },
+});
+
 Player.hasOne(Bank);
 Bank.belongsTo(Player);
 Player.belongsToMany(Quest, { through: PlayerQuest });
@@ -516,7 +544,9 @@ async function setupDatabase() {
       Kingdoms: Kingdom.rawAttributes,
       Schools: School.rawAttributes,
       RPMessages: RPMessage.rawAttributes,
-      WorldJournals: WorldJournal.rawAttributes
+      WorldJournals: WorldJournal.rawAttributes,
+      FootballPlayers: FootballPlayer.rawAttributes,
+      UserStats: UserStats.rawAttributes
     };
 
     for (const [tableName, attributes] of Object.entries(tableDefinitions)) {
@@ -539,6 +569,269 @@ async function setupDatabase() {
 
     await sequelize.sync({ alter: true });
     console.log('Database synchronized.');
+
+    // Seed initial eFootball players if empty
+    const footballPlayerCount = await FootballPlayer.count();
+    if (footballPlayerCount === 0) {
+        console.log('Seeding Football players...');
+        await FootballPlayer.bulkCreate([
+            {
+                name: 'Lionel Messi',
+                rating: 99,
+                position: 'RWF',
+                country: 'Argentine',
+                club: 'Inter Miami',
+                imagePath: 'assets/efootball/messi.png',
+                cardType: 'Big Time',
+                speed: 82,
+                dribbling: 98,
+                shooting: 93,
+                passing: 95,
+                defense: 38,
+                physical: 68
+            },
+            {
+                name: 'Kylian Mbappé',
+                rating: 98,
+                position: 'CF',
+                country: 'France',
+                club: 'Real Madrid',
+                imagePath: 'assets/efootball/yamal.png',
+                cardType: 'Show Time',
+                speed: 97,
+                dribbling: 92,
+                shooting: 94,
+                passing: 82,
+                defense: 36,
+                physical: 79
+            },
+            {
+                name: 'Erling Haaland',
+                rating: 97,
+                position: 'CF',
+                country: 'Norvège',
+                club: 'Manchester City',
+                imagePath: 'assets/efootball/ronaldo.png',
+                cardType: 'Epic',
+                speed: 89,
+                dribbling: 78,
+                shooting: 96,
+                passing: 70,
+                defense: 38,
+                physical: 91
+            },
+            {
+                name: 'Jude Bellingham',
+                rating: 97,
+                position: 'AMF',
+                country: 'Angleterre',
+                club: 'Real Madrid',
+                imagePath: 'assets/efootball/bruno_fernandes.png',
+                cardType: 'Big Time',
+                speed: 85,
+                dribbling: 89,
+                shooting: 87,
+                passing: 88,
+                defense: 76,
+                physical: 86
+            },
+            {
+                name: 'Vinícius Jr',
+                rating: 97,
+                position: 'LWF',
+                country: 'Brésil',
+                club: 'Real Madrid',
+                imagePath: 'assets/efootball/neymar.png',
+                cardType: 'Show Time',
+                speed: 96,
+                dribbling: 95,
+                shooting: 86,
+                passing: 81,
+                defense: 35,
+                physical: 71
+            },
+            {
+                name: 'Kevin De Bruyne',
+                rating: 96,
+                position: 'CMF',
+                country: 'Belgique',
+                club: 'Manchester City',
+                imagePath: 'assets/efootball/bernardo_silva.png',
+                cardType: 'Highlight',
+                speed: 76,
+                dribbling: 88,
+                shooting: 86,
+                passing: 97,
+                defense: 64,
+                physical: 78
+            },
+            {
+                name: 'Cristiano Ronaldo',
+                rating: 96,
+                position: 'CF',
+                country: 'Portugal',
+                club: 'Al-Nassr',
+                imagePath: 'assets/efootball/ronaldo.png',
+                cardType: 'Epic',
+                speed: 85,
+                dribbling: 84,
+                shooting: 95,
+                passing: 79,
+                defense: 32,
+                physical: 84
+            },
+            {
+                name: 'Neymar Jr',
+                rating: 97,
+                position: 'LWF',
+                country: 'Brésil',
+                club: 'Al-Hilal',
+                imagePath: 'assets/efootball/neymar.png',
+                cardType: 'Show Time',
+                speed: 87,
+                dribbling: 96,
+                shooting: 88,
+                passing: 90,
+                defense: 33,
+                physical: 63
+            },
+            {
+                name: 'Lamine Yamal',
+                rating: 95,
+                position: 'RWF',
+                country: 'Espagne',
+                club: 'FC Barcelone',
+                imagePath: 'assets/efootball/yamal.png',
+                cardType: 'Highlight',
+                speed: 91,
+                dribbling: 93,
+                shooting: 82,
+                passing: 85,
+                defense: 42,
+                physical: 65
+            },
+            {
+                name: 'Bruno Fernandes',
+                rating: 95,
+                position: 'AMF',
+                country: 'Portugal',
+                club: 'Manchester United',
+                imagePath: 'assets/efootball/bruno_fernandes.png',
+                cardType: 'Highlight',
+                speed: 78,
+                dribbling: 87,
+                shooting: 86,
+                passing: 93,
+                defense: 65,
+                physical: 76
+            },
+            {
+                name: 'Bernardo Silva',
+                rating: 95,
+                position: 'CMF',
+                country: 'Portugal',
+                club: 'Manchester City',
+                imagePath: 'assets/efootball/bernardo_silva.png',
+                cardType: 'Highlight',
+                speed: 80,
+                dribbling: 94,
+                shooting: 79,
+                passing: 91,
+                defense: 68,
+                physical: 70
+            },
+            {
+                name: 'Vitinha',
+                rating: 93,
+                position: 'CMF',
+                country: 'Portugal',
+                club: 'Paris Saint-Germain',
+                imagePath: 'assets/efootball/vitinha.png',
+                cardType: 'Highlight',
+                speed: 81,
+                dribbling: 90,
+                shooting: 77,
+                passing: 89,
+                defense: 62,
+                physical: 69
+            },
+            {
+                name: 'Lautaro Martínez',
+                rating: 96,
+                position: 'CF',
+                country: 'Argentine',
+                club: 'Inter Milan',
+                imagePath: 'assets/efootball/lautaro_martinez.png',
+                cardType: 'Epic',
+                speed: 84,
+                dribbling: 86,
+                shooting: 92,
+                passing: 76,
+                defense: 45,
+                physical: 83
+            },
+            {
+                name: 'Julián Álvarez',
+                rating: 94,
+                position: 'CF',
+                country: 'Argentine',
+                club: 'Atlético de Madrid',
+                imagePath: 'assets/efootball/julian_alvarez.png',
+                cardType: 'Highlight',
+                speed: 86,
+                dribbling: 85,
+                shooting: 89,
+                passing: 81,
+                defense: 52,
+                physical: 78
+            },
+            {
+                name: 'Rodrigo De Paul',
+                rating: 93,
+                position: 'CMF',
+                country: 'Argentine',
+                club: 'Atlético de Madrid',
+                imagePath: 'assets/efootball/de_paul.png',
+                cardType: 'Highlight',
+                speed: 82,
+                dribbling: 84,
+                shooting: 78,
+                passing: 86,
+                defense: 74,
+                physical: 82
+            },
+            {
+                name: 'Cristian Romero',
+                rating: 94,
+                position: 'CB',
+                country: 'Argentine',
+                club: 'Tottenham Hotspur',
+                imagePath: 'assets/efootball/romero.png',
+                cardType: 'Highlight',
+                speed: 80,
+                dribbling: 68,
+                shooting: 55,
+                passing: 72,
+                defense: 94,
+                physical: 88
+            },
+            {
+                name: 'Capitaine Master League',
+                rating: 98,
+                position: 'CF',
+                country: 'International',
+                club: 'Pumas UNAM',
+                imagePath: 'assets/efootball/master_league_captain.png',
+                cardType: 'Legend',
+                speed: 88,
+                dribbling: 89,
+                shooting: 95,
+                passing: 84,
+                defense: 50,
+                physical: 86
+            }
+        ]);
+    }
 
     // Seed initial game data if empty
     const dungeonCount = await Dungeon.count();
@@ -1024,5 +1317,6 @@ async function setupDatabase() {
 module.exports = {
   sequelize,
   Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant,
+  FootballPlayer, UserStats,
   setupDatabase,
 };
