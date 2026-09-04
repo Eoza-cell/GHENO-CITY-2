@@ -1022,7 +1022,8 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         let failedCount = 0;
         const launched = new Set();
 
-        // Safety Global Timeout: 35 seconds max for the entire AI call
+        // Transformers.js may need time for the first ONNX model load on Render.
+        // Do not abort the first real RP generation after only 35 seconds.
         const globalTimeout = setTimeout(() => {
             if (!completed) {
                 completed = true;
@@ -1030,7 +1031,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
                 timeouts.forEach(clearTimeout);
                 resolve(null);
             }
-        }, 35000);
+        }, Number(process.env.AI_GLOBAL_TIMEOUT_MS || 120000));
 
         const resolveWithClear = (res) => {
             if (!completed) {
