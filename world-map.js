@@ -1,5 +1,4 @@
 const sharp = require('sharp');
-const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
@@ -80,99 +79,75 @@ async function generateWatabouTownMap(cityName = 'Eldoria') {
  * High-Fidelity Azgaar & D&D Real Fantasy World Map Generator
  */
 async function generateWorldMapImage() {
-    const W = 1400, H = 1000;
+    const W = 1600, H = 1100;
 
-    let kingdomsSvg = '';
-    KINGDOMS.forEach(k => {
-        kingdomsSvg += `
-            <rect x="${k.labelPos[0] - 70}" y="${k.labelPos[1] - 14}" width="140" height="28" fill="#12181b" stroke="${k.color}" stroke-width="2" rx="5" style="filter: drop-shadow(0 3px 6px rgba(0,0,0,0.8));" />
-            <text x="${k.labelPos[0]}" y="${k.labelPos[1] + 5}" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-weight="bold" font-size="13" fill="${k.color}" letter-spacing="1.5">${k.short}</text>
-        `;
-    });
+    // A deterministic in-code fantasy map: no Pollinations, no remote image API,
+    // no random background. The same world geography is rendered every time.
+    const kingdomRegions = [
+        { d: 'M80 160 C210 80 420 90 530 230 C500 390 310 430 110 340 Z', fill: '#d9e8d2', stroke: '#54704f' },
+        { d: 'M520 120 C760 70 920 180 890 360 C790 440 610 410 500 300 Z', fill: '#cfd8b8', stroke: '#59664c' },
+        { d: 'M930 120 C1250 90 1500 180 1510 420 C1370 510 1110 470 910 350 Z', fill: '#4b4239', stroke: '#2b2520' },
+        { d: 'M70 420 C300 360 560 440 610 700 C460 850 190 820 70 670 Z', fill: '#3b3148', stroke: '#241d2c' },
+        { d: 'M640 430 C920 350 1160 470 1100 760 C920 900 700 820 590 650 Z', fill: '#c9c59f', stroke: '#625d43' },
+        { d: 'M1120 500 C1430 420 1570 560 1510 900 C1330 980 1120 860 1080 690 Z', fill: '#c89b58', stroke: '#71502c' }
+    ];
 
-    let citiesSvg = '';
-    CITIES.forEach(c => {
-        if (c.capital) {
-            citiesSvg += `
-                <path d="M ${c.x},${c.y - 12} L ${c.x + 4},${c.y - 4} L ${c.x + 12},${c.y - 4} L ${c.x + 6},${c.y + 1} L ${c.x + 8},${c.y + 9} L ${c.x},${c.y + 4} L ${c.x - 8},${c.y + 9} L ${c.x - 6},${c.y + 1} L ${c.x - 12},${c.y - 4} L ${c.x - 4},${c.y - 4} Z" fill="#ffd700" stroke="#000000" stroke-width="2" style="filter: drop-shadow(0 0 6px #ffd700);" />
-            `;
-        } else {
-            citiesSvg += `
-                <circle cx="${c.x}" cy="${c.y}" r="6" fill="#e74c3c" stroke="#ffffff" stroke-width="2" style="filter: drop-shadow(0 0 4px #e74c3c);" />
-            `;
-        }
-        citiesSvg += `
-            <text x="${c.x + 16}" y="${c.y + 4}" font-family="Georgia, serif" font-weight="bold" font-size="15" fill="#ffffff" style="text-shadow: 2px 2px 4px black;">${c.name}</text>
-        `;
-    });
+    const regions = kingdomRegions.map(r => '<path d="' + r.d + '" fill="' + r.fill + '" stroke="' + r.stroke + '" stroke-width="7"/>').join('');
 
-    const overlaySvg = `
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-        <!-- Azgaar Cartographic Grid Overlay -->
-        <g stroke="rgba(255,255,255,0.08)" stroke-width="1">
-            ${Array.from({length: 20}).map((_, i) => `<line x1="${i*70}" y1="0" x2="${i*70}" y2="${H}" />`).join('')}
-            ${Array.from({length: 15}).map((_, i) => `<line x1="0" y1="${i*70}" x2="${W}" y2="${i*70}" />`).join('')}
+    const mountains = Array.from({ length: 45 }, (_, i) => {
+        const x = 180 + ((i * 83) % 1200);
+        const y = 180 + ((i * 137) % 650);
+        return '<path d="M' + x + ',' + (y+38) + ' L' + (x+22) + ',' + (y-22) + ' L' + (x+46) + ',' + (y+38) + ' Z" fill="#6d665d" opacity=".72"/>';
+    }).join('');
+
+    const forests = Array.from({ length: 120 }, (_, i) => {
+        const x = 120 + ((i * 47) % 1300);
+        const y = 180 + ((i * 71) % 720);
+        return '<circle cx="' + x + '" cy="' + y + '" r="' + (5 + i % 7) + '" fill="#345c3b" opacity=".72"/>';
+    }).join('');
+
+    const labels = [
+        ['VALKYRR', 310, 210], ['ELION', 730, 250], ['DRAGONIA', 1210, 250],
+        ['GHENO', 300, 590], ['ELDORIA', 780, 530], ['XERATH', 1290, 700],
+        ['LUMENORA', 300, 760], ['AZURIA', 780, 900]
+    ].map(([name,x,y]) => '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-family="Georgia,serif" font-size="32" font-weight="bold" fill="#2b2118" stroke="#f3e4c2" stroke-width="1">' + name + '</text>').join('');
+
+    const cities = CITIES.map(city =>
+        '<circle cx="' + (city.x * 1.12 + 210) + '" cy="' + (city.y * 0.95 + 80) + '" r="' + (city.capital ? 10 : 7) + '" fill="' + (city.capital ? '#d4af37' : '#9d2f2f') + '" stroke="#1d1712" stroke-width="3"/>' +
+        '<text x="' + (city.x * 1.12 + 225) + '" y="' + (city.y * 0.95 + 85) + '" font-family="Georgia,serif" font-size="16" fill="#241a13">' + city.name + '</text>'
+    ).join('');
+
+    const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="shadow"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-opacity=".5"/></filter>
+          <pattern id="waves" width="42" height="24" patternUnits="userSpaceOnUse"><path d="M0 12 Q10 2 21 12 T42 12" fill="none" stroke="#4b7180" stroke-width="2" opacity=".35"/></pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="#163846"/>
+        <rect width="100%" height="100%" fill="url(#waves)"/>
+        <g filter="url(#shadow)">${regions}</g>
+        <g>${mountains}</g><g>${forests}</g>
+        <path d="M700 0 C650 230 850 330 760 600 S900 900 820 1100" fill="none" stroke="#7aa5ad" stroke-width="15" opacity=".8"/>
+        <path d="M0 550 C300 490 470 600 760 560 S1200 500 1600 620" fill="none" stroke="#7aa5ad" stroke-width="11" opacity=".7"/>
+        <g>${cities}</g><g>${labels}</g>
+        <g transform="translate(95 95)">
+          <circle r="55" fill="#f0dfb7" stroke="#2b2118" stroke-width="5"/>
+          <path d="M0,-48 L12,0 L0,48 L-12,0 Z" fill="#9d2f2f"/><path d="M-48,0 L0,12 L48,0 L0,-12 Z" fill="#263746"/>
+          <text x="0" y="-66" text-anchor="middle" font-family="Georgia,serif" font-size="18" fill="#f0dfb7">N</text>
         </g>
-
-        <!-- Kingdom Region Markers -->
-        ${kingdomsSvg}
-
-        <!-- Cities & Capitals -->
-        ${citiesSvg}
-
-        <!-- Azgaar Compass Rose -->
-        <g transform="translate(1250, 850)">
-            <circle cx="0" cy="0" r="50" fill="rgba(10,15,20,0.8)" stroke="#ffd700" stroke-width="2" />
-            <path d="M 0,-45 L 6,-8 L 0,0 L -6,-8 Z" fill="#ffd700" />
-            <path d="M 0,45 L 6,8 L 0,0 L -6,8 Z" fill="#ffffff" />
-            <path d="M 45,0 L 8,6 L 0,0 L 8,-6 Z" fill="#ffd700" />
-            <path d="M -45,0 L -8,6 L 0,0 L -8,-6 Z" fill="#ffffff" />
-            <text x="0" y="-55" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="14" fill="#ffd700">N</text>
+        <g transform="translate(400 35)">
+          <rect width="800" height="90" rx="12" fill="#16120e" stroke="#d4af37" stroke-width="4"/>
+          <text x="400" y="42" text-anchor="middle" font-family="Georgia,serif" font-size="35" font-weight="bold" fill="#d4af37">AFTER THE REBIRTH</text>
+          <text x="400" y="70" text-anchor="middle" font-family="Georgia,serif" font-size="18" fill="#ead9b0">CARTE DU MONDE — AETHERIS</text>
         </g>
-
-        <!-- Grand Azgaar / ATR Title Banner -->
-        <g transform="translate(${W/2 - 320}, 30)">
-            <rect width="640" height="80" fill="rgba(10, 15, 20, 0.9)" stroke="#ffd700" stroke-width="2.5" rx="8" style="filter: drop-shadow(0 6px 15px rgba(0,0,0,0.8));" />
-            <text x="320" y="42" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="28" fill="#ffd700">AZGAAR FANTASY MAP — ${WORLD_NAME}</text>
-            <text x="320" y="64" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="12" fill="#a0aec0">ROYAUMES, CITES ET FRONTIÈRES CARTOGRAPHIQUES ATR</text>
+        <g transform="translate(1210 930)">
+          <rect width="310" height="125" rx="8" fill="#16120e" stroke="#d4af37" stroke-width="3"/>
+          <text x="20" y="35" font-family="Georgia,serif" font-size="18" fill="#d4af37">LÉGENDE</text>
+          <circle cx="28" cy="65" r="7" fill="#d4af37"/><text x="48" y="71" font-family="Georgia,serif" font-size="15" fill="#ead9b0">Capitale</text>
+          <circle cx="28" cy="95" r="6" fill="#9d2f2f"/><text x="48" y="101" font-family="Georgia,serif" font-size="15" fill="#ead9b0">Ville</text>
         </g>
-    </svg>
-    `;
+      </svg>`;
 
-    // Try using cached real fantasy map artwork background if present, or fetch from Pollinations
-    const bgPath = path.join(__dirname, 'assets', 'real_fantasy_world_map_bg.jpg');
-    let bgBuffer = null;
-
-    if (fs.existsSync(bgPath)) {
-        try {
-            bgBuffer = fs.readFileSync(bgPath);
-        } catch (e) {}
-    }
-
-    if (!bgBuffer) {
-        try {
-            const prompt = 'ultra detailed epic fantasy world map, parchment texture, ancient continents, oceans, mountains, rivers, cartography masterpiece, D&D fantasy map style';
-            const { generateHuggingFaceImage } = require('./message-handler');
-            const hfBuf = await generateHuggingFaceImage(prompt);
-            if (hfBuf) {
-                bgBuffer = hfBuf;
-                fs.writeFileSync(bgPath, bgBuffer);
-            }
-        } catch (e) {
-            console.warn("[WORLD MAP] Could not fetch map background via Hugging Face, using fallback color:", e.message);
-        }
-    }
-
-    if (bgBuffer) {
-        return sharp(bgBuffer)
-            .resize(W, H, { fit: 'cover' })
-            .composite([{ input: Buffer.from(overlaySvg), top: 0, left: 0 }])
-            .png()
-            .toBuffer();
-    } else {
-        const fallbackSvg = `<svg width="${W}" height="${H}"><rect width="100%" height="100%" fill="#122534" />${overlaySvg}</svg>`;
-        return sharp(Buffer.from(fallbackSvg)).png().toBuffer();
-    }
+    return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 module.exports = { generateWorldMapImage, generateWatabouTownMap, WORLD_NAME };
