@@ -1,7 +1,7 @@
 // Charger les variables d'environnement au tout début
 require('dotenv').config();
 
-// Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
+// Le bot utilise maintenant exclusivement Transformers.js local pour le moteur IA.
 
 const http = require('http');
 const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
