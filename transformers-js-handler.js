@@ -25,7 +25,7 @@ async function getGenerator() {
             env.allowLocalModels = false;
 
             const model = process.env.TRANSFORMERS_RP_MODEL ||
-                'onnx-community/Qwen2.5-1.5B-Instruct';
+                'onnx-community/Qwen2.5-0.5B-Instruct';
             const dtype = process.env.TRANSFORMERS_DTYPE || 'q4';
 
             console.log('[Transformers.js] Loading ATR RP model:', model, 'dtype:', dtype);
@@ -70,12 +70,12 @@ async function callTransformersJS(system, prompt, options = {}) {
 
         // Remove accidental prompt echoes while preserving the actual narration.
         return text
-            .replace(/^assistants*[:：]s*/i, '')
-            .replace(/[TRUNCATED]/gi, '')
+            .replace(/^assistant\\s*[:：]\\s*/i, '')
+            .replace(/\\[TRUNCATED\\]/gi, '')
             .trim();
     } catch (error) {
-        console.warn('[Transformers.js] RP engine unavailable:', error.message);
-        // Allow a future retry if model loading itself failed.
+        console.warn('[Transformers.js] RP engine unavailable:', error.stack || error.message);
+        // Reset only after a failed call so the next turn can retry cleanly.
         generatorPromise = null;
         return null;
     }
