@@ -47,13 +47,17 @@ async function getGenerator() {
 }
 
 async function callTransformersJS(system, prompt, options = {}) {
+    // Keep the prompt bounded. Very large world-state dumps can make a small
+    // Render instance appear frozen even when the model itself is healthy.
+    const safeSystem = String(system || '').slice(-6000);
+    const safePrompt = String(prompt || '').slice(-7000);
     try {
         const generator = await getGenerator();
         const output = await generator([
-            { role: 'system', content: String(system || '') },
-            { role: 'user', content: String(prompt || '') }
+            { role: 'system', content: safeSystem },
+            { role: 'user', content: safePrompt }
         ], {
-            max_new_tokens: Number(process.env.TRANSFORMERS_MAX_NEW_TOKENS || 280),
+            max_new_tokens: Number(process.env.TRANSFORMERS_MAX_NEW_TOKENS || 180),
             temperature: Number(process.env.TRANSFORMERS_TEMPERATURE || 0.78),
             top_p: Number(process.env.TRANSFORMERS_TOP_P || 0.92),
             repetition_penalty: Number(process.env.TRANSFORMERS_REPETITION_PENALTY || 1.08),
@@ -71,7 +75,7 @@ async function callTransformersJS(system, prompt, options = {}) {
             .replace(/\[TRUNCATED\]/gi, '')
             .trim();
     } catch (error) {
-        console.warn('[Transformers.js] RP engine unavailable:', error.stack || error.message);
+        console.error('[Transformers.js] RP engine unavailable:', error.stack || error.message);
         generatorPromise = null;
         return null;
     }
