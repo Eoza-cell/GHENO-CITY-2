@@ -883,15 +883,20 @@ async function handleFreeAction(sock, message, player, actionText) {
   hints.push("⚠️ ÉPUISEMENT : Si Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement.");
 
   // Survival Depletion Logic
-  const lastActivity = new Date(player.lastActivity).getTime();
+  // IMPORTANT: never punish a player for server downtime, migrations or an old
+  // lastActivity timestamp. Decay is capped per processed turn.
+  const lastActivityMs = new Date(player.lastActivity).getTime();
   const nowMs = Date.now();
-  const realElapsedMs = nowMs - lastActivity;
+  const rawElapsedMs = Number.isFinite(lastActivityMs) ? Math.max(0, nowMs - lastActivityMs) : 0;
+  const MAX_DECAY_REAL_MS = 60 * 60 * 1000; // at most one real hour counts
+  const realElapsedMs = Math.min(rawElapsedMs, MAX_DECAY_REAL_MS);
   const rpElapsedHours = (realElapsedMs * 9) / (1000 * 60 * 60);
 
-  if (rpElapsedHours > 0.05) {
-      const sleepLoss = Math.floor(rpElapsedHours * 2);
+  // A player must never lose hundreds of sleep points from one delayed message.
+  const sleepLoss = rpElapsedHours > 0.05 ? Math.min(5, Math.floor(rpElapsedHours * 2)) : 0;
 
-      if (sleepLoss > 0) await player.decrement('sleep', { by: sleepLoss });
+  if (sleepLoss > 0) {
+      await player.update({ sleep: Math.max(0, Number(player.sleep || 0) - sleepLoss) });
 
       // Gradual sobriety over time (sobering up)
       if (player.inebriationLevel > 0) {
@@ -1492,7 +1497,7 @@ ${infiniteRPState}
   try {
     let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false, playerAction: actionText });
     if (!content) {
-        content = "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...";
+        content = "⚠️ *Le moteur de narration est temporairement indisponible.* Ton action et ta position ont été conservées : aucune téléportation ni modification fictive du monde n'a été appliquée.";
     }
 
     // Strip out system prompt leaks or system headers if an LLM echoed system prompt
