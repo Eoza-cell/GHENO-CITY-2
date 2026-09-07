@@ -976,6 +976,45 @@ function callMJFallback(prompt, options = {}) {
 /**
  * Main AI entry point.
  */
+/**
+ * Empero free OpenAI-compatible RP endpoint.
+ * Configure EMPERO_BASE_URL / EMPERO_MODEL to follow future Empero endpoint changes.
+ */
+async function callEmpero(system, prompt, options = {}) {
+    const baseUrl = (process.env.EMPERO_BASE_URL || 'https://free.empero.org/v1').replace(/\/$/, '');
+    const model = process.env.EMPERO_MODEL || 'glm-5.3-flash';
+    const apiKey = process.env.EMPERO_API_KEY || 'free';
+    try {
+        console.log(`[AI] Empero Free - ${model}...`);
+        const resp = await axios.post(`${baseUrl}/chat/completions`, {
+            model,
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: prompt }
+            ],
+            temperature: Number(process.env.EMPERO_TEMPERATURE || 0.85),
+            top_p: Number(process.env.EMPERO_TOP_P || 0.95),
+            max_tokens: Number(process.env.EMPERO_MAX_TOKENS || 1200),
+            stream: false
+        }, {
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: Number(process.env.EMPERO_TIMEOUT_MS || 45000)
+        });
+
+        const content = resp.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) return content;
+        console.warn('[AI] Empero returned no valid narrative.');
+    } catch (e) {
+        const status = e.response?.status;
+        const detail = e.response?.data?.error?.message || e.response?.data?.message || e.message;
+        console.warn(`[AI] Empero unavailable [${status || 'network'}]: ${detail}`);
+    }
+    return null;
+}
+
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const depth = options.depth || 0;
     if (depth > 2) return null;
@@ -988,13 +1027,10 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, 5000) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 7000);
     }
 
-    const { callTransformersJS } = require('./transformers-js-handler');
-    // ATR prefers one coherent RP brain. Previously several unrelated providers raced
-    // each other, so the fastest (often weak) model could "win" and produce bizarre narration.
-    // ATR uses one local, persistent Transformers.js brain.
-    // No Pollinations, OpenRouter, Puter, Groq or other online AI provider is used.
+    // ATR uses Empero as its primary RP brain through its OpenAI-compatible endpoint.
+    // A single provider is used per turn to avoid mixed-model narration.
     const providers = [
-        { name: 'Transformers.js Unlimited Local RP Core (@huggingface/transformers)', fn: callTransformersJS }
+        { name: 'Empero Free RP Core', fn: callEmpero }
     ];
 
     const timeouts = [];
