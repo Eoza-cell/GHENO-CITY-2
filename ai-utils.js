@@ -992,9 +992,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, 5000) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 7000);
     }
 
-    // ATR uses one persistent llama.cpp model as its RP brain.
+    // ATR uses Ollama as its RP brain.
     const providers = [
-        { name: 'llama.cpp Local RP Core', fn: callLlamaCpp }
+        { name: 'Ollama Local RP Core', fn: callOllama }
     ];
 
     const timeouts = [];
