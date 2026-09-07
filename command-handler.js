@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { Player } = require('./database');
 const { handleRegistration } = require('./registration-handler');
 const { ARENAS, getArenaState, shiftArena, advanceGauge, formatArenaDisplay } = require('./arena-system');
@@ -57,12 +58,21 @@ const handleArenaCommand = async (sock, message, args) => {
   const gifBuffer = generateArenaGif(arena.shortName, state.changeGauge);
   const captionText = formatArenaDisplay(remoteJid);
 
+  // Send horizontal GIF choice banner
   await sock.sendMessage(remoteJid, {
     video: gifBuffer,
     gifPlayback: true,
     caption: captionText,
     mimetype: 'image/gif'
   });
+
+  // Send full high-definition arena visual artwork image if available
+  if (arena.imagePath && fs.existsSync(arena.imagePath)) {
+    await sock.sendMessage(remoteJid, {
+      image: fs.readFileSync(arena.imagePath),
+      caption: `🖼️ *Visuel Officiel:* ${arena.name}`
+    });
+  }
 };
 
 commands.set('arena', handleArenaCommand);
@@ -102,6 +112,13 @@ const handleArenaChoiceCommand = async (sock, message, args) => {
     caption: captionText,
     mimetype: 'image/gif'
   });
+
+  if (arena.imagePath && fs.existsSync(arena.imagePath)) {
+    await sock.sendMessage(remoteJid, {
+      image: fs.readFileSync(arena.imagePath),
+      caption: `🖼️ *Visuel Officiel:* ${arena.name}`
+    });
+  }
 };
 
 commands.set('choix_arene', handleArenaChoiceCommand);
@@ -127,6 +144,13 @@ const handleArenaGaugeCommand = async (sock, message, args) => {
     caption: captionText,
     mimetype: 'image/gif'
   });
+
+  if (shifted && arena.imagePath && fs.existsSync(arena.imagePath)) {
+    await sock.sendMessage(remoteJid, {
+      image: fs.readFileSync(arena.imagePath),
+      caption: `🖼️ *Visuel de l'Arène Active:* ${arena.name}`
+    });
+  }
 };
 
 commands.set('change_arene', handleArenaGaugeCommand);

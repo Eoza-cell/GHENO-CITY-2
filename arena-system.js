@@ -6,6 +6,7 @@ const ARENAS = {
     id: 'sylvar',
     name: '🏟️ 𝗦𝗬𝗟𝗩𝗔𝗥 𝗔𝗥𝗘𝗡𝗔 🏟️',
     shortName: 'Sylvar Arena',
+    imagePath: 'assets/arenas/sylvar.jpg',
     description: "ⓘ ᴜɴᴇ ᴘʟᴀᴛᴇғᴏʀᴍᴇ ᴀɴᴄɪᴇɴɴᴇ sᴜsᴘᴇɴᴅᴜᴇ ᴅᴀɴs ʟᴇ ᴠɪᴅᴇ, ғᴏʀᴍᴇᴇ ᴅᴇ ᴍᴇᴛᴀʟ ʀᴜɪɴᴇ ᴇᴛ ᴅᴇ ʀᴀᴄɪɴᴇs ᴄᴏʟᴏssᴀʟᴇs. ᴅᴇs ᴘᴏɴᴛs ᴏʀɢᴀɴɪǫᴜᴇs ʀᴇʟɪᴇɴᴛ ʟᴇs ᴘɪʟɪᴇʀs ᴅᴇ ᴄᴇᴛᴛᴇ sᴛʀᴜᴄᴛᴜʀᴇ ᴏᴜʙʟɪᴇᴇ, ᴛᴀɴᴅɪs ǫᴜᴇ ᴅᴇ ᴇᴘᴀɪssᴇs ʙʀᴜᴍᴇs ᴄᴀᴄʜᴇɴᴛ ʟᴇs ᴀʙɪᴍᴇs sᴏᴜs ʟ’ᴀʀᴇɴᴇ. ʟᴀ ɴᴀᴛᴜʀᴇ ᴇᴛ ʟᴀ ᴛᴇᴄʜɴᴏʟᴏɢɪᴇ s’ʏ sᴏɴᴛ ғᴜsɪᴏɴɴᴇᴇs ᴅᴇᴘᴜɪs ᴅᴇs sɪᴇᴄʟᴇs.",
     specs: {
       distance: '15m',
@@ -25,6 +26,7 @@ const ARENAS = {
     id: 'abyssal',
     name: '🌑 𝗔𝗕𝗬𝗦𝗦𝗔𝗟_𝗔𝗥𝗘𝗡𝗔 🌑',
     shortName: 'Abyssal Arena',
+    imagePath: 'assets/arenas/abyssal.jpg',
     description: "ⓘ ɪᴍᴇɴsᴇ sᴀʟʟᴇ sᴏᴜᴛᴇʀᴀɪɴᴇ ᴘʟᴏɴɢᴇ ᴅᴀɴs ᴜɴᴇ ᴏʙsᴄᴜʀɪᴛᴇ ǫᴜᴀsɪ ᴛᴏᴛᴀʟᴇ. ʟ'ᴀʀᴇɴᴇ ᴘʀɪɴᴄɪᴘᴀʟᴇ ᴇsᴛ ᴇɴᴛᴏᴜʀᴇᴇ ᴅᴇ ɴᴏᴍʙʀᴇᴜsᴇs ᴘʟᴀᴛᴇғᴏʀᴍᴇs ᴄɪʀᴄᴜʟᴀɪʀᴇs sᴜsᴘᴇɴᴅᴜᴇs ᴀᴜ-ᴅᴇssᴜs ᴅ'ᴜɴ ɢᴏᴜғғʀᴇ. ᴄᴇʀᴛᴀɪɴᴇs sᴏɴᴛ ᴀᴄᴄᴇssɪʙʟᴇs ᴅᴇᴘᴜɪs ʟᴇ sᴏʟ ᴘʀɪɴᴄɪᴘᴀʟ, ᴛᴀɴᴅɪs ǫᴜᴇ ᴅ'ᴀᴜᴛʀᴇs ɴᴇᴄᴇssɪᴛᴇɴᴛ ᴅᴇs ᴅᴇᴘʟᴀᴄᴇᴍᴇɴᴛs ᴀᴇʀɪᴇɴs ᴏᴜ ᴅᴇs sᴀᴜᴛs.",
     specs: {
       distance: '20 m',
@@ -45,6 +47,7 @@ const ARENAS = {
     id: 'solarys',
     name: '🏜️ 𝗦𝗢𝗟𝗔𝗥𝗬𝗦_𝗗𝗨𝗡𝗘 🏜️',
     shortName: 'Solarys Dune',
+    imagePath: 'assets/arenas/solarys.jpg',
     description: "ⓘ ɪᴍᴍᴇɴsᴇ ᴇᴛᴇɴᴅᴜᴇ ᴅᴇsᴇʀᴛɪǫᴜᴇ ʀᴇᴄᴏᴜᴠᴇʀᴛᴇ ᴅ'ᴜɴ sᴀʙʟᴇ ʙʀᴜʟᴀɴᴛ ᴇᴛ ᴘᴀʀᴄᴏᴜʀᴜᴇ ᴅᴇ ɢɪɢᴀɴᴛᴇsǫᴜᴇs sᴛʀᴜᴄᴛᴜʀᴇs ʀᴏᴄʜᴇᴜsᴇs. ʟᴇs ғᴏʀᴍᴀᴛɪᴏɴs ᴅʀᴇssᴇs ᴅᴀɴs ʟᴇ ᴅᴇsᴇʀᴛ ᴄᴏɴsᴛɪᴛᴜᴇɴᴛ ʟᴇs sᴇᴜʟs ᴠᴇʀɪᴛᴀʙʟᴇs ᴏʙsᴛᴀᴄʟᴇs ᴅᴜ ᴛᴇʀʀᴀɪɴ. ʟ'ᴀʙsᴇɴᴄᴇ ᴅᴇ ᴄᴏᴜᴠᴇʀᴛᴜʀᴇ ᴇɴᴛʀᴇ ᴄᴇs sᴛʀᴜᴄᴛᴜʀᴇs ᴛʀᴀɴsғᴏʀᴍᴇ ʟᴇs ᴀғғʀᴏɴᴛᴇᴍᴇɴᴛs ᴀ ᴅɪsᴛᴀɴᴄᴇ ᴇɴ ᴠᴇʀɪᴛᴀʙʟᴇs ᴅᴜᴇʟs ᴅᴇ ᴘᴏsɪᴛɪᴏɴɴᴇᴍᴇɴᴛ.",
     specs: {
       distance: '25 m',
@@ -64,6 +67,7 @@ const ARENAS = {
     id: 'dracocrypt',
     name: '🐉 𝗗𝗿𝗮𝗰𝗼𝗰𝗿𝘆𝗽𝘁_𝗔𝗿𝗲𝗻𝗮 🐉',
     shortName: 'Dracocrypt Arena',
+    imagePath: 'assets/arenas/dracocrypt.jpg',
     description: "ⓘ sᴀɴᴄᴛᴜᴀɪʀᴇ ᴄᴏʟᴏssᴀʟ ᴄᴏɴsᴛʀᴜɪᴛ ᴀᴜᴛᴏᴜʀ ᴅᴇs ʀᴇsᴛᴇs ᴅ'ᴜɴᴇ ᴄʀᴇᴀᴛᴜʀᴇ ᴅʀᴀᴄᴏɴɪǫᴜᴇ ᴀɴᴛɪǫᴜᴇ. ᴜɴᴇ ɪᴍᴍᴇɴsᴇ ᴛᴇᴛᴇ ᴅᴇ ᴅʀᴀɢᴏɴ ᴅᴏᴍɪɴᴇ ʟ'ᴀʀᴇɴᴇ ᴅᴇᴘᴜɪs ʟᴇs ᴘʀᴏғᴏɴᴅᴇᴜʀs ᴅᴇ ʟᴀ sᴀʟᴇ. ᴅᴇs ᴘɪʟɪᴇʀs ᴄʜᴀʀɢᴇs ᴅ'ᴇɴᴇʀɢɪᴇ ᴇɴᴛᴏᴜʀᴇɴᴛ ʟᴀ ᴢᴏɴᴇ ᴄᴇɴᴛʀᴀʟᴇ ᴇᴛ ᴀʟɪᴍᴇɴᴛᴇɴᴛ ᴄᴏɴᴛɪɴᴜᴇʟᴇᴍᴇɴᴛ ʟᴇ ᴄᴇʀᴄʟᴇ ᴅᴇ ᴄᴏᴍʙᴀᴛ.",
     specs: {
       distance: '15m',
