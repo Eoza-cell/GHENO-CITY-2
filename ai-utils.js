@@ -992,10 +992,9 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         sanitizedUser = userPrompt.substring(0, 5000) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 7000);
     }
 
-    // ATR uses Empero as its primary RP brain through its OpenAI-compatible endpoint.
-    // A single provider is used per turn to avoid mixed-model narration.
+    // ATR uses one persistent local Ollama model as its RP brain.
     const providers = [
-        { name: 'Empero Free RP Core', fn: callEmpero }
+        { name: 'Ollama Local RP Core', fn: callOllama }
     ];
 
     const timeouts = [];
