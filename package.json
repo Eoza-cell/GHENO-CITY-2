@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node skype-bot.js",
+    "start": "node --require ./rag-preload.js skype-bot.js",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {
@@ -14,7 +14,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/Eoza-cell/GHENO-CITY-2/issues"
   },
@@ -22,9 +21,8 @@
   "dependencies": {
     "@heyputer/puter.js": "^2.5.4",
     "@mlc-ai/web-llm": "^0.2.84",
-    "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "@whiskeysockets/baileys": "7.0.0-rc13",
     "axios": "^1.19.0",
-    "dotenv": "^16.6.1",
     "jsdom": "^29.1.1",
     "ollama": "^0.6.3",
     "p-queue": "^6.6.2",
@@ -39,5 +37,6 @@
     "three": "^0.170.0",
     "@upstash/redis": "^1.35.3",
     "@huggingface/transformers": "^3.8.0"
-  }
+  },
+  "type": "commonjs"
 }
