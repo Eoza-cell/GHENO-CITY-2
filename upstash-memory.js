@@ -3,10 +3,12 @@
  *
  * Official DB remains the source of truth for stats/position/inventory.
  * Redis stores narrative continuity and validated events across restarts.
+ * Transformers RAG adds semantic retrieval on top of this memory.
  */
 
 let redis = null;
 let enabled = false;
+let rag = null;
 
 try {
   const { Redis } = require('@upstash/redis');
@@ -19,6 +21,12 @@ try {
   }
 } catch (err) {
   console.warn('[UPSTASH MEMORY] SDK unavailable:', err.message);
+}
+
+try {
+  rag = require('./rag-memory');
+} catch (err) {
+  console.warn('[RAG] Semantic memory module unavailable:', err.message);
 }
 
 const PREFIX = 'atr:memory:v1';
@@ -53,6 +61,33 @@ async function rememberValidatedAction({ player, action, summary, location, subL
   await pushEvent(playerKey(player.whatsappId), event);
   await pushEvent(worldKey(), event, 1000);
 
+  // Semantic index: Transformers turns this memory into a vector once.
+  // Future turns retrieve by similarity instead of injecting the whole archive.
+  if (rag) {
+    try {
+      await rag.indexMemory({
+        id: `${event.playerId}:${event.at}:${event.action.slice(0, 40)}`,
+        text: `${event.summary} | Action: ${event.action} | Impacts: ${event.impacts.join('; ')}`,
+        playerId: event.playerId,
+        playerName: event.playerName,
+        location: event.location,
+        subLocation: event.subLocation,
+        at: event.at
+      }, 'player');
+      await rag.indexMemory({
+        id: `world:${event.playerId}:${event.at}:${event.action.slice(0, 40)}`,
+        text: `${event.playerName}: ${event.summary} | ${event.action}`,
+        playerId: event.playerId,
+        playerName: event.playerName,
+        location: event.location,
+        subLocation: event.subLocation,
+        at: event.at
+      }, 'world');
+    } catch (ragErr) {
+      console.warn('[RAG] Could not index validated action:', ragErr.message);
+    }
+  }
+
   // Keep a compact persistent summary as a fast "identity/arc" memory.
   const previous = await redis.get(summaryKey(player.whatsappId));
   const line = clean(`${location} > ${subLocation}: ${summary}`);
@@ -66,11 +101,28 @@ async function rememberValidatedAction({ player, action, summary, location, subL
 
 async function rememberImportantEvent(event) {
   if (!enabled) return false;
-  return pushEvent(worldKey(), {
+  const saved = await pushEvent(worldKey(), {
     type: event.type || 'world_event',
     ...event,
     summary: clean(event.summary || event.entry || '')
   }, 1000);
+
+  if (saved && rag) {
+    try {
+      await rag.indexMemory({
+        id: `world:${event.id || event.at || Date.now()}:${clean(event.summary || event.entry).slice(0, 40)}`,
+        text: clean(event.summary || event.entry),
+        playerId: event.playerId,
+        playerName: event.playerName,
+        location: event.location,
+        subLocation: event.subLocation,
+        at: event.at
+      }, 'world');
+    } catch (ragErr) {
+      console.warn('[RAG] Could not index world event:', ragErr.message);
+    }
+  }
+  return saved;
 }
 
 async function parseRows(rows) {
