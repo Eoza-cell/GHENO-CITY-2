@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node --require ./rag-preload.js skype-bot.js",
+    "start": "node --require ./puter-preload.js --require ./rag-preload.js skype-bot.js",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {
