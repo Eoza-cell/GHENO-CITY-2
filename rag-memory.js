@@ -1,12 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const { Document } = require('@langchain/core/documents');
 
 /**
  * ATR semantic memory.
  *
- * Transformers is NOT the RP generator here: it only converts text into
- * vectors (embeddings). The RP model receives only the few memories whose
- * vectors are closest to the current player action.
+ * LangChain Core is used as the standard document/memory layer while
+ * Hugging Face Transformers stays the local embedding engine. The RP model
+ * receives only the few memories whose vectors are closest to the current
+ * player action.
  */
 
 const MODEL = process.env.RAG_EMBEDDING_MODEL || 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
@@ -117,24 +119,40 @@ function playerIndex(playerId) {
     return playerIndexes.get(key);
 }
 
+function toLangChainDocument(memory, text) {
+    return new Document({
+        pageContent: text,
+        metadata: {
+            id: String(memory.id || `${memory.at || Date.now()}-${text.slice(0, 40)}`),
+            playerId: memory.playerId ? String(memory.playerId) : null,
+            playerName: memory.playerName || null,
+            location: memory.location || null,
+            subLocation: memory.subLocation || null,
+            at: memory.at || new Date().toISOString()
+        }
+    });
+}
+
 async function indexMemory(memory, scope = 'world') {
     loadDiskCache();
-    if (!memory?.summary && !memory?.action && !memory?.entry) return false;
+    if (!memory?.summary && !memory?.action && !memory?.entry && !memory?.text) return false;
 
     const text = clean(memory.text || memory.summary || memory.action || memory.entry);
     if (!text) return false;
     const vector = await embed(text);
     if (!vector) return false;
 
+    const document = toLangChainDocument(memory, text);
     const item = {
-        id: String(memory.id || `${memory.at || Date.now()}-${text.slice(0, 40)}`),
-        text,
+        id: document.metadata.id,
+        text: document.pageContent,
         vector,
-        playerId: memory.playerId ? String(memory.playerId) : null,
-        playerName: memory.playerName || null,
-        location: memory.location || null,
-        subLocation: memory.subLocation || null,
-        at: memory.at || new Date().toISOString()
+        playerId: document.metadata.playerId,
+        playerName: document.metadata.playerName,
+        location: document.metadata.location,
+        subLocation: document.metadata.subLocation,
+        at: document.metadata.at,
+        document
     };
 
     if (scope === 'player' && memory.playerId) addToIndex(playerIndex(memory.playerId), item);
@@ -189,9 +207,9 @@ async function retrieve(prompt, options = {}) {
 function formatResults(results) {
     if (!results?.length) return '';
     return [
-        '=== 🧠 MÉMOIRE SÉMANTIQUE RAG (TRANSFORMERS) ===',
-        'Les souvenirs ci-dessous ont été sélectionnés par proximité sémantique avec l’action actuelle.',
-        'Ils sont des rappels narratifs, jamais une source pour modifier les statistiques ou la position officielle.',
+        '=== 🧠 MÉMOIRE SÉMANTIQUE RAG (LANGCHAIN + TRANSFORMERS) ===',
+        'LangChain structure les souvenirs en Documents; Transformers calcule leur proximité sémantique.',
+        'Les souvenirs ci-dessous sont des rappels narratifs, jamais une source pour modifier les statistiques ou la position officielle.',
         ...results.map((r, i) => `- [${i + 1}] score=${r.score.toFixed(3)} | ${r.location || '?'} > ${r.subLocation || '?'} | ${r.text}`)
     ].join('\n');
 }
