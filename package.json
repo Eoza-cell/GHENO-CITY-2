@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node --require ./puter-preload.js --require ./rag-preload.js skype-bot.js",
+    "start": "node --require ./rag-preload.js skype-bot.js",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {
@@ -19,7 +19,6 @@
   },
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
-    "@heyputer/puter.js": "^2.5.4",
     "@langchain/core": "^0.3.0",
     "@mlc-ai/web-llm": "^0.2.84",
     "@whiskeysockets/baileys": "7.0.0-rc13",
@@ -41,4 +40,4 @@
     "@huggingface/transformers": "^3.8.0"
   },
   "type": "commonjs"
-}
+}\n
