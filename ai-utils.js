@@ -53,6 +53,7 @@ async function callEmpero(system, prompt, options = {}) {
     const topP = Number(process.env.EMPERO_TOP_P || '0.95');
     const topK = Number(process.env.EMPERO_TOP_K || '20');
     const repetitionPenalty = Number(process.env.EMPERO_REPETITION_PENALTY || '1.05');
+    const numPredict = parseInt(process.env.EMPERO_MAX_OUTPUT_TOKENS || '8192', 10);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -74,7 +75,8 @@ async function callEmpero(system, prompt, options = {}) {
                     temperature,
                     top_p: topP,
                     top_k: topK,
-                    repeat_penalty: repetitionPenalty
+                    repeat_penalty: repetitionPenalty,
+                    num_predict: numPredict
                 }
             },
             {
