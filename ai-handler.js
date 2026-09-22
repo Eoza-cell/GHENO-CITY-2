@@ -1744,7 +1744,7 @@ ${infiniteRPState}
     }
 
   } catch (error) {
-    console.error('Erreur avec l\'API Puter.js:', error);
+    console.error('[AI/EMPERO] Erreur du moteur de narration:', error);
     await sock.sendMessage(jid, { text: "Erreur critique du MJ. L'action n'a pas pu être traitée." });
   }
 }
