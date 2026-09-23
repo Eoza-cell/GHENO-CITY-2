@@ -136,8 +136,20 @@ async function connectToWhatsApp() {
     logger: pino({ level: 'debug' }), // Set to debug for troubleshooting
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
-        // Return undefined to let Baileys handle the internal protocol retry without synthesizing fake user messages
         return undefined;
+    }
+  });
+
+  // IMPORTANT: register credential persistence BEFORE pairing.
+  // Baileys can emit creds.update during/just after requestPairingCode().
+  // Registering this listener late can lose the first credential update and
+  // make a Render restart look like a brand-new WhatsApp session.
+  sock.ev.on('creds.update', async () => {
+    try {
+      await saveCreds();
+      console.log('[AUTH] Session WhatsApp persistée dans PostgreSQL.');
+    } catch (error) {
+      console.error('[AUTH] Échec de persistance des credentials:', error.message);
     }
   });
 
@@ -243,6 +255,13 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       isWhatsAppConnected = true;
+      // Force a final credential snapshot after a successful connection.
+      try {
+        await saveCreds();
+        console.log('[AUTH] Snapshot final de session enregistré.');
+      } catch (error) {
+        console.error('[AUTH] Impossible d'enregistrer le snapshot de session:', error.message);
+      }
       currentPairingCode = null;
 
       try {
@@ -254,11 +273,6 @@ async function connectToWhatsApp() {
       // Disabled proactive inbox spam per user instruction:
       // startProactiveAIEngagement(sock);
     }
-  });
-
-  sock.ev.on('creds.update', async () => {
-    await saveCreds();
-    console.log('[AUTH] Session synchronisée avec la base de données.');
   });
 
   sock.ev.on('messages.upsert', async (m) => {
