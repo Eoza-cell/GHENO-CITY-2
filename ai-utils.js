@@ -1,14 +1,18 @@
 const axios = require('axios');
 
 /**
- * ATR AI — Empero only.
+ * ATR AI — GPT-OSS Proxy only.
  *
- * Runtime model: Empero Qwythos-9B-v2 through a local Ollama server.
- * No Puter, Omni Router, OpenRouter, Aether, Hugging Face remote fallback,
- * or secondary provider is used for RP generation.
+ * OpenAI-compatible Cloudflare Worker:
+ * https://gptoss-proxy.eozaatlas-3d0.workers.dev
  *
  * RAG remains separate and is injected by rag-preload.js before callAI().
  */
+
+const GPTOSS_BASE_URL = (
+    process.env.GPTOSS_PROXY_URL ||
+    'https://gptoss-proxy.eozaatlas-3d0.workers.dev'
+).replace(/\/$/, '');
 
 function isValidAIResponse(input) {
     if (!input) return false;
@@ -36,33 +40,28 @@ function isValidAIResponse(input) {
     return true;
 }
 
-async function callEmpero(system, prompt, options = {}) {
-    let host = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
-    if (!host.startsWith('http')) host = 'http://' + host;
-    host = host.replace(/\/$/, '');
+async function callGPTOSS(system, prompt, options = {}) {
+    const model = options.model || process.env.GPTOSS_MODEL || 'gpt-oss-120b';
+    const timeoutMs = parseInt(process.env.GPTOSS_TIMEOUT_MS || '120000', 10);
+    const reasoningEffort = options.reasoningEffort ||
+        process.env.GPTOSS_REASONING_EFFORT ||
+        'medium';
 
-    // Empero's Qwythos-9B-v2 is the single RP model.
-    const model = process.env.EMPPERO_MODEL ||
-        process.env.EMPERO_MODEL ||
-        process.env.OLLAMA_MODEL ||
-        'qwythos-9b-v2';
-
-    const numCtx = parseInt(process.env.OLLAMA_NUM_CTX || '32768', 10);
-    const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '120000', 10);
-    const temperature = Number(process.env.EMPERO_TEMPERATURE || '0.6');
-    const topP = Number(process.env.EMPERO_TOP_P || '0.95');
-    const topK = Number(process.env.EMPERO_TOP_K || '20');
-    const repetitionPenalty = Number(process.env.EMPERO_REPETITION_PENALTY || '1.05');
-    const numPredict = parseInt(process.env.EMPERO_MAX_OUTPUT_TOKENS || '8192', 10);
+    const maxTokens = parseInt(
+        options.maxOutputTokens ||
+        process.env.GPTOSS_MAX_OUTPUT_TOKENS ||
+        '8192',
+        10
+    );
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        console.log(`[AI] Empero Qwythos-9B-v2 -> Ollama (${host})`);
+        console.log(`[AI] GPT-OSS ${model} -> ${GPTOSS_BASE_URL}`);
 
         const response = await axios.post(
-            `${host}/api/chat`,
+            `${GPTOSS_BASE_URL}/v1/chat/completions`,
             {
                 model,
                 messages: [
@@ -70,29 +69,35 @@ async function callEmpero(system, prompt, options = {}) {
                     { role: 'user', content: prompt }
                 ],
                 stream: false,
-                options: {
-                    num_ctx: numCtx,
-                    temperature,
-                    top_p: topP,
-                    top_k: topK,
-                    repeat_penalty: repetitionPenalty,
-                    num_predict: numPredict
+                max_tokens: maxTokens,
+                metadata: {
+                    reasoning_effort: reasoningEffort,
+                    gptoss_user_id: options.userId || options.playerId || 'atr',
+                    gptoss_thread_id: options.threadId || options.playerId || 'atr-rp'
                 }
             },
             {
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 timeout: timeoutMs,
                 signal: controller.signal
             }
         );
 
-        const content = response.data?.message?.content;
+        const content = response.data?.choices?.[0]?.message?.content;
+
         if (isValidAIResponse(content)) return content;
 
-        console.warn('[AI] Empero returned an empty/invalid response.');
+        console.warn('[AI] GPT-OSS returned an empty/invalid response.');
         return null;
     } catch (error) {
-        console.warn('[AI] Empero/Ollama unavailable:', error.response?.data?.error || error.message);
+        console.warn(
+            '[AI] GPT-OSS proxy unavailable:',
+            error.response?.data?.error?.message ||
+            error.response?.data?.error ||
+            error.message
+        );
         return null;
     } finally {
         clearTimeout(timer);
@@ -111,17 +116,14 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         ? String(userPrompt).substring(0, 7000) + '\n...[TRUNCATED]...\n' + String(userPrompt).slice(-9000)
         : String(userPrompt || '');
 
-    const result = await callEmpero(system, prompt, options);
+    const result = await callGPTOSS(system, prompt, options);
 
-    if (isValidAIResponse(result)) {
-        return result;
-    }
-
-    return null;
+    return isValidAIResponse(result) ? result : null;
 }
 
-// Compatibility aliases for code that already imports callOllama.
-const callOllama = callEmpero;
+// Compatibility aliases for legacy imports.
+const callEmpero = callGPTOSS;
+const callOllama = callGPTOSS;
 const callHuggingFaceLocal = async () => null;
 const callAether = async () => null;
 const callOmniRouter = async () => null;
@@ -129,6 +131,7 @@ const call9Router = async () => null;
 
 module.exports = {
     callAI,
+    callGPTOSS,
     callEmpero,
     callOllama,
     callHuggingFaceLocal,
