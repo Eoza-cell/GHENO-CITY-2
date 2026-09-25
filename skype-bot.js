@@ -4,7 +4,7 @@ require('dotenv').config();
 // Le bot utilise maintenant exclusivement Transformers.js local pour le moteur IA.
 
 const http = require('http');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
+const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, fetchLatestWaWebVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -86,7 +86,7 @@ const server = http.createServer((req, res) => {
     }
 
     if (req.url === '/health' || req.url === '/') {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.writeHead(isWhatsAppConnected ? 200 : 503, { 'Content-Type': 'text/plain' });
         res.end(isWhatsAppConnected ? 'OPERATIONAL' : 'AWAITING_PAIRING');
         return;
     }
@@ -119,13 +119,13 @@ async function connectToWhatsApp() {
   }
 
   const { state, saveCreds } = await useDatabaseAuth();
-  const { version, isLatest } = await fetchLatestBaileysVersion();
+  const { version, isLatest } = await (typeof fetchLatestWaWebVersion === 'function' ? fetchLatestWaWebVersion() : fetchLatestBaileysVersion)();
   console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
 
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    browser: Browsers.macOS('Desktop'),
+    browser: Browsers.macOS('Chrome'),
     version,
     logger: pino({ level: 'debug' }),
     getMessage: async key => {
