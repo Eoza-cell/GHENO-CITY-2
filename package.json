@@ -21,7 +21,7 @@
   "dependencies": {
     "@langchain/core": "^0.3.0",
     "@mlc-ai/web-llm": "^0.2.84",
-    "@whiskeysockets/baileys": "7.0.0-rc13",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "axios": "^1.19.0",
     "dotenv": "^16.4.7",
     "jsdom": "^29.1.1",
