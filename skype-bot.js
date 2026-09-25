@@ -125,7 +125,7 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    browser: Browsers.ubuntu('Chrome'),
+    browser: Browsers.macOS('Desktop'),
     version,
     logger: pino({ level: 'debug' }),
     getMessage: async key => {
@@ -200,6 +200,7 @@ async function connectToWhatsApp() {
 
     sock.ev.on('connection.update', async (update) => {
         if ((update.connection === 'connecting' || update.qr) && !sock.authState.creds.registered && pairingRetryCount < 4) {
+            await delay(1500);
             await requestAndShowCode();
         }
 
