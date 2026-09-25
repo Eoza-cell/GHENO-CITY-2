@@ -1,13 +1,11 @@
 const axios = require('axios');
+const { execFile } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 /**
- * ATR AI — Empero only.
- *
- * Runtime model: Empero Qwythos-9B-v2 through a local Ollama server.
- * No Puter, Omni Router, OpenRouter, Aether, Hugging Face remote fallback,
- * or secondary provider is used for RP generation.
- *
- * RAG remains separate and is injected by rag-preload.js before callAI().
+ * ATR AI — Integrated with OllamaFreeAPI & Empero.
  */
 
 function isValidAIResponse(input) {
@@ -36,12 +34,47 @@ function isValidAIResponse(input) {
     return true;
 }
 
+async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
+    return new Promise((resolve) => {
+        try {
+            console.log('[AI] Requesting via OllamaFreeAPI...');
+            const sysFile = path.join(os.tmpdir(), `ollamafreeapi_sys_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.txt`);
+            const usrFile = path.join(os.tmpdir(), `ollamafreeapi_usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.txt`);
+
+            fs.writeFileSync(sysFile, systemPrompt || '', 'utf-8');
+            fs.writeFileSync(usrFile, userPrompt || '', 'utf-8');
+
+            const scriptPath = path.join(__dirname, 'ollamafreeapi_handler.py');
+            const args = [scriptPath, sysFile, usrFile];
+
+            execFile('python3', args, { timeout: 15000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+                try { if (fs.existsSync(sysFile)) fs.unlinkSync(sysFile); } catch (e) {}
+                try { if (fs.existsSync(usrFile)) fs.unlinkSync(usrFile); } catch (e) {}
+
+                if (error) {
+                    console.warn('[AI] OllamaFreeAPI failed/timed out:', error.message);
+                    return resolve(null);
+                }
+
+                const response = stdout ? stdout.trim() : '';
+                if (isValidAIResponse(response)) {
+                    console.log('[AI] OllamaFreeAPI success.');
+                    return resolve(response);
+                }
+                return resolve(null);
+            });
+        } catch (err) {
+            console.warn('[AI] OllamaFreeAPI exception:', err.message);
+            resolve(null);
+        }
+    });
+}
+
 async function callEmpero(system, prompt, options = {}) {
     let host = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
     if (!host.startsWith('http')) host = 'http://' + host;
     host = host.replace(/\/$/, '');
 
-    // Empero's Qwythos-9B-v2 is the single RP model.
     const model = process.env.EMPPERO_MODEL ||
         process.env.EMPERO_MODEL ||
         process.env.OLLAMA_MODEL ||
@@ -111,7 +144,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         ? String(userPrompt).substring(0, 7000) + '\n...[TRUNCATED]...\n' + String(userPrompt).slice(-9000)
         : String(userPrompt || '');
 
-    const result = await callEmpero(system, prompt, options);
+    // Primary: OllamaFreeAPI
+    let result = await callOllamaFreeAPI(system, prompt, options);
+
+    // Fallback: local Empero / Ollama
+    if (!isValidAIResponse(result)) {
+        result = await callEmpero(system, prompt, options);
+    }
 
     if (isValidAIResponse(result)) {
         return result;
@@ -120,7 +159,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     return null;
 }
 
-// Compatibility aliases for code that already imports callOllama.
+// Compatibility aliases
 const callOllama = callEmpero;
 const callHuggingFaceLocal = async () => null;
 const callAether = async () => null;
@@ -129,6 +168,7 @@ const call9Router = async () => null;
 
 module.exports = {
     callAI,
+    callOllamaFreeAPI,
     callEmpero,
     callOllama,
     callHuggingFaceLocal,
