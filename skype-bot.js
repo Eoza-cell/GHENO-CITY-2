@@ -21,7 +21,6 @@ const { startProactiveAIEngagement } = require('./proactive-engagement');
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
 
-// Crée un serveur HTTP qui bloque le déploiement tant que WA n'est pas connecté
 const server = http.createServer((req, res) => {
     if (req.url === '/pairing') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -29,7 +28,6 @@ const server = http.createServer((req, res) => {
             <html>
                 <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #121b22; color: white; margin: 0; padding: 20px; box-sizing: border-box; text-align: center;">
                     <h1>🔗 AFTER THE REBIRTH (ATR) : Connexion</h1>
-
                     ${isWhatsAppConnected ? `
                         <div style="border: 2px solid #00a884; padding: 40px; border-radius: 15px;">
                             <p style="color: #00a884; font-size: 48px; margin: 0;">✅ CONNECTÉ</p>
@@ -98,21 +96,17 @@ const server = http.createServer((req, res) => {
 });
 const PORT = process.env.PORT || 3005;
 
-// Start server IMMEDIATELY to satisfy Render
 server.listen(PORT, () => {
     console.log(`[SYSTEM] Serveur de santé actif sur le port ${PORT}`);
 });
 
-// Initialisation de la queue pour gérer la charge
 const messageQueue = new PQueue({ concurrency: 5 });
 
 async function connectToWhatsApp() {
-  // Assure que le dossier des profils existe
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
       fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
   }
 
-  // Session Reset Logic
   if (process.env.RESET_SESSION === 'true') {
       const { Creds } = require('./database');
       console.log('⚠️ [AUTH] RESET_SESSION=true détecté. Nettoyage complet de la session...');
@@ -133,17 +127,13 @@ async function connectToWhatsApp() {
     printQRInTerminal: false,
     browser: Browsers.ubuntu('Chrome'),
     version,
-    logger: pino({ level: 'debug' }), // Set to debug for troubleshooting
+    logger: pino({ level: 'debug' }),
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return undefined;
     }
   });
 
-  // IMPORTANT: register credential persistence BEFORE pairing.
-  // Baileys can emit creds.update during/just after requestPairingCode().
-  // Registering this listener late can lose the first credential update and
-  // make a Render restart look like a brand-new WhatsApp session.
   sock.ev.on('creds.update', async () => {
     try {
       await saveCreds();
@@ -153,22 +143,20 @@ async function connectToWhatsApp() {
     }
   });
 
-  // Handle pairing code logic
   if (!sock.authState.creds.registered) {
     const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
     console.log(`[AUTH] État de registration : non-enregistré. Numéro cible : ${phoneNumber}`);
 
     if (!phoneNumber) {
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-      console.error('!!! ERREUR : Le numéro de téléphone n\'est pas configuré.   !!!');
-      console.error('!!! Définissez la variable d\'environnement PHONE_NUMBER.   !!!');
+      console.error("!!! ERREUR : Le numéro de téléphone n'est pas configuré.   !!!");
+      console.error("!!! Définissez la variable d'environnement PHONE_NUMBER.   !!!");
       console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
       process.exit(1);
     }
 
-    await delay(2000); // Wait for socket to be ready
+    await delay(2000);
 
-    let pairingInterval = null;
     const requestAndShowCode = async (retryCount = 0) => {
         try {
             console.log(`[AUTH] Demande du code pour : ${phoneNumber} (Tentative ${retryCount + 1})`);
@@ -176,18 +164,17 @@ async function connectToWhatsApp() {
             const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
             currentPairingCode = formattedCode;
 
-            console.log('\n' + '*'.repeat(65));
+            console.log('\\n' + '*'.repeat(65));
             console.log('*   VOTRE CODE DE PAIRAGE WHATSAPP (GHENO-CITY) :');
             console.log('*');
             console.log(`*   ➡️➡️➡️   ${formattedCode}   ⬅️⬅️⬅️`);
             console.log('*');
             console.log('*   Entrez ce code dans WhatsApp > Appareils connectés');
-            console.log('*'.repeat(65) + '\n');
+            console.log('*'.repeat(65) + '\\n');
 
-            // Repeat in color for supported terminals
-            console.log('\x1b[42m\x1b[30m' + ' '.repeat(62) + '\x1b[0m');
-            console.log('\x1b[42m\x1b[30m   CODE PAIRING : ' + formattedCode + ' '.repeat(62 - 18 - formattedCode.length) + '\x1b[0m');
-            console.log('\x1b[42m\x1b[30m' + ' '.repeat(62) + '\x1b[0m\n');
+            console.log('\\x1b[42m\\x1b[30m' + ' '.repeat(62) + '\\x1b[0m');
+            console.log('\\x1b[42m\\x1b[30m   CODE PAIRING : ' + formattedCode + ' '.repeat(62 - 18 - formattedCode.length) + '\\x1b[0m');
+            console.log('\\x1b[42m\\x1b[30m' + ' '.repeat(62) + '\\x1b[0m\\n');
         } catch (err) {
             console.error('[AUTH] Échec demande code pairing:', err.message);
             if (retryCount < 3) {
@@ -200,10 +187,9 @@ async function connectToWhatsApp() {
 
     await requestAndShowCode();
 
-    // Repeat the CURRENT code in console every 20 seconds to keep it visible
     const logInterval = setInterval(() => {
         if (currentPairingCode) {
-            console.log(`\n[AUTH] CODE DE PAIRAGE : ${currentPairingCode} (WhatsApp > Appareils connectés)\n`);
+            console.log(`\\n[AUTH] CODE DE PAIRAGE : ${currentPairingCode} (WhatsApp > Appareils connectés)\\n`);
         } else if (!isWhatsAppConnected) {
             console.warn('[AUTH] Toujours en attente de génération du code ou de connexion (60s+)...');
         }
@@ -255,12 +241,11 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       isWhatsAppConnected = true;
-      // Force a final credential snapshot after a successful connection.
       try {
         await saveCreds();
         console.log('[AUTH] Snapshot final de session enregistré.');
       } catch (error) {
-        console.error('[AUTH] Impossible d'enregistrer le snapshot de session:', error.message);
+        console.error("[AUTH] Impossible d'enregistrer le snapshot de session:", error.message);
       }
       currentPairingCode = null;
 
@@ -270,8 +255,6 @@ async function connectToWhatsApp() {
       } catch (e) {}
 
       startDayNightCycle();
-      // Disabled proactive inbox spam per user instruction:
-      // startProactiveAIEngagement(sock);
     }
   });
 
@@ -286,7 +269,6 @@ async function connectToWhatsApp() {
 
                 const player = await Player.findOne({ where: { whatsappId: jid } });
 
-                // Handle profile picture submission
                 if (player && player.awaitingProfilePic) {
                     const type = getContentType(message.message);
                     if (type === 'imageMessage') {
@@ -308,16 +290,14 @@ async function connectToWhatsApp() {
                             console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
                             await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans After the Rebirth (ATR).` });
 
-                            // Trigger tutorial after profile pic
                             await startTutorial(sock, message.key.remoteJid, player);
                             return;
                         } catch (error) {
-                            console.error('Erreur lors de l\'enregistrement de la photo de profil:', error);
-                            await sock.sendMessage(message.key.remoteJid, { text: 'Une erreur est survenue lors de l\'enregistrement de votre image. Veuillez réessayer.' });
+                            console.error("Erreur lors de l'enregistrement de la photo de profil:", error);
+                            await sock.sendMessage(message.key.remoteJid, { text: "Une erreur est survenue lors de l'enregistrement de votre image. Veuillez réessayer." });
                             return;
                         }
                     } else {
-                         // If text is sent instead of image, clear awaitingProfilePic flag and trigger tutorial without treating as free action
                          await player.update({ awaitingProfilePic: false });
                          await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil ignorée (avatar par défaut attribué). Bienvenue dans After the Rebirth (ATR) !` });
                          await startTutorial(sock, message.key.remoteJid, player);
@@ -325,10 +305,9 @@ async function connectToWhatsApp() {
                     }
                 }
 
-                // If not a profile pic submission, handle as a normal command/message
                 await handleCommand(sock, message, downloadMediaMessage);
             } catch (globalError) {
-                console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
+                console.error("[CRITICAL] Erreur lors du traitement d'un message upsert:", globalError);
             }
         });
     }
@@ -340,7 +319,6 @@ if (require.main === module) {
     .then(async () => {
       console.log('[CORE] Base de données prête. Lancement du bot...');
 
-      // Démarre le 2ème serveur pour le modèle DARK LUST
       startModelServer();
 
       connectToWhatsApp();
