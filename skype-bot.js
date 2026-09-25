@@ -155,11 +155,15 @@ async function connectToWhatsApp() {
       process.exit(1);
     }
 
-    await delay(2000);
+    let pairingRequested = false;
+    let pairingRetryCount = 0;
 
-    const requestAndShowCode = async (retryCount = 0) => {
+    const requestAndShowCode = async () => {
+        if (pairingRequested || isWhatsAppConnected || sock.authState.creds.registered) return;
+
+        pairingRequested = true;
         try {
-            console.log(`[AUTH] Demande du code pour : ${phoneNumber} (Tentative ${retryCount + 1})`);
+            console.log(`[AUTH] Demande du code pour : ${phoneNumber} (Tentative ${pairingRetryCount + 1})`);
             const code = await sock.requestPairingCode(phoneNumber);
             const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
             currentPairingCode = formattedCode;
@@ -169,33 +173,36 @@ async function connectToWhatsApp() {
             console.log('*');
             console.log(`*   ➡️➡️➡️   ${formattedCode}   ⬅️⬅️⬅️`);
             console.log('*');
-            console.log('*   Entrez ce code dans WhatsApp > Appareils connectés');
+            console.log('*   WhatsApp > Appareils connectés > Lier un appareil > Lier avec un numéro de téléphone');
             console.log('*'.repeat(65) + '\\n');
 
             console.log('\\x1b[42m\\x1b[30m' + ' '.repeat(62) + '\\x1b[0m');
-            console.log('\\x1b[42m\\x1b[30m   CODE PAIRING : ' + formattedCode + ' '.repeat(62 - 18 - formattedCode.length) + '\\x1b[0m');
+            console.log('\\x1b[42m\\x1b[30m   CODE PAIRING : ' + formattedCode + ' '.repeat(Math.max(0, 62 - 18 - formattedCode.length)) + '\\x1b[0m');
             console.log('\\x1b[42m\\x1b[30m' + ' '.repeat(62) + '\\x1b[0m\\n');
         } catch (err) {
+            pairingRequested = false;
+            pairingRetryCount++;
             console.error('[AUTH] Échec demande code pairing:', err.message);
-            if (retryCount < 3) {
-                console.log('[AUTH] Nouvelle tentative dans 5s...');
-                await delay(5000);
-                return requestAndShowCode(retryCount + 1);
+
+            if (pairingRetryCount <= 3) {
+                console.log('[AUTH] Nouvelle tentative au prochain état de connexion...');
             }
         }
     };
-
-    await requestAndShowCode();
 
     const logInterval = setInterval(() => {
         if (currentPairingCode) {
             console.log(`\\n[AUTH] CODE DE PAIRAGE : ${currentPairingCode} (WhatsApp > Appareils connectés)\\n`);
         } else if (!isWhatsAppConnected) {
-            console.warn('[AUTH] Toujours en attente de génération du code ou de connexion (60s+)...');
+            console.warn('[AUTH] En attente de génération du code pairing...');
         }
     }, 20000);
 
-    sock.ev.on('connection.update', (update) => {
+    sock.ev.on('connection.update', async (update) => {
+        if ((update.connection === 'connecting' || update.qr) && !sock.authState.creds.registered && pairingRetryCount < 4) {
+            await requestAndShowCode();
+        }
+
         if (update.connection === 'open') {
             clearInterval(logInterval);
             currentPairingCode = null;
