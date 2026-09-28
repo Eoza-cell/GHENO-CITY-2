@@ -16,7 +16,7 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 const { startModelServer } = require('./model-server');
-const { startProactiveAIEngagement } = require('./proactive-engagement');
+const { handleRaidenProactiveTurn } = require('./raiden-ai');
 
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
@@ -136,12 +136,10 @@ async function connectToWhatsApp() {
     logger: pino({ level: 'debug' }), // Set to debug for troubleshooting
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
-        // Return undefined to let Baileys handle the internal protocol retry without synthesizing fake user messages
         return undefined;
     }
   });
 
-  // Handle pairing code logic
   if (!sock.authState.creds.registered) {
     const phoneNumber = process.env.PHONE_NUMBER?.replace(/[^0-9]/g, '');
     console.log(`[AUTH] État de registration : non-enregistré. Numéro cible : ${phoneNumber}`);
@@ -154,9 +152,8 @@ async function connectToWhatsApp() {
       process.exit(1);
     }
 
-    await delay(2000); // Wait for socket to be ready
+    await delay(2000);
 
-    let pairingInterval = null;
     const requestAndShowCode = async (retryCount = 0) => {
         try {
             console.log(`[AUTH] Demande du code pour : ${phoneNumber} (Tentative ${retryCount + 1})`);
@@ -171,11 +168,6 @@ async function connectToWhatsApp() {
             console.log('*');
             console.log('*   Entrez ce code dans WhatsApp > Appareils connectés');
             console.log('*'.repeat(65) + '\n');
-
-            // Repeat in color for supported terminals
-            console.log('\x1b[42m\x1b[30m' + ' '.repeat(62) + '\x1b[0m');
-            console.log('\x1b[42m\x1b[30m   CODE PAIRING : ' + formattedCode + ' '.repeat(62 - 18 - formattedCode.length) + '\x1b[0m');
-            console.log('\x1b[42m\x1b[30m' + ' '.repeat(62) + '\x1b[0m\n');
         } catch (err) {
             console.error('[AUTH] Échec demande code pairing:', err.message);
             if (retryCount < 3) {
@@ -188,7 +180,6 @@ async function connectToWhatsApp() {
 
     await requestAndShowCode();
 
-    // Repeat the CURRENT code in console every 20 seconds to keep it visible
     const logInterval = setInterval(() => {
         if (currentPairingCode) {
             console.log(`\n[AUTH] CODE DE PAIRAGE : ${currentPairingCode} (WhatsApp > Appareils connectés)\n`);
@@ -247,12 +238,10 @@ async function connectToWhatsApp() {
 
       try {
           const botJid = jidNormalizedUser(sock.user.id);
-          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - After the Rebirth (ATR) est en ligne." });
+          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - After the Rebirth (ATR) est en ligne avec Raiden (IA Proactive)." });
       } catch (e) {}
 
       startDayNightCycle();
-      // Disabled proactive inbox spam per user instruction:
-      // startProactiveAIEngagement(sock);
     }
   });
 
@@ -272,7 +261,6 @@ async function connectToWhatsApp() {
 
                 const player = await Player.findOne({ where: { whatsappId: jid } });
 
-                // Handle profile picture submission
                 if (player && player.awaitingProfilePic) {
                     const type = getContentType(message.message);
                     if (type === 'imageMessage') {
@@ -294,7 +282,6 @@ async function connectToWhatsApp() {
                             console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
                             await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans After the Rebirth (ATR).` });
 
-                            // Trigger tutorial after profile pic
                             await startTutorial(sock, message.key.remoteJid, player);
                             return;
                         } catch (error) {
@@ -303,7 +290,6 @@ async function connectToWhatsApp() {
                             return;
                         }
                     } else {
-                         // If text is sent instead of image, clear awaitingProfilePic flag and trigger tutorial without treating as free action
                          await player.update({ awaitingProfilePic: false });
                          await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil ignorée (avatar par défaut attribué). Bienvenue dans After the Rebirth (ATR) !` });
                          await startTutorial(sock, message.key.remoteJid, player);
@@ -311,8 +297,17 @@ async function connectToWhatsApp() {
                     }
                 }
 
-                // If not a profile pic submission, handle as a normal command/message
+                // Handle normal command/RP action
                 await handleCommand(sock, message, downloadMediaMessage);
+
+                // Proactively let Raiden evaluate intervening/reacting if triggered or mentioned
+                if (message.key && message.key.remoteJid && !message.key.fromMe) {
+                    const text = message.message.conversation || message.message.extendedTextMessage?.text || "";
+                    if (text && (text.toLowerCase().includes('raiden') || Math.random() < 0.1)) {
+                        const senderName = player ? player.name : 'Aventurier';
+                        await handleRaidenProactiveTurn(sock, message.key.remoteJid, text, senderName);
+                    }
+                }
             } catch (globalError) {
                 console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
             }
@@ -326,7 +321,6 @@ if (require.main === module) {
     .then(async () => {
       console.log('[CORE] Base de données prête. Lancement du bot...');
 
-      // Démarre le 2ème serveur pour le modèle DARK LUST
       startModelServer();
 
       connectToWhatsApp();
