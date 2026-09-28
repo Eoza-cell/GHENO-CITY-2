@@ -5,7 +5,7 @@ const path = require('path');
 const os = require('os');
 
 /**
- * ATR AI — Integrated with OllamaFreeAPI & Empero.
+ * ATR AI — Integrated with NVIDIA API, OllamaFreeAPI & Empero.
  */
 
 function isValidAIResponse(input) {
@@ -32,6 +32,60 @@ function isValidAIResponse(input) {
     if (cleaned.length < 500 && errors.some(x => lower.includes(x))) return false;
 
     return true;
+}
+
+async function callNvidia(systemPrompt, userPrompt, options = {}) {
+    const apiKey = process.env.NVIDIA_API_KEY;
+    if (!apiKey) {
+        return null;
+    }
+
+    const model = process.env.NVIDIA_MODEL || 'z-ai/glm-5.3';
+    const timeoutMs = parseInt(process.env.NVIDIA_TIMEOUT_MS || '30000', 10);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        console.log(`[AI] Requesting via NVIDIA API (${model})...`);
+
+        const response = await axios.post(
+            'https://integrate.api.nvidia.com/v1/chat/completions',
+            {
+                model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                temperature: Number(options.temperature || 0.5),
+                top_p: Number(options.topP || 1),
+                max_tokens: parseInt(options.maxTokens || '1024', 10),
+                stream: false
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                timeout: timeoutMs,
+                signal: controller.signal
+            }
+        );
+
+        const content = response.data?.choices?.[0]?.message?.content;
+        if (isValidAIResponse(content)) {
+            console.log('[AI] NVIDIA API success.');
+            return content.trim();
+        }
+
+        console.warn('[AI] NVIDIA returned an empty/invalid response.');
+        return null;
+    } catch (error) {
+        console.warn('[AI] NVIDIA API unavailable:', error.response?.data?.error || error.message);
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
@@ -144,10 +198,15 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         ? String(userPrompt).substring(0, 7000) + '\n...[TRUNCATED]...\n' + String(userPrompt).slice(-9000)
         : String(userPrompt || '');
 
-    // Primary: OllamaFreeAPI
-    let result = await callOllamaFreeAPI(system, prompt, options);
+    // 1. Try NVIDIA API if configured
+    let result = await callNvidia(system, prompt, options);
 
-    // Fallback: local Empero / Ollama
+    // 2. Try OllamaFreeAPI
+    if (!isValidAIResponse(result)) {
+        result = await callOllamaFreeAPI(system, prompt, options);
+    }
+
+    // 3. Fallback: local Empero / Ollama
     if (!isValidAIResponse(result)) {
         result = await callEmpero(system, prompt, options);
     }
@@ -168,6 +227,7 @@ const call9Router = async () => null;
 
 module.exports = {
     callAI,
+    callNvidia,
     callOllamaFreeAPI,
     callEmpero,
     callOllama,
