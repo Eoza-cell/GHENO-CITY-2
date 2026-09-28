@@ -3,9 +3,10 @@ const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { callTransformersJS } = require('./transformers-js-handler');
 
 /**
- * ATR AI — Integrated with NVIDIA API, OllamaFreeAPI, Puter / Free HTTP endpoints & Empero.
+ * ATR AI — Integrated with NVIDIA API, Transformers.js, OllamaFreeAPI & Empero.
  */
 
 function isValidAIResponse(input) {
@@ -41,7 +42,7 @@ async function callNvidia(systemPrompt, userPrompt, options = {}) {
     }
 
     const model = process.env.NVIDIA_MODEL || 'z-ai/glm-5.3';
-    const timeoutMs = parseInt(process.env.NVIDIA_TIMEOUT_MS || '30000', 10);
+    const timeoutMs = parseInt(process.env.NVIDIA_TIMEOUT_MS || '15000', 10);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -91,7 +92,7 @@ async function callNvidia(systemPrompt, userPrompt, options = {}) {
 async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
     return new Promise((resolve) => {
         try {
-            console.log('[AI] Requesting via OllamaFreeAPI...');
+            console.log('[AI] Requesting via OllamaFreeAPI package...');
             const sysFile = path.join(os.tmpdir(), `ollamafreeapi_sys_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.txt`);
             const usrFile = path.join(os.tmpdir(), `ollamafreeapi_usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.txt`);
 
@@ -101,7 +102,7 @@ async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
             const scriptPath = path.join(__dirname, 'ollamafreeapi_handler.py');
             const args = [scriptPath, sysFile, usrFile];
 
-            execFile('python3', args, { timeout: 25000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+            execFile('python3', args, { timeout: 12000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
                 try { if (fs.existsSync(sysFile)) fs.unlinkSync(sysFile); } catch (e) {}
                 try { if (fs.existsSync(usrFile)) fs.unlinkSync(usrFile); } catch (e) {}
 
@@ -124,49 +125,6 @@ async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
     });
 }
 
-async function callDirectFreeEndpoint(systemPrompt, userPrompt, options = {}) {
-    const urls = [
-        'http://108.181.196.208:11434/api/generate',
-        'http://108.181.196.208:11434/api/chat'
-    ];
-
-    for (const url of urls) {
-        try {
-            console.log(`[AI] Requesting via Direct Free Endpoint (${url})...`);
-            const isChat = url.includes('/chat');
-            const payload = isChat ? {
-                model: 'llama3.2:latest',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                stream: false
-            } : {
-                model: 'llama3.2:latest',
-                prompt: `System: ${systemPrompt}\nUser: ${userPrompt}`,
-                stream: false
-            };
-
-            const response = await axios.post(url, payload, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 15000
-            });
-
-            const content = isChat
-                ? response.data?.message?.content
-                : response.data?.response;
-
-            if (isValidAIResponse(content)) {
-                console.log('[AI] Direct Free Endpoint success.');
-                return content.trim();
-            }
-        } catch (e) {
-            console.warn('[AI] Direct Free Endpoint error:', e.message);
-        }
-    }
-    return null;
-}
-
 async function callEmpero(system, prompt, options = {}) {
     let host = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
     if (!host.startsWith('http')) host = 'http://' + host;
@@ -178,7 +136,7 @@ async function callEmpero(system, prompt, options = {}) {
         'qwythos-9b-v2';
 
     const numCtx = parseInt(process.env.OLLAMA_NUM_CTX || '32768', 10);
-    const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '120000', 10);
+    const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '30000', 10);
     const temperature = Number(process.env.EMPERO_TEMPERATURE || '0.6');
     const topP = Number(process.env.EMPERO_TOP_P || '0.95');
     const topK = Number(process.env.EMPERO_TOP_K || '20');
@@ -244,12 +202,13 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     // 1. Try NVIDIA API if configured
     let result = await callNvidia(system, prompt, options);
 
-    // 2. Try Direct Free Endpoint
+    // 2. Try Transformers.js in-process engine
     if (!isValidAIResponse(result)) {
-        result = await callDirectFreeEndpoint(system, prompt, options);
+        console.log('[AI] Trying Transformers.js in-process engine...');
+        result = await callTransformersJS(system, prompt, options);
     }
 
-    // 3. Try OllamaFreeAPI
+    // 3. Try OllamaFreeAPI package
     if (!isValidAIResponse(result)) {
         result = await callOllamaFreeAPI(system, prompt, options);
     }
@@ -268,7 +227,7 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
 
 // Compatibility aliases
 const callOllama = callEmpero;
-const callHuggingFaceLocal = async () => null;
+const callHuggingFaceLocal = callTransformersJS;
 const callAether = async () => null;
 const callOmniRouter = async () => null;
 const call9Router = async () => null;
@@ -276,8 +235,8 @@ const call9Router = async () => null;
 module.exports = {
     callAI,
     callNvidia,
+    callTransformersJS,
     callOllamaFreeAPI,
-    callDirectFreeEndpoint,
     callEmpero,
     callOllama,
     callHuggingFaceLocal,
