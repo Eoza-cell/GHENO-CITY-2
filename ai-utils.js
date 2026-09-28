@@ -5,7 +5,7 @@ const path = require('path');
 const os = require('os');
 
 /**
- * ATR AI — Integrated with NVIDIA API, OllamaFreeAPI & Empero.
+ * ATR AI — Integrated with NVIDIA API, OllamaFreeAPI, Puter / Free HTTP endpoints & Empero.
  */
 
 function isValidAIResponse(input) {
@@ -101,7 +101,7 @@ async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
             const scriptPath = path.join(__dirname, 'ollamafreeapi_handler.py');
             const args = [scriptPath, sysFile, usrFile];
 
-            execFile('python3', args, { timeout: 15000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+            execFile('python3', args, { timeout: 25000, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
                 try { if (fs.existsSync(sysFile)) fs.unlinkSync(sysFile); } catch (e) {}
                 try { if (fs.existsSync(usrFile)) fs.unlinkSync(usrFile); } catch (e) {}
 
@@ -122,6 +122,49 @@ async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
             resolve(null);
         }
     });
+}
+
+async function callDirectFreeEndpoint(systemPrompt, userPrompt, options = {}) {
+    const urls = [
+        'http://108.181.196.208:11434/api/generate',
+        'http://108.181.196.208:11434/api/chat'
+    ];
+
+    for (const url of urls) {
+        try {
+            console.log(`[AI] Requesting via Direct Free Endpoint (${url})...`);
+            const isChat = url.includes('/chat');
+            const payload = isChat ? {
+                model: 'llama3.2:latest',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                stream: false
+            } : {
+                model: 'llama3.2:latest',
+                prompt: `System: ${systemPrompt}\nUser: ${userPrompt}`,
+                stream: false
+            };
+
+            const response = await axios.post(url, payload, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 15000
+            });
+
+            const content = isChat
+                ? response.data?.message?.content
+                : response.data?.response;
+
+            if (isValidAIResponse(content)) {
+                console.log('[AI] Direct Free Endpoint success.');
+                return content.trim();
+            }
+        } catch (e) {
+            console.warn('[AI] Direct Free Endpoint error:', e.message);
+        }
+    }
+    return null;
 }
 
 async function callEmpero(system, prompt, options = {}) {
@@ -201,12 +244,17 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
     // 1. Try NVIDIA API if configured
     let result = await callNvidia(system, prompt, options);
 
-    // 2. Try OllamaFreeAPI
+    // 2. Try Direct Free Endpoint
+    if (!isValidAIResponse(result)) {
+        result = await callDirectFreeEndpoint(system, prompt, options);
+    }
+
+    // 3. Try OllamaFreeAPI
     if (!isValidAIResponse(result)) {
         result = await callOllamaFreeAPI(system, prompt, options);
     }
 
-    // 3. Fallback: local Empero / Ollama
+    // 4. Fallback: local Empero / Ollama
     if (!isValidAIResponse(result)) {
         result = await callEmpero(system, prompt, options);
     }
@@ -229,6 +277,7 @@ module.exports = {
     callAI,
     callNvidia,
     callOllamaFreeAPI,
+    callDirectFreeEndpoint,
     callEmpero,
     callOllama,
     callHuggingFaceLocal,

@@ -1,8 +1,6 @@
 // Charger les variables d'environnement au tout début
 require('dotenv').config();
 
-// Le bot utilise maintenant exclusivement Transformers.js local pour le moteur IA.
-
 const http = require('http');
 const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
@@ -133,7 +131,7 @@ async function connectToWhatsApp() {
     printQRInTerminal: false,
     browser: Browsers.ubuntu('Chrome'),
     version,
-    logger: pino({ level: 'debug' }), // Set to debug for troubleshooting
+    logger: pino({ level: 'debug' }),
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return undefined;
@@ -254,7 +252,7 @@ async function connectToWhatsApp() {
     for (const message of m.messages) {
         messageQueue.add(async () => {
             try {
-                if (!message.message) return;
+                if (!message || !message.message) return;
 
                 const jid = getJid(message);
                 if (!jid) return;
@@ -301,7 +299,7 @@ async function connectToWhatsApp() {
                 await handleCommand(sock, message, downloadMediaMessage);
 
                 // Proactively let Raiden evaluate intervening/reacting if triggered or mentioned
-                if (message.key && message.key.remoteJid && !message.key.fromMe) {
+                if (message.key && message.key.remoteJid && !message.key.fromMe && message.message) {
                     const text = message.message.conversation || message.message.extendedTextMessage?.text || "";
                     if (text && (text.toLowerCase().includes('raiden') || Math.random() < 0.1)) {
                         const senderName = player ? player.name : 'Aventurier';
