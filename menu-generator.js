@@ -5,6 +5,7 @@ const { escapeXml } = require('./utils');
 
 /**
  * Generates an ultra-premium Anime / Manga RPG UI Title Screen and Dashboard Menu.
+ * Clean, sleek title design focusing on game navigation cards without HP/MP status bars.
  * Inspired by Genshin Impact, Honkai Star Rail, Solo Leveling & Sword Art Online UI.
  *
  * @param {Object} player - The player object from the database (optional)
@@ -15,16 +16,10 @@ async function generateMainMenuImage(player) {
 
     const pName = player?.name ? player.name.toUpperCase() : "HÉRITIER SANS NOM";
     const pClass = player?.class ? player.class.toUpperCase() : "INITIÉ";
-    const pRace = player?.race ? player.race.toUpperCase() : "HUMAIN";
     const pRank = player?.rank ? player.rank : "F";
     const pLevel = player?.level ? player.level : 1;
     const pCol = player?.col != null ? player.col : 100;
-    const pHealth = player?.health != null ? player.health : 100;
-    const pMaxHealth = player?.maxHealth != null ? player.maxHealth : 100;
-    const pMana = player?.mana != null ? player.mana : 100;
-    const pMaxMana = player?.maxMana != null ? player.maxMana : 100;
     const pLocation = player?.location ? player.location.toUpperCase() : "EMPIRE IMPÉRIAL D'ELION";
-    const pSubLocation = player?.subLocation ? player.subLocation.toUpperCase() : "PLACE DU MARCHÉ";
 
     // Menu Cards Array with Anime/Manga RPG Styling
     const cardsData = [
@@ -36,7 +31,7 @@ async function generateMainMenuImage(player) {
             color: '#ff3c00',
             imagePath: path.join(__dirname, 'assets', 'tutorial_boss.jpg'),
             x: 50,
-            y: 280
+            y: 240
         },
         {
             cmd: '/dormir',
@@ -46,7 +41,7 @@ async function generateMainMenuImage(player) {
             color: '#00a8ff',
             imagePath: path.join(__dirname, 'assets', 'silhouette.jpg'),
             x: 330,
-            y: 280
+            y: 240
         },
         {
             cmd: '/profil',
@@ -56,7 +51,7 @@ async function generateMainMenuImage(player) {
             color: '#00e5ff',
             imagePath: path.join(__dirname, 'assets', 'silhouette.jpg'),
             x: 610,
-            y: 280
+            y: 240
         },
         {
             cmd: '/quests',
@@ -66,7 +61,7 @@ async function generateMainMenuImage(player) {
             color: '#ffd700',
             imagePath: path.join(__dirname, 'assets', 'locations', 'interstice.jpg'),
             x: 890,
-            y: 280
+            y: 240
         },
         {
             cmd: '/map',
@@ -76,7 +71,7 @@ async function generateMainMenuImage(player) {
             color: '#00e676',
             imagePath: path.join(__dirname, 'assets', 'locations', 'eldoria.jpg'),
             x: 50,
-            y: 490
+            y: 460
         },
         {
             cmd: '/boutique',
@@ -86,7 +81,7 @@ async function generateMainMenuImage(player) {
             color: '#ff9900',
             imagePath: path.join(__dirname, 'assets', 'apostle.jpg'),
             x: 330,
-            y: 490
+            y: 460
         },
         {
             cmd: '/bank',
@@ -96,7 +91,7 @@ async function generateMainMenuImage(player) {
             color: '#d500f9',
             imagePath: path.join(__dirname, 'assets', 'locations', 'academy.jpg'),
             x: 610,
-            y: 490
+            y: 460
         },
         {
             cmd: '/lore',
@@ -106,12 +101,12 @@ async function generateMainMenuImage(player) {
             color: '#b0bec5',
             imagePath: path.join(__dirname, 'assets', 'locations', 'necropolis.jpg'),
             x: 890,
-            y: 490
+            y: 460
         }
     ];
 
     const cardWidth = 260;
-    const cardHeight = 185;
+    const cardHeight = 190;
 
     // Load card backgrounds
     const processedCards = await Promise.all(cardsData.map(async (card) => {
@@ -149,11 +144,6 @@ async function generateMainMenuImage(player) {
                 <stop offset="100%" style="stop-color:#0088ff;stop-opacity:1" />
             </linearGradient>
 
-            <linearGradient id="rubyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#ff4081;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#ff3c00;stop-opacity:1" />
-            </linearGradient>
-
             <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
                 <feGaussianBlur stdDeviation="5" result="blur" />
                 <feMerge>
@@ -178,56 +168,34 @@ async function generateMainMenuImage(player) {
         </g>
 
         <!-- ==================== HEADER: ANIME RPG GAME LOGO ==================== -->
-        <g transform="translate(60, 50)">
+        <g transform="translate(60, 60)">
             <!-- Diamond Badge Emblem -->
             <polygon points="20,0 40,20 20,40 0,20" fill="none" stroke="url(#goldGlow)" stroke-width="2.5" filter="url(#softGlow)"/>
             <polygon points="20,7 33,20 20,33 7,20" fill="url(#goldGlow)"/>
 
-            <text x="55" y="26" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="28" font-weight="900" fill="#ffffff" letter-spacing="3">AFTER THE REBIRTH</text>
-            <text x="385" y="26" font-family="monospace" font-size="12" font-weight="bold" fill="url(#goldGlow)" letter-spacing="4" filter="url(#softGlow)">ATR OS v2.0</text>
-            <text x="55" y="45" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.4)" letter-spacing="2">SYSTEM DASHBOARD • ANIME RPG INTERFACE</text>
+            <text x="55" y="26" font-family="'Segoe UI', 'Arial Black', sans-serif" font-size="30" font-weight="900" fill="#ffffff" letter-spacing="3">AFTER THE REBIRTH</text>
+            <text x="390" y="26" font-family="monospace" font-size="12" font-weight="bold" fill="url(#goldGlow)" letter-spacing="4" filter="url(#softGlow)">ATR OS</text>
+            <text x="55" y="46" font-family="monospace" font-size="10" fill="rgba(255,255,255,0.4)" letter-spacing="2">SYSTEM TITLE DASHBOARD • ANIME RPG INTERFACE</text>
 
-            <line x1="55" y1="56" x2="480" y2="56" stroke="url(#goldGlow)" stroke-width="1.8" opacity="0.8" />
+            <line x1="55" y1="58" x2="480" y2="58" stroke="url(#goldGlow)" stroke-width="1.8" opacity="0.8" />
         </g>
 
-        <!-- ==================== PLAYER STATUS ANIME HUD ==================== -->
-        <g transform="translate(620, 35)">
-            <rect width="530" height="210" fill="rgba(12, 16, 28, 0.85)" stroke="rgba(255, 215, 0, 0.3)" stroke-width="1.5" rx="12" filter="drop-shadow(0 10px 25px rgba(0,0,0,0.8))" />
+        <!-- ==================== PLAYER MINIMALIST HEADER BADGE ==================== -->
+        <g transform="translate(720, 50)">
+            <rect width="430" height="110" fill="rgba(12, 16, 28, 0.80)" stroke="rgba(0, 255, 255, 0.2)" stroke-width="1.2" rx="10" filter="drop-shadow(0 10px 25px rgba(0,0,0,0.8))" />
 
             <!-- Level Diamond Badge -->
-            <g transform="translate(45, 60)">
-                <polygon points="0,-26 26,0 0,26 -26,0" fill="rgba(10,5,25,0.9)" stroke="url(#goldGlow)" stroke-width="2" filter="url(#softGlow)"/>
-                <text x="0" y="-6" font-family="'Segoe UI', sans-serif" font-size="8" font-weight="900" fill="#ffaa00" text-anchor="middle">LVL</text>
-                <text x="0" y="12" font-family="'Segoe UI', sans-serif" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle">${escapeXml(pLevel)}</text>
+            <g transform="translate(40, 55)">
+                <polygon points="0,-24 24,0 0,24 -24,0" fill="rgba(10,5,25,0.9)" stroke="url(#goldGlow)" stroke-width="2" filter="url(#softGlow)"/>
+                <text x="0" y="-5" font-family="'Segoe UI', sans-serif" font-size="8" font-weight="900" fill="#ffaa00" text-anchor="middle">LVL</text>
+                <text x="0" y="11" font-family="'Segoe UI', sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle">${escapeXml(pLevel)}</text>
             </g>
 
-            <!-- Name, Class, Race -->
-            <g transform="translate(90, 45)">
-                <text x="0" y="0" font-family="'Segoe UI', sans-serif" font-size="20" font-weight="900" fill="#ffffff">${escapeXml(pName)}</text>
-                <text x="0" y="18" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="bold" fill="#ffd700">❖ ${escapeXml(pClass)} • ${escapeXml(pRace)} | RANG ${escapeXml(pRank)}</text>
-            </g>
-
-            <!-- Gauges Section -->
-            <g transform="translate(45, 105)">
-                <!-- HP Gauge -->
-                <text x="0" y="10" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="900" fill="#ff4081">HP ❖</text>
-                <text x="440" y="10" font-family="monospace" font-size="10" fill="#ffffff" font-weight="bold" text-anchor="end">${escapeXml(pHealth)} / ${escapeXml(pMaxHealth)}</text>
-                <rect x="0" y="16" width="440" height="6" fill="rgba(255,255,255,0.08)" rx="3" />
-                <rect x="0" y="16" width="${Math.max(10, Math.min(100, (pHealth / pMaxHealth) * 100)) * 4.4}" height="6" fill="url(#rubyGrad)" rx="3" filter="url(#softGlow)" />
-
-                <!-- MP Gauge -->
-                <g transform="translate(0, 32)">
-                    <text x="0" y="10" font-family="'Segoe UI', sans-serif" font-size="10" font-weight="900" fill="#00ffff">MP ❖</text>
-                    <text x="440" y="10" font-family="monospace" font-size="10" fill="#ffffff" font-weight="bold" text-anchor="end">${escapeXml(pMana)} / ${escapeXml(pMaxMana)}</text>
-                    <rect x="0" y="16" width="440" height="6" fill="rgba(255,255,255,0.08)" rx="3" />
-                    <rect x="0" y="16" width="${Math.max(10, Math.min(100, (pMana / pMaxMana) * 100)) * 4.4}" height="6" fill="url(#cyanNeon)" rx="3" filter="url(#softGlow)" />
-                </g>
-            </g>
-
-            <!-- Location & Col Footer -->
-            <g transform="translate(45, 188)">
-                <text x="0" y="0" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#00e676">📍 ${escapeXml(pLocation)} • ${escapeXml(pSubLocation)}</text>
-                <text x="440" y="0" font-family="'Segoe UI', sans-serif" font-size="13" font-weight="900" fill="#ffd700" text-anchor="end">🪙 ${escapeXml(pCol.toLocaleString())} COL</text>
+            <!-- Player Info -->
+            <g transform="translate(80, 42)">
+                <text x="0" y="0" font-family="'Segoe UI', sans-serif" font-size="18" font-weight="900" fill="#ffffff">${escapeXml(pName)}</text>
+                <text x="0" y="18" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#ffd700">❖ ${escapeXml(pClass)} | RANG ${escapeXml(pRank)}</text>
+                <text x="0" y="38" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#00e676">📍 ${escapeXml(pLocation)} <tspan fill="#ffd700">• 🪙 ${escapeXml(pCol.toLocaleString())} COL</tspan></text>
             </g>
         </g>
 
@@ -240,7 +208,7 @@ async function generateMainMenuImage(player) {
                 ` : `
                 <rect width="${cardWidth}" height="${cardHeight}" fill="#0d0b1a" />
                 `}
-                <rect width="${cardWidth}" height="${cardHeight}" fill="rgba(8, 6, 18, 0.70)" />
+                <rect width="${cardWidth}" height="${cardHeight}" fill="rgba(8, 6, 18, 0.72)" />
 
                 <!-- Card Content -->
                 <g transform="translate(20, 25)">
@@ -249,13 +217,13 @@ async function generateMainMenuImage(player) {
                     <text x="42.5" y="14" font-family="monospace" font-size="10" font-weight="bold" fill="#ffffff" text-anchor="middle">${escapeXml(card.cmd)}</text>
 
                     <!-- Icon & Title -->
-                    <text x="0" y="52" font-family="'Segoe UI', sans-serif" font-size="20">${card.icon}</text>
-                    <text x="32" y="52" font-family="'Segoe UI', sans-serif" font-size="17" font-weight="900" fill="#ffffff" letter-spacing="1">${escapeXml(card.title)}</text>
-                    <text x="0" y="74" font-family="monospace" font-size="10" font-weight="bold" fill="${card.color}">❖ ${escapeXml(card.sub)}</text>
+                    <text x="0" y="54" font-family="'Segoe UI', sans-serif" font-size="20">${card.icon}</text>
+                    <text x="32" y="54" font-family="'Segoe UI', sans-serif" font-size="17" font-weight="900" fill="#ffffff" letter-spacing="1">${escapeXml(card.title)}</text>
+                    <text x="0" y="78" font-family="monospace" font-size="10" font-weight="bold" fill="${card.color}">❖ ${escapeXml(card.sub)}</text>
                 </g>
             </g>
 
-            <!-- Card Outer Border -->
+            <!-- Card Outer Border Frame -->
             <rect width="${cardWidth}" height="${cardHeight}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.2" rx="10" />
             <rect x="0" y="0" width="4" height="${cardHeight}" fill="${card.color}" rx="2" />
         </g>
