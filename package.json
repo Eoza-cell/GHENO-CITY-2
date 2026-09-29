@@ -19,11 +19,14 @@
   },
   "homepage": "https://github.com/Eoza-cell/GHENO-CITY-2#readme",
   "dependencies": {
+    "@huggingface/transformers": "^3.8.0",
     "@langchain/core": "^0.3.0",
     "@mlc-ai/web-llm": "^0.2.84",
+    "@upstash/redis": "^1.35.3",
     "@whiskeysockets/baileys": "7.0.0-rc13",
     "axios": "^1.19.0",
     "dotenv": "^16.4.7",
+    "itsmeeaizat-bailey": "^1.0.5",
     "jsdom": "^29.1.1",
     "ollama": "^0.6.3",
     "p-queue": "^6.6.2",
@@ -35,9 +38,7 @@
     "sequelize": "^6.37.8",
     "sharp": "^0.34.5",
     "sqlite3": "^5.1.7",
-    "three": "^0.170.0",
-    "@upstash/redis": "^1.35.3",
-    "@huggingface/transformers": "^3.8.0"
+    "three": "^0.170.0"
   },
   "type": "commonjs"
 }
