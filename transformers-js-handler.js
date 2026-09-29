@@ -1,5 +1,4 @@
 // ATR — Native Hugging Face Transformers.js RP engine.
-// Keeps one generator in memory and retries safely if a quantized model variant fails.
 
 let generatorPromise = null;
 
@@ -47,8 +46,6 @@ async function getGenerator() {
 }
 
 async function callTransformersJS(system, prompt, options = {}) {
-    // Keep the prompt bounded. Very large world-state dumps can make a small
-    // Render instance appear frozen even when the model itself is healthy.
     const safeSystem = String(system || '').slice(-6000);
     const safePrompt = String(prompt || '').slice(-7000);
     try {
@@ -66,7 +63,6 @@ async function callTransformersJS(system, prompt, options = {}) {
 
         const text = extractGeneratedText(output);
         if (!text || text.length < 8) {
-            console.warn('[Transformers.js] Empty generation:', JSON.stringify(output).slice(0, 500));
             return null;
         }
 

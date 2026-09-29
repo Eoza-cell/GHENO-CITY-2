@@ -2947,8 +2947,24 @@ commands.set('menu', async (sock, message) => {
   const menuText = `🎮 *AFTER THE REBIRTH — MENU RAPIDE*\n\n⚔️ /action • 👤 /profil • 🛡️ /statut\n🗺️ /map • 📜 /quests • 📍 /lieux\n👗 /tenue • 🛒 /boutique • 📚 /lore\n⚙️ /status • ❓ /help\n\n_Choisis ta prochaine action._`;
 
   try {
-    const menuImage = await generateMenuPanel(player);
-    await sock.sendMessage(replyJid, { image: menuImage, caption: menuText });
+    const menuImage = await generateMainMenuImage(player);
+
+    const buttons = [
+      { buttonId: '/action', buttonText: { displayText: '⚔️ Aventure' }, type: 1 },
+      { buttonId: '/profil', buttonText: { displayText: '👤 Profil' }, type: 1 },
+      { buttonId: '/quests', buttonText: { displayText: '📜 Quêtes' }, type: 1 }
+    ];
+
+    try {
+      await sock.sendMessage(replyJid, {
+        image: menuImage,
+        caption: menuText,
+        buttons: buttons,
+        headerType: 4
+      });
+    } catch (btnErr) {
+      await sock.sendMessage(replyJid, { image: menuImage, caption: menuText });
+    }
   } catch (error) {
     console.warn('[UI] Menu visual fallback:', error.message);
     await sock.sendMessage(replyJid, { text: menuText });
