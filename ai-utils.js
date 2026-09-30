@@ -6,7 +6,7 @@ const os = require('os');
 const { callTransformersJS } = require('./transformers-js-handler');
 
 /**
- * ATR AI Engine — High Availability with NVIDIA, Transformers.js, OllamaFreeAPI, Direct Free Nodes & Dynamic Fallbacks.
+ * ATR AI Engine — High Availability with Transformers.js, NVIDIA API, OllamaFreeAPI & Fallbacks.
  */
 
 function isValidAIResponse(input) {
@@ -33,6 +33,20 @@ function isValidAIResponse(input) {
     if (cleaned.length < 500 && errors.some(x => lower.includes(x))) return false;
 
     return true;
+}
+
+async function callTransformersLocal(systemPrompt, userPrompt, options = {}) {
+    try {
+        console.log('[AI] Requesting via Transformers.js ONNX local engine...');
+        const result = await callTransformersJS(systemPrompt, userPrompt, options);
+        if (isValidAIResponse(result)) {
+            console.log('[AI] Transformers.js ONNX success.');
+            return result.trim();
+        }
+    } catch (err) {
+        console.warn('[AI] Transformers.js engine error:', err.message);
+    }
+    return null;
 }
 
 async function callNvidia(systemPrompt, userPrompt, options = {}) {
@@ -84,20 +98,6 @@ async function callNvidia(systemPrompt, userPrompt, options = {}) {
     }
 }
 
-async function callTransformersLocal(systemPrompt, userPrompt, options = {}) {
-    try {
-        console.log('[AI] Requesting via Transformers.js ONNX local engine...');
-        const result = await callTransformersJS(systemPrompt, userPrompt, options);
-        if (isValidAIResponse(result)) {
-            console.log('[AI] Transformers.js ONNX success.');
-            return result.trim();
-        }
-    } catch (err) {
-        console.warn('[AI] Transformers.js engine error:', err.message);
-    }
-    return null;
-}
-
 async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
     return new Promise((resolve) => {
         try {
@@ -130,50 +130,6 @@ async function callOllamaFreeAPI(systemPrompt, userPrompt, options = {}) {
     });
 }
 
-async function callEmpero(system, prompt, options = {}) {
-    let host = process.env.OLLAMA_URL || 'http://127.0.0.1:11434';
-    if (!host.startsWith('http')) host = 'http://' + host;
-    host = host.replace(/\/$/, '');
-
-    const model = process.env.EMPPERO_MODEL ||
-        process.env.EMPERO_MODEL ||
-        process.env.OLLAMA_MODEL ||
-        'qwythos-9b-v2';
-
-    const timeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '10000', 10);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-        console.log(`[AI] Empero Qwythos-9B-v2 -> Ollama (${host})`);
-
-        const response = await axios.post(
-            `${host}/api/chat`,
-            {
-                model,
-                messages: [
-                    { role: 'system', content: system },
-                    { role: 'user', content: prompt }
-                ],
-                stream: false
-            },
-            {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: timeoutMs,
-                signal: controller.signal
-            }
-        );
-
-        const content = response.data?.message?.content;
-        if (isValidAIResponse(content)) return content.trim();
-        return null;
-    } catch (error) {
-        return null;
-    } finally {
-        clearTimeout(timer);
-    }
-}
-
 async function callAI(systemPrompt, userPrompt, options = {}) {
     const maxSystemLength = 16000;
     const maxUserLength = 16000;
@@ -186,12 +142,12 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         ? String(userPrompt).substring(0, 7000) + '\n...[TRUNCATED]...\n' + String(userPrompt).slice(-9000)
         : String(userPrompt || '');
 
-    // 1. Try NVIDIA API if key exists
-    let result = await callNvidia(system, prompt, options);
+    // 1. Primary fast local engine: Transformers.js ONNX
+    let result = await callTransformersLocal(system, prompt, options);
 
-    // 2. Try Local Transformers.js ONNX model
+    // 2. Try NVIDIA API if key exists
     if (!isValidAIResponse(result)) {
-        result = await callTransformersLocal(system, prompt, options);
+        result = await callNvidia(system, prompt, options);
     }
 
     // 3. Try OllamaFreeAPI Python bridge
@@ -199,22 +155,16 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         result = await callOllamaFreeAPI(system, prompt, options);
     }
 
-    // 4. Try local Ollama/Empero
+    // 4. Guaranteed narrative fallback so AI NEVER returns null or fails
     if (!isValidAIResponse(result)) {
-        result = await callEmpero(system, prompt, options);
-    }
-
-    // 5. Ultimate deterministic fallback guarantee so AI NEVER fails or returns null
-    if (!isValidAIResponse(result)) {
-        console.log('[AI] Triggering narrative fallback generator.');
-        result = `[NARRATION ATR]\nUn frisson traverse le monde d'After the Rebirth. L'air se gorge d'éther pur alors que la volonté de l'Héritier résonne. Les choix faits en ce lieu façonneront à jamais le destin de la Renaissance.`;
+        result = `[NARRATION ATR]\nL'atmosphère crépite d'énergie pure. Les choix de l'Héritier résonnent à travers les dimensions d'After the Rebirth. L'aventure se poursuit !`;
     }
 
     return result;
 }
 
 // Compatibility aliases
-const callOllama = callEmpero;
+const callOllama = async () => null;
 const callHuggingFaceLocal = callTransformersJS;
 const callAether = async () => null;
 const callOmniRouter = async () => null;
@@ -225,8 +175,6 @@ module.exports = {
     callNvidia,
     callTransformersJS,
     callOllamaFreeAPI,
-    callEmpero,
-    callOllama,
     callHuggingFaceLocal,
     callAether,
     callOmniRouter,

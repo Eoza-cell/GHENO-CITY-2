@@ -2944,24 +2944,35 @@ commands.set('menu', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player) await player.update({ mode: 'normal' });
 
-  const menuText = `🎮 *AFTER THE REBIRTH — MENU RAPIDE*\n\n⚔️ /action • 👤 /profil • 🛡️ /statut\n🗺️ /map • 📜 /quests • 📍 /lieux\n👗 /tenue • 🛒 /boutique • 📚 /lore\n⚙️ /status • ❓ /help\n\n_Choisis ta prochaine action._`;
+  const menuText = `🎮 *AFTER THE REBIRTH — MENU ANIME RPG*\n\n` +
+                   `⚔️ */action* • Mode Aventure & RP\n` +
+                   `👤 */profil* • Fiche & Statistiques\n` +
+                   `🛡️ */statut* • Équipement & Tenue\n` +
+                   `🗺️ */map* • Carte des 17 Royaumes\n` +
+                   `📜 */quests* • Journal de Quêtes\n` +
+                   `🛒 */boutique* • Marché de la Forge\n` +
+                   `🪙 */bank* • Coffre-fort de Col\n` +
+                   `📚 */lore* • Archives d'Aetherys\n\n` +
+                   `_Tapez une commande ci-dessus pour naviguer dans ATR !_`;
 
   try {
     const menuImage = await generateMainMenuImage(player);
 
-    const buttons = [
-      { buttonId: '/action', buttonText: { displayText: '⚔️ Aventure' }, type: 1 },
-      { buttonId: '/profil', buttonText: { displayText: '👤 Profil' }, type: 1 },
-      { buttonId: '/quests', buttonText: { displayText: '📜 Quêtes' }, type: 1 }
-    ];
+    // Send high-quality anime RPG menu visual card with interactive button list
+    const buttonPayload = {
+      image: menuImage,
+      caption: menuText,
+      footer: "ATR OS v2.0 • Select an action",
+      buttons: [
+        { buttonId: '/action', buttonText: { displayText: '⚔️ Mode Aventure' }, type: 1 },
+        { buttonId: '/profil', buttonText: { displayText: '👤 Profil Héritier' }, type: 1 },
+        { buttonId: '/quests', buttonText: { displayText: '📜 Quêtes Actives' }, type: 1 }
+      ],
+      headerType: 4
+    };
 
     try {
-      await sock.sendMessage(replyJid, {
-        image: menuImage,
-        caption: menuText,
-        buttons: buttons,
-        headerType: 4
-      });
+      await sock.sendMessage(replyJid, buttonPayload);
     } catch (btnErr) {
       await sock.sendMessage(replyJid, { image: menuImage, caption: menuText });
     }
