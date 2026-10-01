@@ -1,5 +1,9 @@
 // ATR — Native Hugging Face Transformers.js RP engine.
 
+if (typeof globalThis.self === 'undefined') {
+    globalThis.self = globalThis;
+}
+
 let generatorPromise = null;
 
 function extractGeneratedText(output) {
@@ -19,6 +23,9 @@ function extractGeneratedText(output) {
 }
 
 async function buildGenerator() {
+    if (typeof globalThis.self === 'undefined') {
+        globalThis.self = globalThis;
+    }
     const { pipeline, env } = await import('@huggingface/transformers');
     env.allowLocalModels = false;
 

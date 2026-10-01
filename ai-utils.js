@@ -6,7 +6,7 @@ const os = require('os');
 const { callTransformersJS } = require('./transformers-js-handler');
 
 /**
- * ATR AI Engine — High Availability with Transformers.js, NVIDIA API, OllamaFreeAPI & Fallbacks.
+ * ATR AI Engine — High Availability with Puter, NVIDIA API, Transformers.js, OllamaFreeAPI & Fallbacks.
  */
 
 function isValidAIResponse(input) {
@@ -33,6 +33,39 @@ function isValidAIResponse(input) {
     if (cleaned.length < 500 && errors.some(x => lower.includes(x))) return false;
 
     return true;
+}
+
+async function callPuter(systemPrompt, userPrompt, options = {}) {
+    try {
+        const { JSDOM } = require('jsdom');
+        if (!global.window) {
+            const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+            global.window = dom.window;
+            global.document = dom.window.document;
+            global.navigator = dom.window.navigator;
+        }
+
+        const puterLib = require('@heyputer/puter.js');
+        const puter = puterLib.default || puterLib;
+
+        const token = process.env.PUTER_TOKEN || process.env.PUTER_API_KEY;
+        if (token) {
+            puter.setAuthToken(token);
+        }
+
+        console.log('[AI] Requesting via Puter AI...');
+        const prompt = systemPrompt ? `System: ${systemPrompt}\nUser: ${userPrompt}` : userPrompt;
+        const resp = await puter.ai.chat(prompt, { model: options.model || 'gpt-4o-mini' });
+
+        const content = typeof resp === 'string' ? resp : (resp?.message?.content || resp?.text);
+        if (isValidAIResponse(content)) {
+            console.log('[AI] Puter AI success.');
+            return content.trim();
+        }
+    } catch (e) {
+        console.warn('[AI] Puter AI error:', e.message);
+    }
+    return null;
 }
 
 async function callTransformersLocal(systemPrompt, userPrompt, options = {}) {
@@ -142,20 +175,25 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         ? String(userPrompt).substring(0, 7000) + '\n...[TRUNCATED]...\n' + String(userPrompt).slice(-9000)
         : String(userPrompt || '');
 
-    // 1. Primary fast local engine: Transformers.js ONNX
-    let result = await callTransformersLocal(system, prompt, options);
+    // 1. Try Puter AI
+    let result = await callPuter(system, prompt, options);
 
-    // 2. Try NVIDIA API if key exists
+    // 2. Primary fast local engine: Transformers.js ONNX
+    if (!isValidAIResponse(result)) {
+        result = await callTransformersLocal(system, prompt, options);
+    }
+
+    // 3. Try NVIDIA API if key exists
     if (!isValidAIResponse(result)) {
         result = await callNvidia(system, prompt, options);
     }
 
-    // 3. Try OllamaFreeAPI Python bridge
+    // 4. Try OllamaFreeAPI Python bridge
     if (!isValidAIResponse(result)) {
         result = await callOllamaFreeAPI(system, prompt, options);
     }
 
-    // 4. Guaranteed narrative fallback so AI NEVER returns null or fails
+    // 5. Guaranteed narrative fallback so AI NEVER returns null or fails
     if (!isValidAIResponse(result)) {
         result = `[NARRATION ATR]\nL'atmosphère crépite d'énergie pure. Les choix de l'Héritier résonnent à travers les dimensions d'After the Rebirth. L'aventure se poursuit !`;
     }
@@ -172,6 +210,7 @@ const call9Router = async () => null;
 
 module.exports = {
     callAI,
+    callPuter,
     callNvidia,
     callTransformersJS,
     callOllamaFreeAPI,
