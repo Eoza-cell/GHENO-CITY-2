@@ -117,7 +117,7 @@ async function resolveExplicitDestination(player, actionText) {
     const raw = String(actionText || '').trim();
     const text = normalizeSceneText(raw);
 
-    const movementIntent = /\b(je me dirige vers|je vais vers|je vais voir|je me rends vers|je marche vers|je pars vers|je cours vers|je vais a|je vais au|je vais a la|je vais dans)\b/.test(text);
+    const movementIntent = /\b(je me dirige vers|je me dirige en direction de|je vais vers|je vais voir|je me rends vers|je me rends en direction de|je marche vers|je marche en direction de|je pars vers|je cours vers|je cours en direction de|je vais a|je vais au|je vais a la|je vais dans|en direction de)\b/.test(text);
 
     // Contextual continuation: after arriving somewhere, "j'entre / je rentre à l'intérieur"
     // must refer to the CURRENT official place, never let the LLM pick a random building.
@@ -141,6 +141,9 @@ async function resolveExplicitDestination(player, actionText) {
         { keys: ['poste', 'milice'], subLocation: 'Poste de la Milice' },
         { keys: ['caserne'], subLocation: 'Poste de la Milice' },
         { keys: ['academie'], subLocation: 'Académie Impériale' },
+        { keys: ['salle', 'combat'], subLocation: 'Salle de Combat' },
+        { keys: ['dojo'], subLocation: 'Salle de Combat' },
+        { keys: ['terrain', 'combat'], subLocation: 'Salle de Combat' },
         { keys: ['inscription'], subLocation: 'Bureau des Inscriptions' },
         { keys: ['marche'], subLocation: 'Marché Central' },
         { keys: ['hopital'], subLocation: 'Hôpital' }
