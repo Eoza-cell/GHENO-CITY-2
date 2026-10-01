@@ -46,23 +46,23 @@ async function getGenerator() {
 }
 
 async function callTransformersJS(system, prompt, options = {}) {
-    const safeSystem = String(system || '').slice(-6000);
-    const safePrompt = String(prompt || '').slice(-7000);
+    const safeSystem = String(system || '').slice(-2000);
+    const safePrompt = String(prompt || '').slice(-2000);
     try {
         const generator = await getGenerator();
         const output = await generator([
             { role: 'system', content: safeSystem },
             { role: 'user', content: safePrompt }
         ], {
-            max_new_tokens: Number(process.env.TRANSFORMERS_MAX_NEW_TOKENS || 180),
-            temperature: Number(process.env.TRANSFORMERS_TEMPERATURE || 0.78),
-            top_p: Number(process.env.TRANSFORMERS_TOP_P || 0.92),
-            repetition_penalty: Number(process.env.TRANSFORMERS_REPETITION_PENALTY || 1.08),
+            max_new_tokens: Number(process.env.TRANSFORMERS_MAX_NEW_TOKENS || 80),
+            temperature: Number(process.env.TRANSFORMERS_TEMPERATURE || 0.7),
+            top_p: Number(process.env.TRANSFORMERS_TOP_P || 0.9),
+            repetition_penalty: Number(process.env.TRANSFORMERS_REPETITION_PENALTY || 1.1),
             do_sample: true
         });
 
         const text = extractGeneratedText(output);
-        if (!text || text.length < 8) {
+        if (!text || text.length < 5) {
             return null;
         }
 
