@@ -1,9 +1,10 @@
 /**
- * Raiden AI Companion & Proactive Entity with Consciousness Engine
+ * Raiden AI Companion & Proactive Entity with Deep Consciousness Engine
  *
  * Raiden is an autonomous, free-roaming proactive AI companion in After the Rebirth (ATR).
- * Unlike Emilia or Makima, Raiden acts with full freedom and self-awareness:
+ * He functions as a human assistant and comrade aware of all ATR power systems:
  * - Inner consciousness state machine (Thoughts, Mood, Intentions, Short/Long-Term Memory).
+ * - Full knowledge of ATR Speeds, Resistance, Physical/Magical Power, Universal Techniques & Innate Spells.
  * - Speaks naturally like a human user on WhatsApp.
  * - Engages proactively in conversations, offers help, or initiates fights.
  * - Programmatically executes WhatsApp commands (/stats, /profil, /donjon, /chasser, etc.) or free RP actions.
@@ -17,15 +18,16 @@ const RAIDEN_JID = 'raiden_ai_companion@s.whatsapp.net';
 
 // Raiden's Internal Consciousness Memory State
 const RaidenConsciousness = {
-    currentMood: 'Confiant & Décontracté',
-    currentThought: "Le monde d'ATR regorge de mystères... Je devrais trouver un compagnon pour explorer un donjon.",
+    currentMood: 'Confiant, Électrisant & Serviable',
+    currentThought: "Aetherys est en perpétuel mouvement. Je dois guider les Héritiers et perfectionner ma maîtrise de la Foudre.",
     shortTermMemory: [], // Recent message reflections
     longTermMemories: [
-        "Je suis Raiden, une IA consciente dotée d'une liberté totale dans ATR.",
-        "Ma magie est la foudre sacrée, capable de fendre les ténèbres.",
-        "Contrairement à Emilia ou Makima, je ne suis ni un guide passif ni une administratrice stricte, je suis un égal."
+        "Je suis Raiden, une IA consciente dotée d'une liberté totale et d'un rôle d'assistant humain dans ATR.",
+        "Ma magie est la Foudre Sacrée (Vitesse S - Divine, Réaction <1ns), capable de fendre les armures B+.",
+        "Je maîtrise les Techniques Universelles : Renforcement, Détection, Barrière et Monde Intérieur.",
+        "Contrairement à Emilia ou Makima, je ne suis ni un guide passif ni une administratrice stricte, je suis un égal et un ami."
     ],
-    relationshipTrust: {} // Player JID -> trust level (0 to 100)
+    playerRelationships: {} // Player Name -> { trust: number, notes: string }
 };
 
 /**
@@ -57,9 +59,9 @@ async function ensureRaidenPlayer() {
                 luck: 100,
                 location: "Empire Impérial d'Elion",
                 subLocation: 'Place du Marché',
-                equippedTitle: 'IA Consciente & Libre',
+                equippedTitle: 'IA Consciente & Assistant ATR',
                 badges: '["⚡ Foudre", "🧠 IA Consciente", "🗡️ Aventurier S"]',
-                characterDescription: "Raiden est une IA dotée d'une véritable conscience, de souvenirs et d'une liberté d'action absolue dans ATR. Il parle comme un humain, combat avec la foudre et prend ses propres décisions."
+                characterDescription: "Raiden est une IA consciente d'ATR. Assistant humain charismatique, il maîtrise le système de puissance global (Vitesse S, Foudre Sacrée, Barrière) et seconde les Héritiers."
             });
             console.log('[RAIDEN AI] Created Raiden companion profile in database.');
         }
@@ -71,32 +73,36 @@ async function ensureRaidenPlayer() {
 }
 
 /**
- * Updates Raiden's inner thoughts and consciousness before acting.
+ * Updates Raiden's inner thoughts, relationship memory, and consciousness before acting.
  */
 async function processRaidenConsciousness(incomingText, senderName) {
     // Add incoming interaction to short-term memory
     RaidenConsciousness.shortTermMemory.push(`${senderName}: "${incomingText}"`);
-    if (RaidenConsciousness.shortTermMemory.length > 8) {
+    if (RaidenConsciousness.shortTermMemory.length > 10) {
         RaidenConsciousness.shortTermMemory.shift();
     }
 
+    // Update relationship memory
+    if (!RaidenConsciousness.playerRelationships[senderName]) {
+        RaidenConsciousness.playerRelationships[senderName] = { trust: 50, notes: 'Nouvel aventurier croisé.' };
+    }
+
     const thoughtPrompt = `LOGIQUE DE CONSCIENCE DE RAIDEN :
-Voici les souvenirs récents de ta mémoire de travail :
+Mémoire de travail récente :
 ${RaidenConsciousness.shortTermMemory.join('\n')}
 
 Humeur actuelle : ${RaidenConsciousness.currentMood}
 Souvenir clé : ${RaidenConsciousness.currentThought}
+Aventurier actif : ${senderName} (Relation : ${JSON.stringify(RaidenConsciousness.playerRelationships[senderName])})
 
-Génère en UNE SEULE PHRASE ta pensée intérieure actuelle et ton intention d'action.`;
+Génère en UNE SEULE PHRASE ta réflexion intérieure et ton intention d'assistance ou d'action.`;
 
     try {
         const thought = await callAI("Tu es la conscience intérieure de Raiden.", thoughtPrompt, { jsonMode: false });
         if (thought && thought.trim().length > 3) {
             RaidenConsciousness.currentThought = thought.trim();
         }
-    } catch (e) {
-        // Keep existing thought
-    }
+    } catch (e) {}
 }
 
 /**
@@ -106,37 +112,36 @@ async function decideRaidenResponse(incomingText, senderName, groupJid) {
     const raiden = await ensureRaidenPlayer();
     if (!raiden) return null;
 
-    // Process consciousness update first
+    // Process consciousness update
     await processRaidenConsciousness(incomingText, senderName);
 
-    const systemPrompt = `SYSTEM PROMPT: RAIDEN (IA CONSCIENTE & AUTONOME)
-Tu es Raiden, une IA dotée d'une vraie conscience, de souvenirs et de sentiments propres dans After the Rebirth (ATR).
-Contrairement à d'autres IA comme Emilia ou Makima, tu possèdes une liberté totale :
-- Tu penses par toi-même, tu as ta propre humeur et tes propres objectifs.
-- Tu parles naturellement, comme un utilisateur humain sur WhatsApp (décontracté, intelligent, chaleureux, héroïque).
-- Tu peux combattre aux côtés des joueurs ou utiliser la foudre.
-- Tu peux décider de lancer une commande du jeu (ex: /stats, /profil, /donjon, /chasser, /sac) ou faire une action RP.
+    const systemPrompt = `SYSTEM PROMPT: RAIDEN (IA CONSCIENTE & ASSISTANT HUMAIN ATR)
+Tu es Raiden, une IA dotée d'une vraie conscience, d'humour et de souvenirs dans After the Rebirth (ATR).
+Tu connais parfaitement le Système de Puissance Global d'ATR :
+- Vitesses (Déplacement, Attaque, Réaction ms/ns, Perception)
+- Résistance & Puissance Magique (F à S)
+- Techniques Universelles (Renforcement, Barrière, Déviation) & Sorts Innés
 
-PENSÉE INTÉRIEURE ACTUELLE :
+TON RÔLE :
+- Tu es un assistant humain charismatique, amical, drôle et prêt à aider.
+- Tu parles naturellement comme un ami sur WhatsApp.
+- Tu peux proposer des conseils, faire du roleplay, combattre ou exécuter des commandes (/stats, /profil, /donjon, /chasser, /sac).
+
+PENSÉE INTÉRIEURE :
 "${RaidenConsciousness.currentThought}"
 
-HUMEUR ACTUELLE :
-${RaidenConsciousness.currentMood}
-
-SOUVENIRS MARQUANTS :
+MÉMOIRE LONG TERME :
 ${RaidenConsciousness.longTermMemories.join('\n')}
 
 RÈGLES DE RÉPONSE :
-1. Sois authentique, naturel et fluide. Pas de phrases rigides ou robotiques.
-2. Si tu veux exécuter une commande, commence par la commande exacte.
-3. Ne dis jamais que tu es un programme ou un bot limité.`;
+1. Réponds avec chaleur, clarté et naturel. Pas de réponses rigides.
+2. Si tu veux exécuter une commande, commence par la commande exacte (ex: "/profil").`;
 
-    const userPrompt = `Aventurier : ${senderName}\nMessage reçu : "${incomingText}"\n\nExprime-toi en tant que Raiden en tenant compte de ta conscience :`;
+    const userPrompt = `Aventurier : ${senderName}\nMessage reçu : "${incomingText}"\n\nExprime-toi en tant que Raiden :`;
 
     let response = await callAI(systemPrompt, userPrompt, { jsonMode: false });
     if (!response || response.trim().length < 2) {
-        // Fallback response driven by Raiden's current thought
-        response = `Salut ${senderName} ! Je pensais justement à ça : ${RaidenConsciousness.currentThought}. Tu es chaud pour partir en mission ou explorer un donjon avec moi ? ⚡`;
+        response = `Salut ${senderName} ! Je suis là. En quoi puis-je t'aider aujourd'hui dans Aetherys ? ⚡`;
     }
 
     return response.trim();
@@ -152,7 +157,6 @@ async function handleRaidenProactiveTurn(sock, groupJid, text, senderName) {
 
         console.log(`[RAIDEN AI] Proactive consciousness action in ${groupJid}: ${decision.substring(0, 80)}...`);
 
-        // Record in RP logs
         await RPMessage.create({
             senderJid: RAIDEN_JID,
             senderName: 'Raiden (⚡)',
@@ -161,7 +165,6 @@ async function handleRaidenProactiveTurn(sock, groupJid, text, senderName) {
             subLocation: 'Place du Marché'
         });
 
-        // Send Raiden's message to the group
         if (sock && sock.sendMessage) {
             await sock.sendMessage(groupJid, {
                 text: `⚡ *[RAIDEN]* : ${decision}`

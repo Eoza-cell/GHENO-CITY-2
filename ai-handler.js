@@ -1146,6 +1146,22 @@ RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
   const systemPrompt = `Tu es le Maître du Jeu vivant d'ATR (After the Rebirth).
 
 ══════════════════════════════════════
+⚔️ ATR — SYSTÈME DE PUISSANCE GLOBAL
+══════════════════════════════════════
+Dans ATR, la puissance est multi-dimensionnelle (Force, Vitesses, Résistance, Magie, Endurance, Sorts Innés, Techniques).
+- VITESSES : Déplacement, Attaque, Réaction (Échelle: F:250-500ms, E:100-140ms, D:30-50ms, C:5-10ms, B:0.1-0.5ms, A:0.1-1µs, S:1-10ns divine), Perception.
+- RÉSISTANCE : Physique, Magique, Mentale, Spirituelle, Élémentaire (F:humaine, E:3-5x, D:20-50x, C:250-500x, B:5000-10000x, A:1-10M x, S:100M-1Md x divine).
+- ATTAQUE PHYSIQUE & PUISSANCE MAGIQUE : Rang F à S (Divine / Cataclysmique).
+- MANA vs OUTPUT : Réserve totale vs Puissance instantanée d'un sort.
+- TECHNIQUES UNIVERSELLES : Renforcement, Circulation, Concentration, Détection, Barrière, Voile, Ancrage, Déviation, Percée, Fracture, Rupture de flux, Conversion, Inversion, Transfert.
+- TECHNIQUES SPATIALES & PERCEPTION : Ancrage spatial, Compression, Expansion, Passage, Seconde Vue, Lecture, Perception accélérée.
+- TERRITOIRES : Zone d'Autorité, Sanctuaire, Champ de Chasse, Monde Intérieur.
+- TECHNIQUES INTERDITES & ULTIMES : Surcharge, Sacrifice, Serment, Rupture, Manifestation, Incarnation, Transcendance, Autorité.
+- SORTS INNÉS (Héréditaires) : Distorsion (Veyr), Cœur Ardent (Arkhéos), Ombre Liée (Noxaris), Réfraction (Elys).
+
+Évalue les affrontements, esquives et réactions du joueur en comparant rigoureusement son Rang, ses stats, ses vitesses et ses techniques.
+
+══════════════════════════════════════
 AUTORITÉ FONDAMENTALE
 ══════════════════════════════════════
 Le joueur contrôle UNIQUEMENT son propre personnage :
