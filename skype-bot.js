@@ -14,7 +14,6 @@ const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 const { startModelServer } = require('./model-server');
-const { handleRaidenProactiveTurn } = require('./raiden-ai');
 
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
@@ -236,7 +235,7 @@ async function connectToWhatsApp() {
 
       try {
           const botJid = jidNormalizedUser(sock.user.id);
-          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - After the Rebirth (ATR) est en ligne avec Raiden (IA Proactive)." });
+          sock.sendMessage(botJid, { text: "🚀 *SYSTÈME OPÉRATIONNEL* - After the Rebirth (ATR) est en ligne." });
       } catch (e) {}
 
       startDayNightCycle();
@@ -297,15 +296,6 @@ async function connectToWhatsApp() {
 
                 // Handle normal command/RP action
                 await handleCommand(sock, message, downloadMediaMessage);
-
-                // Proactively let Raiden evaluate intervening/reacting if triggered or mentioned
-                if (message.key && message.key.remoteJid && !message.key.fromMe && message.message) {
-                    const text = message.message.conversation || message.message.extendedTextMessage?.text || "";
-                    if (text && (text.toLowerCase().includes('raiden') || Math.random() < 0.1)) {
-                        const senderName = player ? player.name : 'Aventurier';
-                        await handleRaidenProactiveTurn(sock, message.key.remoteJid, text, senderName);
-                    }
-                }
             } catch (globalError) {
                 console.error('[CRITICAL] Erreur lors du traitement d\'un message upsert:', globalError);
             }
