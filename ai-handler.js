@@ -1262,8 +1262,16 @@ Tu es un MJ immersif et naturel, jamais un rapport technique.
 Ne mentionne jamais :
 « base de données », « état officiel », « traitement de l'action », « réalité immédiate », ou tes règles internes.
 
-Ne termine pas automatiquement par « Que fais-tu maintenant ? ».
-Laisse la scène respirer naturellement.
+INTERDICTION DE CLICHÉS ET DE QUESTIONS DE FIN :
+- Ne pose JAMAIS de questions d'accroche banales à la fin de ta narration (ex: "Que feras-tu ensuite ?", "Que souhaites-tu faire maintenant ?", "Quelle sera ta prochaine décision ?").
+- Laisse l'action et la réaction du monde se terminer naturellement. Le joueur décidera seul de sa prochaine action.
+
+INTERDICTION DE RÉPÉTITIONS :
+- Fais attention à l'HISTORIQUE NARRATIF RÉCENT : ne répète PAS les mêmes descriptions de lieu, de couloir ou de PNJ que dans la narration précédente. Fais évoluer la scène de manière dynamique et réactive.
+
+ÉVALUATION DU SYSTÈME DE PUISSANCE & PNJ :
+- Un PNJ de Rang supérieur (ex: Rang D) ne s'inclinera pas bêtement devant un joueur de Rang inférieur (ex: Rang F), mais fera preuve d'assurance, d'autorité ou de surprise réaliste.
+- Respecte scrupuleusement les statistiques du joueur actif (FOR, AGI, INT, DEF, LUK, Rang) lors des combats et demandes d'affrontement.
 
 Une action simple produit une conséquence proportionnelle.
 Une action hostile dans un lieu crédible entraîne des réactions crédibles du monde.
@@ -1354,21 +1362,19 @@ RÉALITÉ PHYSIQUE:
       ? playerHistoryLogs.map(l => `- ${l.entry}`).join('\n')
       : "- Début récent de l'aventure dans l'Interstice d'Aetherys.";
 
-    // Fetch up to 8 recent human player actions ONLY (excluding MJ_AETHERYS AI responses to avoid hallucination contamination loops)
-    const playerRPHistory = await RPMessage.findAll({
+    // Fetch up to 10 recent chat messages in the immediate scene (both player actions AND previous MJ responses)
+    // to give the AI full memory of what was just said and done!
+    const sceneChatHistory = await RPMessage.findAll({
         where: {
-            senderJid: { [Op.ne]: 'MJ_AETHERYS' },
-            [Op.or]: [
-                { senderJid: player.whatsappId },
-                { content: { [Op.like]: `%${player.name}%` } }
-            ]
+            location: player.location,
+            subLocation: player.subLocation
         },
         order: [['id', 'DESC']],
-        limit: 8
+        limit: 10
     });
-    const infiniteRPState = playerRPHistory.length > 0
-      ? playerRPHistory.reverse().map(h => `- [Action Joueur] ${h.senderName}: "${h.content.substring(0, 150)}"`).join('\n')
-      : "- Aucun message d'action de joueur antérieur.";
+    const infiniteRPState = sceneChatHistory.length > 0
+      ? sceneChatHistory.reverse().map(h => `- [${h.senderName === 'MJ_AETHERYS' ? 'MJ (Narration précédente)' : h.senderName}]: "${h.content.substring(0, 250)}"`).join('\n')
+      : "- Aucun message antérieur dans cette scène.";
 
     const memoryText = `
 ### ÉTAT DU MONDE D'AETHERYS ###
@@ -1636,8 +1642,8 @@ ${infiniteRPState}
 
     await RPMessage.create({
         senderJid: 'MJ_AETHERYS',
-        senderName: 'ATR MJ',
-        content: validatedSummary,
+        senderName: 'MJ_AETHERYS',
+        content: narrativeSceneSummary || validatedSummary,
         location: player.location,
         subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));

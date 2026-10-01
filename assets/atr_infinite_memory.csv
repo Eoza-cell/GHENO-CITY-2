@@ -182,3 +182,6 @@ Ton intégration dans le tissu social d'After the Rebirth se renforce durablemen
 
 [KAELEN: EXP +175]
 [KAELEN: GOLD +178]","{""health"":160,""maxHealth"":160,""mana"":160,""col"":763}"
+"2026-10-01T19:50:01.574Z","test_ester@s.whatsapp.net","Ester","Empire Impérial d'Elion","Académie Impériale","VALIDATED_ACTION","Action: ""Je marche dans l'Académie Impériale.""","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-10-01T19:50:22.608Z","test_ester@s.whatsapp.net","Ester","Empire Impérial d'Elion","Académie Impériale","VALIDATED_ACTION","Action: ""Tu es de rang combien ? Je demande à un élève qui passe.""","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
+"2026-10-01T19:50:42.828Z","test_ester@s.whatsapp.net","Ester","Empire Impérial d'Elion","Académie Impériale","VALIDATED_ACTION","Action: ""Je peux t'affronter ?""","{""health"":100,""maxHealth"":100,""mana"":100,""col"":100}"
