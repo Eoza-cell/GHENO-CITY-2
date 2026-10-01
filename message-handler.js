@@ -110,7 +110,18 @@ async function sendWithImage(sock, jid, aiResponse) {
 async function generateHuggingFaceImage(prompt) {
     const polishedPrompt = `${prompt}, anime style, beautiful digital illustration, high fantasy masterpiece, highly detailed, vibrant colors, aesthetic masterpiece, 8k resolution`;
 
-    // 0. Try local Python Diffusers execution if available
+    // 0. Puter GPT Image (primary — keyless OpenAI image API via auth token)
+    try {
+        const { generatePuterImage } = require('./puter-handler');
+        if (require('./puter-handler').hasToken()) {
+            const puterBuffer = await generatePuterImage(polishedPrompt);
+            if (puterBuffer && puterBuffer.length > 1000) return puterBuffer;
+        }
+    } catch (e) {
+        // Fall through to the local/HF pipelines
+    }
+
+    // 1. Local Python Diffusers execution if available
     try {
         const { execSync } = require('child_process');
         const path = require('path');
@@ -188,30 +199,72 @@ async function generateHuggingFaceImage(prompt) {
     // 3. Render High-Res SVG Card Fallback via Sharp
     try {
         const sharp = require('sharp');
-        const cleanPrompt = prompt.replace(/[*_#\[\]]/g, ' ').substring(0, 120);
+        const cleanPrompt = String(prompt).replace(/[*_#\[\]]/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 160);
+        const esc = v => String(v).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+        const words = cleanPrompt.split(' ');
+        const line1 = esc(words.slice(0, 9).join(' '));
+        const line2 = esc(words.slice(9, 18).join(' '));
+        const line3 = esc(words.slice(18, 26).join(' '));
         const svg = `
-        <svg width="1024" height="768" xmlns="http://www.w3.org/2000/svg">
+        <svg width="1024" height="768" viewBox="0 0 1024 768" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="#0a0e17"/>
-                    <stop offset="50%" stop-color="#161b26"/>
-                    <stop offset="100%" stop-color="#050811"/>
+                    <stop offset="0%" stop-color="#120a24"/>
+                    <stop offset="50%" stop-color="#0a0a18"/>
+                    <stop offset="100%" stop-color="#050310"/>
                 </linearGradient>
+                <radialGradient id="halo" cx="50%" cy="38%" r="45%">
+                    <stop offset="0%" stop-color="#7c4dff" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#7c4dff" stop-opacity="0"/>
+                </radialGradient>
                 <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stop-color="#d4af37"/>
-                    <stop offset="100%" stop-color="#fff8dc"/>
+                    <stop offset="50%" stop-color="#fff3c4"/>
+                    <stop offset="100%" stop-color="#d4af37"/>
                 </linearGradient>
+                <linearGradient id="goldV" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#fff3c4"/>
+                    <stop offset="100%" stop-color="#b8860b"/>
+                </linearGradient>
+                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="4" result="b"/>
+                    <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <filter id="shadow" x="-20%" y="-20%" width="150%" height="160%">
+                    <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000000" flood-opacity="0.85"/>
+                </filter>
             </defs>
+
             <rect width="100%" height="100%" fill="url(#bg)"/>
-            <rect x="40" y="40" width="944" height="688" rx="16" fill="none" stroke="url(#gold)" stroke-width="4"/>
-            <text x="512" y="120" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-weight="bold" font-size="32" fill="#ffd700" letter-spacing="3">AFTER THE REBIRTH (ATR)</text>
-            <text x="512" y="170" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="18" fill="#8b949e" letter-spacing="1">HUGGING FACE TRANSFORMERS VISUAL ENGINE</text>
-            <circle cx="512" cy="380" r="140" fill="#1f293d" stroke="#d4af37" stroke-width="3"/>
-            <text x="512" y="395" text-anchor="middle" font-size="72">⚔️</text>
-            <rect x="80" y="580" width="864" height="110" rx="12" fill="#0d1117" opacity="0.9" stroke="#d4af37" stroke-width="2"/>
-            <text x="512" y="640" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="20" fill="#f0f6fc">${cleanPrompt}</text>
+            <rect width="100%" height="100%" fill="url(#halo)"/>
+
+            <g stroke="#7de8ff" stroke-opacity="0.05">
+                ${Array.from({ length: 18 }).map((_, i) => `<line x1="${i * 62}" y1="0" x2="${i * 62 - 120}" y2="768"/>`).join('')}
+            </g>
+
+            <!-- Emblem -->
+            <g filter="url(#glow)" transform="translate(512, 250)">
+                <polygon points="0,-130 96,-42 60,96 0,130 -60,96 -96,-42" fill="#0b0720" stroke="url(#gold)" stroke-width="4"/>
+                <polygon points="0,-104 74,-32 46,74 0,100 -46,74 -74,-32" fill="none" stroke="#00e5ff" stroke-width="1.6" opacity="0.6"/>
+                <text x="0" y="26" font-family="'Segoe UI', sans-serif" font-size="86" font-weight="900" fill="url(#goldV)" text-anchor="middle">⚔</text>
+            </g>
+
+            <!-- Title -->
+            <text x="512" y="470" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-weight="900" font-size="40" fill="#ffffff" letter-spacing="8" filter="url(#glow)">AFTER THE REBIRTH</text>
+            <text x="512" y="502" text-anchor="middle" font-family="monospace" font-size="15" fill="#7de8ff" letter-spacing="7">ATR OS • MANIFESTATION VISUELLE</text>
+            <line x1="300" y1="524" x2="724" y2="524" stroke="url(#gold)" stroke-width="2" opacity="0.8"/>
+
+            <!-- Prompt panel -->
+            <g filter="url(#shadow)">
+                <rect x="110" y="556" width="804" height="118" rx="14" fill="rgba(8, 6, 20, 0.9)" stroke="url(#gold)" stroke-width="2"/>
+                <text x="140" y="596" font-family="'Segoe UI', sans-serif" font-size="19" fill="#f0f6fc">${line1}</text>
+                <text x="140" y="626" font-family="'Segoe UI', sans-serif" font-size="19" fill="#f0f6fc">${line2}</text>
+                <text x="140" y="656" font-family="'Segoe UI', sans-serif" font-size="19" fill="#f0f6fc">${line3}</text>
+            </g>
+
+            <text x="512" y="722" text-anchor="middle" font-family="monospace" font-size="12" fill="rgba(255,255,255,0.35)" letter-spacing="3">SIGNAL STABLE_FLUX • RENDU SVG DE SECOURS</text>
         </svg>`;
-        return await sharp(Buffer.from(svg)).jpeg({ quality: 90 }).toBuffer();
+        return await sharp(Buffer.from(svg)).jpeg({ quality: 92 }).toBuffer();
     } catch (sErr) {
         console.error("[HF] SVG Fallback error:", sErr.message);
     }

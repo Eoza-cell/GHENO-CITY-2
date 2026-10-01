@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { callTransformersJS } = require('./transformers-js-handler');
+const { callPuter: callPuterEngine } = require('./puter-handler');
 
 /**
  * ATR AI Engine — High Availability with Puter, NVIDIA API, Transformers.js, OllamaFreeAPI & Fallbacks.
@@ -35,37 +36,11 @@ function isValidAIResponse(input) {
     return true;
 }
 
+/**
+ * Puter AI via the Node/OpenAI-compatible gateway (see puter-handler.js).
+ */
 async function callPuter(systemPrompt, userPrompt, options = {}) {
-    try {
-        const { JSDOM } = require('jsdom');
-        if (!global.window) {
-            const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
-            global.window = dom.window;
-            global.document = dom.window.document;
-            global.navigator = dom.window.navigator;
-        }
-
-        const puterLib = require('@heyputer/puter.js');
-        const puter = puterLib.default || puterLib;
-
-        const token = process.env.PUTER_TOKEN || process.env.PUTER_API_KEY;
-        if (token) {
-            puter.setAuthToken(token);
-        }
-
-        console.log('[AI] Requesting via Puter AI...');
-        const prompt = systemPrompt ? `System: ${systemPrompt}\nUser: ${userPrompt}` : userPrompt;
-        const resp = await puter.ai.chat(prompt, { model: options.model || 'gpt-4o-mini' });
-
-        const content = typeof resp === 'string' ? resp : (resp?.message?.content || resp?.text);
-        if (isValidAIResponse(content)) {
-            console.log('[AI] Puter AI success.');
-            return content.trim();
-        }
-    } catch (e) {
-        console.warn('[AI] Puter AI error:', e.message);
-    }
-    return null;
+    return callPuterEngine(systemPrompt, userPrompt, options);
 }
 
 async function callTransformersLocal(systemPrompt, userPrompt, options = {}) {
@@ -175,22 +150,22 @@ async function callAI(systemPrompt, userPrompt, options = {}) {
         ? String(userPrompt).substring(0, 7000) + '\n...[TRUNCATED]...\n' + String(userPrompt).slice(-9000)
         : String(userPrompt || '');
 
-    // 1. Try Puter AI
+    // 1. Puter AI (OpenAI-compatible gateway) — primary engine
     let result = await callPuter(system, prompt, options);
 
-    // 2. Primary fast local engine: Transformers.js ONNX
-    if (!isValidAIResponse(result)) {
-        result = await callTransformersLocal(system, prompt, options);
-    }
-
-    // 3. Try NVIDIA API if key exists
+    // 2. NVIDIA API if key exists
     if (!isValidAIResponse(result)) {
         result = await callNvidia(system, prompt, options);
     }
 
-    // 4. Try OllamaFreeAPI Python bridge
+    // 3. OllamaFreeAPI Python bridge
     if (!isValidAIResponse(result)) {
         result = await callOllamaFreeAPI(system, prompt, options);
+    }
+
+    // 4. Local Transformers.js ONNX engine (last resort: heavy download)
+    if (!isValidAIResponse(result)) {
+        result = await callTransformersLocal(system, prompt, options);
     }
 
     // 5. Guaranteed narrative fallback so AI NEVER returns null or fails
@@ -218,5 +193,6 @@ module.exports = {
     callAether,
     callOmniRouter,
     call9Router,
-    isValidAIResponse
+    isValidAIResponse,
+    puter: require('./puter-handler')
 };

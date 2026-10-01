@@ -79,12 +79,62 @@ function sceneHudSvg(width, height, player, npc) {
   const location = esc(player.location || 'Aetherys');
   const sub = esc(player.subLocation || 'Zone inconnue');
   const npcLine = npc ? `PNJ : ${esc(npc.name)}` : 'ZONE ACTIVE';
+  const outfit = esc(player.equippedOutfit || 'Base');
+  const rankColor = { F:'#8d99ae', E:'#00e676', D:'#00e5ff', C:'#448aff', B:'#bf00ff', A:'#ff6d00', S:'#ffd700', SS:'#ff1744' }[player.rank] || '#ffd700';
+  const barWidth = Math.min(width, 660);
+  const barHeight = 158;
+  const top = height - barHeight;
+
   return Buffer.from(`<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-    <rect x="0" y="${height-145}" width="${Math.min(width,620)}" height="145" fill="#071019" fill-opacity="0.88"/>
-    <rect x="0" y="${height-145}" width="10" height="145" fill="#33c7ff"/>
-    <text x="34" y="${height-102}" fill="#dff7ff" font-family="Arial" font-size="30" font-weight="700">${location}</text>
-    <text x="34" y="${height-66}" fill="#8ca7bb" font-family="Arial" font-size="19">${sub}</text>
-    <text x="34" y="${height-28}" fill="#ffffff" font-family="Arial" font-size="17">${npcLine} • STYLE : ${esc(player.equippedOutfit || 'Base')}</text>
+    <defs>
+      <linearGradient id="hudFade" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#05030f" stop-opacity="0"/>
+        <stop offset="35%" stop-color="#05030f" stop-opacity="0.82"/>
+        <stop offset="100%" stop-color="#020108" stop-opacity="0.95"/>
+      </linearGradient>
+      <linearGradient id="hudEdge" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#33c7ff"/>
+        <stop offset="100%" stop-color="#ffd700" stop-opacity="0.25"/>
+      </linearGradient>
+      <linearGradient id="hudSheen" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/>
+        <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="hudGlow" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="3" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="hudShadow" x="-20%" y="-20%" width="150%" height="160%">
+        <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.8"/>
+      </filter>
+    </defs>
+
+    <rect x="0" y="${top - 90}" width="${width}" height="${barHeight + 90}" fill="url(#hudFade)"/>
+
+    <g filter="url(#hudShadow)">
+      <rect x="18" y="${top + 14}" width="${barWidth}" height="${barHeight - 30}" rx="14" fill="rgba(6, 12, 24, 0.86)" stroke="rgba(51, 199, 255, 0.30)" stroke-width="1.4"/>
+      <rect x="18" y="${top + 14}" width="${barWidth}" height="${barHeight - 30}" rx="14" fill="url(#hudSheen)"/>
+      <rect x="18" y="${top + 14}" width="5" height="${barHeight - 30}" rx="2.5" fill="url(#hudEdge)"/>
+
+      <g transform="translate(62, ${top + 74})">
+        <polygon points="0,-24 24,0 0,24 -24,0" fill="#0a0f1e" stroke="${rankColor}" stroke-width="2" filter="url(#hudGlow)"/>
+        <text x="0" y="0" font-family="'Segoe UI', sans-serif" font-size="9" font-weight="900" fill="${rankColor}" text-anchor="middle">LVL</text>
+        <text x="0" y="16" font-family="'Segoe UI', sans-serif" font-size="15" font-weight="900" fill="#ffffff" text-anchor="middle">${esc(player.level || 1)}</text>
+      </g>
+
+      <g transform="translate(104, ${top + 46})">
+        <text font-family="'Segoe UI', sans-serif" font-size="32" font-weight="900" fill="#eaf9ff" letter-spacing="1" filter="url(#hudGlow)">${location}</text>
+        <text y="26" font-family="'Segoe UI', sans-serif" font-size="17" fill="#7fa8bd">${sub}</text>
+        <text y="52" font-family="monospace" font-size="14" font-weight="bold" fill="${rankColor}">◆ ${esc(player.rank || 'F')} • ${esc(player.name || '')}</text>
+      </g>
+
+      <g transform="translate(${barWidth - 34}, ${top + 40})" text-anchor="end">
+        <text font-family="monospace" font-size="12" font-weight="bold" fill="#ffd700">◆ ${esc(Number(player.col || 0).toLocaleString('fr-FR'))} COL</text>
+        <text y="20" font-family="monospace" font-size="12" fill="#c9b6ff">✦ ${esc(player.equippedWeapon || '—')}</text>
+        <text y="40" font-family="monospace" font-size="12" fill="#7de8ff">◈ ${npcLine}</text>
+        <text y="60" font-family="monospace" font-size="12" fill="#8fb6c9">❖ STYLE : ${outfit}</text>
+      </g>
+    </g>
   </svg>`);
 }
 

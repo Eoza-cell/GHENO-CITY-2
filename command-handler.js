@@ -1302,21 +1302,13 @@ commands.set('god', async (sock, message, args) => {
     // Subcommands that don't need a player target
     if (subCommand === 'settoken') {
         const newToken = args[0];
-        if (newToken) {
-            process.env.PUTER_TOKEN = newToken;
-            process.env.PUTER_API_KEY = newToken;
-            const { JSDOM } = require('jsdom');
-            const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
-            global.window = dom.window;
-            global.document = dom.window.document;
-            try {
-                const puterLib = require('@heyputer/puter.js');
-                const puter = puterLib.default || puterLib;
-                if (typeof puter.setAuthToken === 'function') puter.setAuthToken(newToken);
-                puter.authToken = newToken;
-            } catch(e) {}
-            await sock.sendMessage(replyJid, { text: "✅ [GOD] PUTER_TOKEN mis à jour." });
+        if (!newToken) {
+            await sock.sendMessage(replyJid, { text: "⚠️ Usage: /god settoken <ton_token_puter>\n\nToken à créer sur puter.com/dashboard → Account → Create token." });
+            return;
         }
+        const { applyToken, getStatus } = require('./puter-handler');
+        applyToken(newToken);
+        await sock.sendMessage(replyJid, { text: `✅ [GOD] PUTER_TOKEN mis à jour.\n\n🤖 Modèles: ${getStatus().models.join(', ')}\n💡 L'IA répondra dès le prochain message.` });
         return;
     }
 
