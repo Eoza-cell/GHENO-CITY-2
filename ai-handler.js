@@ -14,6 +14,7 @@ const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
 const { getNarrativeContext, formatMemoryContext, rememberValidatedAction } = require('./upstash-memory');
+const { resolveWorldDestination } = require('./world-locations');
 
 /**
  * Searches Google Images for an anime representation of a technique name,
@@ -136,80 +137,29 @@ async function resolveExplicitDestination(player, actionText) {
 
     if (!movementIntent) return null;
 
-    // Catalogue centralisé des destinations explicites.
-    // Les clés sont normalisées (accents supprimés) avant comparaison.
-    // Ajouter une destination ici garantit que le déplacement est écrit en BD
-    // AVANT la narration IA.
-    const aliases = [
-        // ==================== EMPIRE IMPÉRIAL D'ELION ====================
-        { keys: ['place du marche'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Place du Marché' },
-        { keys: ['marche central'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Marché Central' },
-        { keys: ['marche'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Marché Central' },
-        { keys: ['poste', 'milice'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Poste de la Milice' },
-        { keys: ['caserne'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Poste de la Milice' },
-        { keys: ['capitaine', 'milice'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Poste de la Milice' },
-        { keys: ['hopital'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Hôpital' },
-        { keys: ['banque'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Banque Centrale' },
-        { keys: ['taverne'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Taverne' },
-        { keys: ['auberge'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Auberge' },
-        { keys: ['gare'], location: "Empire Impérial d'Elion", zone: 'Centre-ville', subLocation: 'Gare Impériale' },
-        { keys: ['port'], location: "Empire Impérial d'Elion", zone: 'Quartier Portuaire', subLocation: 'Port Impérial' },
-        { keys: ['quartier residentiel'], location: "Empire Impérial d'Elion", zone: 'Quartier Résidentiel', subLocation: 'Quartier Résidentiel' },
-        { keys: ['maison'], location: "Empire Impérial d'Elion", zone: 'Quartier Résidentiel', subLocation: 'Quartier Résidentiel' },
-        { keys: ['chateau'], location: "Empire Impérial d'Elion", zone: 'Quartier Royal', subLocation: 'Château Impérial' },
-        { keys: ['palais imperial'], location: "Empire Impérial d'Elion", zone: 'Quartier Royal', subLocation: 'Palais Impérial' },
-        { keys: ['palais'], location: "Empire Impérial d'Elion", zone: 'Quartier Royal', subLocation: 'Palais Impérial' },
+    // Resolve known world destinations BEFORE NPC matching.
+    // The database state is updated from this registry before the LLM narrates,
+    // so a previous turn cannot be contradicted by a stale subLocation.
+    const worldDestination = resolveWorldDestination(text);
+    if (worldDestination) {
+        if (worldDestination.subLocation === 'Poste de la Milice') {
+            await NPC.findOrCreate({
+                where: { name: 'Capitaine de la Milice' },
+                defaults: {
+                    name: 'Capitaine de la Milice',
+                    role: 'Capitaine de la Milice',
+                    description: 'Officier responsable des patrouilles et de l’ordre public à Eldoria. Autoritaire, attentif et habitué aux situations imprévues.',
+                    specialty: 'Commandement et sécurité',
+                    location: worldDestination.location,
+                    zone: worldDestination.zone,
+                    subLocation: worldDestination.subLocation,
+                    powerLevel: 35
+                }
+            }).catch(err => console.error('[SCENE NPC] Captain creation failed:', err.message));
+        }
 
-        // ==================== ACADÉMIES ====================
-        { keys: ['academie imperiale'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Académie Impériale' },
-        { keys: ['academie'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Académie Impériale' },
-        { keys: ['salle', 'combat'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Salle de Combat' },
-        { keys: ['dojo'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Salle de Combat' },
-        { keys: ['terrain', 'combat'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Salle de Combat' },
-        { keys: ['cour', 'academie'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Cour de l’Académie' },
-        { keys: ['bibliotheque', 'academie'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Bibliothèque de l’Académie' },
-        { keys: ['salle de classe'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Salle de Classe' },
-        { keys: ['classe'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Salle de Classe' },
-        { keys: ['dortoir'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Dortoirs' },
-        { keys: ['infirmerie'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Infirmerie de l’Académie' },
-        { keys: ['inscription'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Bureau des Inscriptions' },
-        { keys: ['bureau', 'inscriptions'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Bureau des Inscriptions' },
-        { keys: ['lame', 'argent'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Académie de la Lame d’Argent' },
-        { keys: ['academie', 'lame'], location: "Empire Impérial d'Elion", zone: 'Quartier Scolaire', subLocation: 'Académie de la Lame d’Argent' },
-
-        // ==================== VALKYRR ====================
-        { keys: ['valkyrr'], location: 'Valkyrr', zone: 'Capitale', subLocation: 'Centre de Valkyrr' },
-        { keys: ['capitale', 'valkyrr'], location: 'Valkyrr', zone: 'Capitale', subLocation: 'Centre de Valkyrr' },
-        { keys: ['palais', 'valkyrr'], location: 'Valkyrr', zone: 'Quartier Royal', subLocation: 'Palais de Valkyrr' },
-        { keys: ['quartier', 'residentiel', 'valkyrr'], location: 'Valkyrr', zone: 'Quartier Résidentiel', subLocation: 'Quartier Résidentiel de Valkyrr' },
-        { keys: ['academie', 'valkyrr'], location: 'Valkyrr', zone: 'Quartier Scolaire', subLocation: 'Académie de Valkyrr' },
-
-        // ==================== DOMINION NOIR ====================
-        { keys: ['dominion noir'], location: 'Dominion Noir', zone: 'Capitale', subLocation: 'Centre du Dominion Noir' },
-        { keys: ['capitale', 'dominion'], location: 'Dominion Noir', zone: 'Capitale', subLocation: 'Centre du Dominion Noir' },
-        { keys: ['citadelle', 'noir'], location: 'Dominion Noir', zone: 'Quartier Royal', subLocation: 'Citadelle du Dominion Noir' },
-        { keys: ['palais', 'noir'], location: 'Dominion Noir', zone: 'Quartier Royal', subLocation: 'Palais du Dominion Noir' },
-        { keys: ['academie', 'noir'], location: 'Dominion Noir', zone: 'Quartier Scolaire', subLocation: 'Académie du Dominion Noir' },
-
-        // ==================== ZONES EXTÉRIEURES ====================
-        { keys: ['foret des gobelins'], location: "Empire Impérial d'Elion", zone: 'Territoires Sauvages', subLocation: 'Forêt des Gobelins' },
-        { keys: ['foret', 'gobelins'], location: "Empire Impérial d'Elion", zone: 'Territoires Sauvages', subLocation: 'Forêt des Gobelins' },
-        { keys: ['foret'], location: "Empire Impérial d'Elion", zone: 'Territoires Sauvages', subLocation: 'Forêt des Gobelins' },
-        { keys: ['plaine'], location: "Empire Impérial d'Elion", zone: 'Territoires Sauvages', subLocation: 'Plaines d’Elion' },
-        { keys: ['montagne'], location: "Empire Impérial d'Elion", zone: 'Territoires Sauvages', subLocation: 'Montagnes d’Elion' },
-        { keys: ['lac'], location: "Empire Impérial d'Elion", zone: 'Territoires Sauvages', subLocation: 'Lac d’Elion' },
-
-        // ==================== NÉCROPOLIS / INTERSTICE ====================
-        { keys: ['necropolis'], location: 'Nécropolis', zone: 'Cité des Morts', subLocation: 'Entrée de Nécropolis' },
-        { keys: ['cimetiere'], location: 'Nécropolis', zone: 'Cité des Morts', subLocation: 'Cimetière de Nécropolis' },
-        { keys: ['catacombes'], location: 'Nécropolis', zone: 'Souterrains', subLocation: 'Catacombes' },
-        { keys: ['interstice'], location: "L'Interstice", zone: 'Interstice Originel', subLocation: 'Interstice Originel' },
-        { keys: ['interstice originel'], location: "L'Interstice", zone: 'Interstice Originel', subLocation: 'Interstice Originel' },
-
-        // ==================== DONJONS ====================
-        { keys: ['donjon'], location: "Empire Impérial d'Elion", zone: 'Territoires Sauvages', subLocation: 'Entrée du Donjon' },
-        { keys: ['entree du donjon'], location: "Empire Impérial d'Elion", zone: 'Territoires Sauvages', subLocation: 'Entrée du Donjon' }
-    ];
+        return worldDestination;
+    }
 
     const npcsInLocation = await NPC.findAll({ where: { location: player.location } }).catch(() => []);
     const targetTokens = text.split(' ').filter(w => w.length >= 4);
