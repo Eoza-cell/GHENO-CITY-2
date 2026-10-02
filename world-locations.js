@@ -48,14 +48,18 @@ const WORLD_LOCATIONS = [
       { name: 'Bureau des Inscriptions', aliases: ['bureau inscriptions', 'bureau des inscriptions', 'inscription'], zone: 'Quartier Scolaire' },
       { name: 'Académie de la Lame d’Argent', aliases: ['academie lame argent', 'lame argent', 'academie lame'], zone: 'Quartier Scolaire' },
       { name: 'Quartier Militaire', aliases: ['quartier militaire'], zone: 'Quartier Militaire' },
-      { name: 'Quartier Général', aliases: ['quartier general'], zone: 'Quartier Militaire' }
+      { name: 'Quartier Général', aliases: ['quartier general'], zone: 'Quartier Militaire' },
+      { name: 'Forêt des Gobelins', aliases: ['foret gobelins', 'foret des gobelins'], zone: 'Territoires Sauvages' },
+      { name: 'Mine de Cobalt', aliases: ['mine cobalt', 'mine de cobalt'], zone: 'Territoires Sauvages' },
+      { name: 'Caverne des Ombres', aliases: ['caverne ombres', 'caverne des ombres'], zone: 'Territoires Sauvages' },
+      { name: 'Entrée du Donjon', aliases: ['entree donjon', 'entree du donjon', 'donjon'], zone: 'Territoires Sauvages' }
     ]
   },
 
   {
     id: 'valkyrr',
     name: 'Royaume de Valkyrr',
-    aliases: ['valkyrr', 'royaume valkyrr'],
+    aliases: ['valkyrr', 'valkyr', 'royaume valkyrr'],
     continent: 'Aetheria',
     places: [
       { name: 'Gearhead', aliases: ['gearhead'], zone: 'Gearhead' },
@@ -180,6 +184,7 @@ const WORLD_LOCATIONS = [
       { name: 'Champs Éternels', aliases: ['champs eternels'], zone: 'Champs Éternels' },
       { name: 'Fort-Désolation', aliases: ['fort desolation', 'fort-desolation'], zone: 'Fort-Désolation' },
       { name: 'Sépulture de Sang', aliases: ['sepulture sang', 'sepulture de sang'], zone: 'Sépulture de Sang' },
+      { name: 'Vharos le Maudit', aliases: ['vharos maudit', 'vharos le maudit'], zone: 'Vharos le Maudit' },
       { name: 'Académie du Dominion Noir', aliases: ['academie dominion noir', 'academie noir'], zone: 'Quartier Scolaire' }
     ]
   },
