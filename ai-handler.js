@@ -56,9 +56,18 @@ async function handleFreeAction(sock, message, player, actionText) {
       order: [['id', 'DESC']]
   });
 
+  const scenePlayerJids = (await Player.findAll({
+      where: {
+          location: player.location,
+          subLocation: player.subLocation
+      },
+      attributes: ['whatsappId']
+  })).map(p => p.whatsappId);
+
   const messageQuery = {
       location: player.location,
-      senderName: { [Op.ne]: 'Arise MJ' }
+      senderName: { [Op.ne]: 'Arise MJ' },
+      ...(scenePlayerJids.length > 0 ? { senderJid: { [Op.in]: scenePlayerJids } } : {})
   };
   if (lastMJMessage) {
       messageQuery.id = { [Op.gt]: lastMJMessage.id };
@@ -118,11 +127,12 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const nearbyPlayers = await Player.findAll({
     where: {
-        location: player.location
+        location: player.location,
+        subLocation: player.subLocation
     }
   });
 
-  const actingPlayerNames = new Set(recentActions.map(a => a.senderName));
+  const actingPlayerJids = new Set(recentActions.map(a => a.senderJid).filter(Boolean));
 
   // Data for all players in the same scene
   const scenePlayersData = await Promise.all(nearbyPlayers.map(async p => {
@@ -131,12 +141,15 @@ async function handleFreeAction(sock, message, player, actionText) {
       const pClubs = await p.getClubs();
       const pQuests = await p.getQuests();
       const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
-      const pActions = recentActions.filter(a => a.senderName === p.name).map(a => a.content);
+      const pActions = recentActions
+          .filter(a => a.senderJid === p.whatsappId)
+          .map(a => a.content);
 
       return {
+          id: p.id,
           nom: p.name,
           est_god: p.isGod,
-          est_acteur: actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId,
+          est_acteur: actingPlayerJids.has(p.whatsappId) || p.whatsappId === player.whatsappId,
           etat: `Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
@@ -169,7 +182,13 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   // Fetch history (last 75 messages) for Short Term Memory
   const history = await RPMessage.findAll({
-      where: { location: player.location },
+      where: {
+          location: player.location,
+          [Op.or]: [
+              { senderName: 'Arise MJ' },
+              { senderJid: { [Op.in]: nearbyPlayers.map(p => p.whatsappId) } }
+          ]
+      },
       order: [['id', 'DESC']],
       limit: 75
   });
@@ -280,7 +299,15 @@ RÈGLES TECHNIQUES:
 12. PROGRESSION & TECHNIQUES: Les joueurs possèdent des techniques de base. Ils peuvent en apprendre de nouvelles via 'add_skill' (coût en SP à déduire via 'update_player') ou par l'entraînement narratif. Les techniques peuvent évoluer (ex: 'Vertical Square' devenant 'Square Cross') si le joueur pratique intensément ou vit un choc émotionnel fort.
 13. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"..."}
 14. ACTIONS: update_player, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
-15. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
+15. ISOLATION DES JOUEURS (CRITIQUE):
+    - Chaque joueur est identifié par son JOUEUR_ID unique. Ne remplace JAMAIS les données d'un joueur par celles d'un autre.
+    - Les ACTIONS_JOUEURS sont toujours rattachées au joueur indiqué par son ID.
+    - Un joueur sans action dans ce tour est IMMOBILE. Ne lui attribue aucune action provenant d'un autre joueur.
+    - Les statistiques, inventaires, quêtes et états sont strictement individuels.
+    - Une action update_player sans target_player_id/target_name concerne uniquement le joueur qui a effectué l'action.
+    - Pour modifier un autre joueur, indique explicitement target_player_id ou target_name.
+    - Ne considère comme présents dans la même scène que les joueurs partageant exactement Location ET Sub-Location.
+16. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
     - ÉTANCHÉITÉ DES HISTOIRES: Chaque joueur est le protagoniste de sa propre aventure. Ne mélange pas leurs objectifs, leurs possessions ou leurs alliés. Si Joueur A parle à un PNJ, Joueur B n'est pas automatiquement impliqué dans la conversation sauf s'il intervient.
     - ARBITRAGE STATISTIQUE: Compare systématiquement les statistiques fournies dans 'personnages_en_scene'. Si Joueur A (FOR: 50) attaque Joueur B (FOR: 25) qui tente de bloquer, l'impact DOIT être dévastateur. Bloquer une force double n'annule pas les dégâts : Joueur B est propulsé violemment en arrière (ex: sur 5m) et subit des blessures graves (ex: bras fracturés sous le choc).
     - RESSENTI DES RIPOSTES: On doit sentir la puissance des coups et des ripostes. Les conséquences doivent être proportionnelles à l'écart de puissance. Un écart massif rend toute défense conventionnelle inutile.
@@ -325,7 +352,7 @@ RÈGLES TECHNIQUES:
 
     const actionSummary = scenePlayersData
         .filter(p => p.est_acteur)
-        .map(p => `[JOUEUR: ${p.nom}] ACTIONS: ${p.actions_recentes.join(' -> ')}`)
+        .map(p => `[JOUEUR_ID: ${p.id}] [JOUEUR: ${p.nom}] ACTIONS: ${p.actions_recentes.join(' -> ')}`)
         .join('\n');
 
     const fullPrompt = `### MÉMOIRE_SYSTÈME_JSON (CONTEXTE DÉTAILLÉ PAR JOUEUR) ###\n${memoryJson}\n\n### RÉSUMÉ DES ACTIONS À TRAITER ###\n${actionSummary}\n\nCONSIGNE DE COHÉRENCE MULTI-JOUEUR:
@@ -444,16 +471,24 @@ RÈGLES TECHNIQUES:
       if (!parameters) continue;
 
       let target = player;
-      if (parameters.target_name) {
+      if (parameters.target_player_id) {
+          const foundTarget = await Player.findOne({
+              where: {
+                  id: parameters.target_player_id,
+                  location: player.location,
+                  subLocation: player.subLocation
+              }
+          });
+          if (foundTarget) target = foundTarget;
+      } else if (parameters.target_name) {
           const foundTarget = await Player.findOne({
               where: {
                   name: parameters.target_name,
-                  location: player.location
+                  location: player.location,
+                  subLocation: player.subLocation
               }
           });
-          if (foundTarget) {
-              target = foundTarget;
-          }
+          if (foundTarget) target = foundTarget;
       }
 
       // Track if target needs a final reload/save
