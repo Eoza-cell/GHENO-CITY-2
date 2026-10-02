@@ -190,6 +190,7 @@ async function handleFreeAction(sock, message, player, actionText) {
   const history = await RPMessage.findAll({
       where: {
           location: player.location,
+          subLocation: player.subLocation,
           [Op.or]: [
               { senderName: 'Arise MJ' },
               { senderJid: { [Op.in]: nearbyPlayers.map(p => p.whatsappId) } }
