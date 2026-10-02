@@ -18,7 +18,8 @@ async function handleFreeAction(sock, message, player, actionText) {
           senderJid: player.whatsappId,
           senderName: player.name,
           content: actionText,
-          location: player.location
+          location: player.location,
+          subLocation: player.subLocation
       });
   } catch (e) {
       console.error("[DB] RPMessage log error:", e.message);
@@ -52,7 +53,11 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   // If "Next" is sent, aggregate all messages since the last MJ response
   const lastMJMessage = await RPMessage.findOne({
-      where: { senderName: 'Arise MJ', location: player.location },
+      where: {
+        senderName: 'Arise MJ',
+        location: player.location,
+        subLocation: player.subLocation
+      },
       order: [['id', 'DESC']]
   });
 
@@ -66,6 +71,7 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const messageQuery = {
       location: player.location,
+      subLocation: player.subLocation,
       senderName: { [Op.ne]: 'Arise MJ' },
       ...(scenePlayerJids.length > 0 ? { senderJid: { [Op.in]: scenePlayerJids } } : {})
   };
@@ -458,7 +464,8 @@ RÈGLES TECHNIQUES:
         senderJid: 'bot',
         senderName: 'Arise MJ',
         content: aiResponse.narrative,
-        location: player.location
+        location: player.location,
+        subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
 
     // Collected quest feedback lines appended to the narrative after the loop.
