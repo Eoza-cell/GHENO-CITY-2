@@ -116,7 +116,7 @@ async function handleFreeAction(sock, message, player, actionText) {
       await player.update({ lastActivity: new Date() });
   }
 
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | POSITION:${player.x}m,${player.y}m | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
@@ -337,6 +337,7 @@ RÈGLES TECHNIQUES:
     - MOUVEMENT : Un déplacement doit modifier la position X/Y avec x_change et/ou y_change. Ne téléporte jamais un joueur.
     - Les statistiques, inventaires, quêtes et états sont strictement individuels.
     - Une action update_player sans target_player_id/target_name concerne uniquement le joueur qui a effectué l'action.
+    - Pour un déplacement précis, utilise update_player avec x_change et/ou y_change (en mètres).
     - Pour modifier un autre joueur, indique explicitement target_player_id ou target_name.
     - Ne considère comme présents dans la même scène que les joueurs partageant exactement Location ET Sub-Location.
 16. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
