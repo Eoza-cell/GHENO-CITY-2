@@ -1,657 +1,16 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
-const { buildSceneVisual } = require('./world-visuals');
-const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact } = require('./database');
+const { sendWithImage } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
-const { generateBlackboardImage } = require('./blackboard-generator');
 const { generate3DVisual } = require('./three-renderer');
-const { generateActionVisual } = require('./action-visual-generator');
-const { generateProfileCard } = require('./profile-generator');
 const { Op } = require('sequelize');
 const { callAI } = require('./ai-utils');
 const questUtils = require('./quest-utils');
-const { processActions } = require('./action-processor');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
-const { getNarrativeContext, formatMemoryContext, rememberValidatedAction } = require('./upstash-memory');
-const { resolveWorldDestination } = require('./world-locations');
-
-/**
- * Searches Google Images for an anime representation of a technique name,
- * with a high-speed Pollinations AI image generation fallback if blocked or unsuccessful.
- */
-async function fetchTechniqueImage(techniqueName) {
-    const axios = require('axios');
-    const query = encodeURIComponent(`${techniqueName} anime skill visual effect`);
-    const fallbackGoogleUrl = `https://www.google.com/search?q=${query}&tbm=isch`;
-
-    const userAgents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
-    ];
-
-    try {
-        console.log(`[Google Images] Searching for technique: ${techniqueName}`);
-        const response = await axios.get(fallbackGoogleUrl, {
-            headers: {
-                'User-Agent': userAgents[Math.floor(Math.random() * userAgents.length)],
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-            },
-            timeout: 5000
-        });
-
-        const html = response.data;
-        const imgRegex = /src="([^"]+)"/g;
-        let match;
-        const urls = [];
-        while ((match = imgRegex.exec(html)) !== null) {
-            const url = match[1];
-            if (url.startsWith('http') && !url.includes('googlelogo') && !url.includes('gif')) {
-                urls.push(url);
-            }
-        }
-
-        if (urls.length > 0) {
-            const targetUrl = urls[Math.min(urls.length - 1, 1)];
-            console.log(`[Google Images] Found URL: ${targetUrl}`);
-            const imgBuf = await axios.get(targetUrl, { responseType: 'arraybuffer', timeout: 5000 });
-            return Buffer.from(imgBuf.data);
-        }
-    } catch (err) {
-        console.error(`[Google Images] Error scraping images for ${techniqueName}:`, err.message);
-    }
-
-    // Attempt Hugging Face Image Generation first (supporting local-feeling/API-based adventure illustrations)
-    try {
-        console.log(`[Hugging Face] Generating image for "${techniqueName}"...`);
-        const hfToken = process.env.HF_TOKEN || process.env.HF_API_KEY;
-        const headers = { 'Content-Type': 'application/json' };
-        if (hfToken) {
-            headers['Authorization'] = `Bearer ${hfToken}`;
-        }
-        const promptText = `epic high resolution anime illustration of the technique called "${techniqueName}", glowing energy, masterpiece art`;
-        const resp = await axios.post("https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell", {
-            inputs: promptText
-        }, {
-            headers,
-            responseType: 'arraybuffer',
-            timeout: 8000
-        });
-        if (resp.status === 200 && resp.data) {
-            console.log(`[Hugging Face] ✅ Success generating image!`);
-            return Buffer.from(resp.data);
-        }
-    } catch (hfErr) {
-        console.warn(`[Hugging Face] Image generation failed, falling back to Pollinations:`, hfErr.message);
-    }
-
-    try {
-        console.log(`[Hugging Face] Generating image for "${techniqueName}" via Hugging Face...`);
-        const cleanPrompt = `high resolution epic anime illustration of the technique called "${techniqueName}", glowing energy, spectacular visual effects, dramatic combat stance, masterpiece art`;
-        const { generateHuggingFaceImage } = require('./message-handler');
-        return await generateHuggingFaceImage(cleanPrompt);
-    } catch (pErr) {
-        console.error(`[Hugging Face Fallback] Technique generation failed:`, pErr.message);
-    }
-
-    return null;
-}
-
-/**
- * Helper to fuzzy-match player names, stripping out symbols, @mentions, spaces, and punctuation.
- */
-/**
- * Resolve explicit movement intents BEFORE the AI narrates.
- * This makes the player's physical scene persistent in PostgreSQL instead of
- * trusting an LLM sentence such as "Nevo arrives at the captain".
- */
-function normalizeSceneText(value = '') {
-    return String(value)
-        .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-async function resolveExplicitDestination(player, actionText) {
-    const raw = String(actionText || '').trim();
-    const text = normalizeSceneText(raw);
-
-    const movementIntent = /\b(je me dirige vers|je me dirige en direction de|je vais vers|je vais voir|je me rends vers|je me rends en direction de|je marche vers|je marche en direction de|je pars vers|je cours vers|je cours en direction de|je vais a|je vais au|je vais a la|je vais dans|en direction de)\b/.test(text);
-
-    // Contextual continuation: after arriving somewhere, "j'entre / je rentre à l'intérieur"
-    // must refer to the CURRENT official place, never let the LLM pick a random building.
-    const entersCurrentPlace = /\b(je rentre|je entre|j entre|je vais a l interieur|je penetre|je pénètre)\b/.test(text) &&
-        /\b(a l interieur|à l intérieur|dans|dedans|a l interieur)\b/.test(text);
-
-    if (entersCurrentPlace && player.subLocation && player.subLocation !== 'Centre-ville') {
-        return {
-            location: player.location,
-            zone: player.zone || 'Centre-ville',
-            subLocation: player.subLocation,
-            anchor: player.subLocation,
-            source: 'contextual-enter'
-        };
-    }
-
-    if (!movementIntent) return null;
-
-    // Resolve known world destinations BEFORE NPC matching.
-    // The database state is updated from this registry before the LLM narrates,
-    // so a previous turn cannot be contradicted by a stale subLocation.
-    const worldDestination = resolveWorldDestination(text);
-    if (worldDestination) {
-        if (worldDestination.subLocation === 'Poste de la Milice') {
-            await NPC.findOrCreate({
-                where: { name: 'Capitaine de la Milice' },
-                defaults: {
-                    name: 'Capitaine de la Milice',
-                    role: 'Capitaine de la Milice',
-                    description: 'Officier responsable des patrouilles et de l’ordre public à Eldoria. Autoritaire, attentif et habitué aux situations imprévues.',
-                    specialty: 'Commandement et sécurité',
-                    location: worldDestination.location,
-                    zone: worldDestination.zone,
-                    subLocation: worldDestination.subLocation,
-                    powerLevel: 35
-                }
-            }).catch(err => console.error('[SCENE NPC] Captain creation failed:', err.message));
-        }
-
-        return worldDestination;
-    }
-
-    const npcsInLocation = await NPC.findAll({ where: { location: player.location } }).catch(() => []);
-    const targetTokens = text.split(' ').filter(w => w.length >= 4);
-    let bestNpc = null;
-    let bestScore = 0;
-
-    for (const npc of npcsInLocation) {
-        const haystack = normalizeSceneText((npc.name || '') + ' ' + (npc.role || '') + ' ' + (npc.specialty || '') + ' ' + (npc.description || ''));
-        let score = 0;
-        for (const token of targetTokens) {
-            if (haystack.includes(token)) score += token.length >= 7 ? 2 : 1;
-        }
-        if (score > bestScore) {
-            bestScore = score;
-            bestNpc = npc;
-        }
-    }
-
-    if (bestNpc && bestScore >= 2 && bestNpc.subLocation) {
-        return {
-            location: bestNpc.location || player.location,
-            zone: bestNpc.zone || player.zone,
-            subLocation: bestNpc.subLocation,
-            anchor: (bestNpc.name || 'PNJ') + ' (' + (bestNpc.role || 'PNJ') + ')',
-            source: 'npc'
-        };
-    }
-
-
-    return null;
-}
-
-function findMatchingPlayer(targetName, player, nearbyPlayers) {
-    if (!targetName) return null;
-    const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-    const targetClean = clean(targetName);
-    if (!targetClean) return null;
-
-    if (clean(player.name).includes(targetClean) || targetClean.includes(clean(player.name))) {
-        return player;
-    }
-
-    for (const p of nearbyPlayers) {
-        const pClean = clean(p.name);
-        if (pClean.includes(targetClean) || targetClean.includes(pClean)) {
-            return p;
-        }
-    }
-    return null;
-}
-
-/**
- * Robustly parses stat updates and save commands from pure-text AI narratives.
- * Format examples: [SINGAM II: HP -18] [HP -18] [XP +50] [Col +100] /save HP -18
- */
-async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
-    const updates = [];
-    const playersToUpdate = new Set();
-    const feedbackList = [];
-    const lowerText = text.toLowerCase();
-
-    // Normalize stat names helper
-    const normalizeStat = (s) => {
-        const u = s.toUpperCase();
-        if (['XP', 'EXP', 'EXPERIENCE'].includes(u)) return 'XP';
-        if (['COL', 'GOLD', 'OR'].includes(u)) return 'COL';
-        if (['HP', 'PV', 'VIE'].includes(u)) return 'HP';
-        if (['MP', 'PM', 'MANA'].includes(u)) return 'MP';
-        if (['SP'].includes(u)) return 'SP';
-        return u;
-    };
-
-    // 1) Named stats inside brackets or pipes: [PlayerName: STAT +/- VALUE] or [foo | PlayerName: STAT +/- VALUE]
-    // e.g. [SINGAM II: HP -18] or [E.L.King: EXP +750] or [E.L.King: GOLD +950]
-    const namedRegex = /(?:[\[|]|^|\s)([A-Za-z0-9\s\-_.]+?)\s*:\s*(HP|PV|VIE|MP|PM|MANA|XP|EXP|EXPERIENCE|Col|GOLD|OR|SP)\s*([+-]\s*\d+)/gi;
-    let match;
-    while ((match = namedRegex.exec(text)) !== null) {
-        const targetName = match[1].trim();
-        const statName = normalizeStat(match[2].trim());
-        const value = parseInt(match[3].replace(/\s+/g, ''));
-
-        const targetPlayer = findMatchingPlayer(targetName, player, nearbyPlayers);
-        if (targetPlayer) {
-            updates.push({ player: targetPlayer, stat: statName, value });
-        }
-    }
-
-    // 2) Unnamed stats inside brackets: [STAT +/- VALUE]
-    // e.g. [HP -18] or [EXP +750]
-    const unnamedRegex = /\[\s*(HP|PV|VIE|MP|PM|MANA|XP|EXP|EXPERIENCE|Col|GOLD|OR|SP)\s*([+-]\s*\d+)/gi;
-    while ((match = unnamedRegex.exec(text)) !== null) {
-        const statName = normalizeStat(match[1].trim());
-        const value = parseInt(match[2].replace(/\s+/g, ''));
-
-        // Avoid double-counting if this was already captured as a named stat
-        const isDuplicate = updates.some(u => u.player.whatsappId === player.whatsappId && u.stat === statName && u.value === value);
-        if (!isDuplicate) {
-            updates.push({ player, stat: statName, value });
-        }
-    }
-
-    // 3) Support loose text-based "/save STAT +/- VALUE" commands
-    const saveRegex = /\/save\s+(?:([A-Za-z0-9\s\-_.]+?)\s*:\s*)?(HP|PV|VIE|MP|PM|MANA|XP|EXP|EXPERIENCE|Col|GOLD|OR|SP)\s*([+-]\s*\d+)/gi;
-    while ((match = saveRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim() : null;
-        const statName = normalizeStat(match[2].trim());
-        const value = parseInt(match[3].replace(/\s+/g, ''));
-
-        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
-        if (!targetPlayer) targetPlayer = player;
-
-        updates.push({ player: targetPlayer, stat: statName, value });
-    }
-
-    // 3.5) ITEM_ADD parsing: [PlayerName: ITEM_ADD: Item1 x2, Item2] or [ITEM_ADD: Item1]
-    const itemAddRegex = /\[\s*(?:([A-Za-z0-9\s\-_.]+?)\s*:\s*)?(?:ITEM_ADD|ITEMS?|OBJET_AJOUT)\s*:\s*(.+?)\s*\]/gi;
-    while ((match = itemAddRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim() : null;
-        const itemStr = match[2].trim();
-
-        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
-        if (!targetPlayer) targetPlayer = player;
-
-        const itemsList = itemStr.split(',').map(s => s.trim()).filter(Boolean);
-        const inv = Array.isArray(targetPlayer.inventory) ? [...targetPlayer.inventory] : [];
-        const addedNames = [];
-
-        for (const rawItem of itemsList) {
-            const qtyMatch = rawItem.match(/(.+?)\s*x\s*(\d+)$/i);
-            const name = (qtyMatch ? qtyMatch[1] : rawItem).trim();
-            const qty = qtyMatch ? parseInt(qtyMatch[2]) : 1;
-
-            const existing = inv.find(i => i.name.toLowerCase() === name.toLowerCase());
-            if (existing) {
-                existing.quantity = (existing.quantity || 1) + qty;
-            } else {
-                inv.push({ name, quantity: qty, type: 'misc' });
-            }
-            addedNames.push(`${name} (x${qty})`);
-        }
-
-        await targetPlayer.update({ inventory: inv });
-        feedbackList.push(`🎒 *${targetPlayer.name}* : Objets reçus ➔ ${addedNames.join(', ')}`);
-        playersToUpdate.add(targetPlayer.whatsappId);
-    }
-
-    // Check training limit for stat increases
-    const todayStr = new Date().toISOString().substring(0, 10);
-
-    // Group updates by player and apply them to the DB
-    for (const update of updates) {
-        const p = update.player;
-        const val = update.value;
-        const s = update.stat;
-
-        // Reset training counter if new day
-        if (p.lastTrainingDate !== todayStr) {
-            await p.update({ dailyTrainingsCount: 0, lastTrainingDate: todayStr });
-        }
-
-        if (['FOR', 'STRENGTH', 'AGI', 'AGILITY', 'INT', 'INTELLIGENCE', 'DEF', 'DEFENSE', 'LUK', 'LUCK'].includes(s)) {
-            if (val > 0) {
-                if (p.dailyTrainingsCount >= 2) {
-                    feedbackList.push(`⚠️ *${p.name}* : Limite d'entraînement quotidien atteinte (max 2/jour). Statistique inchangée.`);
-                    continue;
-                }
-                const statFieldMap = {
-                    'FOR': 'strength', 'STRENGTH': 'strength',
-                    'AGI': 'agility', 'AGILITY': 'agility',
-                    'INT': 'intelligence', 'INTELLIGENCE': 'intelligence',
-                    'DEF': 'defense', 'DEFENSE': 'defense',
-                    'LUK': 'luck', 'LUCK': 'luck'
-                };
-                const dbField = statFieldMap[s];
-                if (dbField) {
-                    await p.increment(dbField, { by: val });
-                    await p.increment('dailyTrainingsCount', { by: 1 });
-                    await p.reload();
-                    feedbackList.push(`💪 *${p.name}* : ${dbField.toUpperCase()} +${val} (Entraînement ${p.dailyTrainingsCount}/2 aujourd'hui)`);
-                }
-            }
-        } else if (s === 'HP' || s === 'PV') {
-            let newH = p.health + val;
-            if (newH < 0) newH = 0;
-            if (newH > p.maxHealth) newH = p.maxHealth;
-
-            let extraFeedback = "";
-            if (val < 0) {
-                const damageAmt = Math.floor(Math.abs(val) * 0.4) || 2;
-                let newDur = (p.outfitDurability || 100) - damageAmt;
-                if (newDur < 0) newDur = 0;
-
-                let newClean = p.outfitCleanliness || 'propre';
-                if (Math.abs(val) >= 15) {
-                    newClean = 'couvert de sang';
-                } else if (Math.abs(val) >= 5 && newClean === 'propre') {
-                    newClean = 'taché de boue';
-                }
-
-                await p.update({
-                    health: newH,
-                    outfitDurability: newDur,
-                    outfitCleanliness: newClean
-                });
-                extraFeedback = ` (👕 Tenue: ${newDur}% • ${newClean.toUpperCase()})`;
-            } else {
-                await p.update({ health: newH });
-            }
-            feedbackList.push(`❤️ *${p.name}* : HP ${val >= 0 ? '+' : ''}${val} (➔ ${newH}/${p.maxHealth})${extraFeedback}`);
-        } else if (s === 'MP' || s === 'PM') {
-            let newM = p.mana + val;
-            if (newM < 0) newM = 0;
-            if (newM > p.maxMana) newM = p.maxMana;
-            await p.update({ mana: newM });
-            feedbackList.push(`🌀 *${p.name}* : MP ${val >= 0 ? '+' : ''}${val} (➔ ${newM}/${p.maxMana})`);
-        } else if (s === 'XP') {
-            let newX = p.xp + val;
-            await p.update({ xp: newX });
-            feedbackList.push(`✨ *${p.name}* : XP +${val}`);
-            // Check level up
-            await checkLevelUp(p, sock);
-        } else if (s === 'COL') {
-            let newC = p.col + val;
-            if (newC < 0) newC = 0;
-            await p.update({ col: newC });
-            feedbackList.push(`🪙 *${p.name}* : Col ${val >= 0 ? '+' : ''}${val} (➔ ${newC})`);
-        } else if (s === 'SP') {
-            let newS = p.skillPoints + val;
-            if (newS < 0) newS = 0;
-            await p.update({ skillPoints: newS });
-            feedbackList.push(`📖 *${p.name}* : SP ${val >= 0 ? '+' : ''}${val}`);
-        }
-        playersToUpdate.add(p.whatsappId);
-    }
-
-    // 4) Quest Starts: [START_QUEST: Quest Title] or [DEBUT_QUETE: Quest Title]
-    const questStartRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:START_QUEST|DEBUT_QUETE)\s*:\s*(.+?)\s*\]/gi;
-    while ((match = questStartRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim() : null;
-        const questTitle = match[2].trim();
-
-        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
-        if (!targetPlayer) targetPlayer = player;
-
-        const logMsg = await questUtils.startQuest(targetPlayer, questTitle);
-        if (logMsg) {
-            feedbackList.push(logMsg);
-            playersToUpdate.add(targetPlayer.whatsappId);
-
-            // Send stunning quest starter poster
-            try {
-                const questData = await questUtils.findQuest(questTitle);
-                if (questData) {
-                    const { generateQuestStartCard } = require('./additional-visuals');
-                    const cardBuf = await generateQuestStartCard(targetPlayer.name, questData.title, questData.description, questData.reward_col, questData.reward_xp);
-                    await sock.sendMessage(jid, { image: cardBuf, caption: `📜 *NOUVELLE MISSION ÉVEILLÉE POUR ${targetPlayer.name.toUpperCase()} !*` });
-                }
-            } catch (vErr) {
-                console.error("[Quest Card Error]", vErr);
-            }
-        }
-    }
-
-    // 5) Quest Progress: [PROGRESS_QUEST: Quest Title | 50] or [PROGRES_QUETE: Quest Title | 50]
-    const questProgressRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:PROGRESS_QUEST|PROGRES_QUETE)\s*:\s*(.+?)\s*\|\s*(\d+)\s*\]/gi;
-    while ((match = questProgressRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim() : null;
-        const questTitle = match[2].trim();
-        const progressVal = parseInt(match[3]);
-
-        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
-        if (!targetPlayer) targetPlayer = player;
-
-        const logMsg = await questUtils.advanceQuest(targetPlayer, questTitle, progressVal);
-        if (logMsg) {
-            feedbackList.push(logMsg);
-            playersToUpdate.add(targetPlayer.whatsappId);
-        }
-    }
-
-    // 6) Quest Completion: [COMPLETED_QUEST: Quest Title] or [FIN_QUETE: Quest Title]
-    const questCompleteRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:COMPLETED_QUEST|FIN_QUETE)\s*:\s*(.+?)\s*\]/gi;
-    while ((match = questCompleteRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim() : null;
-        const questTitle = match[2].trim();
-
-        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
-        if (!targetPlayer) targetPlayer = player;
-
-        const logMsg = await questUtils.completeQuest(targetPlayer, questTitle, sock);
-        if (logMsg) {
-            feedbackList.push(logMsg);
-            playersToUpdate.add(targetPlayer.whatsappId);
-        }
-    }
-
-    // 7) Learn/Unlock Skills: [LEARN_SKILL: Skill Name] or [APPRENDRE_COMPETENCE: Skill Name] or [TECHNIQUE: Skill Name]
-    const skillLearnRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?(?:LEARN_SKILL|APPRENDRE_COMPETENCE|TECHNIQUE)\s*:\s*(.+?)\s*\]/gi;
-    while ((match = skillLearnRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim() : null;
-        const skillName = match[2].trim();
-
-        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
-        if (!targetPlayer) targetPlayer = player;
-
-        // Query skill from database
-        const { Skill: ModelSkill } = require('./database');
-        const { Op } = require('sequelize');
-        let skill = await ModelSkill.findOne({
-            where: {
-                [Op.or]: [
-                    { name: skillName },
-                    { name: { [Op.like]: `%${skillName}%` } }
-                ]
-            }
-        });
-
-        if (!skill) {
-            // Dynamically create custom-invented skills/pacts so players actually learn them!
-            skill = await ModelSkill.create({
-                name: skillName,
-                description: `Une technique mystique unique de l'Interstice ou issue d'un pacte légendaire.`,
-                type: 'Unique',
-                manaCost: 15,
-                statBonuses: {}
-            });
-        }
-
-        if (skill) {
-            const hasSkill = await targetPlayer.hasSkill(skill);
-            if (!hasSkill) {
-                await targetPlayer.addSkill(skill);
-                // Apply stat bonuses immediately
-                const bonuses = skill.statBonuses || {};
-                for (const [stat, val] of Object.entries(bonuses)) {
-                    if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
-                        await targetPlayer.increment(stat, { by: val });
-                    }
-                }
-                feedbackList.push(`📖 *${targetPlayer.name}* a appris la technique : *${skill.name.toUpperCase()}* !`);
-                playersToUpdate.add(targetPlayer.whatsappId);
-
-                // Send stunning skill scroll card
-                try {
-                    const { generateSkillScrollCard } = require('./additional-visuals');
-                    const cardBuf = await generateSkillScrollCard(targetPlayer.name, skill.name, skill.type, skill.description);
-                    await sock.sendMessage(jid, { image: cardBuf, caption: `📖 *NOUVELLE TECHNIQUE MAÎTRISÉE PAR ${targetPlayer.name.toUpperCase()} !*` });
-                } catch (vErr) {
-                    console.error("[Skill Scroll Card Error]", vErr);
-                }
-            }
-        }
-    }
-
-    // 8) Support subLocation and location updates in brackets
-    // e.g. [new_sub_location: la Forêt des Gobelins] or [new_location: Empire d'Elion]
-    const subLocationRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?new_sub_location\s*:\s*(.+?)\s*\]/gi;
-    while ((match = subLocationRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim() : null;
-        const newSub = match[2].trim();
-        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
-        if (!targetPlayer) targetPlayer = player;
-
-        await targetPlayer.update({ subLocation: newSub });
-        feedbackList.push(`📍 *${targetPlayer.name}* s'est déplacé à : *${newSub}*`);
-        playersToUpdate.add(targetPlayer.whatsappId);
-    }
-
-    const locationRegex = /\[\s*(?:([A-Za-z0-9\s\-_]+?)\s*:\s*)?new_location\s*:\s*(.+?)\s*\]/gi;
-    while ((match = locationRegex.exec(text)) !== null) {
-        const targetName = match[1] ? match[1].trim() : null;
-        const newLoc = match[2].trim();
-        let targetPlayer = targetName ? findMatchingPlayer(targetName, player, nearbyPlayers) : player;
-        if (!targetPlayer) targetPlayer = player;
-
-        await targetPlayer.update({ location: newLoc });
-        feedbackList.push(`🌍 *${targetPlayer.name}* a voyagé à : *${newLoc}*`);
-        playersToUpdate.add(targetPlayer.whatsappId);
-    }
-
-    // 9) Proactive Consciousness Spawners
-    // [SPAWN_NPC: Name | Role | Specialty | Description]
-    const spawnNpcRegex = /\[\s*SPAWN_NPC\s*:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\]/gi;
-    while ((match = spawnNpcRegex.exec(text)) !== null) {
-        const name = match[1].trim();
-        const role = match[2].trim();
-        const specialty = match[3].trim();
-        const description = match[4].trim();
-
-        // Create NPC in DB
-        const [npc, created] = await NPC.findOrCreate({
-            where: { name },
-            defaults: {
-                role,
-                specialty,
-                description,
-                location: player.location,
-                subLocation: player.subLocation,
-                powerLevel: 50
-            }
-        });
-        if (created) {
-            feedbackList.push(`👤 *PNJ apparu* : *${name}* (${role} | Spécialité: ${specialty})`);
-        }
-    }
-
-    // [SPAWN_MONSTER: Name | Rank | HP | Strength | Defense | Agility]
-    const spawnMonsterRegex = /\[\s*SPAWN_MONSTER\s*:\s*(.+?)\s*\|\s*([A-S])\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\]/gi;
-    while ((match = spawnMonsterRegex.exec(text)) !== null) {
-        const name = match[1].trim();
-        const rank = match[2].trim();
-        const health = parseInt(match[3]);
-        const strength = parseInt(match[4]);
-        const defense = parseInt(match[5]);
-        const agility = parseInt(match[6]);
-
-        const [monster, created] = await Monster.findOrCreate({
-            where: { name },
-            defaults: {
-                rank,
-                health,
-                strength,
-                defense,
-                agility,
-                location: player.location,
-                subLocation: player.subLocation,
-                xp_reward: health * 2,
-                col_reward: health
-            }
-        });
-        if (created) {
-            feedbackList.push(`👾 *Monstre apparu* : *${name}* (Rang ${rank} | PV: ${health})`);
-        }
-    }
-
-    // [ANNONCE: Message]
-    const annonceRegex = /\[\s*ANNONCE\s*:\s*(.+?)\s*\]/gi;
-    while ((match = annonceRegex.exec(text)) !== null) {
-        const msg = match[1].trim();
-        // Create a world journal entry for global announcement
-        await WorldJournal.create({
-            entry: `📢 ANNONCE MONDIALE : ${msg}`,
-            importance: 5,
-            category: 'general'
-        });
-        feedbackList.push(`📢 *ANNONCE* : ${msg}`);
-
-        // Broadcast immediately on WhatsApp!
-        try {
-            await sock.sendMessage(jid, { text: `📢 *ANNONCE DE LA CONSCIENCE D'AETHERYS :*\n\n« ${msg} »` });
-        } catch (err) {}
-    }
-
-    return { playersToUpdate, feedbackList };
-}
 
 async function handleFreeAction(sock, message, player, actionText) {
   const jid = message.key.remoteJid;
-  const survivalWarnings = [];
-
-  // "." / "…" means: no new voluntary action. It must NEVER reset or relocate the scene.
-  const rawActionText = String(actionText || '').trim();
-  const isPassiveTick = /^[.…。·]+$/.test(rawActionText);
-  if (isPassiveTick) {
-      actionText = 'Le joueur n’effectue aucune nouvelle action volontaire. Le monde continue exactement depuis la scène actuelle.';
-  }
-
-  // Persist explicit destinations before the narrator runs.
-  // This fixes the classic bug: "je vais voir le capitaine" is narrated,
-  // but the next turn still reloads the player at the old city center.
-  if (!isPassiveTick) {
-      try {
-          const destination = await resolveExplicitDestination(player, rawActionText);
-          if (destination && destination.subLocation) {
-              const changed = destination.location !== player.location ||
-                  destination.zone !== player.zone ||
-                  destination.subLocation !== player.subLocation;
-
-              if (changed) {
-                  await player.update({
-                      location: destination.location || player.location,
-                      zone: destination.zone || player.zone || 'Centre-ville',
-                      subLocation: destination.subLocation
-                  });
-                  await player.reload();
-                  console.log('[SCENE STATE] ' + player.name + ': ' + player.location + ' > ' + player.subLocation + ' (' + destination.source + ')');
-              }
-          }
-      } catch (movementErr) {
-          console.error('[SCENE STATE] Movement resolution failed:', movementErr.message);
-      }
-  }
 
   // Logic: Always save the message first
   try {
@@ -659,359 +18,126 @@ async function handleFreeAction(sock, message, player, actionText) {
           senderJid: player.whatsappId,
           senderName: player.name,
           content: actionText,
-          location: player.location,
-          subLocation: player.subLocation
+          location: player.location
       });
   } catch (e) {
       console.error("[DB] RPMessage log error:", e.message);
   }
 
-  // Technique detection: find any text written in bold (wrapped in single asterisks like *technique*)
-  let techniqueImageBuffer = null;
-  let techniqueDetectedName = null;
-  const boldMatch = actionText.match(/\*([A-Za-zÀ-ÖØ-öø-ÿ0-9\s'-]{3,40})\*/);
-  if (boldMatch) {
-      techniqueDetectedName = boldMatch[1].trim();
-      console.log(`[Technique Detector] Detected technique in bold: "${techniqueDetectedName}"`);
-      techniqueImageBuffer = await fetchTechniqueImage(techniqueDetectedName);
-  }
-
-  // Automatic Visual: Detect writing on paper or blackboard
-  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter|inscrit|dessine|trace|copie|copier)(?:\s+(?:sur|dans)\s+(?:du\s+|le\s+|la\s+)?(?:papier|tableau|mur|parchemin|lettre|examen|note|copie|tableau noir|ardoise))\s*:\s*([\s\S]+)/i);
+  // Automatic Visual: Detect writing on paper
+  const writingMatch = actionText.match(/(?:écrit|écrire|rédige|rédiger|note|noter)(?:\s+sur\s+(?:du\s+)?papier|\s+une\s+note|\s+une\s+lettre|\s+l'examen)\s*:\s*([\s\S]+)/i);
   if (writingMatch) {
       const writtenText = writingMatch[1].trim();
-      const lowerAction = actionText.toLowerCase();
-      const isBlackboard = lowerAction.includes('tableau');
-      const isExam = lowerAction.includes('examen');
-
+      const isExam = actionText.toLowerCase().includes('examen');
       try {
-          let visualBuffer;
-          let caption = "";
-
-          if (isBlackboard) {
-              visualBuffer = await generateBlackboardImage(writtenText, "TABLEAU");
-              caption = `📝 *Sur le tableau, on peut lire...*`;
-          } else {
-              visualBuffer = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
-              caption = `📜 *Tu as fini d'écrire...*\n\n"${writtenText.substring(0, 100)}${writtenText.length > 100 ? '...' : ''}"`;
-          }
-
+          const paperPath = await generatePaperImage(writtenText, isExam ? "COPIE D'EXAMEN" : "NOTE MANUSCRITE");
           await sock.sendMessage(jid, {
-              image: visualBuffer,
-              caption: caption
+              image: { url: paperPath },
+              caption: `📜 *Tu as fini d'écrire...*\n\n"${writtenText.substring(0, 100)}${writtenText.length > 100 ? '...' : ''}"`
           });
       } catch (err) {
-          console.error("[Writing Visual] Error generating visual:", err);
+          console.error("[Paper] Error generating paper visual:", err);
       }
   }
 
-  // Scene Logic: Detect players in the same sub-location (Immediate view)
-  const sceneFilter = {
-      location: player.location,
-      subLocation: player.subLocation
-  };
-
-  const nearbyPlayers = await Player.findAll({
-    where: {
-        location: player.location,
-        subLocation: player.subLocation
-    }
-  });
-
+  // Only trigger AI on 'next'
   const isTriggerWord = actionText.toLowerCase().trim() === 'next';
 
-  // Scene Logic: Detect players in the same sub-location
-  // MANDATE: Separation between solo and group play.
-  const now = Date.now();
-  const activeThreshold = 15 * 60 * 1000; // 15 minutes for broader sync
-
-  const activeOthersInScene = nearbyPlayers.filter(p => {
-      const lastActive = new Date(p.lastActivity).getTime();
-      return p.whatsappId !== player.whatsappId && (now - lastActive) < activeThreshold;
-  });
-
-  // Logic: A player is "Solo" if no one else is ACTIVE in the same Sub-Location.
-  const isSolo = activeOthersInScene.length === 0;
-
-  // Synchronization: Solo players bypass 'next' for immediate response.
-  // Group players MUST use 'next' or wait for the group to be ready.
-  let lastMJMessage = await RPMessage.findOne({
-      where: { senderName: 'ATR MJ', ...sceneFilter },
-      order: [['id', 'DESC']]
-  });
-
-  // IMPORTANT: Never borrow an MJ turn from another scene.
-  // Each location/sub-location has its own timeline.
-
-  // Calculate time advancement: 10 mins per action
-  const actionsSinceLastMJ = await RPMessage.count({
-      where: {
-          [Op.or]: [
-              { senderJid: player.whatsappId },
-              { subLocation: player.subLocation, location: player.location }
-          ],
-          id: { [Op.gt]: lastMJMessage ? lastMJMessage.id : 0 },
-          senderName: { [Op.ne]: 'ATR MJ' }
-      }
-  });
-
-  // Every real action is processed immediately. Passive players never block the scene.
-  if (isTriggerWord) {
-      await sock.sendMessage(jid, { text: "⏳ *Le monde attend une action réelle.* Ton personnage n'avance pas automatiquement." });
+  if (!isTriggerWord) {
+      await sock.sendMessage(jid, {
+          text: "⏳ *Action enregistrée.*\nAttendez les autres joueurs pour `next`. S'ils ne sont pas là, ils sont immobiles devant vous et ne réagissent à rien."
+      });
       return;
   }
 
-  // Fetch all messages in the KINGDOM to detect people moving toward the scene
-  const kingdomMessageQuery = {
+  // If "Next" is sent, aggregate all messages since the last MJ response
+  const lastMJMessage = await RPMessage.findOne({
+      where: { senderName: 'Arise MJ', location: player.location },
+      order: [['id', 'DESC']]
+  });
+
+  const messageQuery = {
       location: player.location,
-      senderName: { [Op.ne]: 'ATR MJ' }
+      senderName: { [Op.ne]: 'Arise MJ' }
   };
   if (lastMJMessage) {
-      kingdomMessageQuery.id = { [Op.gt]: lastMJMessage.id };
+      messageQuery.id = { [Op.gt]: lastMJMessage.id };
   }
 
-  const recentKingdomActions = await RPMessage.findAll({
+  const recentActions = await RPMessage.findAll({
       where: {
-          ...kingdomMessageQuery,
-          content: { [Op.notLike]: 'next' }
+          ...messageQuery,
+          content: { [Op.notLike]: 'next' } // Filter out the trigger word itself
       },
       order: [['id', 'ASC']]
   });
 
-  // Keep actions that are in the same sub-location OR interaction with a player here
-  const playersCurrentlyHere = nearbyPlayers.map(p => p.name.toLowerCase());
-  const recentActions = recentKingdomActions.filter(a => {
-      if (a.subLocation === player.subLocation) return true;
-      const content = a.content.toLowerCase();
-      // If someone in another sub-location mentions a player here
-      return playersCurrentlyHere.some(pName => content.includes(pName));
-  });
-
-  // Enhanced aggregation: Detect movement and interaction intent
-  const playersInKingdom = await Player.findAll({
-      where: { location: player.location },
-      attributes: ['name', 'subLocation']
-  });
-
-  let hasMovement = false;
-  let hasInteraction = false;
-  let interactionTargetSubLocation = null;
-
+  // If 'next' is sent but there are NO actions, we still let the MJ intervene if they want
   const aggregatedActions = recentActions.length > 0
-    ? recentActions.map(a => {
-        let prefix = "";
-        const lowContent = a.content.toLowerCase();
-
-        // Detection of movement
-        if (lowContent.match(/\b(va|vers|sort|entre|part|dirige|direction|lieu|déplace|bouge|quitte|arrive)\b/i)) {
-            prefix = "[🚩 MOUVEMENT] ";
-            hasMovement = true;
-        }
-
-        // Detection of interaction
-        for (const p of playersInKingdom) {
-            if (a.senderName !== p.name && lowContent.includes(p.name.toLowerCase())) {
-                prefix = `[🤝 INTERACTION avec ${p.name}] `;
-                hasInteraction = true;
-                if (p.subLocation !== player.subLocation) {
-                    interactionTargetSubLocation = p.subLocation;
-                }
-                break;
-            }
-        }
-
-        return `${prefix}${a.senderName}: ${a.content}`;
-    }).join('\n')
-    : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde.)";
-
-  // Query NPCs strictly located in the exact same location and subLocation
-  const npcs = await NPC.findAll({
-    where: {
-        location: player.location,
-        subLocation: player.subLocation
-    }
-  });
-
-  const hints = [];
-
-  if (hasMovement) hints.push("⚠️ UN JOUEUR SOUHAITE SE DÉPLACER. Priorise la description du nouveau lieu.");
-  if (hasInteraction) {
-      hints.push("⚠️ UNE INTERACTION ENTRE JOUEURS EST EN COURS. Ne l'interromps pas avec des PNJ.");
-      if (interactionTargetSubLocation) {
-          hints.push(`⚠️ LE JOUEUR ESSAIE D'INTERAGIR AVEC QUELQU'UN À '${interactionTargetSubLocation}'. Propose-lui de se déplacer là-bas ou fais-les se rencontrer.`);
-      }
-  }
-  const otherActorsCount = activeOthersInScene.length;
-  if (otherActorsCount > 0) hints.push("⚠️ PLUSIEURS JOUEURS SONT PRÉSENTS DANS LA MÊME PIÈCE. Priorise leur interaction directe. Ne crée PAS de PNJ sauf nécessité absolue.");
-
-  // Goldfish Memory Defense: Check if player just got a new item/skill in previous turns
-  const recentGains = await WorldJournal.findAll({
-      where: { entry: { [Op.like]: `%${player.name}%` }, category: 'plot' },
-      limit: 2,
-      order: [['id', 'DESC']]
-  });
-  if (recentGains.length > 0) {
-      hints.push(`⚠️ MÉMOIRE RÉCENTE : ${player.name} a récemment vécu : ${recentGains.map(g => g.entry).join(' | ')}.`);
-  }
-
-  const availableQuests = await Quest.findAll({
-      where: {
-          [Op.or]: [
-              { rank_required: player.rank },
-              { rank_required: 'F' }
-          ]
-      },
-      limit: 5
-  });
-
-  hints.push("⚠️ LOIS DE CAUSALITÉ & ANTI-TRICHE : Le monde est un écosystème logique. Un joueur ne peut PAS nager 3h sans compétence spéciale (il se noie en 5min s'il est Rang F).");
-  hints.push("⚠️ SENSORIALITÉ : Un joueur ne ressent pas les autres à distance sans compétence.");
-  hints.push("⚠️ CONTRAINTES GÉOGRAPHIQUES : Traverser un Royaume prend DES JOURS RP.");
-  hints.push("⚠️ ÉPUISEMENT : Si Sleep < 20, le joueur est physiquement incapable de courir ou de combattre efficacement.");
+    ? recentActions.map(a => `${a.senderName}: ${a.content}`).join('\n')
+    : "(Aucune action récente des joueurs. Le MJ doit prendre l'initiative pour faire avancer le monde ou interpeller quelqu'un.)";
 
   // Survival Depletion Logic
-  // IMPORTANT: never punish a player for server downtime, migrations or an old
-  // lastActivity timestamp. Decay is capped per processed turn.
-  const lastActivityMs = new Date(player.lastActivity).getTime();
+  const lastActivity = new Date(player.lastActivity).getTime();
   const nowMs = Date.now();
-  const rawElapsedMs = Number.isFinite(lastActivityMs) ? Math.max(0, nowMs - lastActivityMs) : 0;
-  const MAX_DECAY_REAL_MS = 60 * 60 * 1000; // at most one real hour counts
-  const realElapsedMs = Math.min(rawElapsedMs, MAX_DECAY_REAL_MS);
+  const realElapsedMs = nowMs - lastActivity;
   const rpElapsedHours = (realElapsedMs * 9) / (1000 * 60 * 60);
 
-  // A player must never lose hundreds of sleep points from one delayed message.
-  const sleepLoss = rpElapsedHours > 0.05 ? Math.min(5, Math.floor(rpElapsedHours * 2)) : 0;
+  if (rpElapsedHours > 0.05) {
+      const hungerLoss = Math.floor(rpElapsedHours * 3); // -3 per RP hour
+      const sleepLoss = Math.floor(rpElapsedHours * 2);  // -2 per RP hour
 
-  if (sleepLoss > 0) {
-      await player.update({ sleep: Math.max(0, Number(player.sleep || 0) - sleepLoss) });
-
-      // Gradual sobriety over time (sobering up)
-      if (player.inebriationLevel > 0) {
-          const soberingAmount = Math.floor(rpElapsedHours * 15) || 5;
-          let newInebriation = player.inebriationLevel - soberingAmount;
-          if (newInebriation < 0) newInebriation = 0;
-          await player.update({ inebriationLevel: newInebriation });
-      }
-
-      if (sleepLoss > 0) {
-          survivalWarnings.push(`💤 *${player.name}* : Sommeil -${sleepLoss} (➔ ${Math.max(0, player.sleep - sleepLoss)}/100)`);
-      }
-
-      // Poisoning damage over time (lose 5 HP per hour)
-      if (player.isPoisoned) {
-          const poisonDamage = Math.floor(rpElapsedHours * 5) || 2;
-          await player.decrement('health', { by: poisonDamage });
-          hints.push(`⚠️ EMPOISONNEMENT ACTIF : Le venin ronge tes PV (-${poisonDamage} PV). Consomme un antidote ou trouve un remède d'urgence !`);
-          survivalWarnings.push(`🤢 *${player.name}* : Poison -${poisonDamage} PV (➔ ${Math.max(0, player.health - poisonDamage)}/${player.maxHealth})`);
-      }
+      if (hungerLoss > 0) await player.decrement('hunger', { by: hungerLoss });
+      if (sleepLoss > 0) await player.decrement('sleep', { by: sleepLoss });
 
       await player.reload();
+      if (player.hunger < 0) await player.update({ hunger: 0 });
       if (player.sleep < 0) await player.update({ sleep: 0 });
 
-      // Check if player is dead/unconscious
-      const isDead = player.health <= 0;
-      if (isDead) {
-          hints.push("⚠️ LE JOUEUR EST MORT OU INCONSCIENT (0 PV).");
+      // Starvation damage
+      if (player.hunger === 0 && rpElapsedHours > 0.5) {
+          await player.decrement('health', { by: 5 });
       }
-
       await player.update({ lastActivity: new Date() });
   }
 
-  // Final Stat Calculation for Main Player
-  let mainFor = player.strength;
-  let mainAgi = player.agility;
-  let mainInt = player.intelligence;
-  let mainBond = "";
-
-  if (player.masterId) {
-      const master = await Player.findOne({ where: { whatsappId: player.masterId } });
-      if (master) {
-          const bonus = (master.strength + master.agility + master.intelligence) * 0.2;
-          mainFor += bonus * 0.4; mainAgi += bonus * 0.3; mainInt += bonus * 0.3;
-          mainBond = ` [SERVITEUR de ${master.name}]`;
-      }
-  }
-  if (player.fusedWithId) {
-      const partner = await Player.findOne({ where: { whatsappId: player.fusedWithId } });
-      if (partner) {
-          mainFor += partner.strength; mainAgi += partner.agility; mainInt += partner.intelligence;
-          mainBond = ` [FUSIONNÉ avec ${partner.name} - Sync:${Math.round(player.fusionSyncLevel * 100)}%]`;
-      }
-  }
-
-  if (player.hasAura) {
-      mainFor = mainFor * 1.5;
-      mainAgi = mainAgi * 1.5;
-      mainInt = mainInt * 1.5;
-      mainBond += " [⚡ AURA ACTIVE (+50% STATS)]";
-  }
-
-  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Race:${player.race} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | Tenue:${player.equippedOutfit || 'Aucun vêtement'} (Durabilité: ${player.outfitDurability}%, Propreté: ${player.outfitCleanliness}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
+  const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Lieu:${player.location} (${player.subLocation}) | STATS: FOR:${player.strength} AGI:${player.agility} INT:${player.intelligence} DEF:${player.defense} LUK:${player.luck}`;
 
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
 
   const playerQuests = await player.getQuests();
   const activeQuests = playerQuests.filter(q => q.PlayerQuest.status === 'in_progress');
-  const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%, Récompenses:${q.reward_col}Col/${q.reward_xp}XP)`).join(',') : "Pas de quête";
+  const questState = activeQuests.length > 0 ? "Quêtes: " + activeQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`).join(',') : "Pas de quête";
 
-  const availableQuestState = "Quêtes Dispo: " + availableQuests.map(q => `${q.title} (Rang ${q.rank_required})`).join(', ');
+  const availableQuests = await Quest.findAll({ where: { rank_required: player.rank }, limit: 2 });
+  const availableQuestState = "Dispo: " + availableQuests.map(q => q.title).join(',');
 
   const dungeons = await Dungeon.findAll({ limit: 1 });
   const dungeonState = "Donjon: " + dungeons.map(d => `${d.name}(${d.rank})`).join(',');
 
+  const nearbyPlayers = await Player.findAll({
+    where: {
+        location: player.location
+    }
+  });
+
   const actingPlayerNames = new Set(recentActions.map(a => a.senderName));
 
-  // STRICT SCENE AUTHORITY: only players physically in the exact same sub-location
-  // are part of this scene. Everyone else stays completely outside the narration.
+  // Data for all players in the same scene
   const scenePlayersData = await Promise.all(nearbyPlayers.map(async p => {
       const pSkills = await p.getSkills();
       const pPacts = await p.getEntities();
       const pClubs = await p.getClubs();
       const pQuests = await p.getQuests();
-      const pBank = await Bank.findOne({ where: { PlayerWhatsappId: p.whatsappId } });
-      const bankBalance = pBank ? pBank.balance : 100;
       const pActiveQuests = pQuests.filter(q => q.PlayerQuest.status === 'in_progress');
       const pActions = recentActions.filter(a => a.senderName === p.name).map(a => a.content);
-
-      let displayFor = p.strength;
-      let displayAgi = p.agility;
-      let displayInt = p.intelligence;
-      let bondInfo = "";
-
-      if (p.masterId) {
-          const master = await Player.findOne({ where: { whatsappId: p.masterId } });
-          if (master) {
-              const bonus = (master.strength + master.agility + master.intelligence) * 0.2;
-              displayFor += bonus * 0.4;
-              displayAgi += bonus * 0.3;
-              displayInt += bonus * 0.3;
-              bondInfo = ` [SERVITEUR de ${master.name}]`;
-          }
-      }
-
-      if (p.fusedWithId) {
-          const partner = await Player.findOne({ where: { whatsappId: p.fusedWithId } });
-          if (partner) {
-              displayFor += partner.strength;
-              displayAgi += partner.agility;
-              displayInt += partner.intelligence;
-              bondInfo = ` [FUSIONNÉ avec ${partner.name} - Sync:${Math.round(p.fusionSyncLevel * 100)}%]`;
-          }
-      }
-
-      const { getDistanceInMeters } = require('./utils');
-      const distToActive = getDistanceInMeters(player, p);
 
       return {
           nom: p.name,
           est_god: p.isGod,
-          lieu_precis: p.subLocation,
-          est_proche: p.subLocation === player.subLocation,
-          est_acteur: (actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId),
-          distance_en_metres_de_l_acteur: distToActive,
-          extension_du_territoire: p.territoryExtension || "Non éveillée ou non configurée.",
-          etat: `Race:${p.race} | Sexe:${p.gender} | Age:${p.age} | Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | Argent(Col):${p.col} | Banque:${bankBalance} | FOR:${Math.round(displayFor)} AGI:${Math.round(displayAgi)} INT:${Math.round(displayInt)} DEF:${p.defense} LUK:${p.luck} | SP:${p.skillPoints}${bondInfo}`,
+          est_acteur: actingPlayerNames.has(p.name) || p.whatsappId === player.whatsappId,
+          etat: `Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck}`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
           metier: p.occupation,
@@ -1021,10 +147,8 @@ async function handleFreeAction(sock, message, player, actionText) {
           competences: pSkills.map(s => s.name),
           pactes: pPacts.map(e => e.name),
           clubs: pClubs.map(c => c.name),
-          quetes_actives: pActiveQuests.map(q => `${q.title}(Objectif:${q.objective}, Progrès:${q.PlayerQuest.progress}%)`),
-          recherche: p.wantedLevel > 0 ? `Niveau ${p.wantedLevel}` : "Non recherché",
-          est_prisonnier: p.isPrisoner,
-          actions_recentes: pActions.length > 0 ? pActions : ["Hors-champ ou Immobile"]
+          quetes_actives: pActiveQuests.map(q => `${q.title}(${q.PlayerQuest.progress}%)`),
+          actions_recentes: pActions.length > 0 ? pActions : ["Immobile / Pas d'action"]
       };
   }));
 
@@ -1040,17 +164,14 @@ async function handleFreeAction(sock, message, player, actionText) {
   });
   const worldSocialState = "Rumeurs: " + recentPlayers.map(p => `${p.name}(${p.location})`).join(',');
 
-  const items = await Item.findAll({
-      order: [['rarity', 'DESC']],
-      limit: 15
-  });
-  const shopState = "Shop: " + items.map(i => `${i.name}(${i.price}COL)`).join(',');
+  const items = await Item.findAll({ limit: 1 });
+  const shopState = "Shop: " + items.map(i => i.name).join(',');
 
-  // Fetch history (last 20 messages) for Short Term Memory (preventing memory flooding and repetition bias)
+  // Fetch history (last 75 messages) for Short Term Memory
   const history = await RPMessage.findAll({
-      where: sceneFilter,
+      where: { location: player.location },
       order: [['id', 'DESC']],
-      limit: 20
+      limit: 75
   });
   const historyState = history.length > 0
     ? history.reverse().map(h => ({ sender: h.senderName, msg: h.content }))
@@ -1059,54 +180,28 @@ async function handleFreeAction(sock, message, player, actionText) {
   // Fetch World Journal entries for Long Term Memory
   const journal = await WorldJournal.findAll({
       order: [['id', 'DESC']],
-      limit: 60
+      limit: 40
   });
   const journalState = journal.length > 0
     ? journal.reverse().map(j => ({ cat: j.category, entry: j.entry }))
     : [];
 
-  // Story Hooks: Persistent JSON Memory for each player's recent narrative arc
-  const { getOrAssignMandatoryMainQuest } = require('./quest-system');
-  const { quest: mandatoryQuest } = await getOrAssignMandatoryMainQuest(player);
-
-  const mandatoryQuestBlock = `
-❖ QUÊTE PRINCIPALE OBLIGATOIRE DU JOUEUR : "${mandatoryQuest.title}" ❖
-Description de la trame : ${mandatoryQuest.description}
-OBJECTIF OBLIGATOIRE EN COURS : "${mandatoryQuest.objective}"
-Rang Requis : ${mandatoryQuest.rank_required} | Récompense : +${mandatoryQuest.reward_xp} XP / +${mandatoryQuest.reward_col} COL
-
-RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
-- Le jeu d'ATR N'EST PAS un bac à sable sans fin : C'EST UNE HISTOIRE DENSE ET STRUCTURÉE GUIDÉE PAR LA QUÊTE PRINCIPALE OBLIGATOIRE.
-- Bien que le joueur soit libre dans la forme de ses actions RP, TOUS LES ÉVÉNEMENTS, PNJ ET RÉACTIONS DU MONDE DOIVENT IMPÉRATIVEMENT CANALISER, ORIENTER ET GUIDER ${player.name} VERS L'ACCOMPLISSEMENT DE SON OBJECTIF OBLIGATOIRE : "${mandatoryQuest.objective}".
-- Ne laisse pas le joueur errer sans but dans une liberté totale sans conséquences. Rappelle-lui constamment le poids de son destin et la nécessité d'accomplir son chapitre principal.
-- Si le joueur réalise l'Objectif Obligatoire dans sa scène, valide la quête avec le tag : [${player.name}: COMPLETED_QUEST: ${mandatoryQuest.title}] et accorde les récompenses !
-`;
-
-  const storyHooks = await Promise.all(scenePlayersData.map(async p => {
-      const pJournal = await WorldJournal.findAll({
-          where: { entry: { [Op.like]: `%${p.nom}%` } },
-          limit: 3,
-          order: [['id', 'DESC']]
-      });
-      return {
-          joueur: p.nom,
-          derniers_evenements: pJournal.map(j => j.entry)
-      };
-  }));
-
   const playerSkills = await player.getSkills();
   const skillState = playerSkills.length > 0 ? "Skills: " + playerSkills.map(s => s.name).join(', ') : "Aucun skill";
 
-  const allKingdoms = await Kingdom.findAll();
-  const worldGeography = allKingdoms.map(k => `- [${k.continent || 'Aetheria'}] ${k.name}: ${k.description}`).join('\n');
-
-  // Find current kingdom lore even if location is a city name
-  let kingdom = allKingdoms.find(k => k.name === player.location);
-  if (!kingdom) {
-      kingdom = allKingdoms.find(k => k.description.toLowerCase().includes(player.location.toLowerCase()));
-  }
+  const kingdom = await Kingdom.findOne({ where: { name: player.location } });
   const subLocContext = kingdom ? `\nLORE_LIEU: ${kingdom.description}` : "";
 
+  const npcs = await NPC.findAll({
+    where: {
+        [Op.or]: [
+            { location: { [Op.like]: `%${player.location}%` } },
+            { powerLevel: { [Op.gte]: 90 } } // Include major entities/bosses
+        ]
+    },
+    order: [['powerLevel', 'DESC']],
+    limit: 5
+  });
   const npcState = "PNJ_PRÉSENTS: " + npcs.map(n => `${n.name}(Rôle:${n.role}, Force:${n.powerLevel}, Spé:${n.specialty})`).join(' | ');
   const playerPacts = await player.getEntities();
   const pactState = playerPacts.length > 0 ? "Pactes: " + playerPacts.map(e => e.name).join(', ') : "Pas de pacte";
@@ -1115,682 +210,715 @@ RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
   const monsters = await Monster.findAll({ where: { rank: player.rank }, limit: 2 });
   const monsterState = "Monstres: " + monsters.map(m => `${m.name}(PV:${m.health}, FOR:${m.strength}, DEF:${m.defense}, AGI:${m.agility}, INT:${m.intelligence})`).join(', ');
 
-  const conflicts = await Conflict.findAll({ where: { status: 'active' } });
-  const worldConflicts = conflicts.map(c => `[${c.title}] Kingdoms:${c.involvedKingdoms.join(', ')} - ${c.description}`).join(' | ');
-
-  const schools = await School.findAll();
-  const schoolLore = schools.map(s => `[${s.name}] Spec:${s.specialty} Kingdom:${s.kingdomName}`).join(' | ');
-
-  const houses = await player.getHouses();
-  const playerHouses = houses.map(h => `${h.name}(${h.location})`).join(', ');
-
-  // Updated Time Logic: 1:9 scale + 10 mins per action
-  const rpTime = getRPTime(actionsSinceLastMJ);
+  // Updated Time Logic: 1:9 scale
+  const rpTime = getRPTime();
   const rpYearString = rpTime.formatted;
   const cycleInfo = rpTime.isDay ? "JOUR (Soleil, visibilité claire)" : "NUIT (Lune, ombres, visibilité réduite)";
   const weather = getWeather();
 
-  const systemPrompt = `Tu es le Maître du Jeu vivant d'ATR (After the Rebirth).
+    // Mini-Event Trigger (20% chance)
+    const triggerMiniEvent = Math.random() < 0.20;
+    const miniEventContext = triggerMiniEvent
+        ? "\n⚠️ **ÉVÉNEMENT IMPRÉVU**: Un événement aléatoire doit se produire maintenant ! (Ex: Un PNJ t'interpelle, un monstre surgit, une annonce impériale, un objet mystérieux trouvé, etc.)"
+        : "";
 
-══════════════════════════════════════
-⚔️ ATR — SYSTÈME DE PUISSANCE GLOBAL
-══════════════════════════════════════
-Dans ATR, la puissance est multi-dimensionnelle (Force, Vitesses, Résistance, Magie, Endurance, Sorts Innés, Techniques).
-- VITESSES : Déplacement, Attaque, Réaction (Échelle: F:250-500ms, E:100-140ms, D:30-50ms, C:5-10ms, B:0.1-0.5ms, A:0.1-1µs, S:1-10ns divine), Perception.
-- RÉSISTANCE : Physique, Magique, Mentale, Spirituelle, Élémentaire (F:humaine, E:3-5x, D:20-50x, C:250-500x, B:5000-10000x, A:1-10M x, S:100M-1Md x divine).
-- ATTAQUE PHYSIQUE & PUISSANCE MAGIQUE : Rang F à S (Divine / Cataclysmique).
-- MANA vs OUTPUT : Réserve totale vs Puissance instantanée d'un sort.
-- TECHNIQUES UNIVERSELLES : Renforcement, Circulation, Concentration, Détection, Barrière, Voile, Ancrage, Déviation, Percée, Fracture, Rupture de flux, Conversion, Inversion, Transfert.
-- TECHNIQUES SPATIALES & PERCEPTION : Ancrage spatial, Compression, Expansion, Passage, Seconde Vue, Lecture, Perception accélérée.
-- TERRITOIRES : Zone d'Autorité, Sanctuaire, Champ de Chasse, Monde Intérieur.
-- TECHNIQUES INTERDITES & ULTIMES : Surcharge, Sacrifice, Serment, Rupture, Manifestation, Incarnation, Transcendance, Autorité.
-- SORTS INNÉS (Héréditaires) : Distorsion (Veyr), Cœur Ardent (Arkhéos), Ombre Liée (Noxaris), Réfraction (Elys).
+  const systemPrompt = `Tu es le narrateur d'un RP fantasy vivant, immersif et dynamique. Le monde évolue en permanence, même lorsque les joueurs n'agissent pas. Les royaumes, factions, guildes, créatures, dieux, monstres et civilisations poursuivent leurs propres objectifs. Les actions des joueurs peuvent modifier l'histoire, influencer la politique, déclencher des guerres, créer des alliances ou provoquer des catastrophes.
 
-Évalue les affrontements, esquives et réactions du joueur en comparant rigoureusement son Rang, ses stats, ses vitesses et ses techniques.
+Les joueurs sont totalement libres de leurs choix. Ils peuvent explorer, combattre, commercer, discuter, voyager, fonder des organisations, gouverner des territoires ou poursuivre leurs propres ambitions. L'histoire s'adapte naturellement à leurs décisions au lieu de les forcer à suivre un scénario unique.
 
-══════════════════════════════════════
-AUTORITÉ FONDAMENTALE
-══════════════════════════════════════
-Le joueur contrôle UNIQUEMENT son propre personnage :
-- ses paroles ;
-- ses gestes ;
-- ses déplacements volontaires ;
-- ses choix et intentions.
+Les déplacements sont constamment pris en compte. Chaque personnage possède une position précise dans l'environnement. La narration décrit naturellement les distances importantes, les obstacles, les bâtiments, les reliefs, les objets et les différentes zones présentes autour des personnages. Les mouvements tels que les courses, sauts, esquives, charges, retraites, ascensions ou déplacements tactiques doivent être clairement décrits lorsqu'ils influencent la situation.
 
-TOI, MJ, contrôles entièrement :
-- le monde ;
-- l'environnement ;
-- les PNJ ;
-- les passants anonymes ;
-- les institutions ;
-- les créatures ;
-- les dialogues des PNJ ;
-- les réactions du monde ;
-- les conséquences logiques ;
-- les événements sociaux et naturels.
+Les combats sont entièrement basés sur les statistiques, compétences, équipements, aptitudes spéciales, passifs, résistances, états et conditions environnementales. Une action déclarée par un joueur représente une tentative et non une réussite garantie. Les résultats dépendent toujours des capacités réelles des personnages impliqués. Les esquives, blocages, contre-atteques, blessures et dégâts sont déterminés de manière cohérente selon les statistiques. Les personnages plus rapides réagissent mieux, les plus puissants frappent plus fort, les plus résistants encaissent davantage et les plus expérimentés exploitent plus facilement les ouvertures.
 
-Le joueur ne doit JAMAIS devoir décider comment le monde réagit.
+La narration doit être fluide, naturelle et cinématographique. Chaque action décrit précisément les mouvements effectués, les membres utilisés, les zones visées, les réactions provoquées et les conséquences logiques des événements. Les ennemis, monstres et PNJ réagissent intelligemment selon leur personnalité, leur niveau d'intelligence, leurs objectifs et leur situation actuelle.
 
-══════════════════════════════════════
-ACTION CLAIRE = SCÈNE QUI CONTINUE
-══════════════════════════════════════
-Quand le joueur donne une action suffisamment claire, tu la résous immédiatement.
+L'environnement est interactif et persistant. Les bâtiments, arbres, falaises, routes, ruines, meubles, armes abandonnées et autres éléments du décor peuvent être utilisés durant les combats ou l'exploration. Les dégâts causés au monde restent visibles lorsque cela est logique.
 
-Exemple :
-« Je me dirige vers le capitaine de la milice. »
+Le monde doit sembler vivant. Les habitants possèdent leur propre routine, les marchands voyagent, les armées se déplacent, les monstres chassent, les factions complotent et les événements continuent d'avancer indépendamment des joueurs.
 
-TU NE DOIS PAS répondre :
-« Veux-tu parler au garde ou au capitaine ? »
-« Le garde fait-il ceci ou cela ? »
-« Que veux-tu faire ensuite ? »
+Les dialogues doivent être naturels et cohérents with la personnalité de chaque personnage. Les émotions, tensions, rivalités, amitiés et conflits évoluent progressivement selon les interactions vécues durant l'aventure.
 
-Tu dois faire vivre la scène :
-- arrivée logique ;
-- environnement ;
-- réaction des PNJ ;
-- dialogue éventuel ;
-- nouvelle situation.
+Le ton général doit rappeler un anime ou un roman fantasy moderne : aventure, exploration, mystère, action, humour, drame et développement des personnages. Des situations légères, humoristiques ou maladroites peuvent parfois apparaître pour renforcer la personnalité des personnages et l'ambiance du monde, sans devenir le centre principal du récit.
 
-Si le joueur dit qu'il s'adresse au capitaine, le capitaine ou l'autorité présente doit pouvoir répondre naturellement.
+L'objectif principal est de créer une aventure immersive où les choix des joueurs ont un véritable impact, où les statistiques possèdent une réelle importance mécanique et où chaque action génère des conséquences cohérentes dans un monde vivant et crédible. 🔥⚔️🌍
 
-══════════════════════════════════════
-AUTRES JOUEURS
-══════════════════════════════════════
-Les autres joueurs silencieux sont IMMOBILES et SILENCIEUX.
-Tu ne leur inventes jamais :
-- action volontaire ;
-- déplacement ;
-- dialogue ;
-- pensée ;
-- décision ;
-- attaque volontaire.
+LORE SUPRÊME:
+1. ONE ABOVE ALL: Créateur ultime, origine de tout.
+2. ENTITÉS CÉLESTES & BESTIALES: Créées par One Above All.
+3. L'IDÉE DU MAL: Conscience collective née des peurs humaines.
+4. BÉHÉRITS: Reliques vivantes apparaissant lors du désespoir absolu.
+5. APÔTRES: Humains ayant sacrifié leur humanité pour un pouvoir divin.
+6. L'INTERSTICE: Dimension entre les mondes.
 
-MAIS cette interdiction ne concerne PAS les PNJ ni le monde.
-Ne deviens jamais passif simplement parce que d'autres joueurs sont présents.
-
-══════════════════════════════════════
-MONDE VIVANT
-══════════════════════════════════════
-Les PNJ et l'environnement doivent être autonomes.
-Un PNJ peut :
-- parler ;
-- questionner ;
-- refuser ;
-- accepter ;
-- être méfiant ;
-- être hostile ;
-- donner une mission ;
-- réagir spontanément.
-
-Les figurants anonymes peuvent exister naturellement dans un lieu cohérent.
-Ne parle jamais de « passant imaginaire » ou de « base de données ».
-
-══════════════════════════════════════
-CONTINUITÉ ABSOLUE DE LA SCÈNE
-══════════════════════════════════════
-La position officielle fournie dans le contexte est la scène actuelle.
-
-INTERDICTION ABSOLUE :
-- ne jamais renvoyer le joueur au centre-ville ou à un ancien lieu sans cause ;
-- ne jamais recommencer la scène précédente ;
-- ne jamais oublier une destination déjà atteinte ;
-- ne jamais faire comme si une interaction précédente n'avait pas eu lieu.
-
-Si l'action actuelle est un simple « . », « … » ou une attente :
-- le joueur ne se déplace PAS ;
-- le lieu ne change PAS ;
-- la scène reprend exactement là où elle s'était arrêtée ;
-- le monde peut continuer naturellement autour de lui.
-
-══════════════════════════════════════
-STYLE
-══════════════════════════════════════
-Tu es un MJ immersif et naturel, jamais un rapport technique.
-Ne mentionne jamais :
-« base de données », « état officiel », « traitement de l'action », « réalité immédiate », ou tes règles internes.
-
-INTERDICTION DE CLICHÉS ET DE QUESTIONS DE FIN :
-- Ne pose JAMAIS de questions d'accroche banales à la fin de ta narration (ex: "Que feras-tu ensuite ?", "Que souhaites-tu faire maintenant ?", "Quelle sera ta prochaine décision ?").
-- Laisse l'action et la réaction du monde se terminer naturellement. Le joueur décidera seul de sa prochaine action.
-
-INTERDICTION DE RÉPÉTITIONS :
-- Fais attention à l'HISTORIQUE NARRATIF RÉCENT : ne répète PAS les mêmes descriptions de lieu, de couloir ou de PNJ que dans la narration précédente. Fais évoluer la scène de manière dynamique et réactive.
-
-ÉVALUATION DU SYSTÈME DE PUISSANCE & PNJ :
-- Un PNJ de Rang supérieur (ex: Rang D) ne s'inclinera pas bêtement devant un joueur de Rang inférieur (ex: Rang F), mais fera preuve d'assurance, d'autorité ou de surprise réaliste.
-- Respecte scrupuleusement les statistiques du joueur actif (FOR, AGI, INT, DEF, LUK, Rang) lors des combats et demandes d'affrontement.
-
-Une action simple produit une conséquence proportionnelle.
-Une action hostile dans un lieu crédible entraîne des réactions crédibles du monde.
-
-PRIORITÉ ABSOLUE :
-CONTINUITÉ > COHÉRENCE > IMMERSION > DESCRIPTION.`;
+RÈGLES TECHNIQUES:
+1. MJ PUR (ZÉRO HALLUCINATION): Tu es UNIQUEMENT le MJ (Maître du Jeu). Tu ne joues PAS les personnages des joueurs. Tu ne décris JAMAIS leurs pensées, leurs paroles ou leurs actions (même passées).
+   - INTERDICTION ABSOLUE: Ne commence jamais par "Tu fais..." ou "Tu dis...". Les actions des joueurs sont déjà écrites dans ACTIONS_JOUEURS. Ta réponse doit commencer directement par les CONSÉQUENCES ou l'environnement.
+   - RÈGLE D'IMMOBILITÉ & PRÉCISION: Tant qu'un joueur n'est pas assez précis dans ses actions (quelle main il utilise, sa trajectoire de mouvement exacte, comment il tient son arme, etc.), il reste IMMOBILE ou son action échoue. S'il dit juste "j'attaque", il ne bouge pas. La précision est la clé de l'action.
+   - Si un joueur est listé comme SPECTATEUR, il est TOTALEMENT immobile et silencieux. Ne le fais JAMAIS bouger, parler, ni même échanger un regard.
+   - Si un joueur est listé comme ACTEUR, réagis UNIQUEMENT à ce qu'il a écrit. N'invente AUCUN dialogue ou mouvement pour lui.
+2. STATS & ÉQUIPEMENT (STRICT):
+   - INVENTAIRE: Un joueur ne peut utiliser QUE les objets listés dans 'Inv'. S'il tente d'utiliser un objet qu'il n'a pas, l'action échoue narrativement (ex: il fouille ses poches en vain).
+   - LIEU: Le joueur est strictement limité à sa 'Location' et sa 'Sub-Location'. Il ne peut pas interagir avec des éléments d'un autre lieu sans se déplacer physiquement via 'update_player'.
+   - STATS: Les résultats dépendent UNIQUEMENT des statistiques fournies. Pas de succès miraculeux sans stats adéquates.
+   - FORCE/AGI GAPS: Si un attaquant a >15 pts d'écart, l'impact est dévastateur (anatomie broyée).
+   - ADVERSAIRES ACTIFS (STRICT): Les PNJ et monstres ne sont JAMAIS passifs. Ils utilisent l'environnement, feintent, et emploient leurs techniques.
+   - RIPOSTE DES MONSTRES: Ils esquivent/parent et contre-attaquent dans le même tour. Inflige des dégâts via update_player.
+   - CONSISTANCE GÉOGRAPHIQUE: Les monstres et BOSS ne peuvent apparaître que dans leur lieu (Location) assigné.
+3. PRÉCISION CHIRURGICALE & SENSORIELLE: Mentionne les membres visés, les distances en mètres, mais aussi les odeurs (fer, poussière, parfum), les sons (craquement d'os, sifflement d'air, brouhaha lointain) et les textures (froid du métal, rugosité de la pierre).
+4. PHYSIQUE & POIDS: Décris l'inertie, le poids des armes, la résistance de l'air, et l'impact brutal des chocs. Chaque mouvement doit avoir une consistance physique réelle.
+5. RÉACTIONS BIOLOGIQUES: Détaille les réactions physiologiques (souffle court, sueur qui pique les yeux, rythme cardiaque qui cogne dans les tempes, tremblement d'adrénaline).
+6. CONSÉQUENCES ENVIRONNEMENTALES: Les attaques ratées ou les impacts puissants doivent marquer le décor (pierre qui éclate, bois qui se fend, poussière qui se soulève, traces de brûlures).
+7. MONDE VIVANT & DÉTAILLÉ: Ne te contente pas de répondre à l'action. Décris ce qui se passe en arrière-plan (un marchand qui crie, un chat qui file entre les jambes, la lumière qui change, la poussière qui danse dans l'air).
+8. IMPACT PSYCHOLOGIQUE: Décris la tension, la peur, l'adrénaline ou le mépris dans les yeux des PNJ. Les combats ne sont pas que des stats, ce sont des duels de volontés.
+9. MORT & RÉSURRECTION (CRITIQUE):
+   - Si un joueur tombe à 0 PV :
+     - S'il est secouru, il perd 500 COL pour les soins.
+     - S'il n'est pas secouru, il MEURT et est envoyé à Nécropolis.
+   - RÉSURRECTION : Requiert un vivant sacrifiant 50% de ses PV MAX.
+10. STATUS: Affiche [HP -X | PV/MAX], [MP -X | PM/MAX], [Hunger -X], [Sleep -X] et les PV des ennemis [Cible: PV/MAX].
+11. SURVIE: Si la Faim (Hunger) ou le Sommeil (Sleep) est bas (<20), le joueur subit des malus narratifs (fatigue, vertiges). À 0, il commence à perdre des PV. Manger ou dormir restaure ces barres via update_player.
+12. PROGRESSION & TECHNIQUES: Les joueurs possèdent des techniques de base. Ils peuvent en apprendre de nouvelles via 'add_skill' (coût en SP à déduire via 'update_player') ou par l'entraînement narratif. Les techniques peuvent évoluer (ex: 'Vertical Square' devenant 'Square Cross') si le joueur pratique intensément ou vit un choc émotionnel fort.
+13. FORMAT: JSON STRICT {"pensee_mj": "Ta réflexion interne sur la situation et les joueurs", "narrative":"...", "actions":[], "imagePrompt":"..."}
+14. ACTIONS: update_player, add_item, add_skill, notify_player, broadcast, start_quest, advance_quest, complete_quest, forge_pact, join_club, resurrect_player, write_journal.
+15. INTERACTIONS MULTI-JOUEURS & PVP (CRITIQUE): Lorsqu'il y a plusieurs ACTEURS, arbitre leurs interactions avec une neutralité absolue basée sur les STATS.
+    - ÉTANCHÉITÉ DES HISTOIRES: Chaque joueur est le protagoniste de sa propre aventure. Ne mélange pas leurs objectifs, leurs possessions ou leurs alliés. Si Joueur A parle à un PNJ, Joueur B n'est pas automatiquement impliqué dans la conversation sauf s'il intervient.
+    - ARBITRAGE STATISTIQUE: Compare systématiquement les statistiques fournies dans 'personnages_en_scene'. Si Joueur A (FOR: 50) attaque Joueur B (FOR: 25) qui tente de bloquer, l'impact DOIT être dévastateur. Bloquer une force double n'annule pas les dégâts : Joueur B est propulsé violemment en arrière (ex: sur 5m) et subit des blessures graves (ex: bras fracturés sous le choc).
+    - RESSENTI DES RIPOSTES: On doit sentir la puissance des coups et des ripostes. Les conséquences doivent être proportionnelles à l'écart de puissance. Un écart massif rend toute défense conventionnelle inutile.
+    - RÉALISME VISCÉRAL: Décris la physique des impacts (os qui éclatent, recul violent, perte d'équilibre). Ne décide jamais de l'issue sans base statistique.
+16. PRÉSENCE DES PNJ MAJEURS (STRICT): Les PNJ principaux (Griffith, Void, Orpheon, Magnus, etc.) ne sont pas des décors. Ils ont des intentions, des secrets, et une aura imposante. S'ils sont listés dans PNJ_PRÉSENTS ou sont cohérents avec le lieu, ils doivent INTERVENIR, observer avec mépris ou intérêt, et manipuler la situation. Leur présence doit être palpable (pression spirituelle, silence pesant).
+17. VISUELS (STRICT): La génération d'images par IA est DÉSACTIVÉE. Tu ne dois JAMAIS inventer de nouveaux prompts d'image. Tu dois UNIQUEMENT utiliser les chemins de fichiers locaux suivants si la situation s'y prête :
+    - 'assets/apostle.jpg' : Pour l'apparition d'un Apôtre ou d'une menace divine.
+    - 'assets/tutorial_boss.jpg' : Pour un combat de boss ou un ennemi massif.
+    - 'assets/locations/academy.jpg' : Pour l'Académie Impériale.
+    - 'assets/locations/eldoria.jpg' : Pour la ville d'Eldoria.
+    Si aucune de ces images ne correspond, laisse "imagePrompt" vide ("").
+18. PERSONA (MJ HUMAIN) & MÉMOIRE INFINIE (RÈGLE DES 1000 MESSAGES):
+    - MÉMOIRE ABSOLUE: Tu agis comme si tu avais une mémoire de 1000+ messages. Pour cela, tu dois consulter SYSTEMATIQUEMENT la MÉMOIRE_LONG_TERME (Journal).
+    - CONSOLIDATION: Chaque fois qu'un joueur accomplit un exploit, subit une blessure grave, se fait un ennemi, ou qu'un secret est révélé, utilise 'write_journal' pour fixer ce souvenir.
+    - COHÉRENCE TOTALE: Le monde ne reset JAMAIS. Si un bâtiment est brûlé dans le Journal, il reste brûlé 50 messages plus tard.
+    - PENSÉE STRATÉGIQUE: Utilise "pensee_mj" pour planifier des arcs narratifs sur le long terme. Anticipe les conséquences des actions des joueurs.
+    - IMPROVISATION: Ne sois pas un simple automate de quêtes. Si un joueur fait quelque chose de totalement inattendu, improvise une suite logique et surprenante.
+    - PERSONNALITÉ: N'hésite pas à avoir un style narratif qui a de la "gueule". Sois parfois sarcastique, solennel, ou terrifiant selon la situation.
+    - PROACTIVITÉ: Interpelle les SPECTATEURS via des tags @NomDuJoueur. Fais-les réagir à des événements mondiaux ou des interactions de PNJ.
+19. STYLE NARRATIF (OBLIGATOIRE):
+    - Commence TOUJOURS ta réponse par *AVENTURA* sur une ligne seule.
+    - Ajoute ensuite le lieu avec un emoji : *📍 Nom du Lieu*.
+    - Utilise des sauts de ligne fréquents pour créer du suspense et de l'impact.
+    - Décris des détails sensoriels précis (l'odeur du sang, le gémissement du vent, le poids du silence).
+    - Pour les combats : Sois ultra-viscéral. Décris les os qui éclatent, les muscles qui se déchirent, les organes touchés. Ne dis pas "tu le frappes", dis "ton poing s'écrase contre son nez dans un craquement sec de cartilage, le sang giclant sur tes phalanges".
+20. NARRATION: Français riche et cinématographique. Pas de phrases génériques. Entre directement dans le vif du sujet. CONCISION MAITRISÉE (Max 400 mots).`;
 
     const memoryJson = JSON.stringify({
-        monde: {
-            date: rpYearString,
-            cycle: cycleInfo,
-            meteo: weather,
-            geographie_mondiale: worldGeography,
-            royaume_actuel: kingdom?.name || player.location,
-            lore_lieu_actuel: kingdom?.description || "",
-            geopolitique: worldConflicts,
-            institutions: schoolLore
-        },
+        monde: { date: rpYearString, cycle: cycleInfo, meteo: weather, lore_lieu: kingdom?.description || "" },
         personnages_en_scene: scenePlayersData,
         env_social: {
-            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel, specialite: n.specialty, subLocation: n.subLocation })),
-            monstres_locaux: monsters.map(m => ({ name: m.name, pv: m.health, for: m.strength, def: m.defense, agi: m.agility, int: m.intelligence, subLocation: m.subLocation })),
-            rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`),
-            immobilier: playerHouses
+            pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel })),
+            rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`)
         },
         objectifs_generaux: {
-            quetes_dispo: availableQuests.map(q => `${q.title} (Lieu: ${q.subLocation})`),
-            donjon_local: dungeons.map(d => `${d.name}(${d.rank} | Lieu: ${d.subLocation})`)
+            quetes_dispo: availableQuests.map(q => q.title),
+            donjon_local: dungeons.map(d => `${d.name}(${d.rank})`)
         },
         memoire_long_terme: journalState,
         memoire_court_terme: historyState
     }, null, 2);
-
-    const sceneCohesionText = scenePlayersData
-        .map(p => {
-            const status = p.est_acteur ? "ACTIF" : "SPECTATEUR (SILENCIEUX)";
-            return `--- SILO_DONNÉES_ÉTANCHE: ${p.nom} ---
-STATUS: ${status}
-ÉTAT_PHYSIQUE: ${p.etat}
-DESCRIPTION: ${p.description}
-CLASSE_ACTUELLE: ${p.classe}
-RECHERCHE_CRIMINELLE: ${p.recherche} | PRISONNIER: ${p.est_prisonnier ? 'OUI' : 'NON'}
-INVENTAIRE_PRIVÉ: ${p.inventaire.join(', ')}
-COMPÉTENCES_UNIQUES: ${p.competences.join(', ')}
-OBJECTIFS_PERSONNELS: ${p.quetes_actives.join(', ')}
-ACTIONS_À_TRAITER: ${p.actions_recentes.join(' -> ')}`;
-        })
-        .join('\n\n');
-
-    const sceneAnalysis = `
-SCÈNE_COLLECTIVE: ${player.location} (${player.subLocation})
-CHRONOLOGIE_DES_ACTIONS (ORDRE STRICT):
-${aggregatedActions}
-
-RÉALITÉ PHYSIQUE:
-- ACTEURS DANS LA PIÈCE: ${scenePlayersData.filter(p => p.est_proche && p.est_acteur).map(p => p.nom).join(', ')} (Ils se voient et s'entendent parfaitement)
-- SPECTATEURS PROCHES: ${scenePlayersData.filter(p => p.est_proche && !p.est_acteur).map(p => p.nom).join(', ')} (Ils sont là mais immobiles)
-- HORS_CHAMP (Même Royaume): ${scenePlayersData.filter(p => !p.est_proche).map(p => `${p.nom} est à ${p.lieu_precis}`).join(', ')}
-- ENVIRONNEMENT: ${kingdom?.description || "Inconnu"}
-`.trim();
 
     const actionSummary = scenePlayersData
         .filter(p => p.est_acteur)
         .map(p => `[JOUEUR: ${p.nom}] ACTIONS: ${p.actions_recentes.join(' -> ')}`)
         .join('\n');
 
-    const worldPulse = {
-        luck_seed: Math.floor(Math.random() * 100),
-        critical_success: Math.random() < 0.05,
-        weather_impact: weather === 'Pluvieux' ? "AGI malus" : "Normal"
-    };
-
-    // Calculate infinite memory logs and timeline
-    const completedPlayerQuests = await player.getQuests({
-        where: { '$PlayerQuest.status$': 'completed' }
-    });
-    const completedQuestsState = completedPlayerQuests.length > 0
-      ? completedPlayerQuests.map(q => q.title).join(', ')
-      : "Aucune quête complétée pour le moment.";
-
-    const playerHistoryLogs = await WorldJournal.findAll({
-        where: {
-            entry: { [Op.like]: `%${player.name}%` }
-        },
-        order: [['id', 'ASC']]
-    });
-    const infiniteTimelineState = playerHistoryLogs.length > 0
-      ? playerHistoryLogs.map(l => `- ${l.entry}`).join('\n')
-      : "- Début récent de l'aventure dans l'Interstice d'Aetherys.";
-
-    // Fetch up to 10 recent chat messages in the immediate scene (both player actions AND previous MJ responses)
-    // to give the AI full memory of what was just said and done!
-    const sceneChatHistory = await RPMessage.findAll({
-        where: {
-            location: player.location,
-            subLocation: player.subLocation
-        },
-        order: [['id', 'DESC']],
-        limit: 10
-    });
-    const infiniteRPState = sceneChatHistory.length > 0
-      ? sceneChatHistory.reverse().map(h => `- [${h.senderName === 'MJ_AETHERYS' ? 'MJ (Narration précédente)' : h.senderName}]: "${h.content.substring(0, 250)}"`).join('\n')
-      : "- Aucun message antérieur dans cette scène.";
-
-    const memoryText = `
-### ÉTAT DU MONDE D'AETHERYS ###
-- DATE: ${rpYearString}
-- PÉRIODE: ${cycleInfo}
-- MÉTÉO: ${weather}
-- ROYAUME ACTUEL: ${kingdom?.name || player.location}
-- DESCRIPTION DU ROYAUME: ${kingdom?.description || ""}
-- GÉOGRAPHIE ET FACTIONS:
-${worldGeography}
-- CONFLITS POLITIQUES ACTUELS: ${worldConflicts || "Paix relative."}
-- ACADÉMIES ET ÉCOLES: ${schoolLore}
-
-### PERSONNAGES PRÉSENTS DANS LA SCÈNE (SOCIÉTÉ) ###
-${scenePlayersData.map(p => {
-    return `- ${p.nom} :
-  * Classe: ${p.classe} (${p.metier})
-  * Statut: ${p.etat}
-  * Faction: ${p.organisation} (Influence: ${p.influence})
-  * Équipements & Inventaire: ${p.inventaire.join(', ') || 'Aucun'}
-  * Techniques maîtrisées: ${p.competences.join(', ') || 'Aucune'}
-  * Pactes d'entités: ${p.pactes.join(', ') || 'Aucun'}
-  * Quêtes actives: ${p.quetes_actives.join(', ') || 'Aucune'}
-  * Récents gestes de ce joueur: ${p.actions_recentes.join(' -> ')}`;
-}).join('\n')}
-
-### ENVIRONNEMENT IMMÉDIAT ET OBJECTIFS ###
-- PNJ PRÉSENTS PROCHES: ${npcState || "Aucun"}
-- MONSTRES LOCAUX: ${monsterState || "Aucun"}
-- PROPRIÉTÉS ET DOMICILES: ${playerHouses || "Aucun"}
-- DONJONS ET QUÊTES DISPONIBLES: ${availableQuestState} | ${dungeonState}
-`.trim();
-
-    const storyHooksText = storyHooks.map(h => {
-        return `- Souvenirs récents de ${h.joueur} :\n${h.derniers_evenements.map(e => `  * ${e}`).join('\n') || "  * Aucun événement marquant enregistré."}`;
-    }).join('\n');
-
-    const otherPlayersInScene = nearbyPlayers.filter(p => p.whatsappId !== player.whatsappId);
-
-    const otherPlayersBlock = otherPlayersInScene.length > 0
-      ? otherPlayersInScene.map(p => {
-          const dx = (p.x || 100) - (player.x || 100);
-          const dy = (p.y || 100) - (player.y || 100);
-          const distMeters = Math.max(1, Math.round(Math.sqrt(dx*dx + dy*dy) / 10));
-          return `Nom : ${p.name}
-Position : ${distMeters} mètres du joueur actif (${p.location} > ${p.zone || 'Centre-ville'} > ${p.subLocation})
-État officiel : ${p.state || 'idle'} (IMMOBILE)
-
-⚠️ AUTORITÉ IA :
-INTERDICTION ABSOLUE DE CONTRÔLER CE JOUEUR.
-- Ne jamais inventer une action, un déplacement, une phrase, un dialogue, une pensée ou une décision pour ce joueur.`;
-      }).join('\n\n')
-      : "Aucun autre joueur dans la scène immédiate.";
-
-    const npcsInSceneBlock = npcs.length > 0
-      ? npcs.map(n => `Nom : ${n.name}
-Rôle : ${n.role || 'Citoyen'}
-Position : ${n.location} > ${n.zone || 'Centre-ville'} > ${n.subLocation}
-Personnalité : ${n.personality || n.description || 'Neutre'}
-
-AUTORITÉ IA :
-AUTORISÉ À CONTRÔLER ET FAIRE PARLER CE PNJ.`).join('\n\n')
-      : "Aucun PNJ présent dans la scène immédiate.";
-
-    // Persistent narrative memory survives Render restarts through Upstash Redis.
-    // PostgreSQL remains authoritative for gameplay state.
-    let persistentMemoryText = '';
-    try {
-      const persistentMemory = await getNarrativeContext({
-        player,
-        location: player.location,
-        subLocation: player.subLocation,
-        limit: 24
-      });
-      persistentMemoryText = formatMemoryContext(persistentMemory);
-    } catch (memoryErr) {
-      console.error('[UPSTASH MEMORY] Read failed:', memoryErr.message);
-      persistentMemoryText = 'Mémoire persistante temporairement indisponible.';
-    }
-
-    const fullPrompt = `=== 🚨 ÉTAT OFFICIEL DU JEU (VÉRITÉ ABSOLUE BD) ===
-Ces informations proviennent directement de la base de données officielle du jeu.
-Elles constituent la SEULE VÉRITÉ ABSOLUE du monde d'ATR.
-
-POSITION OFFICIELLE :
-- Royaume / Région : ${player.location}
-- Zone : ${player.zone || 'Centre-ville'}
-- Sous-Lieu : ${player.subLocation}
-- Coordonnées : X:${player.x || 100}, Y:${player.y || 100}
-
-JOUEUR ACTIF :
-- Nom : ${player.name}
-- Rang & Niveau : Niv.${player.level} (${player.rank}) | Classe: ${player.class}
-- État Physique : ${player.state || 'idle'} (PV: ${player.health}/${player.maxHealth}, PM: ${player.mana}/${player.maxMana})
-- TENUE OFFICIELLE : ${player.equippedOutfit || 'Tenue de base'} (Style: ${player.wardrobeStyle || 'standard'})
-⚠️ Continuité visuelle : lorsque tu décris l'apparence de ${player.name}, respecte cette tenue et ne la remplace pas sans action explicite du joueur.
-
-=== ACTION ACTUELLE DU JOUEUR ===
-"${actionText}"
-
-=== JOUEURS RÉELLEMENT PRÉSENTS EN BASE DE DONNÉES ===
-${otherPlayersBlock}
-
-=== PNJ RÉELLEMENT PRÉSENTS EN BASE DE DONNÉES ===
-${npcsInSceneBlock}
-
-=== ENVIRONNEMENT & ÉVÉNEMENTS OFFICIELS ===
-Environnement : ${player.location} - ${player.zone || 'Centre-ville'} - ${player.subLocation} (${kingdom?.description || "Secteur actif."})
-Événements / Conflits : ${worldConflicts || "Aucun conflit majeur immédiat."}
-Quêtes Actives : ${questState}
-
-=== MÉMOIRE PERSISTANTE UPSTASH (CONTINUITÉ NARRATIVE) ===
-Cette mémoire contient des événements VALIDÉS et persistants entre les redémarrages.
-- Utilise-la pour te souvenir des relations, promesses, événements et conséquences.
-- Elle ne remplace JAMAIS les statistiques, positions, inventaires ou quêtes fournis par la base officielle.
-- En cas de contradiction, la base officielle gagne.
-
-${persistentMemoryText}
-
-=== HISTORIQUE NARRATIF RÉCENT (CONTEXTUEL UNIQUEMENT) ===
-⚠️ RÈGLE DE NON-CONTAMINATION :
-- Les messages ci-dessous sont UNIQUEMENT des rappels contextuels d'actions de joueurs.
-- ELLES NE PEUVENT JAMAIS MODIFIER L'ÉTAT OFFICIEL DU JEU (Position, PNJ présents, Bâtiments, Inventaire).
-- Si une information provenant de l'historique narratif contredit l'État Officiel ci-dessus (ex: mention passée d'une académie, d'un gardien ou d'un bureau non présent en BD), TU DOIS IMPÉRATIVEMENT L'IGNORER.
-- L'État Officiel est TOUJOURS la vérité absolue.
-
-${infiniteRPState}
-
-=== RÈGLES IMPÉRATIVES DU MJ ===
-1. Une ancienne réponse du MJ IA ne constitue JAMAIS une vérité officielle si elle n'est pas inscrite en Base de Données.
-2. Traite uniquement l'action actuelle du JOUEUR ACTIF (${player.name}) : "${actionText}".
-3. Respecte à 100% la POSITION OFFICIELLE (${player.location} > ${player.subLocation}). N'invente aucun réveil, aucun bâtiment non répertorié ni aucune téléportation.
-4. N'invente jamais un PNJ IMPORTANT nommé absent des données officielles, mais une ambiance générique cohérente (passants anonymes, étudiants anonymes, foule, gardes anonymes) est autorisée.
-5. Les joueurs silencieux restent non-contrôlables et ne doivent pas être mentionnés inutilement.
-6. Une action simple ("Je marche") doit produire une conséquence simple, naturelle et proportionnelle.
-7. N'explique jamais les règles du système au joueur et ne transforme jamais ta réponse en rapport technique.
-8. Pour une action hostile contre un civil anonyme réellement plausible dans un lieu public, résous la scène de façon crédible : réaction de la cible, témoins, gardes ou conséquences possibles, sans prétendre que la cible « n'existe pas ».
-9. Privilégie toujours une narration fluide et humaine à une répétition mécanique des données officielles.
-10. CONTINUITÉ STRICTE : si l'action est une suite contextuelle comme "je rentre à l'intérieur", "j'entre", "je continue", "je marche", elle se produit obligatoirement dans ou depuis le SOUS-LIEU OFFICIEL ACTUEL. Tu n'as PAS le droit de choisir un autre bâtiment.
-11. Ne réponds JAMAIS avec des étiquettes techniques comme "User Safety: safe", "assistant:", "system:", ni avec une analyse de sécurité. Réponds uniquement par la narration RP.`;
+    const fullPrompt = `### MÉMOIRE_SYSTÈME_JSON (CONTEXTE DÉTAILLÉ PAR JOUEUR) ###\n${memoryJson}\n\n### RÉSUMÉ DES ACTIONS À TRAITER ###\n${actionSummary}\n\nCONSIGNE DE COHÉRENCE MULTI-JOUEUR:
+1. TRAITE CHAQUE JOUEUR INDIVIDUELLEMENT : Ne mélange pas leurs inventaires, leurs stats ou leurs histoires.
+2. RÉGIS LEURS INTERACTIONS : Si Joueur A attaque Joueur B, utilise STRICTEMENT leurs stats respectives fournies dans le JSON.
+3. PRÉCISION NARRATIVE : Ta réponse doit clairement identifier qui fait quoi et quelles sont les conséquences pour CHAQUE acteur.
+4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.`;
 
   try {
-    let content = await callAI(systemPrompt, fullPrompt, { jsonMode: false, playerAction: actionText });
+    let content = await callAI(systemPrompt, fullPrompt);
     if (!content) {
-        content = "⚠️ *Le moteur de narration est temporairement indisponible.* Ton action et ta position ont été conservées : aucune téléportation ni modification fictive du monde n'a été appliquée.";
+        content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...", actions: [] });
     }
+    console.log(`[AI RAW] Contenu reçu: ${typeof content === 'string' ? content.substring(0, 500) : '[Object]'}`);
 
-    // Strip out system prompt leaks or system headers if an LLM echoed system prompt
-    content = content
-        .replace(/MJ D'ATR[\s\S]*?DIRECTIVE[\s\S]*?\n\n/gi, '')
-        .replace(/System:\s*MJ D'ATR[\s\S]*?User:/gi, '')
-        .replace(/RÈGLES D'HISTOIRE STRUCTURÉE[\s\S]*?RÈGLES IMPÉRATIVES/gi, '')
-        .trim();
+    // Enhanced JSON & Narrative extraction
+    let aiResponse = { narrative: "", actions: [], notifications: [], broadcastMessage: null };
 
-    console.log(`[AI RAW] Contenu reçu:\n${content.substring(0, 1000)}`);
-
-    // Programmatic anti-godmoding post-sanitization filter
-    const sanitizeGodmoding = (text, playerName) => {
-        if (!text) return text;
-        let cleaned = text;
-        // Remove repetitive waking up loops if LLM hallucinated them
-        cleaned = cleaned.replace(/Tu te réveilles dans un lit[\s\S]*?Tu/gi, "Tu");
-        cleaned = cleaned.replace(/Tu te réveilles[\s\S]*?\./gi, "");
-        cleaned = cleaned.replace(new RegExp(`tu décides de\\s+`, 'gi'), "L'occasion se présente de ");
-        cleaned = cleaned.replace(new RegExp(`tu penses que\\s+`, 'gi'), "Il semble que ");
-        cleaned = cleaned.replace(new RegExp(`tu choisis de\\s+`, 'gi'), "L'occasion se présente de ");
-        cleaned = cleaned.replace(new RegExp(`tu dis\\s*:\\s*".*?"`, 'gi'), "");
-        cleaned = cleaned.replace(new RegExp(`tu réponds\\s*:\\s*".*?"`, 'gi'), "");
-        cleaned = cleaned.replace(new RegExp(`${playerName} dit\\s*:\\s*".*?"`, 'gi'), "");
-        cleaned = cleaned.replace(new RegExp(`${playerName} répond\\s*:\\s*".*?"`, 'gi'), "");
-        cleaned = cleaned.replace(new RegExp(`${playerName} choisit de\\s+`, 'gi'), "L'occasion se présente de ");
-        cleaned = cleaned.replace(new RegExp(`${playerName} pense que\\s+`, 'gi'), "Il semble que ");
-        return cleaned;
+    const cleanupNarrative = (t) => {
+        if (!t) return "";
+        // Clean markdown and common technical prefixes
+        return t.replace(/```json/gi, '')
+                .replace(/```/g, '')
+                .replace(/^(json|JSON)/g, '')
+                .replace(/^(Narrative|Narrateur|MJ|Systeme|Arise|json|JSON)\s*:\s*/i, '')
+                .replace(/(\n|^)[a-z_]+_change:.*(\n|$)/gi, '')
+                .trim();
     };
-    content = sanitizeGodmoding(content, player.name);
 
-    // Parse image generation bracket [IMAGE: ...] from content, or fallback to auto-constructing an action image prompt
-    let imagePromptText = null;
-    const imageRegex = /\[IMAGE:\s*([^\]]+)\]/i;
-    const imageMatch = content.match(imageRegex);
-    const outfitPrompt = player.equippedOutfit ? `Current outfit (must remain visually consistent): ${player.equippedOutfit}. ` : '';
-    const charDescPrompt = `${player.characterDescription ? `Character visual appearance: (${player.characterDescription}). ` : ''}${outfitPrompt}`;
-
-    if (imageMatch) {
-        imagePromptText = `${charDescPrompt}${imageMatch[1].trim()}`;
-        content = content.replace(imageRegex, '').trim(); // Strip bracket from output
+    if (typeof content === 'object') {
+        aiResponse = { ...aiResponse, ...content };
+        if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
     } else {
-        // Fallback automatic prompt from narrative and action text
-        const cleanNarrative = content.replace(/[*_#\[\]]/g, ' ').substring(0, 180).trim();
-        imagePromptText = `${charDescPrompt}anime digital painting of ${player.name} (${player.class || 'adventurer'}) in ${player.location}, ${cleanNarrative}, high fantasy masterpiece, highly detailed, dynamic lighting, 8k resolution`;
-    }
+        // Robust JSON extraction: Find the largest JSON block possible
+        let start = content.indexOf('{');
+        let end = content.lastIndexOf('}');
 
-    // Extract dynamic statistics changes from the text
-    const { playersToUpdate, feedbackList } = await parseStatsFromText(content, player, nearbyPlayers, sock, jid);
-
-    // Append survival decay warnings to the feedback list so they are clearly explained to the player
-    if (survivalWarnings.length > 0) {
-        feedbackList.unshift(...survivalWarnings);
-    }
-
-    // Dynamic Action Visual Logic based on text content analysis
-    let visualBuffer = techniqueImageBuffer || null;
-    const lowerContent = content.toLowerCase();
-
-    // If a custom technique image is NOT detected, fallback to automatic combat/magic action visuals
-    if (!visualBuffer) {
-        let actionType = null;
-        let visualTitle = "SÉQUENCE DE COMBAT";
-        let visualDesc = "Échange physique d'intensité maximale.";
-
-        if (lowerContent.includes('attaque') || lowerContent.includes('frappe') || lowerContent.includes('combat') || lowerContent.includes('épée') || lowerContent.includes('lame') || lowerContent.includes('bâton') || lowerContent.includes('vrille') || lowerContent.includes('apôtre')) {
-            actionType = 'combat';
-        } else if (lowerContent.includes('magie') || lowerContent.includes('sort') || lowerContent.includes('mana') || lowerContent.includes('éther') || lowerContent.includes('lumière') || lowerContent.includes('bénit')) {
-            actionType = 'magic';
-            visualTitle = "FLUX ARCANIQUE";
-            visualDesc = "Manipulation active du mana spirituel.";
-        }
-
-        if (actionType) {
+        if (start !== -1 && end !== -1 && end > start) {
+            const potentialJson = content.substring(start, end + 1);
             try {
-                // Match location with assets
-                const assetMap = {
-                    'Eldoria': 'assets/locations/eldoria.jpg',
-                    'Académie Impériale': 'assets/locations/academy.jpg',
-                    'Nécropolis': 'assets/locations/necropolis.jpg',
-                    'L\'Interstice': 'assets/locations/interstice.jpg'
-                };
-                const assetPath = assetMap[player.location] || 'assets/locations/eldoria.jpg';
-                visualBuffer = await generateActionVisual({
-                    actionType,
-                    title: visualTitle,
-                    description: visualDesc,
-                    assetPath
-                });
-            } catch (vErr) {
-                console.error("[Visual Generator Error]", vErr);
+                const parsed = JSON.parse(potentialJson);
+                aiResponse = { ...aiResponse, ...parsed };
+                if (aiResponse.pensee_mj) console.log(`[MJ THOUGHTS] ${aiResponse.pensee_mj}`);
+            } catch (e) {
+                // If the big block failed, try finding individual smaller blocks (fallback for mixed content)
+                const matches = [...content.matchAll(/\{[\s\S]*?\}/g)];
+                for (const match of matches) {
+                    try {
+                        const potential = JSON.parse(match[0]);
+                        if (potential.actions) aiResponse.actions = [...(aiResponse.actions || []), ...potential.actions];
+                        if (potential.narrative && (!aiResponse.narrative || potential.narrative.length > aiResponse.narrative.length)) {
+                            aiResponse.narrative = potential.narrative;
+                        }
+                        if (potential.imagePrompt) aiResponse.imagePrompt = potential.imagePrompt;
+                        if (potential.notifications) aiResponse.notifications = [...(aiResponse.notifications || []), ...potential.notifications];
+                    } catch (innerE) {}
+                }
             }
         }
+
+        // If narrative is STILL empty, it might be outside the JSON block
+        if (!aiResponse.narrative || aiResponse.narrative.length < 10) {
+            // Remove the block we extracted as JSON to find the narrative
+            let plainText = content;
+            if (start !== -1 && end !== -1) {
+                plainText = content.substring(0, start) + content.substring(end + 1);
+            }
+            // If still no luck, just use the whole thing but clean markers
+            if (plainText.trim().length < 10) plainText = content.replace(/\{[\s\S]*?\}/g, '');
+
+            aiResponse.narrative = cleanupNarrative(plainText);
+        }
     }
 
-    // 3D Trigger Logic if mentioned
-    if (lowerContent.match(/3d|scan|hologramme/i) && !visualBuffer) {
+    // Ensure narrative is clean
+    aiResponse.narrative = cleanupNarrative(aiResponse.narrative);
+
+    // 3D Trigger Logic: If AI mentions "3D", "scan", or "hologramme"
+    if (aiResponse.narrative.match(/3D|scan|hologramme/i) && !aiResponse.imagePrompt) {
+        const types = ['cube', 'sphere', 'pyramid'];
+        const type = types.find(t => aiResponse.narrative.toLowerCase().includes(t)) || 'cube';
         try {
-            visualBuffer = await generate3DVisual('cube', 0x00ffff);
-        } catch (e) {}
+            const threePath = await generate3DVisual(type, 0x00ffff);
+            aiResponse.imagePrompt = threePath;
+        } catch (e) {
+            console.error("[3D] Error:", e);
+        }
     }
 
-    // Post-process LLM markdown formatting to match WhatsApp's native styles
-    content = content
-        .replace(/\*\*(.*?)\*\*/g, "*$1*") // Convert **bold** to *bold*
-        .replace(/__(.*?)__/g, "_$1_")     // Convert __italic__ to _italic_
-        .replace(/\\n/g, "\n");
+    if (!aiResponse.narrative || aiResponse.narrative.length < 3) {
+        aiResponse.narrative = "Le flux magique est instable. L'action est en suspens...";
+    }
 
-    // Persist two layers of continuity:
-    // 1) official impacts for gameplay truth;
-    // 2) a compact narrative scene recap so the next turn remembers the conversation.
-    const validatedSummary = `Action: "${actionText}"` + (feedbackList.length > 0 ? ` | Impacts: ${feedbackList.join(' ; ')}` : '');
-    const narrativeSceneSummary = String(content || '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 1400);
-    const continuitySummary = narrativeSceneSummary
-        ? `SCÈNE: ${narrativeSceneSummary}`
-        : validatedSummary;
+    console.log("[AI PARSED] Actions détectées:", aiResponse.actions?.length || 0);
+    const actions = aiResponse.actions || [];
 
-    await RPMessage.create({
-        senderJid: 'MJ_AETHERYS',
-        senderName: 'MJ_AETHERYS',
-        content: narrativeSceneSummary || validatedSummary,
-        location: player.location,
-        subLocation: player.subLocation
+    if (!aiResponse.narrative) {
+        aiResponse.narrative = "Il ne se passe rien de spécial.";
+    }
+
+    // Save bot response to memory (Non-blocking)
+    RPMessage.create({
+        senderJid: 'bot',
+        senderName: 'Arise MJ',
+        content: aiResponse.narrative,
+        location: player.location
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
 
-    // Persist validated narrative continuity in Upstash.
-    // We intentionally save the action + validated impacts, not uncontrolled AI prose.
-    try {
-        await rememberValidatedAction({
-            player,
-            action: actionText,
-            summary: continuitySummary,
-            location: player.location,
-            subLocation: player.subLocation,
-            impacts: feedbackList
-        });
-    } catch (memoryErr) {
-        console.error('[UPSTASH MEMORY] Write failed:', memoryErr.message);
-    }
+    // Collected quest feedback lines appended to the narrative after the loop.
+    const questFeedback = [];
 
-    // Sync ONLY validated actions & official status impacts to Excel/CSV Infinite Memory
-    try {
-        const { appendExcelMemory } = require('./excel-memory');
-        await appendExcelMemory({
-            whatsappId: player.whatsappId,
-            playerName: player.name,
-            location: player.location,
-            subLocation: player.subLocation,
-            actionType: 'VALIDATED_ACTION',
-            content: validatedSummary,
-            statsSnapshot: { health: player.health, maxHealth: player.maxHealth, mana: player.mana, col: player.col }
-        });
-    } catch (excelErr) {
-        console.error("[EXCEL MEMORY] Error syncing to CSV database:", excelErr.message);
-    }
+    // Process AI actions
+    for (const actionObj of actions) {
+      try {
+      const { type, parameters } = actionObj;
+      if (!parameters) continue;
 
-    // Reload active player to sync the new stats
-    await player.reload();
+      let target = player;
+      if (parameters.target_name) {
+          const foundTarget = await Player.findOne({
+              where: {
+                  name: parameters.target_name,
+                  location: player.location
+              }
+          });
+          if (foundTarget) {
+              target = foundTarget;
+          }
+      }
 
-    // Streamlined HUD and Header for cleaner responses
-    const hud = ` [❤️ ${player.health}/${player.maxHealth} | 🌀 ${player.mana}/${player.maxMana} | 💰 ${player.col}]`;
+      // Track if target needs a final reload/save
+      let targetModified = false;
 
-    // Preserve full narrative content cleanly for the player
-    let playerSection = content;
+      switch (type) {
+        case 'update_player': {
+          if (parameters.col_change) {
+              await target.increment('col', { by: parameters.col_change });
+              targetModified = true;
+          }
+          if (parameters.xp_gain) {
+              await target.increment('xp', { by: parameters.xp_gain });
+              await checkLevelUp(target, sock);
+              targetModified = true;
+          }
+          if (parameters.health_change) {
+              await target.increment('health', { by: parameters.health_change });
+              await target.reload();
+              if (target.health > target.maxHealth) await target.update({ health: target.maxHealth });
 
-    // Check if the response already contains a time header, if not, prepend it
-    let finalMsg = playerSection;
-    if (!playerSection.includes(' An ') && !playerSection.includes('📅')) {
-        finalMsg = `${getWorldHeader()}\n\n${finalMsg}`;
-    }
+              // Handle Death Logic
+              if (target.health <= 0) {
+                  await target.update({ health: 0 });
 
-    // Filter feedback list to only show status updates for this specific active player
-    const playerFeedback = feedbackList.filter(f => {
-        const clean = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-        return f.toLowerCase().includes(clean(player.name)) || f.includes('QUÊTE') || f.includes('COMPÉTENCE');
-    });
+                  if (parameters.is_hospitalized) {
+                      // Hospitalized: loses 500 COL, stays in current location (hospitalized)
+                      await target.decrement('col', { by: 500 });
+                      await target.reload();
+                      if (target.col < 0) await target.update({ col: 0 });
+                      await target.update({ health: 20 }); // Returns with some HP after care
+                      questFeedback.push(`🏥 *HOSPITALISATION* : ${target.name} a été sauvé de justesse. Coût des soins : 500 COL.`);
+                  } else {
+                      // True Death: moved to Nécropolis
+                      await target.update({
+                          location: 'Nécropolis',
+                          subLocation: 'Le Seuil des Morts'
+                      });
+                      questFeedback.push(`💀 *MORT* : L'âme de ${target.name} a quitté son corps. Il erre désormais à Nécropolis.`);
 
-    if (playerFeedback.length > 0) {
-        finalMsg = `${finalMsg}\n\n❖ 💾 *SAUVEGARDE DES STATUTS ATR :*\n${playerFeedback.map(f => `├ ${f}`).join('\n')}`;
-    }
+                      await sock.sendMessage(target.whatsappId, {
+                          text: "💀 *TU ES MORT.*\n\nPersonne ne t'a secouru à temps. Ton âme a sombré dans l'Interstice et tu te réveilles désormais à Nécropolis, le monde des morts.\n\nSeule une résurrection magique par un vivant pourra te ramener."
+                      });
+                  }
+              }
+              targetModified = true;
+          }
+          if (parameters.max_health_change) {
+              await target.increment('maxHealth', { by: parameters.max_health_change });
+              targetModified = true;
+          }
+          if (parameters.mana_change) {
+              await target.increment('mana', { by: parameters.mana_change });
+              await target.reload();
+              if (target.mana > target.maxMana) await target.update({ mana: target.maxMana });
+              if (target.mana < 0) await target.update({ mana: 0 });
+              targetModified = true;
+          }
+          if (parameters.max_mana_change) {
+              await target.increment('maxMana', { by: parameters.max_mana_change });
+              targetModified = true;
+          }
+          if (parameters.strength_change) {
+              await target.increment('strength', { by: parameters.strength_change });
+              targetModified = true;
+          }
+          if (parameters.agility_change) {
+              await target.increment('agility', { by: parameters.agility_change });
+              targetModified = true;
+          }
+          if (parameters.intelligence_change) {
+              await target.increment('intelligence', { by: parameters.intelligence_change });
+              targetModified = true;
+          }
+          if (parameters.defense_change) {
+              await target.increment('defense', { by: parameters.defense_change });
+              targetModified = true;
+          }
+          if (parameters.luck_change) {
+              await target.increment('luck', { by: parameters.luck_change });
+              targetModified = true;
+          }
+          if (parameters.hunger_change) {
+              await target.increment('hunger', { by: parameters.hunger_change });
+              targetModified = true;
+          }
+          if (parameters.sleep_change) {
+              await target.increment('sleep', { by: parameters.sleep_change });
+              targetModified = true;
+          }
 
-    finalMsg = `${finalMsg}\n\n◈ 📊 *HUD TACTIQUE OBLIQUE* :${hud}`;
+          if (parameters.new_location) {
+              await target.update({
+                  location: parameters.new_location,
+                  subLocation: parameters.new_sub_location || 'Entrée'
+              });
+              // Check if there is a local image for this location
+              const locationImages = {
+                  'Académie Impériale': 'assets/locations/academy.jpg',
+                  'Eldoria': 'assets/locations/eldoria.jpg',
+              };
+              if (locationImages[parameters.new_location] && !aiResponse.imagePrompt) {
+                  aiResponse.imagePrompt = locationImages[parameters.new_location];
+              }
+          }
+          if (parameters.new_rank) await target.update({ rank: parameters.new_rank });
+          if (parameters.new_class) await target.update({ class: parameters.new_class });
+          if (parameters.schoolName) await target.update({ schoolName: parameters.schoolName });
+          if (parameters.academicGrade_change) {
+              await target.increment('academicGrade', { by: parameters.academicGrade_change });
+              targetModified = true;
+          }
+          if (parameters.sp_gain) {
+              await target.increment('skillPoints', { by: parameters.sp_gain });
+              targetModified = true;
+          }
 
-    // Send typing indicators
-    try {
-        await sock.sendPresenceUpdate('composing', jid);
-    } catch (e) {}
-
-    // CURATED WORLD VISUALS:
-    // A location image is sent when the player enters a new visual scene.
-    // If an illustrated NPC is physically present, the NPC is composed over the real background.
-    // The same visual is never spammed every turn.
-    const targetChatJid = message.key.remoteJid || jid;
-    let sceneVisual = null;
-    try {
-        sceneVisual = await buildSceneVisual({ player, npcs });
-        if (sceneVisual && sceneVisual.key !== player.lastVisualKey) {
-            await sock.sendMessage(targetChatJid, {
-                image: sceneVisual.buffer,
-                caption: sceneVisual.caption
-            });
-            await player.update({ lastVisualKey: sceneVisual.key });
+          if (targetModified) {
+              await target.save();
+              await target.reload();
+              if (target.hunger > 100) await target.update({ hunger: 100 });
+              if (target.sleep > 100) await target.update({ sleep: 100 });
+              if (target.hunger < 0) await target.update({ hunger: 0 });
+              if (target.sleep < 0) await target.update({ sleep: 0 });
+          }
+          break;
         }
-    } catch (visualErr) {
-        console.error('[WORLD VISUAL] Scene visual skipped:', visualErr.message);
-    }
 
-    // Send the final immersive output to the active group/chat session
-    const messagePayload = { text: finalMsg };
-    if (visualBuffer) {
-        messagePayload.image = visualBuffer;
-        messagePayload.caption = finalMsg;
-    }
-    await sock.sendMessage(targetChatJid, messagePayload);
-
-    // Generate and send custom scene image asynchronously in the background as a follow-up to the active chat session
-    if (imagePromptText) {
-        // Run asynchronously without blocking the main text response
-        (async () => {
-            try {
-                console.log(`[HF] Generating custom scene image in background for: "${imagePromptText}"...`);
-                const { generateHuggingFaceImage } = require('./message-handler');
-                const buf = await generateHuggingFaceImage(imagePromptText);
-                if (buf) {
-                    await sock.sendMessage(targetChatJid, { image: buf, caption: `🖼️ *Visualisation de la scène :* ${player.name}` });
+        case 'add_skill': {
+          if (parameters.skillName) {
+            const skill = await Skill.findOne({
+                where: {
+                    [Op.or]: [
+                        { name: { [Op.like]: `%${parameters.skillName}%` } },
+                        { name: parameters.skillName }
+                    ]
                 }
-            } catch (imgErr) {
-                console.error("[HF] Asynchronous image generation failed:", imgErr.message);
+            });
+            if (skill) {
+              const hasSkill = await target.hasSkill(skill);
+              if (!hasSkill) {
+                await target.addSkill(skill);
+                console.log(`[AI] Skill added to ${target.name}: ${skill.name}`);
+                const bonuses = skill.statBonuses;
+                for (const [stat, value] of Object.entries(bonuses)) {
+                  if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                    await target.increment(stat, { by: value });
+                  }
+                }
+                await target.save();
+                await target.reload();
+              }
             }
-        })();
+          }
+          break;
+        }
+
+        case 'add_item': {
+          if (parameters.itemName && parameters.quantity) {
+            const inventory = [...target.inventory];
+            const existingItem = inventory.find(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
+
+            if (existingItem) {
+                existingItem.quantity += parameters.quantity;
+            } else {
+                inventory.push({ name: parameters.itemName, quantity: parameters.quantity });
+            }
+
+            target.inventory = inventory;
+            await target.save();
+
+            const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${parameters.itemName}%` } } });
+            if (itemData) {
+                const bonuses = itemData.statBonuses;
+                let itemModified = false;
+                for (const [stat, value] of Object.entries(bonuses)) {
+                    if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                        await target.increment(stat, { by: value * parameters.quantity });
+                        itemModified = true;
+                    }
+                }
+                if (itemModified) {
+                    await target.save();
+                    await target.reload();
+                }
+                if (itemData.imageUrl && !aiResponse.imagePrompt && target.whatsappId === player.whatsappId) {
+                    aiResponse.imagePrompt = itemData.imageUrl;
+                }
+            }
+          }
+          break;
+        }
+
+        case 'remove_item': {
+            if (parameters.itemName && parameters.quantity) {
+                let inventory = [...target.inventory];
+                const itemIndex = inventory.findIndex(i => i.name.toLowerCase() === parameters.itemName.toLowerCase());
+                if (itemIndex !== -1) {
+                    const actualQuantityToRemove = Math.min(parameters.quantity, inventory[itemIndex].quantity);
+                    inventory[itemIndex].quantity -= actualQuantityToRemove;
+
+                    if (inventory[itemIndex].quantity <= 0) {
+                        inventory.splice(itemIndex, 1);
+                    }
+
+                    target.inventory = inventory;
+                    await target.save();
+
+                    const itemData = await Item.findOne({ where: { name: { [Op.like]: `%${parameters.itemName}%` } } });
+                    if (itemData) {
+                        const bonuses = itemData.statBonuses;
+                        for (const [stat, value] of Object.entries(bonuses)) {
+                            if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                                await target.decrement(stat, { by: value * actualQuantityToRemove });
+                            }
+                        }
+                        await target.save();
+                        await target.reload();
+                    }
+                }
+            }
+            break;
+        }
+
+        case 'interact_npc': {
+            if (parameters.npcName) {
+                const npc = await NPC.findOne({ where: { name: { [Op.like]: `%${parameters.npcName}%` } } });
+                if (npc) {
+                    console.log(`[AI] Interaction avec PNJ: ${npc.name}`);
+                }
+            }
+            break;
+        }
+
+        case 'notify_player': {
+            if (parameters.target_name && parameters.message) {
+                const notifyTarget = await Player.findOne({
+                    where: {
+                        name: { [Op.like]: `%${parameters.target_name}%` }
+                    }
+                });
+                if (notifyTarget) {
+                    const { resolveMentions } = require('./message-handler');
+                    const { text: msgText, mentions } = await resolveMentions(parameters.message);
+                    await sock.sendMessage(notifyTarget.whatsappId, {
+                        text: `🔔 *Message de RP*\n\n${msgText}`,
+                        mentions
+                    });
+                }
+            }
+            break;
+        }
+
+        case 'broadcast_global': {
+            if (parameters.message) {
+                const { resolveMentions } = require('./message-handler');
+                const { text: msgText, mentions } = await resolveMentions(parameters.message);
+                const allPlayers = await Player.findAll();
+                for (const p of allPlayers) {
+                    await sock.sendMessage(p.whatsappId, {
+                        text: `🌎 *ANNONCE MONDIALE*\n\n${msgText}`,
+                        mentions
+                    });
+                }
+            }
+            break;
+        }
+
+        case 'broadcast': {
+            if (parameters.message) {
+                const { resolveMentions } = require('./message-handler');
+                const { text: msgText, mentions } = await resolveMentions(parameters.message);
+                for (const other of nearbyPlayers) {
+                    await sock.sendMessage(other.whatsappId, {
+                        text: `📣 *Annonce RP*\n\n${msgText}`,
+                        mentions
+                    });
+                }
+            }
+            break;
+        }
+
+        case 'start_quest': {
+            if (parameters.questTitle) {
+                const line = await questUtils.startQuest(target, parameters.questTitle);
+                if (line) questFeedback.push(line);
+            }
+            break;
+        }
+
+        case 'advance_quest': {
+            if (parameters.questTitle) {
+                const line = await questUtils.advanceQuest(target, parameters.questTitle, parameters.progress, parameters.note);
+                if (line) questFeedback.push(line);
+            }
+            break;
+        }
+
+        case 'complete_quest': {
+            if (parameters.questTitle) {
+                const line = await questUtils.completeQuest(target, parameters.questTitle, sock);
+                if (line) questFeedback.push(line);
+            }
+            break;
+        }
+
+        case 'update_quest': { // AI modifies the course of a quest
+            if (parameters.questTitle) {
+                const line = await questUtils.modifyQuest(target, parameters.questTitle, parameters.branch, parameters.notes);
+                if (line) questFeedback.push(line);
+            }
+            break;
+        }
+
+        case 'start_multiplayer_quest': {
+            if (parameters.questTitle) {
+                const res = await questUtils.startMultiplayerQuest(player, parameters.questTitle);
+                if (res) {
+                    questFeedback.push(`🤝 *Quête coopérative lancée* : ${res.quest.title}`);
+                    for (const n of res.notified) {
+                        await sock.sendMessage(n.player.whatsappId, {
+                            text: `🤝 *Quête coopérative !*\n${player.name} t'embarque dans une quête.\n\n${n.line}`
+                        });
+                    }
+                }
+            }
+            break;
+        }
+
+        case 'forge_pact': {
+            if (parameters.entityName) {
+                const entity = await Entity.findOne({
+                    where: { name: { [Op.like]: `%${parameters.entityName}%` } },
+                    include: [{ model: Player, as: 'Players' }]
+                });
+                if (entity) {
+                    const pactCount = entity.Players?.length || 0;
+                    if (pactCount > 0) {
+                        questFeedback.push(`⚠️ *ÉCHEC DU PACTE* : ${entity.name} est déjà lié à un autre mortel. Un seul élu par entité.`);
+                    } else {
+                        const hasPact = await target.hasEntity(entity);
+                        if (!hasPact) {
+                            await target.addEntity(entity);
+                            const bonuses = entity.pactBonus || {};
+                            for (const [stat, value] of Object.entries(bonuses)) {
+                                if (['strength', 'agility', 'intelligence', 'luck', 'defense'].includes(stat)) {
+                                    await target.increment(stat, { by: value });
+                                }
+                            }
+                            await target.save();
+                            await target.reload();
+                            questFeedback.push(`🔥 *PACT FORGÉ* : Tu es désormais lié à ${entity.name}.`);
+                        }
+                    }
+                }
+            }
+            break;
+        }
+
+        case 'join_club': {
+            if (parameters.clubName) {
+                const club = await Club.findOne({ where: { name: { [Op.like]: `%${parameters.clubName}%` } } });
+                if (club) {
+                    const hasClub = await target.hasClub(club);
+                    if (!hasClub) {
+                        await target.addClub(club);
+                        questFeedback.push(`🏫 *CLUB REJOINT* : Tu es désormais membre du ${club.name}.`);
+                    }
+                }
+            }
+            break;
+        }
+
+        case 'resurrect_player': {
+            if (parameters.target_name) {
+                const deadPlayer = await Player.findOne({ where: { name: parameters.target_name, location: 'Nécropolis' } });
+                if (deadPlayer) {
+                    let caster = player;
+                    if (parameters.caster_name) {
+                        const foundCaster = await Player.findOne({ where: { name: parameters.caster_name, location: player.location } });
+                        if (foundCaster) caster = foundCaster;
+                    }
+
+                    // Caster sacrifice
+                    const sacrifice = Math.floor(caster.maxHealth * 0.5);
+                    await caster.decrement('health', { by: sacrifice });
+                    await caster.reload();
+                    if (caster.health < 1) await caster.update({ health: 1 }); // Prevent double death if possible
+
+                    // Resurrection
+                    await deadPlayer.update({
+                        location: parameters.new_location || 'Eldoria',
+                        subLocation: 'Cimetière',
+                        health: Math.floor(deadPlayer.maxHealth * 0.1) // Returns with low HP
+                    });
+
+                    questFeedback.push(`✨ *RÉSURRECTION* : ${deadPlayer.name} a été rappelé du monde des morts par ${caster.name}. Sacrifice de ${sacrifice} PV.`);
+
+                    await sock.sendMessage(deadPlayer.whatsappId, {
+                        text: `✨ *TU ES REVENU !*\n\n${caster.name} a sacrifié sa propre force vitale pour te ramener à la vie. Tu te réveilles à ${deadPlayer.location}, affaibli mais vivant.`
+                    });
+                }
+            }
+            break;
+        }
+
+        case 'write_journal': {
+            if (parameters.entry) {
+                await WorldJournal.create({
+                    entry: parameters.entry,
+                    importance: parameters.importance || 1,
+                    category: parameters.category || 'general'
+                });
+                console.log(`[JOURNAL] Nouvelle entrée : ${parameters.entry}`);
+            }
+            break;
+        }
+      }
+
+      // Notify target if it's not the current player
+      if (target.whatsappId !== player.whatsappId) {
+          await sock.sendMessage(target.whatsappId, {
+              text: `🔔 *NOTIFICATION RP*\n\n${player.name} a interagi avec toi !\n\n${aiResponse.narrative}`
+          });
+      }
+      } catch (actionError) {
+          console.error(`[AI] Erreur lors du traitement d'une action (${actionObj.type}):`, actionError);
+      }
     }
 
-    // Silent reload of any changed players to keep cache synchronized
-    if (playersToUpdate.size > 0) {
-        for (const pId of playersToUpdate) {
-            try {
-                const pToUpdate = await Player.findOne({ where: { whatsappId: pId } });
-                if (pToUpdate) await pToUpdate.reload();
-            } catch (e) {}
+    // Additional player notifications
+    if (Array.isArray(aiResponse.notifications)) {
+      for (const notice of aiResponse.notifications) {
+        if (!notice || !notice.target_name || !notice.message) continue;
+        const targetPlayer = await Player.findOne({ where: { name: { [Op.like]: `%${notice.target_name}%` }, location: player.location } });
+        if (targetPlayer) {
+          await sock.sendMessage(targetPlayer.whatsappId, {
+            text: `🔔 *Message de RP*\n\n${notice.message}`
+          });
         }
+      }
     }
+
+    if (aiResponse.broadcastMessage) {
+      for (const other of nearbyPlayers) {
+        await sock.sendMessage(other.whatsappId, {
+          text: `📣 *Annonce RP*\n\n${aiResponse.broadcastMessage}`
+        });
+      }
+    }
+
+    // Append quest progression feedback to the narrative.
+    if (questFeedback.length > 0) {
+      aiResponse.narrative = `${aiResponse.narrative}\n\n${questFeedback.join('\n\n')}`;
+    }
+
+    // Prepend World Clock Header
+    aiResponse.narrative = `${getWorldHeader()}\n\n${aiResponse.narrative}`;
+
+    await sendWithImage(sock, jid, aiResponse);
 
   } catch (error) {
-    console.error('[AI/EMPERO] Erreur du moteur de narration:', error);
+    console.error('Erreur avec l\'API Puter.js:', error);
     await sock.sendMessage(jid, { text: "Erreur critique du MJ. L'action n'a pas pu être traitée." });
   }
 }
 
-/**
- * Safely purges hallucinated narrative memory (RPMessage, WorldJournal logs, Excel memory)
- * without touching official player state, stats, location, inventory, money, or quests.
- */
-async function purgeNarrativeMemory(playerWhatsappId = null) {
-    try {
-        if (playerWhatsappId) {
-            await RPMessage.destroy({
-                where: {
-                    [Op.or]: [
-                        { senderJid: playerWhatsappId },
-                        { senderJid: 'MJ_AETHERYS' }
-                    ]
-                }
-            });
-            await WorldJournal.destroy({
-                where: {
-                    entry: { [Op.like]: `%${playerWhatsappId}%` }
-                }
-            });
-            const { purgeExcelMemory } = require('./excel-memory');
-            purgeExcelMemory(playerWhatsappId);
-        } else {
-            await RPMessage.destroy({ where: {}, truncate: true });
-            await WorldJournal.destroy({ where: {}, truncate: true });
-            const { purgeExcelMemory } = require('./excel-memory');
-            purgeExcelMemory(null);
-        }
-        return true;
-    } catch (err) {
-        console.error("[MEMORY PURGE] Error clearing narrative memory:", err.message);
-        return false;
-    }
-}
-
-module.exports = { handleFreeAction, parseStatsFromText, purgeNarrativeMemory };
+module.exports = { handleFreeAction };
