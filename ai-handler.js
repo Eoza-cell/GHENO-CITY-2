@@ -188,34 +188,6 @@ async function resolveExplicitDestination(player, actionText) {
         };
     }
 
-    for (const alias of aliases) {
-        if (alias.keys.every(k => text.includes(k))) {
-            // Important destinations can instantiate a persistent institutional NPC
-            // instead of forcing the narrator to ask the player how the world reacts.
-            if (alias.subLocation === 'Poste de la Milice') {
-                await NPC.findOrCreate({
-                    where: { name: 'Capitaine de la Milice' },
-                    defaults: {
-                        name: 'Capitaine de la Milice',
-                        role: 'Capitaine de la Milice',
-                        description: 'Officier responsable des patrouilles et de l’ordre public à Eldoria. Autoritaire, attentif et habitué aux situations imprévues.',
-                        specialty: 'Commandement et sécurité',
-                        location: player.location,
-                        subLocation: alias.subLocation,
-                        powerLevel: 35
-                    }
-                }).catch(err => console.error('[SCENE NPC] Captain creation failed:', err.message));
-            }
-
-            return {
-                location: alias.location || player.location,
-                zone: alias.zone || player.zone || 'Centre-ville',
-                subLocation: alias.subLocation,
-                anchor: alias.subLocation,
-                source: 'alias'
-            };
-        }
-    }
 
     return null;
 }
