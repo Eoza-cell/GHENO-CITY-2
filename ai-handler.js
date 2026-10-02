@@ -156,7 +156,7 @@ async function handleFreeAction(sock, message, player, actionText) {
           nom: p.name,
           est_god: p.isGod,
           est_acteur: actingPlayerJids.has(p.whatsappId) || p.whatsappId === player.whatsappId,
-          etat: `Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck}`,
+          etat: `Niv:${p.level} | Rang:${p.rank} | PV:${p.health}/${p.maxHealth} | PM:${p.mana}/${p.maxMana} | Faim:${p.hunger} | Sommeil:${p.sleep} | FOR:${p.strength} AGI:${p.agility} INT:${p.intelligence} DEF:${p.defense} LUK:${p.luck} | POSITION:${p.x}m,${p.y}m`,
           description: p.characterDescription,
           classe: `${p.class}(${p.derivative})`,
           metier: p.occupation,
@@ -175,6 +175,28 @@ async function handleFreeAction(sock, message, player, actionText) {
   const spectatorPlayers = scenePlayersData.filter(p => !p.est_acteur);
 
   const socialState = `ACTEURS: ${activePlayers.map(p => p.nom).join(', ')} | SPECTATEURS (SILENCIEUX): ${spectatorPlayers.length > 0 ? spectatorPlayers.map(p => p.nom).join(', ') : 'Aucun'}`;
+
+  // Spatial combat model: x/y are meters inside the current sub-location.
+  // Keep this deterministic so combat distance never comes from AI guesswork.
+  const combatDistances = [];
+  for (let i = 0; i < nearbyPlayers.length; i++) {
+      for (let j = i + 1; j < nearbyPlayers.length; j++) {
+          const a = nearbyPlayers[i];
+          const b = nearbyPlayers[j];
+          const dx = (Number(a.x) || 0) - (Number(b.x) || 0);
+          const dy = (Number(a.y) || 0) - (Number(b.y) || 0);
+          const distance = Math.round(Math.sqrt(dx * dx + dy * dy) * 10) / 10;
+          combatDistances.push({
+              joueur_a: a.name,
+              joueur_a_id: a.id,
+              joueur_b: b.name,
+              joueur_b_id: b.id,
+              distance_metres: distance,
+              position_a: { x: a.x, y: a.y },
+              position_b: { x: b.x, y: b.y }
+          });
+      }
+  }
 
   const recentPlayers = await Player.findAll({
       where: { whatsappId: { [Op.ne]: player.whatsappId } },
@@ -310,6 +332,9 @@ RÈGLES TECHNIQUES:
     - Chaque joueur est identifié par son JOUEUR_ID unique. Ne remplace JAMAIS les données d'un joueur par celles d'un autre.
     - Les ACTIONS_JOUEURS sont toujours rattachées au joueur indiqué par son ID.
     - Un joueur sans action dans ce tour est IMMOBILE. Ne lui attribue aucune action provenant d'un autre joueur.
+    - DISTANCES RÉELLES : Chaque joueur possède une position X/Y exprimée en mètres dans sa sous-location. Utilise UNIQUEMENT la distance calculée dans DISTANCES_COMBAT, jamais une distance inventée.
+    - PORTÉE : Une attaque au corps-à-corps ne touche que si la distance et le déplacement déclaré permettent réellement d'atteindre la cible. Les attaques à distance doivent respecter leur portée selon l'arme/compétence fournie.
+    - MOUVEMENT : Un déplacement doit modifier la position X/Y avec x_change et/ou y_change. Ne téléporte jamais un joueur.
     - Les statistiques, inventaires, quêtes et états sont strictement individuels.
     - Une action update_player sans target_player_id/target_name concerne uniquement le joueur qui a effectué l'action.
     - Pour modifier un autre joueur, indique explicitement target_player_id ou target_name.
@@ -349,6 +374,7 @@ RÈGLES TECHNIQUES:
             pnj_presents: npcs.map(n => ({ name: n.name, role: n.role, power: n.powerLevel })),
             rumeurs_monde: recentPlayers.map(p => `${p.name}(${p.location})`)
         },
+        distances_combat: combatDistances,
         objectifs_generaux: {
             quetes_dispo: availableQuests.map(q => q.title),
             donjon_local: dungeons.map(d => `${d.name}(${d.rank})`)
@@ -585,6 +611,14 @@ RÈGLES TECHNIQUES:
           }
           if (parameters.sleep_change) {
               await target.increment('sleep', { by: parameters.sleep_change });
+              targetModified = true;
+          }
+          if (parameters.x_change !== undefined) {
+              await target.increment('x', { by: Number(parameters.x_change) || 0 });
+              targetModified = true;
+          }
+          if (parameters.y_change !== undefined) {
+              await target.increment('y', { by: Number(parameters.y_change) || 0 });
               targetModified = true;
           }
 
