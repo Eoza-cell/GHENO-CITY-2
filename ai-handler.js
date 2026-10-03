@@ -396,7 +396,7 @@ RÈGLES TECHNIQUES:
 4. IMMOBILITÉ DES SPECTATEURS : Ceux qui n'ont pas d'actions récentes sont présents mais ne bougent pas d'un pouce. Ne les invente pas.`;
 
   try {
-    let content = await callAI(systemPrompt, fullPrompt);
+    let content = await callAI(systemPrompt, fullPrompt, { playerId: player.whatsappId, location: player.location, subLocation: player.subLocation, query: aggregatedActions });
     if (!content) {
         content = JSON.stringify({ narrative: "🌀 *Le flux magique est instable.* L'Ether ne répond pas à tes appels...", actions: [] });
     }
@@ -507,9 +507,10 @@ RÈGLES TECHNIQUES:
 
       let target = player;
       if (parameters.target_player_id) {
+          const targetId = String(parameters.target_player_id);
           const foundTarget = await Player.findOne({
               where: {
-                  id: parameters.target_player_id,
+                  whatsappId: targetId,
                   location: player.location,
                   subLocation: player.subLocation
               }
