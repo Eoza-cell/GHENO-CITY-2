@@ -502,75 +502,15 @@ function callMJFallback(prompt) {
 /**
  * Main AI entry point.
  */
-async function callAI(systemPrompt, userPrompt, depth = 0) {
-    if (depth > 2) return null;
-
-    // Sanitize prompts - aggressively for free providers
-    const sanitizedSystem = systemPrompt.length > 3000 ? systemPrompt.substring(0, 3000) : systemPrompt;
-    let sanitizedUser = userPrompt;
-    if (userPrompt.length > 2000) {
-        sanitizedUser = userPrompt.substring(0, 500) + "\n...[TRUNCATED]...\n" + userPrompt.substring(userPrompt.length - 1200);
+async function callAI(systemPrompt, userPrompt, options = {}) {
+    const raiden = require('./raiden-core');
+    const normalizedOptions = (options && typeof options === 'object') ? options : {};
+    try {
+        return await raiden.run(systemPrompt, userPrompt, normalizedOptions);
+    } catch (error) {
+        console.error('[RAIDEN] AI request failed:', error.message);
+        return null;
     }
-
-    const providers = [
-        { name: '9Router', fn: call9Router },
-        { name: 'Puter API (Keyed)', fn: callPuterAPI },
-        { name: 'Puter SDK', fn: callPuterSDK },
-        { name: 'OpenRouter', fn: callOpenRouter },
-        { name: 'Pollinations POST (Keyless)', fn: callPollinationsPOST },
-        { name: 'Pollinations Gen (Keyed)', fn: callPollinationsGen },
-        { name: 'Pollinations GET', fn: callPollinationsGET },
-        { name: 'Ollama (Local)', fn: callOllama },
-        { name: 'LM Studio (Local)', fn: callLMStudio },
-        { name: 'Blackbox', fn: callBlackbox }
-    ];
-
-    for (const provider of providers) {
-        try {
-            const providerStart = Date.now();
-            console.log(`[AI] Tentative: ${provider.name}... (depth: ${depth})`);
-
-            // Smart Fallback: if it's a retry, use a simplified prompt
-            let activeSystem = sanitizedSystem;
-            if (depth === 1) {
-                activeSystem = "Tu es le MJ du RPG Aetherys. Style Manhwa. Réponds au format JSON: {\"narrative\": \"...\", \"actions\": [], \"imagePrompt\": \"...\"}";
-            } else if (depth >= 2) {
-                activeSystem = "Réponds uniquement en JSON: {\"narrative\": \"...\"}";
-            }
-
-            const result = await provider.fn(activeSystem, sanitizedUser);
-            const providerDuration = (Date.now() - providerStart) / 1000;
-
-            if (isValidAIResponse(result)) {
-                console.log(`[AI] ✅ Succès avec ${provider.name} en ${providerDuration}s`);
-                // Verify the result is not just a technical JSON dump without narrative
-                if (result.trim().startsWith('{')) {
-                    try {
-                        const parsed = JSON.parse(result);
-                        if (!parsed.narrative && !parsed.message && !parsed.text) {
-                             console.warn(`[AI] ⚠️ ${provider.name} JSON sans narration. Fallback.`);
-                             continue;
-                        }
-                    } catch(e) {}
-                }
-                return result;
-            } else {
-                console.warn(`[AI] ⚠️ ${provider.name} réponse invalide ou erreur.`);
-            }
-        } catch (e) {
-            console.warn(`[AI] ❌ Échec ${provider.name}:`, e.message || e);
-        }
-    }
-
-    console.warn("[AI] Tous les providers ont échoué.");
-    if (depth < 1) {
-        console.log("[AI] Nouvelle tentative dans 1s avec jitter...");
-        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
-        return callAI(systemPrompt, userPrompt, depth + 1);
-    }
-
-    // Ultimate fallback if even retry fails
-    return callMJFallback(userPrompt);
 }
 
 function parsePuterResponse(resp) {
