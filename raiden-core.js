@@ -1,6 +1,7 @@
 /** RAiden Core — single AI gateway for ATR. Puter.js is the only model provider used here. */
 const memory = require('./raiden-memory');
 let puter = null;
+let modelCache = { at: 0, ids: [] };
 function loadPuter() {
   if (puter) return puter;
   try { const { init } = require('@heyputer/puter.js/src/init.cjs'); puter = init(process.env.PUTER_AUTH_TOKEN || process.env.PUTER_TOKEN); return puter; }
@@ -35,8 +36,16 @@ async function run(systemPrompt,userPrompt,options={}) {
     '- actions: objets {"type":"...","parameters":{...}}. Si aucune modification DB: [].\n'+
     '- Pas de faux fallback ni de message technique dans la narration.\n'+remembered;
   const messages=[{role:'system',content:system},{role:'user',content:userPrompt}];
-  const primary=process.env.PUTER_MODEL || 'gemini-2.5-flash';
-  const models=[...new Set([primary,'gpt-4o-mini','claude-3-5-sonnet'])];
+  const primary=process.env.PUTER_MODEL;
+  let discovered=[];
+  try {
+    if (Date.now()-modelCache.at > 10*60*1000 && loadPuter()?.ai?.listModels) {
+      const list=await loadPuter().ai.listModels();
+      modelCache={at:Date.now(),ids:(list||[]).map(m=>m.id).filter(Boolean)};
+    }
+    discovered=modelCache.ids.filter(id=>/:free$/i.test(id)).slice(0,3);
+  } catch (e) { console.warn('[RAIDEN] model discovery skipped:',e.message); }
+  const models=[...new Set([primary,...discovered,'gemini-2.5-flash','gpt-4o-mini','claude-3-5-sonnet'])].filter(Boolean);
   let lastError=null;
   for (const model of models) {
     try { console.log('[RAIDEN] Puter model='+model+' player='+(playerId||'unknown')+' memories='+(remembered?'yes':'no')); const result=await ask(messages,model); if(valid(result)) return JSON.stringify(result); lastError=new Error('JSON Raiden invalide'); }
