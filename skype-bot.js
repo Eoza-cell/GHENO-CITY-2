@@ -4,7 +4,7 @@ require('dotenv').config();
 // Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const http = require('http');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@animebails/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');

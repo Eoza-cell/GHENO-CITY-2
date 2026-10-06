@@ -1,6 +1,6 @@
 const { Creds } = require('./database');
-const { proto } = require('@whiskeysockets/baileys');
-const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
+const { proto } = require('@animebails/baileys');
+const { BufferJSON, initAuthCreds } = require('@animebails/baileys');
 
 /**
  * A database-backed authentication handler for Baileys.
