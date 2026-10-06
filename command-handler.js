@@ -1244,7 +1244,18 @@ commands.set('help', async (sock, message) => {
 async function handleCommand(sock, message, downloadMediaMessage) {
   if (message.key.fromMe) return;
 
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
+  const msg = message.message;
+  const messageText = msg?.conversation ||
+                      msg?.extendedTextMessage?.text ||
+                      msg?.imageMessage?.caption ||
+                      msg?.videoMessage?.caption ||
+                      msg?.documentMessage?.caption ||
+                      msg?.buttonsResponseMessage?.selectedButtonId ||
+                      msg?.templateButtonReplyMessage?.selectedId ||
+                      msg?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+                      msg?.editedMessage?.message?.protocolMessage?.editedMessage?.conversation ||
+                      msg?.editedMessage?.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text;
+
   if (!messageText) return;
 
   const jid = getJid(message);
