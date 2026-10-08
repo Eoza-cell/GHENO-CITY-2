@@ -506,7 +506,21 @@ const UserStats = sequelize.define('UserStats', {
   goalsScored: { type: DataTypes.INTEGER, defaultValue: 0 },
   goalsConceded: { type: DataTypes.INTEGER, defaultValue: 0 },
   points: { type: DataTypes.INTEGER, defaultValue: 0 },
-  casinoChips: { type: DataTypes.INTEGER, defaultValue: 500 },
+  casinoChips: { type: DataTypes.INTEGER, defaultValue: 1000 },
+  winStreak: { type: DataTypes.INTEGER, defaultValue: 0 },
+  lastDaily: { type: DataTypes.DATE, allowNull: true },
+  division: { type: DataTypes.STRING, defaultValue: 'Division 10' },
+  squad: {
+    type: DataTypes.TEXT,
+    defaultValue: '[]',
+    get() {
+      const raw = this.getDataValue('squad');
+      try { return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+    },
+    set(val) {
+      this.setDataValue('squad', JSON.stringify(val));
+    }
+  }
 });
 
 Player.hasOne(Bank);
@@ -829,6 +843,141 @@ async function setupDatabase() {
                 passing: 84,
                 defense: 50,
                 physical: 86
+            },
+            {
+                name: 'Rodri',
+                rating: 97,
+                position: 'DMF',
+                country: 'Espagne',
+                club: 'Manchester City',
+                imagePath: null,
+                cardType: 'Big Time',
+                speed: 78,
+                dribbling: 84,
+                shooting: 82,
+                passing: 92,
+                defense: 93,
+                physical: 89
+            },
+            {
+                name: 'Mohamed Salah',
+                rating: 96,
+                position: 'RWF',
+                country: 'Égypte',
+                club: 'Liverpool FC',
+                imagePath: null,
+                cardType: 'Show Time',
+                speed: 93,
+                dribbling: 91,
+                shooting: 92,
+                passing: 83,
+                defense: 45,
+                physical: 76
+            },
+            {
+                name: 'Virgil van Dijk',
+                rating: 96,
+                position: 'CB',
+                country: 'Pays-Bas',
+                club: 'Liverpool FC',
+                imagePath: null,
+                cardType: 'Epic',
+                speed: 81,
+                dribbling: 72,
+                shooting: 60,
+                passing: 80,
+                defense: 96,
+                physical: 94
+            },
+            {
+                name: 'Bukayo Saka',
+                rating: 95,
+                position: 'RWF',
+                country: 'Angleterre',
+                club: 'Arsenal FC',
+                imagePath: null,
+                cardType: 'Highlight',
+                speed: 90,
+                dribbling: 91,
+                shooting: 84,
+                passing: 86,
+                defense: 60,
+                physical: 75
+            },
+            {
+                name: 'Thibaut Courtois',
+                rating: 95,
+                position: 'GK',
+                country: 'Belgique',
+                club: 'Real Madrid',
+                imagePath: null,
+                cardType: 'Epic',
+                speed: 65,
+                dribbling: 50,
+                shooting: 40,
+                passing: 68,
+                defense: 95,
+                physical: 88
+            },
+            {
+                name: 'Florian Wirtz',
+                rating: 95,
+                position: 'AMF',
+                country: 'Allemagne',
+                club: 'Bayer Leverkusen',
+                imagePath: null,
+                cardType: 'Highlight',
+                speed: 86,
+                dribbling: 94,
+                shooting: 83,
+                passing: 91,
+                defense: 52,
+                physical: 70
+            },
+            {
+                name: 'Jamal Musiala',
+                rating: 96,
+                position: 'AMF',
+                country: 'Allemagne',
+                club: 'Bayern Munich',
+                imagePath: null,
+                cardType: 'Show Time',
+                speed: 89,
+                dribbling: 97,
+                shooting: 85,
+                passing: 87,
+                defense: 50,
+                physical: 72
+            },
+            {
+                name: 'Harry Kane',
+                rating: 96,
+                position: 'CF',
+                country: 'Angleterre',
+                club: 'Bayern Munich',
+                imagePath: null,
+                cardType: 'Highlight',
+                speed: 77,
+                dribbling: 82,
+                shooting: 96,
+                passing: 88,
+                defense: 48,
+                physical: 85
+            },
+            {
+                name: 'Son Heung-min',
+                rating: 95,
+                position: 'LWF',
+                country: 'Corée du Sud',
+                club: 'Tottenham Hotspur',
+                imagePath: null,
+                cardType: 'Highlight',
+                speed: 92,
+                dribbling: 86,
+                shooting: 91,
+                passing: 82,
+                defense: 42,
+                physical: 74
             }
         ]);
     }

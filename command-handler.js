@@ -4,7 +4,7 @@ const axios = require('axios');
 const sharp = require('sharp');
 const { FootballPlayer, UserStats, sequelize } = require('./database');
 const { Op } = require('sequelize');
-const { generatePlayerCard, generateUserStatsCard } = require('./efootball-generator');
+const { generatePlayerCard, generateUserStatsCard, generateVersusCard } = require('./efootball-generator');
 
 /**
  * Determines the correct JID (Jabber ID) for the sender of a message.
@@ -892,6 +892,319 @@ commands.set('actu', actuCommand);
 commands.set('news', actuCommand);
 commands.set('gif', actuCommand);
 
+// Command: /daily / /recompense
+const dailyCommand = async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  if (!userStats) {
+    userStats = await UserStats.create({
+      whatsappId: jid,
+      name: message.pushName || 'Compétiteur'
+    });
+  }
+
+  const now = new Date();
+  const last = userStats.lastDaily ? new Date(userStats.lastDaily) : null;
+
+  if (last && (now - last) < 24 * 60 * 60 * 1000) {
+    const remainingMs = 24 * 60 * 60 * 1000 - (now - last);
+    const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+    const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    return await sock.sendMessage(replyJid, {
+      text: `⏳ *RÉCOMPENSE DÉJÀ RÉCLAMÉE !*\n\nRevenez dans *${hours}h ${minutes}min* pour votre prochain bonus quotidien.`
+    });
+  }
+
+  const baseBonus = 1000;
+  const streakBonus = (userStats.winStreak || 0) * 200;
+  const totalReward = baseBonus + streakBonus;
+
+  userStats.casinoChips = (userStats.casinoChips || 0) + totalReward;
+  userStats.lastDaily = now;
+  await userStats.save();
+
+  await sock.sendMessage(replyJid, {
+    text: `🎁 *RÉCOMPENSE QUOTIDIENNE ARISE RÉCUPÉRÉE !*\n\n` +
+          `🪙 *Bonus de Base :* +${baseBonus.toLocaleString()} 🪙\n` +
+          `🔥 *Bonus de Série (${userStats.winStreak || 0} victoires) :* +${streakBonus.toLocaleString()} 🪙\n` +
+          `💰 *Total Crédité :* +${totalReward.toLocaleString()} 🪙\n` +
+          `💳 *Nouveau Solde :* ${userStats.casinoChips.toLocaleString()} 🪙\n\n` +
+          `⚡ *Marque de Fabrique ARISE*`
+  });
+};
+commands.set('daily', dailyCommand);
+commands.set('recompense', dailyCommand);
+
+// Command: /match @mention <score_soi> <score_adv> (Head-to-head match submission)
+commands.set('match', async (sock, message, args) => {
+  const senderJid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+
+  if (!targetJid && args[0] && args[0].startsWith('@')) {
+    const cleanNumber = args[0].replace(/[^0-9]/g, '');
+    targetJid = `${cleanNumber}@s.whatsapp.net`;
+  }
+
+  if (!targetJid || targetJid === senderJid) {
+    return await sock.sendMessage(replyJid, {
+      text: `❌ Usage : \`/match @adversaire <score_vous> <score_adversaire>\`\n\nExemple : \`/match @John 3 1\``
+    });
+  }
+
+  if (args[0] && args[0].startsWith('@')) {
+    args.shift();
+  }
+
+  const score1 = parseInt(args[0]);
+  const score2 = parseInt(args[1]);
+
+  if (isNaN(score1) || isNaN(score2) || score1 < 0 || score2 < 0) {
+    return await sock.sendMessage(replyJid, {
+      text: `❌ Veuillez fournir un score valide. Exemple : \`/match @John 2 0\``
+    });
+  }
+
+  let u1 = await UserStats.findOne({ where: { whatsappId: senderJid } });
+  if (!u1) {
+    u1 = await UserStats.create({ whatsappId: senderJid, name: message.pushName || 'Joueur 1' });
+  }
+
+  let u2 = await UserStats.findOne({ where: { whatsappId: targetJid } });
+  if (!u2) {
+    u2 = await UserStats.create({ whatsappId: targetJid, name: 'Adversaire' });
+  }
+
+  // Calculate results
+  u1.goalsScored += score1;
+  u1.goalsConceded += score2;
+  u2.goalsScored += score2;
+  u2.goalsConceded += score1;
+
+  if (score1 > score2) {
+    // Player 1 wins
+    u1.wins += 1;
+    u1.points += 3;
+    u1.winStreak += 1;
+
+    u2.losses += 1;
+    u2.winStreak = 0;
+  } else if (score2 > score1) {
+    // Player 2 wins
+    u2.wins += 1;
+    u2.points += 3;
+    u2.winStreak += 1;
+
+    u1.losses += 1;
+    u1.winStreak = 0;
+  } else {
+    // Draw
+    u1.draws += 1;
+    u1.points += 1;
+
+    u2.draws += 1;
+    u2.points += 1;
+  }
+
+  // Update Divisions based on points
+  const updateDivision = (user) => {
+    if (user.points >= 50) user.division = 'Division 1 (Légende)';
+    else if (user.points >= 30) user.division = 'Division 2 (Élite)';
+    else if (user.points >= 15) user.division = 'Division 3 (Pro)';
+    else user.division = 'Division 4 (Espoir)';
+  };
+
+  updateDivision(u1);
+  updateDivision(u2);
+
+  await u1.save();
+  await u2.save();
+
+  try {
+    const cardBuffer = await generateVersusCard(u1, u2, score1, score2);
+    const summaryText = `⚽ *MATCH eFOOTBALL ENREGISTRÉ !*\n\n` +
+                        `👤 *${u1.name}* (${score1}) 🆚 (${score2}) *${u2.name}*\n\n` +
+                        `📈 *Nouveaux Totaux :*\n` +
+                        `• ${u1.name} : ${u1.points} pts | Série : ${u1.winStreak} V\n` +
+                        `• ${u2.name} : ${u2.points} pts | Série : ${u2.winStreak} V\n\n` +
+                        `⚡ *Marque de Fabrique ARISE*`;
+
+    await sock.sendMessage(replyJid, {
+      image: cardBuffer,
+      caption: summaryText
+    });
+  } catch (err) {
+    console.error('Error generating match card:', err);
+    await sock.sendMessage(replyJid, { text: `✅ Match enregistré ! Score : ${u1.name} ${score1} - ${score2} ${u2.name}` });
+  }
+});
+
+// Command: /compare @mention (Compare stats with another player)
+commands.set('compare', async (sock, message, args) => {
+  const senderJid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let targetJid = message.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
+
+  if (!targetJid && args[0] && args[0].startsWith('@')) {
+    const cleanNumber = args[0].replace(/[^0-9]/g, '');
+    targetJid = `${cleanNumber}@s.whatsapp.net`;
+  }
+
+  if (!targetJid) {
+    return await sock.sendMessage(replyJid, {
+      text: `❌ Usage : \`/compare @mention\` pour comparer vos performances avec un autre membre.`
+    });
+  }
+
+  let u1 = await UserStats.findOne({ where: { whatsappId: senderJid } });
+  if (!u1) {
+    u1 = await UserStats.create({ whatsappId: senderJid, name: message.pushName || 'Joueur 1' });
+  }
+
+  let u2 = await UserStats.findOne({ where: { whatsappId: targetJid } });
+  if (!u2) {
+    u2 = await UserStats.create({ whatsappId: targetJid, name: 'Adversaire' });
+  }
+
+  try {
+    const cardBuffer = await generateVersusCard(u1, u2);
+    await sock.sendMessage(replyJid, {
+      image: cardBuffer,
+      caption: `⚔️ *COMPARATIF HEAD-TO-HEAD LEAGUE*\n\n${u1.name} 🆚 ${u2.name}\n\n⚡ *Marque de Fabrique ARISE*`
+    });
+  } catch (err) {
+    console.error('Error in compare command:', err);
+    await sock.sendMessage(replyJid, { text: `Erreur lors de la comparaison des profils.` });
+  }
+});
+
+// Command: /marche / /transfert (Transfer Market for eFootball players)
+const marketCommand = async (sock, message) => {
+  const replyJid = message.key.remoteJid;
+  const players = await FootballPlayer.findAll({ order: [['rating', 'DESC']], limit: 12 });
+
+  let text = `╔══════════════════════════╗\n` +
+             `   🏬 *MARCHÉ DES TRANSFERTS ARISE* \n` +
+             `╚══════════════════════════╝\n\n` +
+             `Recrutez des joueurs légendaires pour votre équipe avec vos jetons casino (🪙) !\n\n`;
+
+  players.forEach((p) => {
+    const price = p.rating * 150;
+    text += `• *${p.name}* (${p.position} - Note: ${p.rating})\n  🏷️ Prix : ${price.toLocaleString()} 🪙 | Type: ${p.cardType}\n\n`;
+  });
+
+  text += `💡 *Pour recruter un joueur :* \`/recruter <nom_du_joueur>\`\n` +
+          `⚡ *Marque de Fabrique ARISE*`;
+
+  await sock.sendMessage(replyJid, { text });
+};
+commands.set('marche', marketCommand);
+commands.set('transfert', marketCommand);
+
+// Command: /recruter <joueur> (Draft a player to squad)
+commands.set('recruter', async (sock, message, args) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  const query = args.join(' ').trim();
+  if (!query) {
+    return await sock.sendMessage(replyJid, {
+      text: `❌ Usage : \`/recruter <nom_du_joueur>\`\nExemple : \`/recruter Lionel Messi\``
+    });
+  }
+
+  const player = await FootballPlayer.findOne({
+    where: { name: { [Op.like]: `%${query}%` } }
+  });
+
+  if (!player) {
+    return await sock.sendMessage(replyJid, { text: `❌ Aucun joueur eFootball trouvé sous le nom "${query}".` });
+  }
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  if (!userStats) {
+    userStats = await UserStats.create({ whatsappId: jid, name: message.pushName || 'Compétiteur' });
+  }
+
+  const price = player.rating * 150;
+  if ((userStats.casinoChips || 0) < price) {
+    return await sock.sendMessage(replyJid, {
+      text: `❌ Solde insuffisant ! *${player.name}* coûte *${price.toLocaleString()} 🪙* (Vous possédez ${userStats.casinoChips.toLocaleString()} 🪙).`
+    });
+  }
+
+  let currentSquad = userStats.squad || [];
+  if (currentSquad.some(p => p.name.toLowerCase() === player.name.toLowerCase())) {
+    return await sock.sendMessage(replyJid, { text: `⚠️ *${player.name}* fait déjà partie de votre effectif !` });
+  }
+
+  // Purchase process
+  userStats.casinoChips -= price;
+  currentSquad.push({
+    name: player.name,
+    rating: player.rating,
+    position: player.position,
+    cardType: player.cardType
+  });
+
+  userStats.squad = currentSquad;
+  await userStats.save();
+
+  try {
+    const cardBuffer = await generatePlayerCard(player);
+    await sock.sendMessage(replyJid, {
+      image: cardBuffer,
+      caption: `🎉 *TRANSFERT CONFIRMÉ !*\n\nVous avez recruté *${player.name}* (${player.rating}) dans votre équipe pour *${price.toLocaleString()} 🪙* !\n\n💰 Solde restant : ${userStats.casinoChips.toLocaleString()} 🪙\n\n⚡ *Marque de Fabrique ARISE*`
+    });
+  } catch (err) {
+    await sock.sendMessage(replyJid, {
+      text: `🎉 *TRANSFERT CONFIRMÉ !* ${player.name} a rejoint votre effectif.`
+    });
+  }
+});
+
+// Command: /equipe / /squad (View personal squad)
+const squadCommand = async (sock, message) => {
+  const jid = getJid(message);
+  const replyJid = message.key.remoteJid;
+
+  let userStats = await UserStats.findOne({ where: { whatsappId: jid } });
+  if (!userStats) {
+    userStats = await UserStats.create({ whatsappId: jid, name: message.pushName || 'Compétiteur' });
+  }
+
+  const squad = userStats.squad || [];
+  if (squad.length === 0) {
+    return await sock.sendMessage(replyJid, {
+      text: `📋 *EFFECTIF eFOOTBALL DE ${userStats.name.toUpperCase()}*\n\nVotre effectif est actuellement vide !\nUtilisez \`/marche\` pour voir les joueurs disponibles et \`/recruter <nom>\` pour former votre Onze de Rêve.\n\n⚡ *Marque de Fabrique ARISE*`
+    });
+  }
+
+  const totalRating = squad.reduce((acc, p) => acc + (p.rating || 80), 0);
+  const avgRating = Math.round(totalRating / squad.length);
+
+  let text = `╔══════════════════════════╗\n` +
+             `   📋 *MON EFFECTIF eFOOTBALL*   \n` +
+             `╚══════════════════════════╝\n\n` +
+             `👤 *Manager :* ${userStats.name}\n` +
+             `⭐ *Force de l'Équipe :* ${avgRating} / 100\n` +
+             `👥 *Joueurs Recrutés (${squad.length}) :*\n\n`;
+
+  squad.forEach((p, idx) => {
+    text += `${idx + 1}. *${p.name}* (${p.position}) - Note: *${p.rating}* [${p.cardType}]\n`;
+  });
+
+  text += `\n⚡ *Marque de Fabrique ARISE*`;
+
+  await sock.sendMessage(replyJid, { text });
+};
+commands.set('equipe', squadCommand);
+commands.set('squad', squadCommand);
+
 // Command: /help
 commands.set('help', async (sock, message) => {
   const helpText = `╔══════════════════════════╗\n` +
@@ -901,7 +1214,13 @@ commands.set('help', async (sock, message) => {
                    `• \`/start\` : Créer ou réactiver son profil de ligue eFootball.\n` +
                    `• \`/profil\` / \`/stats\` : Afficher sa carte de statistiques et performances ARISE.\n` +
                    `• \`/classement\` : Voir le classement de la ligue du groupe WhatsApp.\n` +
-                   `• \`/joueur <nom>\` : Afficher une carte eFootball détaillée (Messi, Mbappé, Haaland, Ronaldo).\n` +
+                   `• \`/match @mention <score_soi> <score_adv>\` : Enregistrer un résultat de match direct.\n` +
+                   `• \`/compare @mention\` : Comparer ses statistiques avec un autre joueur.\n` +
+                   `• \`/daily\` / \`/recompense\` : Réclamer votre bonus quotidien de jetons casino.\n` +
+                   `• \`/marche\` / \`/transfert\` : Marché des transferts de joueurs eFootball.\n` +
+                   `• \`/recruter <nom>\` : Recruter un joueur star dans votre effectif.\n` +
+                   `• \`/equipe\` / \`/squad\` : Afficher votre effectif de joueurs recrutés.\n` +
+                   `• \`/joueur <nom>\` : Afficher une carte eFootball détaillée (Messi, Mbappé, Haaland, Ronaldo, Rodri, Salah...).\n` +
                    `• \`/tv\` : Résumés de matchs et moments forts eFootball TV.\n` +
                    `• \`/actu\` / \`/news\` / \`/gif\` : Actualités football et mercato en direct sous forme de GIF animé.\n` +
                    `• \`/vv\` / \`/viewonce\` : Répondre à un média à vue unique pour l'extraire.\n\n` +
@@ -912,6 +1231,8 @@ commands.set('help', async (sock, message) => {
                    `• \`/blackjack <mise>\` : Duel 21 contre le croupier.\n\n` +
                    `👮 *Commandes Administrateur* :\n` +
                    `• \`/update_stats @mention <V/N/D> <buts_marqués> <buts_encaissés>\` : Met à jour les stats d'un joueur suite à un match.\n` +
+                   `• \`/edit_stats <v> <n> <d> <bm> <be>\` : Modifier vos statistiques.\n` +
+                   `• \`/reset_stats [@mention]\` : Réinitialiser le compteur de match.\n` +
                    `• \`/addchips @mention <montant>\` : Ajoute des jetons casino à un membre du groupe.\n` +
                    `• \`/tagall\` / \`/all [message]\` : Mentionne tous les membres du groupe WhatsApp.\n\n` +
                    `⚡ *Marque de Fabrique ARISE*`;
@@ -923,7 +1244,18 @@ commands.set('help', async (sock, message) => {
 async function handleCommand(sock, message, downloadMediaMessage) {
   if (message.key.fromMe) return;
 
-  const messageText = message.message.conversation || message.message.extendedTextMessage?.text;
+  const msg = message.message;
+  const messageText = msg?.conversation ||
+                      msg?.extendedTextMessage?.text ||
+                      msg?.imageMessage?.caption ||
+                      msg?.videoMessage?.caption ||
+                      msg?.documentMessage?.caption ||
+                      msg?.buttonsResponseMessage?.selectedButtonId ||
+                      msg?.templateButtonReplyMessage?.selectedId ||
+                      msg?.listResponseMessage?.singleSelectReply?.selectedRowId ||
+                      msg?.editedMessage?.message?.protocolMessage?.editedMessage?.conversation ||
+                      msg?.editedMessage?.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text;
+
   if (!messageText) return;
 
   const jid = getJid(message);
