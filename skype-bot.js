@@ -40,13 +40,23 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false, // QR code is no longer needed
+    printQRInTerminal: false,
     browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
     version,
-    logger: pino({ level: 'silent' }), // Suppress verbose logging
-    getMessage: async key => {
-        console.log('⚠️ Message non déchiffré, retry demandé:', key);
-        return { conversation: '🔄 Réessaye d\'envoyer ton message' };
+    logger: pino({ level: 'silent' }),
+    syncFullHistory: false,
+    markOnlineOnConnect: true,
+    retryRequestDelayMs: 250,
+    maxMsgRetryCount: 5,
+    getMessage: async (key) => {
+      try {
+        if (key && key.id) {
+          console.log(`[RETRY] Requesting re-encryption for message ID: ${key.id}`);
+        }
+      } catch (err) {
+        console.error('[RETRY ERROR]', err);
+      }
+      return { conversation: '🔄 Réessaye d\'envoyer ton message' };
     }
   });
 
