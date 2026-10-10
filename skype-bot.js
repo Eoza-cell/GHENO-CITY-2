@@ -130,7 +130,12 @@ async function connectToWhatsApp() {
     printQRInTerminal: false,
     browser: Browsers.ubuntu('Chrome'),
     version,
-    logger: pino({ level: 'debug' }),
+    logger: pino({ level: 'silent' }),
+    markOnlineOnConnect: false,
+    fireInitQueries: false,
+    syncFullHistory: false,
+    maxMsgRetryCount: 5,
+    retryRequestDelayMs: 250,
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return undefined;
