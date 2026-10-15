@@ -3,43 +3,26 @@ const { execSync } = require('child_process');
 const { buildWardrobeCatalog } = require('./wardrobe-catalog');
 
 let sequelize;
-const dbUrl = process.env.DATABASE_URL;
+const dbUrl = (process.env.DATABASE_URL || process.env.AIVEN_DATABASE_URL || '').trim();
 
-if (dbUrl) {
-  console.log('[DB] Vérification de la connexion PostgreSQL...');
-  try {
-    execSync(`node -e "const { Sequelize } = require('sequelize'); const s = new Sequelize(process.env.DB_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }); s.authenticate().then(() => process.exit(0)).catch((e) => { process.exit(1); })"`, {
-      env: { ...process.env, DB_URL: dbUrl },
-      timeout: 10000,
-      stdio: 'ignore'
-    });
-    console.log('[DB] PostgreSQL est accessible. Connexion en cours...');
-    sequelize = new Sequelize(dbUrl, {
-      dialect: 'postgres',
-      logging: false,
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        }
-      }
-    });
-  } catch (e) {
-    console.error('[DB] PostgreSQL inaccessible. Basculement sur SQLite local.');
-    sequelize = new Sequelize({
-      dialect: 'sqlite',
-      storage: 'gheno-city.sqlite',
-      logging: false,
-    });
-  }
-} else {
-  console.log('[DB] Pas de DATABASE_URL. Utilisation de SQLite local.');
-  sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: 'gheno-city.sqlite',
-    logging: false,
-  });
+if (!dbUrl) {
+  throw new Error('[DB] DATABASE_URL manquante. Configure l’URL PostgreSQL Aiven dans Render.');
 }
+
+console.log('[DB] Connexion PostgreSQL distante obligatoire (Aiven/DATABASE_URL)...');
+sequelize = new Sequelize(dbUrl, {
+  dialect: 'postgres',
+  logging: false,
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    },
+    connectTimeout: 15000
+  },
+  pool: { max: 5, min: 0, acquire: 30000, idle: 10000 },
+  retry: { max: 2 }
+});
 
 // Separate database dedicated strictly to generated media assets / images
 // This protects the main gheno-city database from swelling rapidly.
@@ -1524,7 +1507,8 @@ async function setupDatabase() {
     }
 
   } catch (error) {
-    console.error('Setup failed:', error);
+    console.error('[DB] Échec de setup/migration PostgreSQL :', error);
+    throw error;
   }
 }
 
