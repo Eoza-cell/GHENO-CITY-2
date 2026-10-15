@@ -4,7 +4,7 @@ require('dotenv').config();
 // Le bot utilise maintenant exclusivement Transformers.js local pour le moteur IA.
 
 const http = require('http');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, fetchLatestWaWebVersion, Browsers } = require('@whiskeysockets/baileys');
+const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -92,9 +92,20 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    if (req.url === '/version') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+            service: 'GHENO-CITY-2',
+            commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown',
+            branch: process.env.RENDER_GIT_BRANCH || 'unknown',
+            connected: isWhatsAppConnected,
+            database: process.env.DATABASE_URL || process.env.AIVEN_DATABASE_URL ? 'postgres-configured' : 'missing'
+        }));
+    }
+
     if (req.url === '/health' || req.url === '/') {
         res.writeHead(isWhatsAppConnected ? 200 : 503, { 'Content-Type': 'text/plain' });
-        res.end(isWhatsAppConnected ? 'OPERATIONAL' : 'AWAITING_PAIRING');
+        res.end(isWhatsAppConnected ? 'OPERATIONAL' : 'AWAITING_WHATSAPP_PAIRING');
         return;
     }
 
@@ -126,13 +137,13 @@ async function connectToWhatsApp() {
   }
 
   const { state, saveCreds } = await useDatabaseAuth();
-  const { version, isLatest } = await (typeof fetchLatestWaWebVersion === 'function' ? fetchLatestWaWebVersion() : fetchLatestBaileysVersion)();
+  const { version, isLatest } = await fetchLatestBaileysVersion();
   console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
 
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    browser: Browsers.ubuntu('Chrome'),
+    browser: Browsers.macOS('Chrome'),
     syncFullHistory: false,
     version,
     logger: pino({ level: 'debug' }),
@@ -165,12 +176,19 @@ async function connectToWhatsApp() {
 
     let pairingRequested = false;
     let pairingRetryCount = 0;
+    let socketClosedDuringPairing = false;
 
     const requestAndShowCode = async () => {
         if (pairingRequested || isWhatsAppConnected || sock.authState.creds.registered) return;
 
         pairingRequested = true;
         try {
+            // Laisser le WebSocket Baileys terminer son ouverture avant de demander le code.
+            await delay(1800);
+            if (socketClosedDuringPairing || isWhatsAppConnected || sock.authState.creds.registered) {
+                pairingRequested = false;
+                return;
+            }
             console.log(`[AUTH] Demande du code pour : ${phoneNumber} (Tentative ${pairingRetryCount + 1})`);
             const code = await sock.requestPairingCode(phoneNumber);
             const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
@@ -207,13 +225,15 @@ async function connectToWhatsApp() {
     }, 20000);
 
     sock.ev.on('connection.update', async (update) => {
+        if (update.connection === 'close') socketClosedDuringPairing = true;
         if (update.qr) currentQrCode = update.qr;
-        if ((update.connection === 'connecting' || update.qr) && !sock.authState.creds.registered && pairingRetryCount < 4) {
+        if (update.connection === 'connecting' && !sock.authState.creds.registered && pairingRetryCount < 4) {
             await requestAndShowCode();
         }
 
         if (update.connection === 'open') {
             clearInterval(logInterval);
+            socketClosedDuringPairing = false;
             currentPairingCode = null;
             currentQrCode = null;
         }
