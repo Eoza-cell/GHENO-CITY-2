@@ -6,6 +6,7 @@ require('dotenv').config();
 const http = require('http');
 const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, fetchLatestWaWebVersion, Browsers } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const { default: PQueue } = require('p-queue');
@@ -20,9 +21,14 @@ const { startProactiveAIEngagement } = require('./proactive-engagement');
 
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
+let currentQrCode = null;
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     if (req.url === '/pairing') {
+        let qrMarkup = '';
+        if (!isWhatsAppConnected && currentQrCode) {
+            try { const qrImage = await QRCode.toDataURL(currentQrCode, { width: 280, margin: 2 }); qrMarkup = `<h2>Ou scanne ce QR code</h2><img alt="QR WhatsApp" src="${qrImage}" style="width:280px;max-width:90%;background:white;padding:10px;border-radius:8px"/><p>WhatsApp → Appareils connectés → Connecter un appareil</p>`; } catch (e) { console.error('[AUTH] QR render failed:', e.message); }
+        }
         res.writeHead(200, { 'Content-Type': 'text/html' });
         return res.end(`
             <html>
@@ -56,7 +62,8 @@ const server = http.createServer((req, res) => {
                             <p style="color: #aebac1;">Si rien n'apparaît après 1 minute, vérifiez le numéro de téléphone dans vos variables d'environnement.</p>
                         </div>
                     `}
-                    <script>setTimeout(() => location.reload(), 10000)</script>
+                    ${qrMarkup}
+                    <script>setTimeout(() => location.reload(), 5000)</script>
                 </body>
             </html>
         `);
@@ -200,6 +207,7 @@ async function connectToWhatsApp() {
     }, 20000);
 
     sock.ev.on('connection.update', async (update) => {
+        if (update.qr) currentQrCode = update.qr;
         if ((update.connection === 'connecting' || update.qr) && !sock.authState.creds.registered && pairingRetryCount < 4) {
             await requestAndShowCode();
         }
@@ -207,6 +215,7 @@ async function connectToWhatsApp() {
         if (update.connection === 'open') {
             clearInterval(logInterval);
             currentPairingCode = null;
+            currentQrCode = null;
         }
     });
   }
@@ -256,6 +265,7 @@ async function connectToWhatsApp() {
         console.error("[AUTH] Impossible d'enregistrer le snapshot de session:", error.message);
       }
       currentPairingCode = null;
+      currentQrCode = null;
 
       try {
           const botJid = jidNormalizedUser(sock.user.id);
