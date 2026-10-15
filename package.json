@@ -37,7 +37,8 @@
     "sqlite3": "^5.1.7",
     "three": "^0.170.0",
     "@upstash/redis": "^1.35.3",
-    "@huggingface/transformers": "^3.8.0"
+    "@huggingface/transformers": "^3.8.0",
+    "qrcode": "^1.5.4"
   },
   "type": "commonjs"
 }
