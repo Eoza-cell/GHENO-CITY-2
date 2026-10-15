@@ -210,8 +210,13 @@ async function connectToWhatsApp() {
             pairingRetryCount++;
             console.error('[AUTH] Échec demande code pairing:', err.message);
 
-            if (pairingRetryCount <= 3) {
-                console.log('[AUTH] Nouvelle tentative au prochain état de connexion...');
+            if (pairingRetryCount < 4) {
+                console.log('[AUTH] Nouvelle tentative automatique dans 3 secondes...');
+                setTimeout(() => {
+                    if (!socketClosedDuringPairing && !isWhatsAppConnected && !sock.authState.creds.registered) {
+                        requestAndShowCode();
+                    }
+                }, 3000);
             }
         }
     };
@@ -225,7 +230,12 @@ async function connectToWhatsApp() {
     }, 20000);
 
     sock.ev.on('connection.update', async (update) => {
-        if (update.connection === 'close') socketClosedDuringPairing = true;
+        if (update.connection === 'close') {
+            socketClosedDuringPairing = true;
+            currentPairingCode = null;
+            currentQrCode = null;
+            console.warn('[AUTH] Connexion interrompue : ancien code effacé, un nouveau sera demandé après reconnexion.');
+        }
         if (update.qr) currentQrCode = update.qr;
         if (update.connection === 'connecting' && !sock.authState.creds.registered && pairingRetryCount < 4) {
             await requestAndShowCode();
