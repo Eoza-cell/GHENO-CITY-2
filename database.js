@@ -28,7 +28,7 @@ if (dbUrl) {
     console.error('[DB] PostgreSQL inaccessible (ENOTFOUND ou Timeout). Basculement sur SQLite local.');
     sequelize = new Sequelize({
       dialect: 'sqlite',
-      storage: 'gheno-city.sqlite',
+      storage: process.env.SQLITE_STORAGE_PATH || 'gheno-city.sqlite',
       logging: false,
     });
   }
@@ -36,7 +36,7 @@ if (dbUrl) {
   console.log('[DB] Pas de DATABASE_URL. Utilisation de SQLite local.');
   sequelize = new Sequelize({
     dialect: 'sqlite',
-    storage: 'gheno-city.sqlite',
+    storage: process.env.SQLITE_STORAGE_PATH || 'gheno-city.sqlite',
     logging: false,
   });
 }
