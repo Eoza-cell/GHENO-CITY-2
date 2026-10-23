@@ -1,6 +1,6 @@
 const { Creds } = require('./database');
-const { proto } = require('@whiskeysockets/baileys');
-const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
+const { proto } = require('@animebails/baileys');
+const { BufferJSON, initAuthCreds } = require('@animebails/baileys');
 
 /**
  * A database-backed authentication handler for Baileys.
@@ -20,8 +20,8 @@ const useDatabaseAuth = async () => {
             // The data is stored as a string, so we need to parse it
             return data ? JSON.parse(data.value, BufferJSON.reviver) : null;
         } catch (error) {
-            console.error(`Failed to read key "${key}" from database`, error);
-            return null;
+            console.error(`[AUTH] Lecture impossible pour "${key}" :`, error);
+            throw error;
         }
     };
 
@@ -31,7 +31,8 @@ const useDatabaseAuth = async () => {
             const value = JSON.stringify(data, BufferJSON.replacer);
             await Creds.upsert({ key, value });
         } catch (error) {
-            console.error(`Failed to write key "${key}" to database`, error);
+            console.error(`[AUTH] Écriture impossible pour "${key}" :`, error);
+            throw error;
         }
     };
 
@@ -40,7 +41,8 @@ const useDatabaseAuth = async () => {
         try {
             await Creds.destroy({ where: { key } });
         } catch (error) {
-            console.error(`Failed to remove key "${key}" from database`, error);
+            console.error(`[AUTH] Suppression impossible pour "${key}" :`, error);
+            throw error;
         }
     };
 

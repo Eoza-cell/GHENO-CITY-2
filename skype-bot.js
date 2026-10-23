@@ -4,7 +4,7 @@ require('dotenv').config();
 // Note : La vérification pour GROQ_API_KEY a été supprimée car le bot utilise maintenant Pollination AI.
 
 const http = require('http');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion } = require('@animebails/baileys');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
@@ -24,6 +24,8 @@ const server = http.createServer((req, res) => {
 });
 const PORT = process.env.PORT || 3000;
 let serverStarted = false;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
 
 // Initialisation de la queue pour gérer la charge
 const messageQueue = new PQueue({ concurrency: 5 });
@@ -40,13 +42,23 @@ async function connectToWhatsApp() {
 
   const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: false, // QR code is no longer needed
+    printQRInTerminal: false,
     browser: ['Ubuntu', 'Chrome', '128.0.6613.86'],
     version,
-    logger: pino({ level: 'silent' }), // Suppress verbose logging
-    getMessage: async key => {
-        console.log('⚠️ Message non déchiffré, retry demandé:', key);
-        return { conversation: '🔄 Réessaye d\'envoyer ton message' };
+    logger: pino({ level: 'silent' }),
+    syncFullHistory: false,
+    markOnlineOnConnect: true,
+    retryRequestDelayMs: 250,
+    maxMsgRetryCount: 5,
+    getMessage: async (key) => {
+      try {
+        if (key && key.id) {
+          console.log(`[RETRY] Requesting re-encryption for message ID: ${key.id}`);
+        }
+      } catch (err) {
+        console.error('[RETRY ERROR]', err);
+      }
+      return { conversation: '🔄 Réessaye d\'envoyer ton message' };
     }
   });
 
@@ -81,12 +93,38 @@ async function connectToWhatsApp() {
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== 401;
-      console.log('Connection fermée à cause de :', lastDisconnect.error, ', reconnexion:', shouldReconnect);
-      if (shouldReconnect) {
-        connectToWhatsApp();
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== 401;
+      const registered = Boolean(sock.authState?.creds?.registered);
+
+      console.log('Connection fermée à cause de :', lastDisconnect?.error, ', reconnexion:', shouldReconnect);
+
+      // Ne pas recréer un socket toutes les quelques secondes avant que le premier pairing soit terminé.
+      // Cela redemandait le code de pairing en boucle sans résoudre l'authentification.
+      if (shouldReconnect && !registered) {
+        console.error('[AUTH] Session WhatsApp non enregistrée : arrêt de la reconnexion automatique pour éviter de redemander le code en boucle. Vérifiez le pairing et les logs Render.');
+        return;
+      }
+
+      if (shouldReconnect && reconnectTimer === null) {
+        const waitMs = Math.min(3000 * (2 ** reconnectAttempts), 30000);
+        reconnectAttempts += 1;
+        console.log(`[WA] Nouvelle tentative dans ${Math.round(waitMs / 1000)} s.`);
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          connectToWhatsApp().catch((error) => {
+            console.error('[WA] Échec de la reconnexion :', error);
+          });
+        }, waitMs);
+      } else if (!shouldReconnect) {
+        console.error('[AUTH] WhatsApp a refusé/terminé la session (401). Vérifiez l’appareil lié avant de relancer le pairing.');
       }
     } else if (connection === 'open') {
+      reconnectAttempts = 0;
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       console.log('Connecté à WhatsApp');
       startDayNightCycle();
 

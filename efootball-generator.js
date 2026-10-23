@@ -189,7 +189,7 @@ async function generatePlayerCard(p) {
  */
 async function generateUserStatsCard(u) {
     const width = 850;
-    const height = 540;
+    const height = 560;
 
     const watermarkPath = path.join(__dirname, 'assets/efootball/arise_watermark.png');
     let watermarkBase64 = '';
@@ -199,6 +199,9 @@ async function generateUserStatsCard(u) {
     }
 
     const totalGames = (u.wins || 0) + (u.draws || 0) + (u.losses || 0);
+    const winRate = totalGames > 0 ? Math.round((u.wins / totalGames) * 100) : 0;
+    const streak = u.winStreak || 0;
+    const division = u.division || (u.points >= 30 ? 'Division 1' : (u.points >= 20 ? 'Division 2' : (u.points >= 10 ? 'Division 3' : 'Division 4')));
 
     const svg = `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -211,19 +214,29 @@ async function generateUserStatsCard(u) {
                 <stop offset="0%" style="stop-color:#00f0ff;stop-opacity:1" />
                 <stop offset="100%" style="stop-color:#7000ff;stop-opacity:1" />
             </linearGradient>
+            <linearGradient id="badgeDiv" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ff8800;stop-opacity:1" />
+            </linearGradient>
         </defs>
 
         <rect width="${width}" height="${height}" fill="url(#bgGrad)" rx="24" />
         <rect x="16" y="16" width="${width - 32}" height="${height - 32}" rx="18" fill="none" stroke="url(#accentGrad)" stroke-width="3" />
 
+        <!-- Division Badge Top Right -->
+        <g transform="translate(${width - 220}, 40)">
+            <rect width="165" height="38" rx="10" fill="url(#badgeDiv)" stroke="#ffffff" stroke-width="1.5" />
+            <text x="82.5" y="25" font-family="'Impact', Arial, sans-serif" font-size="16" fill="#000000" text-anchor="middle" font-weight="900" letter-spacing="1">${division.toUpperCase()}</text>
+        </g>
+
         ${watermarkBase64 ? `
-            <image href="${watermarkBase64}" x="550" y="420" width="250" height="80" opacity="0.75" />
+            <image href="${watermarkBase64}" x="550" y="440" width="250" height="80" opacity="0.75" />
         ` : `
-            <text x="680" y="460" font-family="'Impact', Arial" font-size="36" fill="rgba(255,255,255,0.2)" text-anchor="middle" letter-spacing="6">ARISE</text>
+            <text x="680" y="480" font-family="'Impact', Arial" font-size="36" fill="rgba(255,255,255,0.2)" text-anchor="middle" letter-spacing="6">ARISE</text>
         `}
 
         <g transform="translate(55, 75)">
-            <text font-family="'Arial Black', sans-serif" font-size="34" fill="#ffffff" font-weight="900">PROFIL COMPÉTITEUR eFOOTBALL</text>
+            <text font-family="'Arial Black', sans-serif" font-size="32" fill="#ffffff" font-weight="900">PROFIL COMPÉTITEUR eFOOTBALL</text>
             <text y="38" font-family="'Arial', sans-serif" font-size="22" fill="#00f0ff" font-weight="bold">${u.name}</text>
 
             <g transform="translate(0, 110)">
@@ -257,10 +270,10 @@ async function generateUserStatsCard(u) {
             </g>
 
             <g transform="translate(0, 290)">
-                <text font-family="'Arial', sans-serif" font-size="19" fill="rgba(255,255,255,0.75)">Matchs Joués : <tspan fill="#ffffff" font-weight="bold">${totalGames}</tspan></text>
-                <text y="38" font-family="'Arial', sans-serif" font-size="19" fill="rgba(255,255,255,0.75)">Buts Marqués : <tspan fill="#00f0ff" font-weight="bold">${u.goalsScored}</tspan></text>
-                <text y="76" font-family="'Arial', sans-serif" font-size="19" fill="rgba(255,255,255,0.75)">Buts Encaissés : <tspan fill="#ff2b6d" font-weight="bold">${u.goalsConceded}</tspan></text>
-                <text y="114" font-family="'Arial', sans-serif" font-size="19" fill="rgba(255,255,255,0.75)">Différence de Buts : <tspan fill="${(u.goalsScored - u.goalsConceded) >= 0 ? '#00f0ff' : '#ff2b6d'}" font-weight="bold">${u.goalsScored - u.goalsConceded}</tspan></text>
+                <text font-family="'Arial', sans-serif" font-size="19" fill="rgba(255,255,255,0.75)">Matchs Joués : <tspan fill="#ffffff" font-weight="bold">${totalGames}</tspan> | Taux Victoires : <tspan fill="#38bdf8" font-weight="bold">${winRate}%</tspan></text>
+                <text y="38" font-family="'Arial', sans-serif" font-size="19" fill="rgba(255,255,255,0.75)">Série de Victoires : <tspan fill="#f59e0b" font-weight="bold">🔥 ${streak} de suite</tspan></text>
+                <text y="76" font-family="'Arial', sans-serif" font-size="19" fill="rgba(255,255,255,0.75)">Buts Marqués / Encaissés : <tspan fill="#00f0ff" font-weight="bold">${u.goalsScored}</tspan> / <tspan fill="#ff2b6d" font-weight="bold">${u.goalsConceded}</tspan></text>
+                <text y="114" font-family="'Arial', sans-serif" font-size="19" fill="rgba(255,255,255,0.75)">Différence de Buts : <tspan fill="${(u.goalsScored - u.goalsConceded) >= 0 ? '#00f0ff' : '#ff2b6d'}" font-weight="bold">${u.goalsScored - u.goalsConceded}</tspan> | Solde Jetons : <tspan fill="#ffd700" font-weight="bold">🪙 ${(u.casinoChips || 0).toLocaleString()}</tspan></text>
             </g>
         </g>
     </svg>
@@ -269,7 +282,108 @@ async function generateUserStatsCard(u) {
     return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
+/**
+ * Generates an Ultra-HD Versus / Match Summary Card comparing two players.
+ */
+async function generateVersusCard(u1, u2, score1 = null, score2 = null) {
+    const width = 900;
+    const height = 520;
+
+    const watermarkPath = path.join(__dirname, 'assets/efootball/arise_watermark.png');
+    let watermarkBase64 = '';
+    if (fs.existsSync(watermarkPath)) {
+        const watermarkBuffer = fs.readFileSync(watermarkPath);
+        watermarkBase64 = `data:image/png;base64,${watermarkBuffer.toString('base64')}`;
+    }
+
+    const isMatchResult = score1 !== null && score2 !== null;
+
+    const svg = `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="bgVersus" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#0b021a;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#160933;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#050010;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="p1Grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#00f0ff;stop-opacity:0.25" />
+                <stop offset="100%" style="stop-color:#00f0ff;stop-opacity:0.02" />
+            </linearGradient>
+            <linearGradient id="p2Grad" x1="100%" y1="0%" x2="0%" y2="0%">
+                <stop offset="0%" style="stop-color:#ff2b6d;stop-opacity:0.25" />
+                <stop offset="100%" style="stop-color:#ff2b6d;stop-opacity:0.02" />
+            </linearGradient>
+            <linearGradient id="scoreBg" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#31105e;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#120326;stop-opacity:1" />
+            </linearGradient>
+        </defs>
+
+        <rect width="${width}" height="${height}" fill="url(#bgVersus)" rx="24" />
+        <rect x="16" y="16" width="${width - 32}" height="${height - 32}" rx="18" fill="none" stroke="#7000ff" stroke-width="2.5" />
+
+        <!-- Title Banner -->
+        <rect x="250" y="22" width="400" height="42" rx="12" fill="rgba(0, 0, 0, 0.85)" stroke="#38bdf8" stroke-width="1.5" />
+        <text x="450" y="49" font-family="'Impact', Arial Black, sans-serif" font-size="22" fill="#38bdf8" text-anchor="middle" letter-spacing="2">
+            ${isMatchResult ? '⚽ RÉSULTAT DU MATCH eFOOTBALL' : '⚔️ CONFRONTATION COMPÉTITEURS'}
+        </text>
+
+        <!-- Player 1 Side (Left) -->
+        <g transform="translate(40, 85)">
+            <rect width="360" height="340" rx="16" fill="url(#p1Grad)" stroke="#00f0ff" stroke-width="2" />
+            <text x="180" y="45" font-family="'Arial Black', sans-serif" font-size="24" fill="#ffffff" text-anchor="middle" font-weight="900">${u1.name.toUpperCase()}</text>
+
+            <g transform="translate(20, 75)">
+                <text font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">🏆 Points : <tspan font-weight="bold" fill="#00f0ff">${u1.points} pts</tspan></text>
+                <text y="36" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">📊 Victoires : <tspan font-weight="bold" fill="#00f0ff">${u1.wins}</tspan></text>
+                <text y="72" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">🤝 Nuls : <tspan font-weight="bold" fill="#ffffff">${u1.draws}</tspan></text>
+                <text y="108" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">❌ Défaites : <tspan font-weight="bold" fill="#ff2b6d">${u1.losses}</tspan></text>
+                <text y="144" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">⚽ Buts Marqués : <tspan font-weight="bold" fill="#00f0ff">${u1.goalsScored}</tspan></text>
+                <text y="180" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">🔥 Série : <tspan font-weight="bold" fill="#f59e0b">${u1.winStreak || 0} V</tspan></text>
+            </g>
+        </g>
+
+        <!-- Center Score / VS Capsule -->
+        <g transform="translate(450, 255)">
+            <circle r="60" fill="url(#scoreBg)" stroke="#ffd700" stroke-width="3" />
+            ${isMatchResult ? `
+                <text y="12" font-family="'Impact', Arial Black, sans-serif" font-size="38" fill="#ffffff" text-anchor="middle" font-weight="900">${score1} - ${score2}</text>
+            ` : `
+                <text y="14" font-family="'Impact', Arial Black, sans-serif" font-size="44" fill="#ffd700" text-anchor="middle" font-weight="900">VS</text>
+            `}
+        </g>
+
+        <!-- Player 2 Side (Right) -->
+        <g transform="translate(500, 85)">
+            <rect width="360" height="340" rx="16" fill="url(#p2Grad)" stroke="#ff2b6d" stroke-width="2" />
+            <text x="180" y="45" font-family="'Arial Black', sans-serif" font-size="24" fill="#ffffff" text-anchor="middle" font-weight="900">${u2.name.toUpperCase()}</text>
+
+            <g transform="translate(20, 75)">
+                <text font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">🏆 Points : <tspan font-weight="bold" fill="#ff2b6d">${u2.points} pts</tspan></text>
+                <text y="36" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">📊 Victoires : <tspan font-weight="bold" fill="#00f0ff">${u2.wins}</tspan></text>
+                <text y="72" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">🤝 Nuls : <tspan font-weight="bold" fill="#ffffff">${u2.draws}</tspan></text>
+                <text y="108" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">❌ Défaites : <tspan font-weight="bold" fill="#ff2b6d">${u2.losses}</tspan></text>
+                <text y="144" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">⚽ Buts Marqués : <tspan font-weight="bold" fill="#00f0ff">${u2.goalsScored}</tspan></text>
+                <text y="180" font-family="'Arial', sans-serif" font-size="18" fill="#e2e8f0">🔥 Série : <tspan font-weight="bold" fill="#f59e0b">${u2.winStreak || 0} V</tspan></text>
+            </g>
+        </g>
+
+        <!-- Footer Watermark -->
+        <rect x="0" y="${height - 45}" width="${width}" height="45" fill="rgba(0,0,0,0.9)" />
+        ${watermarkBase64 ? `
+            <image href="${watermarkBase64}" x="340" y="${height - 42}" width="220" height="40" opacity="0.8" />
+        ` : `
+            <text x="450" y="${height - 16}" fill="#38bdf8" font-size="14" font-family="sans-serif" font-weight="bold" text-anchor="middle">⚡ ARISE eFootball League • Direct Head-to-Head</text>
+        `}
+    </svg>
+    `;
+
+    return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
 module.exports = {
     generatePlayerCard,
-    generateUserStatsCard
+    generateUserStatsCard,
+    generateVersusCard
 };
