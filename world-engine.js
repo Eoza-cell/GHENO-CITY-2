@@ -186,12 +186,13 @@ async function rememberNPC(npcId,entry,type='interaction'){
 }
 async function snapshot(place=''){
  const where={}; // Include the full atlas; the AI can select the current region from it.
- const [regions,locations,factions,events,conflicts,laws,disciplines]=await Promise.all([Region.findAll(),Location.findAll({where,limit:100}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8}),Law.findAll({where:{active:true},limit:20}),Discipline.findAll({order:[['name','ASC']]})]);
- return {regions,locations,factions,events,conflicts,laws,disciplines,featureCount:FEATURES.length};
+ const [regions,locations,factions,events,conflicts,laws,disciplines,kingdoms]=await Promise.all([Region.findAll(),Location.findAll({where,limit:100}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8}),Law.findAll({where:{active:true},limit:20}),Discipline.findAll({order:[['name','ASC']]}),Kingdom.findAll({order:[['continent','ASC'],['name','ASC']]})]);
+ return {regions,locations,factions,events,conflicts,laws,disciplines,kingdoms,featureCount:FEATURES.length};
 }
 async function worldContext(place=''){
  const s=await snapshot(place), lines=['ÉTAT PERSISTANT DU MONDE ATR'];
- for(const r of s.regions)lines.push('Région '+r.name+': '+r.climate+', stabilité '+r.stability+'/100, danger '+r.danger+'/100. '+r.lore);
+ for(const r of s.regions)lines.push('CONTINENT '+r.name+': '+r.climate+', stabilité '+r.stability+'/100, danger '+r.danger+'/100. '+r.lore);
+ for(const k of s.kingdoms)lines.push('ROYAUME '+k.name+' | Continent: '+(k.continent||'inconnu')+' | Dirigeant: '+(k.leader||'inconnu')+' | Statut: '+k.status+' | Influence: '+k.influence+'/100 | Puissance militaire: '+k.militaryPower+'/100. '+k.description);
  for(const l of s.locations)lines.push('Lieu '+l.name+': '+l.description+' Services: '+json(l.services).join(', ')+'. Population '+l.population+', prospérité '+l.prosperity+', sécurité '+l.security+'.');
  for(const f of s.factions)lines.push('Faction '+f.name+': chef '+f.leader+', influence '+f.influence+', légitimité '+f.legitimacy+'. '+f.ideology+' Agenda: '+f.agenda);
  for(const e of s.events)lines.push('Événement '+e.title+': '+e.description);
