@@ -154,14 +154,7 @@ async function connectToWhatsApp() {
   }
 
   if (process.env.RESET_SESSION === 'true') {
-      const { Creds } = require('./database');
-      console.log('⚠️ [AUTH] RESET_SESSION=true détecté. Nettoyage complet de la session...');
-      try {
-          await Creds.destroy({ where: {}, truncate: true });
-          console.log('✅ [AUTH] Session réinitialisée avec succès.');
-      } catch (e) {
-          console.error('[AUTH] Erreur lors du nettoyage de la session:', e.message);
-      }
+      console.warn('[AUTH] RESET_SESSION est défini, mais la session persistante est conservée pour éviter un nouveau pairage à chaque redémarrage. Retire cette variable après une réinitialisation volontaire.');
   }
 
   const { state, saveCreds } = await useDatabaseAuth();
