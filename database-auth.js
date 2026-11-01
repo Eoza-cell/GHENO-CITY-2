@@ -12,6 +12,9 @@ const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
 const useDatabaseAuth = async () => {
     let creds;
     let keys = {};
+    // Baileys peut émettre plusieurs creds.update presque simultanément.
+    // Sérialiser les écritures évite qu'un ancien snapshot écrase le plus récent.
+    let persistenceQueue = Promise.resolve();
 
     // Helper function to read a file from the database
     const readData = async (key) => {
@@ -29,7 +32,8 @@ const useDatabaseAuth = async () => {
     const writeData = async (key, data) => {
         try {
             const value = JSON.stringify(data, BufferJSON.replacer);
-            await Creds.upsert({ key, value });
+            persistenceQueue = persistenceQueue.catch(() => {}).then(() => Creds.upsert({ key, value }));
+            return persistenceQueue;
         } catch (error) {
             console.error(`[AUTH-DB] Écriture impossible pour "${key}"`, error);
             throw error;
@@ -39,7 +43,8 @@ const useDatabaseAuth = async () => {
     // Helper function to remove data from the database
     const removeData = async (key) => {
         try {
-            await Creds.destroy({ where: { key } });
+            persistenceQueue = persistenceQueue.catch(() => {}).then(() => Creds.destroy({ where: { key } }));
+            return persistenceQueue;
         } catch (error) {
             console.error(`[AUTH-DB] Suppression impossible pour "${key}"`, error);
             throw error;
