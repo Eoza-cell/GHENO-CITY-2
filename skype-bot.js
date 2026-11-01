@@ -22,6 +22,28 @@ const { startProactiveAIEngagement } = require('./proactive-engagement');
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
 let currentQrCode = null;
+let activeSocket = null;
+let connectionStarting = false;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+let reconnectScheduled = false;
+const MAX_RECONNECT_DELAY = 60000;
+
+function scheduleWhatsAppReconnect(reason, minimumDelay = 5000) {
+    if (reconnectScheduled || reconnectTimer || isWhatsAppConnected) return;
+    reconnectScheduled = true;
+    reconnectAttempts += 1;
+    const backoff = Math.min(MAX_RECONNECT_DELAY, Math.max(minimumDelay, 3000 * (2 ** Math.min(reconnectAttempts - 1, 5))));
+    const jitter = Math.floor(Math.random() * 1500);
+    const wait = backoff + jitter;
+    console.warn(`[CONN] Reconnexion planifiée dans ${Math.round(wait / 1000)}s (tentative ${reconnectAttempts}) — ${reason}`);
+    reconnectTimer = setTimeout(async () => {
+        reconnectTimer = null;
+        reconnectScheduled = false;
+        try { await connectToWhatsApp(); }
+        catch (error) { console.error('[CONN] Échec de relance:', error.message); scheduleWhatsAppReconnect('échec de relance'); }
+    }, wait);
+}
 
 const server = http.createServer(async (req, res) => {
     if (req.url === '/pairing') {
@@ -121,6 +143,12 @@ server.listen(PORT, () => {
 const messageQueue = new PQueue({ concurrency: 5 });
 
 async function connectToWhatsApp() {
+  if (isWhatsAppConnected || connectionStarting || (activeSocket && activeSocket.ws && activeSocket.ws.readyState === 1)) {
+      console.log('[CONN] Démarrage ignoré : une connexion WhatsApp est déjà active ou en cours.');
+      return;
+  }
+  connectionStarting = true;
+  try {
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
       fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
   }
@@ -153,6 +181,7 @@ async function connectToWhatsApp() {
     }
   });
 
+  activeSocket = sock;
   sock.ev.on('creds.update', async () => {
     try {
       await saveCreds();
@@ -260,34 +289,28 @@ async function connectToWhatsApp() {
 
       console.log(`[CONN] Fermée. Code: ${statusCode}, Conflict: ${isConflict}, LoggedOut: ${isLoggedOut}`);
 
-      if (isConflict) {
-          console.error('!!! CONFLIT DE SESSION : Le bot est connecté ailleurs.');
-          return;
-      }
+      if (activeSocket === sock) activeSocket = null;
+      currentPairingCode = null;
+      currentQrCode = null;
 
       if (isLoggedOut) {
-          console.log('[CONN] 401 Unauthorized / Déconnexion détectée. Nettoyage automatique des credentials...');
-          const { Creds } = require('./database');
-          try {
-              await Creds.destroy({ where: {}, truncate: true });
-              console.log('[CONN] Session réinitialisée. Attente de 15 secondes avant de regénérer un code...');
-              await delay(15000);
-              connectToWhatsApp();
-          } catch (e) {
-              console.error('[CONN] Erreur lors du nettoyage de la session deconnexion:', e.message);
-          }
+          console.error('[CONN] Session refusée (401). Arrêt automatique pour éviter de détruire une session valide. Une reconnexion WhatsApp est nécessaire.');
           return;
       }
 
-      const shouldReconnect = !isLoggedOut;
-      if (shouldReconnect) {
-        console.log('[CONN] Reconnexion dans 10s...');
-        await delay(10000);
-        connectToWhatsApp();
+      if (isConflict) {
+          console.error('[CONN] Conflit Baileys 440 : une autre instance utilise probablement cette session. Vérifie que Render ne lance qu’une seule instance et qu’aucun ancien déploiement ne tourne.');
+          scheduleWhatsAppReconnect('conflit de session 440', 25000);
+          return;
       }
+
+      scheduleWhatsAppReconnect('connexion fermée (' + (statusCode || 'sans code') + ')', 5000);
     } else if (connection === 'open') {
       console.log('Connecté à WhatsApp');
       isWhatsAppConnected = true;
+      reconnectAttempts = 0;
+      reconnectScheduled = false;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       try {
         await saveCreds();
         console.log('[AUTH] Snapshot final de session enregistré.');
@@ -360,6 +383,9 @@ async function connectToWhatsApp() {
         });
     }
   });
+  } finally {
+    connectionStarting = false;
+  }
 }
 
 if (require.main === module) {
