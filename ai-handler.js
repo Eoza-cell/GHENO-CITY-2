@@ -1417,6 +1417,27 @@ AUTORITÉ IA :
 AUTORISÉ À CONTRÔLER ET FAIRE PARLER CE PNJ.`).join('\n\n')
       : "Aucun PNJ présent dans la scène immédiate.";
 
+    let npcIndividualityBlock = '';
+    try {
+      const { NPCMemory } = require('./world-engine');
+      const profiles = await Promise.all(npcs.map(async npc => {
+        const memory = await NPCMemory.findByPk(npc.id);
+        if (!memory) return '';
+        return `PNJ : ${npc.name}
+Biographie : ${memory.biography || npc.description || 'Inconnue'}
+Traits : ${memory.traits || '[]'}
+Valeurs : ${memory.values || '[]'}
+Peurs : ${memory.fears || '[]'}
+Objectifs : ${memory.goals || '[]'}
+Humeur : ${memory.mood}; confiance envers ses relations : ${memory.trust}/100; stress : ${memory.stress}/100
+Souvenirs confirmés : ${memory.memories || '[]'}
+Règle : conserve sa personnalité, ses intérêts et ses souvenirs. Il peut refuser une demande qui contredit ses valeurs ou ses objectifs.`;
+      }));
+      npcIndividualityBlock = profiles.filter(Boolean).join('\\n\\n').slice(0, 5000);
+    } catch (npcProfileErr) {
+      console.error('[WORLD] NPC profile context failed:', npcProfileErr.message);
+    }
+
     // Persistent narrative memory survives Render restarts through Upstash Redis.
     // PostgreSQL remains authoritative for gameplay state.
     let persistentMemoryText = '';
@@ -1470,6 +1491,9 @@ ${npcsInSceneBlock}
 Environnement : ${player.location} - ${player.zone || 'Centre-ville'} - ${player.subLocation} (${kingdom?.description || "Secteur actif."})
 Événements / Conflits : ${worldConflicts || "Aucun conflit majeur immédiat."}
 Quêtes Actives : ${questState}
+
+=== INDIVIDUALITÉ ET MÉMOIRE DES PNJ PRÉSENTS ===
+${npcIndividualityBlock || 'Aucun profil individuel disponible.'}
 
 === MONDE VIVANT PERSISTANT (RÉGIONS, LIEUX, FACTIONS, LOIS, ÉVÉNEMENTS) ===
 ${livingWorldContext || 'Données du monde momentanément indisponibles.'}
