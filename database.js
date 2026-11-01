@@ -748,8 +748,7 @@ async function setupDatabase() {
     }
     console.log('Database synchronized.');
 
-    // Persistent living-world systems (locations, factions, laws, NPC memories).
-    await require('./world-engine').initializeWorld();
+    // The living world is initialized after canonical kingdoms and NPCs are seeded.
 
     // Seed initial game data if empty
     const dungeonCount = await Dungeon.count();
