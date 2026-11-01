@@ -1458,6 +1458,7 @@ Ambitions : ${profile?.ambitions || memory?.goals || '[]'}
 Habitudes : ${profile?.habits || '[]'}
 Conflit personnel : ${profile?.personalConflict || 'Aucun renseignement'}
 Relations connues : ${relations || 'Aucune relation documentée'}
+Relation avec le joueur actif : ${playerBond}
 Humeur : ${memory?.mood || 'neutre'}; confiance : ${memory?.trust ?? 0}/100; stress : ${memory?.stress ?? 10}/100
 Souvenirs confirmés : ${memory?.memories || '[]'}
 Règle : joue ce PNJ comme un individu autonome. Ne change pas ses valeurs, son histoire ou ses relations sans événement vécu et confirmé. Il peut mentir, refuser, négocier, partir ou agir selon ses propres intérêts.`;
