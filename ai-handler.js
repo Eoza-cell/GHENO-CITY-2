@@ -13,7 +13,7 @@ const { processActions } = require('./action-processor');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
-const { formatRankProfile } = require('./rank-power');
+const { formatRankProfile, rankIndex } = require('./rank-power');
 const { getNarrativeContext, formatMemoryContext, rememberValidatedAction } = require('./upstash-memory');
 
 /**
@@ -868,15 +868,12 @@ async function handleFreeAction(sock, message, player, actionText) {
       hints.push(`⚠️ MÉMOIRE RÉCENTE : ${player.name} a récemment vécu : ${recentGains.map(g => g.entry).join(' | ')}.`);
   }
 
-  const availableQuests = await Quest.findAll({
-      where: {
-          [Op.or]: [
-              { rank_required: player.rank },
-              { rank_required: 'F' }
-          ]
-      },
-      limit: 5
-  });
+  const questCandidates = await Quest.findAll({ limit: 100 });
+  const playerRankIndex = rankIndex(player.rank);
+  const availableQuests = questCandidates
+      .filter(q => rankIndex(q.rank_required) <= Math.max(1, playerRankIndex))
+      .sort((a, b) => rankIndex(a.rank_required) - rankIndex(b.rank_required))
+      .slice(0, 8);
 
   hints.push("⚠️ LOIS DE CAUSALITÉ & ANTI-TRICHE : Le monde est un écosystème logique. Un joueur ne peut PAS nager 3h sans compétence spéciale (il se noie en 5min s'il est Rang F).");
   hints.push("⚠️ SENSORIALITÉ : Un joueur ne ressent pas les autres à distance sans compétence.");
