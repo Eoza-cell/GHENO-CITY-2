@@ -48,6 +48,10 @@ commands.set('ping', async (sock, message) => {
 
 commands.set('world', async (sock, message) => { const data = await require('./world-engine').snapshot(); const text = ['🌍 ATLAS VIVANT D’AETHERYS', ...data.regions.map(r => r.name + ' — stabilité ' + r.stability + '/100, danger ' + r.danger + '/100'), ...data.locations.map(l => l.name + ': ' + l.description), ...data.factions.map(x => 'Faction ' + x.name + ' — ' + x.ideology)].join('\n'); await sock.sendMessage(message.key.remoteJid, { text: text.slice(0, 6000) }); });
 
+commands.set('factions', async (sock, message) => { const rows = await require('./world-engine').Faction.findAll({ order: [['influence','DESC']] }); const text = ['🏛️ FACTIONS D’AETHERYS', ...rows.map(x => x.name + ' — dirigeant : ' + x.leader + '\nInfluence : ' + x.influence + '/100 | Légitimité : ' + x.legitimacy + '/100\n' + x.ideology + '\nAgenda : ' + x.agenda)].join('\n\n'); await sock.sendMessage(message.key.remoteJid, { text }); });
+commands.set('pouvoirs', async (sock, message) => { const rows = await require('./world-engine').Discipline.findAll({ order: [['name','ASC']] }); const text = ['✨ DISCIPLINES DE POUVOIR', ...rows.map(x => x.name + ' — source : ' + x.source + '\n' + x.philosophy + '\nLimites : ' + x.limits + '\nContres : ' + x.counters)].join('\n\n'); await sock.sendMessage(message.key.remoteJid, { text }); });
+commands.set('lois', async (sock, message) => { const rows = await require('./world-engine').Law.findAll({ where: { active: true } }); const text = ['⚖️ CODES DES ROYAUMES', ...rows.map(x => x.realm + ' — ' + x.title + '\n' + x.description)].join('\n\n'); await sock.sendMessage(message.key.remoteJid, { text }); });
+
 // Command: /start
 commands.set('start', async (sock, message) => {
   const jid = getJid(message);
