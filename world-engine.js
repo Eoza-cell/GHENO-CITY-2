@@ -109,8 +109,8 @@ async function rememberNPC(npcId,entry,type='interaction'){
 }
 async function snapshot(place=''){
  const where={}; // Include the full atlas; the AI can select the current region from it.
- const [regions,locations,factions,events,conflicts]=await Promise.all([Region.findAll(),Location.findAll({where,limit:25}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8})]);
- return {regions,locations,factions,events,conflicts,featureCount:FEATURES.length};
+ const [regions,locations,factions,events,conflicts,laws,disciplines]=await Promise.all([Region.findAll(),Location.findAll({where,limit:25}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8}),Law.findAll({where:{active:true},limit:20}),Discipline.findAll({order:[['name','ASC']]})]);
+ return {regions,locations,factions,events,conflicts,laws,disciplines,featureCount:FEATURES.length};
 }
 async function worldContext(place=''){
  const s=await snapshot(place), lines=['ÉTAT PERSISTANT DU MONDE ATR'];
@@ -119,7 +119,9 @@ async function worldContext(place=''){
  for(const f of s.factions)lines.push('Faction '+f.name+': chef '+f.leader+', influence '+f.influence+', légitimité '+f.legitimacy+'. '+f.ideology+' Agenda: '+f.agenda);
  for(const e of s.events)lines.push('Événement '+e.title+': '+e.description);
  for(const c of s.conflicts)lines.push('Conflit '+c.title+': '+c.description);
- return lines.join('\n').slice(0,7000);
+ for(const l of s.laws)lines.push('Loi de '+l.realm+' — '+l.title+': '+l.description);
+ for(const p of s.disciplines)lines.push('Pouvoir '+p.name+' (source '+p.source+'): '+p.philosophy+' Limites: '+p.limits+' Contres: '+p.counters);
+ return lines.join('\n').slice(0,9000);
 }
 async function tickWorld(){
  const npcRows=await NPC.findAll({limit:500});
