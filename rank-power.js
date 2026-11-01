@@ -16,5 +16,5 @@ function formatRankProfile(e={},action=''){const p=evaluateCombatant(e),t=assess
 'Une ruse concrète, une faiblesse exploitée, une préparation crédible ou des stats exceptionnelles peuvent permettre à un ∆ non-éveillé ou à un rang inférieur de vaincre un A-, A ou A+.',
 'Une tactique vague ou impossible ne donne aucun bonus. Un grand écart exige plusieurs avantages crédibles, un risque élevé et des conséquences. Les rangs supérieurs peuvent s’adapter et contrer.',
 '∆ signifie NON ÉVEILLÉ, pas faible par définition: potentiel, talent, technique, intelligence et statistiques peuvent être exceptionnels. Le rang n’est pas le niveau.'
-].join('\\n');}
+].join('\n');}
 module.exports={RANKS,RANK_POWER,STAT_CAPS,normalizeRank,rankIndex,statPower,evaluateCombatant,assessTactics,compareCombatants,formatRankProfile};
