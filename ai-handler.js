@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, NPCRelationship, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
 const { buildSceneVisual } = require('./world-visuals');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
@@ -1421,17 +1421,31 @@ AUTORISÉ À CONTRÔLER ET FAIRE PARLER CE PNJ.`).join('\n\n')
     try {
       const { NPCMemory, NPCProfile, NPCSocialLink } = require('./world-engine');
       const npcIds = npcs.map(npc => npc.id);
-      const links = npcIds.length ? await NPCSocialLink.findAll({
-        where: { [Op.or]: [{ npcA: { [Op.in]: npcIds } }, { npcB: { [Op.in]: npcIds } }] },
-        limit: 80
-      }) : [];
+      const [links, playerRelations] = npcIds.length ? await Promise.all([
+        NPCSocialLink.findAll({
+          where: { [Op.or]: [{ npcA: { [Op.in]: npcIds } }, { npcB: { [Op.in]: npcIds } }] },
+          limit: 160
+        }),
+        NPCRelationship.findAll({
+          where: { PlayerWhatsappId: player.whatsappId, NPCId: { [Op.in]: npcIds } }
+        })
+      ]) : [[], []];
+      const npcNames = new Map(npcs.map(npc => [npc.id, npc.name]));
+      const playerRelationByNpc = new Map(playerRelations.map(relation => [relation.NPCId, relation]));
       const profiles = await Promise.all(npcs.map(async npc => {
         const [memory, profile] = await Promise.all([
           NPCMemory.findByPk(npc.id), NPCProfile.findByPk(npc.id)
         ]);
         if (!memory && !profile) return '';
         const relations = links.filter(link => link.npcA === npc.id || link.npcB === npc.id)
-          .map(link => `${link.relation} (lien ${link.strength}/100)`).slice(0, 5).join(', ');
+          .map(link => {
+            const otherId = link.npcA === npc.id ? link.npcB : link.npcA;
+            return `${npcNames.get(otherId) || 'PNJ inconnu'} : ${link.relation} (${link.strength}/100) — ${link.history || 'historique non précisé'}`;
+          }).slice(0, 5).join('; ');
+        const playerRelation = playerRelationByNpc.get(npc.id);
+        const playerBond = playerRelation
+          ? `Confiance ${playerRelation.trust}/100, respect ${playerRelation.respect}/100, peur ${playerRelation.fear}/100, réputation ${playerRelation.reputation}/100`
+          : 'Aucune relation personnelle enregistrée avec ce joueur';
         return `PNJ : ${npc.name}
 Biographie : ${profile?.biography || memory?.biography || npc.description || 'Inconnue'}
 Apparence : ${profile?.appearance || npc.description || 'Non documentée'}
