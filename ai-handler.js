@@ -1636,12 +1636,21 @@ ${infiniteRPState}
         subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
 
-    // Keep a durable memory for named NPCs who actually took part in this interaction.
+    // Save a compact memory only when the player explicitly mentions a present NPC.
     try {
         const worldEngine = require('./world-engine');
+        const interactionText = (String(actionText || '') + ' ' + String(content || '')).toLocaleLowerCase();
         for (const npc of npcs) {
-            const npcName = String(npc.name || '');
-            if (npcName && new RegExp(npcName.replace(/[.*+?^${}()|[\]\\]/g, '\\    // Persist validated narrative continuity in Upstash.'), 'i').test(actionText + ' ' + content)) {
+            const npcName = String(npc.name || '').toLocaleLowerCase();
+            if (npcName.length > 1 && interactionText.includes(npcName)) {
+                await worldEngine.rememberNPC(npc.id, `Interaction avec ${player.name}: ${String(actionText).slice(0, 240)}`);
+            }
+        }
+    } catch (npcMemoryErr) {
+        console.error('[WORLD] NPC memory write failed:', npcMemoryErr.message);
+    }
+
+    // Persist validated narrative continuity in Upstash.'), 'i').test(actionText + ' ' + content)) {
                 await worldEngine.rememberNPC(npc.id, `Interaction avec ${player.name}: ${String(actionText).slice(0, 240)}`);
             }
         }
