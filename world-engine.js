@@ -18,6 +18,17 @@ const Faction = sequelize.define('WorldFaction', {
  influence:{type:DataTypes.INTEGER,defaultValue:30}, military:{type:DataTypes.INTEGER,defaultValue:20},
  legitimacy:{type:DataTypes.INTEGER,defaultValue:50}, territory:DataTypes.TEXT, agenda:DataTypes.TEXT
 });
+const NPCProfile = sequelize.define('NPCWorldProfile', {
+ npcId:{type:DataTypes.INTEGER,primaryKey:true}, biography:DataTypes.TEXT, appearance:DataTypes.TEXT,
+ voice:DataTypes.TEXT, values:DataTypes.TEXT, fears:DataTypes.TEXT, ambitions:DataTypes.TEXT,
+ habits:DataTypes.TEXT, socialStyle:DataTypes.TEXT, professionDetail:DataTypes.TEXT,
+ personalConflict:DataTypes.TEXT, reputation:DataTypes.TEXT
+});
+const NPCSocialLink = sequelize.define('NPCSocialLink', {
+ id:{type:DataTypes.INTEGER,autoIncrement:true,primaryKey:true}, npcA:{type:DataTypes.INTEGER,allowNull:false},
+ npcB:{type:DataTypes.INTEGER,allowNull:false}, relation:{type:DataTypes.STRING}, strength:{type:DataTypes.INTEGER,defaultValue:0},
+ history:DataTypes.TEXT
+});
 const NPCMemory = sequelize.define('NPCMemory', {
  npcId:{type:DataTypes.INTEGER,primaryKey:true}, biography:DataTypes.TEXT, traits:DataTypes.TEXT,
  values:DataTypes.TEXT, fears:DataTypes.TEXT, goals:DataTypes.TEXT, secrets:DataTypes.TEXT,
@@ -53,15 +64,38 @@ const FEATURES = [
 ];
 
 async function initializeWorld(){
- for(const m of [Region,Location,Faction,NPCMemory,Event,Market,Discipline,Law]) await m.sync();
- const regions=[
- ['elion','Empire Impérial d’Elion','tempéré','Cour impériale, noblesse et académies',['fer','céréales','mana'],78,20,'Le pouvoir est partagé entre la Couronne, les maisons nobles et les académies.'],
- ['valkyrr','Valkyrr','froid','Guildes, pactes et technologie éthérique',['cristal','mithril','éther'],65,35,'Les conseils de guildes arbitrent les intérêts des cités.'],
- ['gheno','Gheno souterrain','souterrain','Réseaux clandestins et communautés autonomes',['reliques','métaux'],42,65,'Le pouvoir est fragmenté entre syndicats et familles.'],
- ['necropolis','Nécropolis','brumeux','Culte des ancêtres et rites funéraires',['essence','obsidienne'],55,75,'Les Veilleurs protègent les stèles et les archives.'],
- ['caelum','Caelum','maritime','Cités portuaires et navigateurs',['perles','poissons'],68,55,'Le commerce maritime finance les cités.']
- ];
- for(const [k,n,c,u,r,s,d,l] of regions) await Region.findOrCreate({where:{key:k},defaults:{key:k,name:n,climate:c,culture:u,resources:JSON.stringify(r),stability:s,danger:d,lore:l}});
+ for(const m of [Region,Location,Faction,NPCMemory,NPCProfile,NPCSocialLink,Event,Market,Discipline,Law]) await m.sync();
+ // Les continents et royaumes proviennent du catalogue historique du bot.
+ const kingdoms = await Kingdom.findAll({order:[['continent','ASC'],['name','ASC']]});
+ const byContinent = new Map();
+ for(const kingdom of kingdoms){
+   const continent=String(kingdom.continent||'Aetheria').trim();
+   if(!byContinent.has(continent)) byContinent.set(continent,[]);
+   byContinent.get(continent).push(kingdom);
+ }
+ for(const [continent,realmList] of byContinent){
+   const regionKey=key(continent);
+   const [region]=await Region.findOrCreate({where:{key:regionKey},defaults:{
+     key:regionKey,name:continent,climate:'variable',culture:'Cultures et peuples des royaumes de '+continent,
+     resources:JSON.stringify([]),stability:70,danger:25,
+     lore:'Continent composé de '+realmList.length+' royaume(x): '+realmList.map(k=>k.name).join(', ')+'.'
+   }});
+   await region.update({lore:'Continent composé de '+realmList.length+' royaume(x): '+realmList.map(k=>k.name).join(', ')+'.'});
+   for(const kingdom of realmList){
+     const cityMatch=String(kingdom.description||'').match(/Villes\s*:\s*([^.]*)/i);
+     const cities=cityMatch?cityMatch[1].split(',').map(v=>v.trim()).filter(Boolean):[];
+     for(const city of cities){
+       const cityKey=key(continent+'_'+kingdom.name+'_'+city);
+       await Location.findOrCreate({where:{key:cityKey},defaults:{
+         key:cityKey,regionKey,name:city,kind:'city',
+         description:city+' est une ville du royaume '+kingdom.name+', sur le continent '+continent+'.',
+         services:JSON.stringify(['commerce','vie locale','services du royaume']),
+         ownerFaction:kingdom.name,population:1000,prosperity:50,security:50
+       }});
+     }
+   }
+ }
+ // Lieux emblématiques déjà présents dans le moteur, conservés comme sous-lieux.
  const places=[
  ['palais_elion','elion','Palais Impérial','palace','Siège de la Couronne et des audiences.',['audience','archives','cour']],
  ['place_marche','elion','Place du Marché','market','Artisans, négociants et voyageurs.',['commerce','rumeurs','artisanat']],
@@ -98,9 +132,52 @@ async function initializeWorld(){
  ['necropolis_rites','Nécropolis','Protection des stèles','Le déplacement d’une stèle exige l’accord des Veilleurs.','tradition',4]
  ];
  for(const [lawKey,realm,title,description,category,severity] of laws) await Law.findOrCreate({where:{lawKey},defaults:{lawKey,realm,title,description,category,severity}});
- const npcRows=await NPC.findAll();
- for(const n of npcRows) await NPCMemory.findOrCreate({where:{npcId:n.id},defaults:{npcId:n.id,biography:n.description||'Histoire encore inconnue.',traits:JSON.stringify([n.personality||'réservé',n.role||'habitant',n.specialty||'sans spécialité']),values:JSON.stringify(['survie','dignité']),fears:JSON.stringify(['perdre ses proches']),goals:JSON.stringify(['préserver ses intérêts']),secrets:'[]',memories:'[]',schedule:JSON.stringify({matin:'activité',midi:'échanges',soir:'foyer'})}});
- console.log('[WORLD] Monde initialisé:',await Location.count(),'lieux,',await Faction.count(),'factions,',npcRows.length,'PNJ enrichis.');
+ const npcRows=await NPC.findAll({order:[['id','ASC']]});
+ const choose=(arr,seed)=>arr[Math.abs(seed)%arr.length];
+ const hash=(value)=>{let h=216.6136261;for(const ch of String(value||''))h=Math.imul(h^ch.charCodeAt(0),16777619);return h>>>0;};
+ const valueSets={
+   traits:['observateur','méfiant','patient','ambitieux','généreux','fier','ironique','discipliné','curieux','impulsif','prudent','loyal','indépendant','rêveur','calculateur'],
+   values:['honneur','famille','liberté','savoir','richesse','justice','tradition','survie','foi','loyauté','reconnaissance','vengeance'],
+   fears:['être oublié','perdre un proche','être trahi','échouer publiquement','perdre son statut','ne plus maîtriser son pouvoir','être enfermé','voir son foyer détruit'],
+   goals:['protéger son entourage','gagner en influence','devenir maître de son art','réunir sa famille','découvrir un secret ancien','rembourser une dette','quitter son royaume','fonder une activité'],
+   habits:['consulter les nouvelles au réveil','prendre un repas avec ses proches','s entraîner avant le travail','tenir un carnet personnel','observer les passants','visiter un lieu familier le soir'],
+   voices:['voix grave et posée','débit rapide et nerveux','ton doux mais ferme','voix rauque et basse','parole précise et formelle','accent régional marqué'],
+   conflicts:['un secret familial pèse sur ses décisions','une dette limite ses choix','une rivalité ancienne influence ses relations','il hésite entre ambition et loyauté','il protège une personne sans le révéler','il cherche à réparer une faute passée']
+ };
+ for(const n of npcRows){
+   const seed=hash(n.id+':'+n.name), role=n.role||'habitant', spec=n.specialty||'aucune spécialité';
+   const traits=[choose(valueSets.traits,seed),choose(valueSets.traits,seed>>>3),String(n.personality||'').trim()].filter(Boolean);
+   const values=[choose(valueSets.values,seed>>>5),choose(valueSets.values,seed>>>8)];
+   const fears=[choose(valueSets.fears,seed>>>11)];
+   const goals=[choose(valueSets.goals,seed>>>14)];
+   const appearance=n.description||'Apparence non documentée.';
+   const biography=(n.description||n.name+' mène une vie encore peu connue.')+' Son métier de '+role.toLowerCase()+' et sa spécialité ('+spec+') influencent son quotidien dans '+(n.location||'son royaume')+'.';
+   await NPCProfile.findOrCreate({where:{npcId:n.id},defaults:{
+     npcId:n.id,biography,appearance,voice:choose(valueSets.voices,seed>>>17),
+     values:JSON.stringify(values),fears:JSON.stringify(fears),ambitions:JSON.stringify(goals),
+     habits:JSON.stringify([choose(valueSets.habits,seed>>>20),choose(valueSets.habits,seed>>>23)]),
+     socialStyle:traits.join(', '),professionDetail:role+' — '+spec,
+     personalConflict:choose(valueSets.conflicts,seed>>>26),reputation:JSON.stringify({public:50,local:50})
+   }});
+   await NPCMemory.findOrCreate({where:{npcId:n.id},defaults:{
+     npcId:n.id,biography,traits:JSON.stringify(traits),values:JSON.stringify(values),fears:JSON.stringify(fears),
+     goals:JSON.stringify(goals),secrets:'[]',memories:'[]',schedule:JSON.stringify({matin:'routine personnelle',midi:'travail ou études',soir:'vie sociale ou repos'})
+   }});
+ }
+ // Liens sociaux persistants : les habitants d'un même lieu se connaissent.
+ const groups=new Map();
+ for(const n of npcRows){const k=String(n.location||'inconnu');if(!groups.has(k))groups.set(k,[]);groups.get(k).push(n);}
+ for(const group of groups.values()){
+   for(let i=0;i<group.length-1;i++){
+     const a=group[i],b=group[i+1];
+     const relation=choose(['collègues','connaissances','amis','rivaux','voisins','membres du même cercle'],hash(a.id+':'+b.id));
+     await NPCSocialLink.findOrCreate({where:{npcA:a.id,npcB:b.id},defaults:{
+       npcA:a.id,npcB:b.id,relation,strength:20+(hash(b.id+':'+a.id)%61),
+       history:'Se connaissent parce qu’ils vivent ou travaillent dans le même lieu.'
+     }});
+   }
+ }
+ console.log('[WORLD] Atlas historique synchronisé:',byContinent.size,'continents,',kingdoms.length,'royaumes,',await Location.count(),'lieux,',npcRows.length,'PNJ individualisés.');
 }
 async function rememberNPC(npcId,entry,type='interaction'){
  if(!npcId||!entry)return; const [m]=await NPCMemory.findOrCreate({where:{npcId},defaults:{npcId}});
@@ -109,7 +186,7 @@ async function rememberNPC(npcId,entry,type='interaction'){
 }
 async function snapshot(place=''){
  const where={}; // Include the full atlas; the AI can select the current region from it.
- const [regions,locations,factions,events,conflicts,laws,disciplines]=await Promise.all([Region.findAll(),Location.findAll({where,limit:25}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8}),Law.findAll({where:{active:true},limit:20}),Discipline.findAll({order:[['name','ASC']]})]);
+ const [regions,locations,factions,events,conflicts,laws,disciplines]=await Promise.all([Region.findAll(),Location.findAll({where,limit:100}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8}),Law.findAll({where:{active:true},limit:20}),Discipline.findAll({order:[['name','ASC']]})]);
  return {regions,locations,factions,events,conflicts,laws,disciplines,featureCount:FEATURES.length};
 }
 async function worldContext(place=''){
@@ -124,8 +201,12 @@ async function worldContext(place=''){
  return lines.join('\n').slice(0,9000);
 }
 async function tickWorld(){
- const npcRows=await NPC.findAll({limit:500});
- for(const n of npcRows) await NPCMemory.findOrCreate({where:{npcId:n.id},defaults:{npcId:n.id,biography:n.description||'Histoire encore inconnue.',traits:JSON.stringify([n.personality||'réservé',n.role||'habitant',n.specialty||'sans spécialité']),values:JSON.stringify(['survie','dignité']),fears:JSON.stringify(['perdre ses proches']),goals:JSON.stringify(['préserver ses intérêts']),secrets:'[]',memories:'[]'}});
+ const npcRows=await NPC.findAll({limit:1000});
+ for(const n of npcRows){
+   const seed=String(n.id)+':'+String(n.name); const h=seed.split('').reduce((a,ch)=>Math.imul(a^ch.charCodeAt(0),16777619)>>>0,2166136261);
+   const [profile]=await NPCProfile.findOrCreate({where:{npcId:n.id},defaults:{npcId:n.id,biography:(n.description||'Histoire encore inconnue.')+' Métier: '+(n.role||'habitant')+'. Spécialité: '+(n.specialty||'aucune')+'.',appearance:n.description||'Apparence non documentée.',voice:['voix posée','ton nerveux','parole douce','voix grave','ton formel'][h%5],values:JSON.stringify(['famille','survie','honneur'].slice(0,1+(h%3))),fears:JSON.stringify(['être trahi','perdre un proche'].slice(0,1+(h%2))),ambitions:JSON.stringify(['protéger son entourage','gagner en influence']),habits:JSON.stringify(['observer les passants','tenir un carnet']),socialStyle:['réservé','curieux','fier','patient','méfiant'][h%5],professionDetail:(n.role||'habitant')+' — '+(n.specialty||'sans spécialité'),personalConflict:'Une difficulté personnelle influence ses décisions.'}});
+   await NPCMemory.findOrCreate({where:{npcId:n.id},defaults:{npcId:n.id,biography:profile.biography,traits:JSON.stringify([profile.socialStyle,n.role||'habitant']),values:profile.values,fears:profile.fears,goals:profile.ambitions,secrets:'[]',memories:'[]'}});
+ }
  const now=new Date(), memories=await NPCMemory.findAll({limit:200});
  for(const m of memories){const stress=Math.max(0,Math.min(100,m.stress+(Math.random()<.12?2:Math.random()<.18?-2:0)));await m.update({stress,mood:stress>75?'tendu':stress<20?'serein':m.mood,lastSimulatedAt:now});}
  const markets=await Market.findAll({limit:200});
@@ -153,4 +234,4 @@ async function tickWorld(){
  if(Math.random()<.1){const places=await Location.findAll({limit:30});if(places.length){const p=places[Math.floor(Math.random()*places.length)];const title='Incident local à '+p.name;const eventKey=key(title)+'_'+Date.now();await Event.create({eventKey,title,category:'local',locationKey:p.key,description:'Un événement perturbe temporairement la vie quotidienne de '+p.name+'.',severity:2,consequences:JSON.stringify([{location:p.name}])});await WorldJournal.create({entry:title,importance:2,category:'world_event'});}}
 }
 async function marketQuote(name){const item=await Item.findOne({where:{name:{[Op.like]:'%'+name+'%'}}});if(!item)return null;const [m]=await Market.findOrCreate({where:{itemName:item.name},defaults:{itemName:item.name,basePrice:item.price||10,currentPrice:item.price||10}});return {name:item.name,price:m.currentPrice,supply:m.supply,demand:m.demand};}
-module.exports={initializeWorld,rememberNPC,snapshot,worldContext,tickWorld,marketQuote,FEATURES,Region,Location,Faction,NPCMemory,Event,Market,Discipline,Law};
+module.exports={initializeWorld,rememberNPC,snapshot,worldContext,tickWorld,marketQuote,FEATURES,Region,Location,Faction,NPCMemory,NPCProfile,NPCSocialLink,Event,Market,Discipline,Law};
