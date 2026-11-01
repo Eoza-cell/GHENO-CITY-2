@@ -899,13 +899,17 @@ async function setupDatabase() {
         ];
 
     for (const item of itemsToSeed) {
-        await Item.findOrCreate({ where: { name: item.name }, defaults: item });
+        // Avoid findOrCreate's temporary PL/pgSQL function/savepoint path on PostgreSQL.
+        // A failed statement there can poison the transaction and hide the original error.
+        const existingItem = await Item.findOne({ where: { name: item.name } });
+        if (!existingItem) await Item.create(item);
     }
 
     // Curated wardrobe: deterministic collections instead of only random clothing.
     const curatedWardrobe = buildWardrobeCatalog();
     for (const outfit of curatedWardrobe) {
-        await Item.findOrCreate({ where: { name: outfit.name }, defaults: outfit });
+        const existingOutfit = await Item.findOne({ where: { name: outfit.name } });
+        if (!existingOutfit) await Item.create(outfit);
     }
     console.log(`[WARDROBE] Curated catalog ready: ${curatedWardrobe.length} outfits.`);
 
