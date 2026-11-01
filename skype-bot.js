@@ -275,6 +275,8 @@ async function connectToWhatsApp() {
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
+      // Ignore les événements tardifs d'un ancien socket après une reconnexion.
+      if (activeSocket && activeSocket !== sock) return;
       isWhatsAppConnected = false;
       const disconnectError = lastDisconnect?.error;
       const statusCode = disconnectError?.output?.statusCode;
