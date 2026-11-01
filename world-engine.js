@@ -100,7 +100,7 @@ async function rememberNPC(npcId,entry,type='interaction'){
  await m.update({memories:JSON.stringify(memories.slice(-40))});
 }
 async function snapshot(place=''){
- const where=place?{name:{[Op.iLike]:'%'+place+'%'}}:{};
+ const where={}; // Include the full atlas; the AI can select the current region from it.
  const [regions,locations,factions,events,conflicts]=await Promise.all([Region.findAll(),Location.findAll({where,limit:25}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8})]);
  return {regions,locations,factions,events,conflicts,featureCount:FEATURES.length};
 }
@@ -121,5 +121,5 @@ async function tickWorld(){
  await Event.update({status:'resolved'},{where:{status:'active',endsAt:{[Op.lt]:now}}});
  if(Math.random()<.1){const places=await Location.findAll({limit:30});if(places.length){const p=places[Math.floor(Math.random()*places.length)];const title='Incident local à '+p.name;const eventKey=key(title)+'_'+Date.now();await Event.create({eventKey,title,category:'local',locationKey:p.key,description:'Un événement perturbe temporairement la vie quotidienne de '+p.name+'.',severity:2,consequences:JSON.stringify([{location:p.name}])});await WorldJournal.create({entry:title,importance:2,category:'world_event'});}}
 }
-async function marketQuote(name){const item=await Item.findOne({where:{name:{[Op.iLike]:'%'+name+'%'}}});if(!item)return null;const [m]=await Market.findOrCreate({where:{itemName:item.name},defaults:{itemName:item.name,basePrice:item.price||10,currentPrice:item.price||10}});return {name:item.name,price:m.currentPrice,supply:m.supply,demand:m.demand};}
+async function marketQuote(name){const item=await Item.findOne({where:{name:{[Op.like]:'%'+name+'%'}}});if(!item)return null;const [m]=await Market.findOrCreate({where:{itemName:item.name},defaults:{itemName:item.name,basePrice:item.price||10,currentPrice:item.price||10}});return {name:item.name,price:m.currentPrice,supply:m.supply,demand:m.demand};}
 module.exports={initializeWorld,rememberNPC,snapshot,worldContext,tickWorld,marketQuote,FEATURES,Region,Location,Faction,NPCMemory,Event,Market,Discipline,Law};
