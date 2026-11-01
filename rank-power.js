@@ -15,6 +15,6 @@ function formatRankProfile(e={},action=''){const p=evaluateCombatant(e),t=assess
 'Le rang crée un écart réel, mais ne décide jamais seul du vainqueur. Compare FOR/AGI/INT/DEF/LUK, PV/PM, compétences, équipement, expérience, portée, terrain, surprise, fatigue, blessures et objectifs.',
 'Une ruse concrète, une faiblesse exploitée, une préparation crédible ou des stats exceptionnelles peuvent permettre à un ∆ non-éveillé ou à un rang inférieur de vaincre un A-, A ou A+.',
 'Une tactique vague ou impossible ne donne aucun bonus. Un grand écart exige plusieurs avantages crédibles, un risque élevé et des conséquences. Les rangs supérieurs peuvent s’adapter et contrer.',
-'∆ signifie NON ÉVEILLÉ, pas faible par définition: potentiel, talent, technique, intelligence et statistiques peuvent être exceptionnels. Le rang n’est pas le niveau.'
+'∆ signifie NON ÉVEILLÉ, pas faible par définition: potentiel, talent, technique, intelligence et statistiques peuvent être exceptionnels. Le rang n’est pas le niveau.','La progression de rang exige un éveil, une épreuve officielle ou un exploit reconnu et validé en jeu; les XP et les niveaux seuls ne changent pas automatiquement le rang. Ne modifie jamais le rang dans la narration sans validation officielle.'
 ].join('\n');}
 module.exports={RANKS,RANK_POWER,STAT_CAPS,normalizeRank,rankIndex,statPower,evaluateCombatant,assessTactics,compareCombatants,formatRankProfile};
