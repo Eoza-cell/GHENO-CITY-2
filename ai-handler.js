@@ -13,6 +13,7 @@ const { processActions } = require('./action-processor');
 const { checkLevelUp } = require('./level-utils');
 const { isDay, getWeather } = require('./game-state');
 const { getRPTime, getWorldHeader } = require('./world-clock');
+const { formatRankProfile } = require('./rank-power');
 const { getNarrativeContext, formatMemoryContext, rememberValidatedAction } = require('./upstash-memory');
 
 /**
@@ -961,6 +962,8 @@ async function handleFreeAction(sock, message, player, actionText) {
 
   const playerState = `Nom:${player.name}${player.isGod?'(GOD)':''} | Race:${player.race} | Sexe:${player.gender} | Age:${player.age} | Métier:${player.occupation} | Org:${player.organization} | Inf:${player.influence} | Bio:${player.characterDescription} | Fam:${player.family} | Classe:${player.class}(${player.derivative}) | SP:${player.skillPoints} | Rang:${player.rank} | Niv:${player.level} | XP:${player.xp}/${player.level*100} | PV:${player.health}/${player.maxHealth} | PM:${player.mana}/${player.maxMana} | Hunger:${player.hunger}/100 | Sleep:${player.sleep}/100 | Col:${player.col} | Wanted:${player.wantedLevel}/10 | Prisonnier:${player.isPrisoner?'OUI':'NON'} | Lieu:${player.location} (${player.subLocation}) | Tenue:${player.equippedOutfit || 'Aucun vêtement'} (Durabilité: ${player.outfitDurability}%, Propreté: ${player.outfitCleanliness}) | STATS: FOR:${Math.round(mainFor)} AGI:${Math.round(mainAgi)} INT:${Math.round(mainInt)} DEF:${player.defense} LUK:${player.luck}${mainBond}`;
 
+  const rankPowerContext = formatRankProfile({ ...player.toJSON(), strength: mainFor, agility: mainAgi }, actionText);
+
   const inventory = player.inventory || [];
   const inventoryState = inventory.length > 0 ? "Inv: " + inventory.map(i => i.name).join(',') : "Inv: vide";
 
@@ -1507,6 +1510,9 @@ JOUEUR ACTIF :
 - État Physique : ${player.state || 'idle'} (PV: ${player.health}/${player.maxHealth}, PM: ${player.mana}/${player.maxMana})
 - TENUE OFFICIELLE : ${player.equippedOutfit || 'Tenue de base'} (Style: ${player.wardrobeStyle || 'standard'})
 ⚠️ Continuité visuelle : lorsque tu décris l'apparence de ${player.name}, respecte cette tenue et ne la remplace pas sans action explicite du joueur.
+
+=== ÉCHELLE DE PUISSANCE ET RÈGLES DE COMBAT ATR ===
+${rankPowerContext}
 
 === ACTION ACTUELLE DU JOUEUR ===
 "${actionText}"
