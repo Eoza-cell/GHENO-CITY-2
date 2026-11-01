@@ -128,6 +128,25 @@ async function tickWorld(){
  for(const m of memories){const stress=Math.max(0,Math.min(100,m.stress+(Math.random()<.12?2:Math.random()<.18?-2:0)));await m.update({stress,mood:stress>75?'tendu':stress<20?'serein':m.mood,lastSimulatedAt:now});}
  const markets=await Market.findAll({limit:200});
  for(const m of markets){const pressure=(m.demand-m.supply)/Math.max(20,m.supply);const next=Math.max(1,Math.round(m.currentPrice*(1+pressure*.02+(Math.random()-.5)*.04)));await m.update({currentPrice:next});}
+ const regions=await Region.findAll();
+ for(const r of regions){
+   const localEvents=await Event.count({where:{status:'active',locationKey:{[Op.like]:r.key+'%'}}});
+   const stability=Math.max(0,Math.min(100,r.stability+(localEvents>2?-1:Math.random()<.2?1:0)));
+   await r.update({stability});
+ }
+ const places=await Location.findAll();
+ for(const p of places){
+   const prosperity=Math.max(0,Math.min(100,p.prosperity+(Math.random()<.12?1:Math.random()<.1?-1:0)));
+   const security=Math.max(0,Math.min(100,p.security+(Math.random()<.08?1:Math.random()<.08?-1:0)));
+   await p.update({prosperity,security});
+ }
+ const factions=await Faction.findAll();
+ for(const f of factions){
+   const income=Math.max(5,Math.round(f.influence*.15));
+   const treasury=Math.max(0,f.treasury+income-Math.round(f.military*.08));
+   const legitimacy=Math.max(0,Math.min(100,f.legitimacy+(treasury>f.treasury?0.1:-0.1)));
+   await f.update({treasury,legitimacy});
+ }
  await Event.update({status:'resolved'},{where:{status:'active',endsAt:{[Op.lt]:now}}});
  if(Math.random()<.1){const places=await Location.findAll({limit:30});if(places.length){const p=places[Math.floor(Math.random()*places.length)];const title='Incident local à '+p.name;const eventKey=key(title)+'_'+Date.now();await Event.create({eventKey,title,category:'local',locationKey:p.key,description:'Un événement perturbe temporairement la vie quotidienne de '+p.name+'.',severity:2,consequences:JSON.stringify([{location:p.name}])});await WorldJournal.create({entry:title,importance:2,category:'world_event'});}}
 }
