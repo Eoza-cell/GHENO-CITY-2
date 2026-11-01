@@ -90,6 +90,14 @@ async function initializeWorld(){
  ['relique','Résonance des Reliques','Objets anciens','Effets singuliers et mémoire.','Compatibilité et dette.','Désaccord de résonance.']
  ];
  for(const [k,n,s,p,lim,c] of powers) await Discipline.findOrCreate({where:{key:k},defaults:{key:k,name:n,source:s,philosophy:p,limits:lim,counters:c}});
+ const laws=[
+ ['elion_magic','Empire Impérial d’Elion','Registre des arts','Les usages des arts à risque public sont encadrés par les autorités locales.','magie',3],
+ ['elion_duel','Empire Impérial d’Elion','Duel reconnu','Un duel public doit être déclaré et ne peut impliquer de tiers non consentants.','justice',2],
+ ['valkyrr_trade','Valkyrr','Charte des comptoirs','Les contrats marchands précisent quantité, qualité, délai et pénalités.','commerce',2],
+ ['gheno_debt','Gheno souterrain','Loi des dettes','Les dettes reconnues engagent débiteur et garant selon les usages du quartier.','commerce',3],
+ ['necropolis_rites','Nécropolis','Protection des stèles','Le déplacement d’une stèle exige l’accord des Veilleurs.','tradition',4]
+ ];
+ for(const [lawKey,realm,title,description,category,severity] of laws) await Law.findOrCreate({where:{lawKey},defaults:{lawKey,realm,title,description,category,severity}});
  const npcRows=await NPC.findAll();
  for(const n of npcRows) await NPCMemory.findOrCreate({where:{npcId:n.id},defaults:{npcId:n.id,biography:n.description||'Histoire encore inconnue.',traits:JSON.stringify([n.personality||'réservé',n.role||'habitant',n.specialty||'sans spécialité']),values:JSON.stringify(['survie','dignité']),fears:JSON.stringify(['perdre ses proches']),goals:JSON.stringify(['préserver ses intérêts']),secrets:'[]',memories:'[]',schedule:JSON.stringify({matin:'activité',midi:'échanges',soir:'foyer'})}});
  console.log('[WORLD] Monde initialisé:',await Location.count(),'lieux,',await Faction.count(),'factions,',npcRows.length,'PNJ enrichis.');
@@ -114,6 +122,8 @@ async function worldContext(place=''){
  return lines.join('\n').slice(0,7000);
 }
 async function tickWorld(){
+ const npcRows=await NPC.findAll({limit:500});
+ for(const n of npcRows) await NPCMemory.findOrCreate({where:{npcId:n.id},defaults:{npcId:n.id,biography:n.description||'Histoire encore inconnue.',traits:JSON.stringify([n.personality||'réservé',n.role||'habitant',n.specialty||'sans spécialité']),values:JSON.stringify(['survie','dignité']),fears:JSON.stringify(['perdre ses proches']),goals:JSON.stringify(['préserver ses intérêts']),secrets:'[]',memories:'[]'}});
  const now=new Date(), memories=await NPCMemory.findAll({limit:200});
  for(const m of memories){const stress=Math.max(0,Math.min(100,m.stress+(Math.random()<.12?2:Math.random()<.18?-2:0)));await m.update({stress,mood:stress>75?'tendu':stress<20?'serein':m.mood,lastSimulatedAt:now});}
  const markets=await Market.findAll({limit:200});
