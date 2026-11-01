@@ -99,7 +99,7 @@ const server = http.createServer(async (req, res) => {
             commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown',
             branch: process.env.RENDER_GIT_BRANCH || 'unknown',
             connected: isWhatsAppConnected,
-            database: process.env.DATABASE_URL || process.env.AIVEN_DATABASE_URL ? 'postgres-configured' : 'missing'
+            database: process.env.LOCAL_DATABASE === 'true' || !(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.AIVEN_DATABASE_URL) ? 'sqlite-local' : 'postgres-configured'
         }));
     }
 
@@ -156,7 +156,7 @@ async function connectToWhatsApp() {
   sock.ev.on('creds.update', async () => {
     try {
       await saveCreds();
-      console.log('[AUTH] Session WhatsApp persistée dans PostgreSQL.');
+      console.log(`[AUTH] Session WhatsApp persistée dans ${require('./database').sequelize.getDialect()}.`);
     } catch (error) {
       console.error('[AUTH] Échec de persistance des credentials:', error.message);
     }
