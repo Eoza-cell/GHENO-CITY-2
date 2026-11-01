@@ -3,25 +3,40 @@ const { execSync } = require('child_process');
 const { buildWardrobeCatalog } = require('./wardrobe-catalog');
 
 let sequelize;
-const dbUrl = (process.env.DATABASE_URL || process.env.AIVEN_DATABASE_URL || '').trim();
+// PostgreSQL managé : Render, Supabase, Neon, Aiven ou tout serveur compatible.
+const dbUrl = (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.AIVEN_DATABASE_URL || '').trim();
 
 if (!dbUrl) {
-  throw new Error('[DB] DATABASE_URL manquante. Configure l’URL PostgreSQL Aiven dans Render.');
+  throw new Error('[DB] URL PostgreSQL manquante. Configure DATABASE_URL dans Render.');
 }
 
-console.log('[DB] Connexion PostgreSQL distante obligatoire (Aiven/DATABASE_URL)...');
+let parsedDbUrl;
+try {
+  parsedDbUrl = new URL(dbUrl);
+  if (!['postgres:', 'postgresql:'].includes(parsedDbUrl.protocol)) {
+    throw new Error('Le schéma doit être postgres:// ou postgresql://');
+  }
+  if (!parsedDbUrl.hostname || !parsedDbUrl.username || !parsedDbUrl.pathname || parsedDbUrl.pathname === '/') {
+    throw new Error('URL PostgreSQL incomplète (hôte, utilisateur ou base manquant).');
+  }
+  if (!parsedDbUrl.password || /^(<password>|password|your_password|mot_de_passe)$/i.test(decodeURIComponent(parsedDbUrl.password))) {
+    throw new Error('Mot de passe PostgreSQL absent ou encore remplacé par un placeholder.');
+  }
+} catch (error) {
+  throw new Error('[DB] DATABASE_URL invalide : ' + error.message);
+}
+
+console.log(`[DB] Connexion PostgreSQL : ${parsedDbUrl.hostname} / base ${parsedDbUrl.pathname.slice(1)}`);
 sequelize = new Sequelize(dbUrl, {
   dialect: 'postgres',
   logging: false,
   dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
-    },
-    connectTimeout: 15000
+    ssl: { require: true, rejectUnauthorized: false },
+    connectTimeout: 20000,
+    application_name: 'GHENO-CITY-2'
   },
-  pool: { max: 5, min: 0, acquire: 30000, idle: 10000 },
-  retry: { max: 2 }
+  pool: { max: 5, min: 0, acquire: 45000, idle: 10000, evict: 1000 },
+  retry: { max: 3 }
 });
 
 // Separate database dedicated strictly to generated media assets / images
@@ -716,20 +731,16 @@ async function setupDatabase() {
       }
     }
 
+    // PostgreSQL n'accepte pas les commandes PRAGMA (spécifiques à SQLite).
+    // sync() sans alter préserve les tables existantes et crée uniquement celles absentes.
     try {
-        const qI = sequelize.getQueryInterface();
-        await qI.removeIndex('PlayerQuests', 'PlayerQuests_QuestId_unique');
-    } catch (e) {}
-
-    try {
-        await sequelize.query('PRAGMA foreign_keys = OFF;');
-        await sequelize.sync();
-        await mediaSequelize.sync();
-        await sequelize.query('PRAGMA foreign_keys = ON;');
-    } catch (e) {
-        console.warn('[DB] Sync warning:', e.message);
+      await sequelize.sync();
+      await mediaSequelize.sync();
+      console.log('[DB] Schéma PostgreSQL et stockage média synchronisés.');
+    } catch (error) {
+      console.error('[DB] Échec de synchronisation du schéma :', error.message);
+      throw error;
     }
-    console.log('Database synchronized.');
 
     // Seed initial game data if empty
     const dungeonCount = await Dungeon.count();
