@@ -1433,6 +1433,13 @@ AUTORISÉ À CONTRÔLER ET FAIRE PARLER CE PNJ.`).join('\n\n')
       persistentMemoryText = 'Mémoire persistante temporairement indisponible.';
     }
 
+    let livingWorldContext = '';
+    try {
+      livingWorldContext = await require('./world-engine').worldContext(player.location);
+    } catch (worldErr) {
+      console.error('[WORLD] Context unavailable:', worldErr.message);
+    }
+
     const fullPrompt = `=== 🚨 ÉTAT OFFICIEL DU JEU (VÉRITÉ ABSOLUE BD) ===
 Ces informations proviennent directement de la base de données officielle du jeu.
 Elles constituent la SEULE VÉRITÉ ABSOLUE du monde d'ATR.
@@ -1463,6 +1470,9 @@ ${npcsInSceneBlock}
 Environnement : ${player.location} - ${player.zone || 'Centre-ville'} - ${player.subLocation} (${kingdom?.description || "Secteur actif."})
 Événements / Conflits : ${worldConflicts || "Aucun conflit majeur immédiat."}
 Quêtes Actives : ${questState}
+
+=== MONDE VIVANT PERSISTANT (RÉGIONS, LIEUX, FACTIONS, LOIS, ÉVÉNEMENTS) ===
+${livingWorldContext || 'Données du monde momentanément indisponibles.'}
 
 === MÉMOIRE PERSISTANTE UPSTASH (CONTINUITÉ NARRATIVE) ===
 Cette mémoire contient des événements VALIDÉS et persistants entre les redémarrages.
@@ -1625,6 +1635,19 @@ ${infiniteRPState}
         location: player.location,
         subLocation: player.subLocation
     }).catch(e => console.error("[DB] MJ RPMessage log error:", e.message));
+
+    // Keep a durable memory for named NPCs who actually took part in this interaction.
+    try {
+        const worldEngine = require('./world-engine');
+        for (const npc of npcs) {
+            const npcName = String(npc.name || '');
+            if (npcName && new RegExp(npcName.replace(/[.*+?^${}()|[\]\\]/g, '\\    // Persist validated narrative continuity in Upstash.'), 'i').test(actionText + ' ' + content)) {
+                await worldEngine.rememberNPC(npc.id, `Interaction avec ${player.name}: ${String(actionText).slice(0, 240)}`);
+            }
+        }
+    } catch (npcMemoryErr) {
+        console.error('[WORLD] NPC memory write failed:', npcMemoryErr.message);
+    }
 
     // Persist validated narrative continuity in Upstash.
     // We intentionally save the action + validated impacts, not uncontrolled AI prose.
