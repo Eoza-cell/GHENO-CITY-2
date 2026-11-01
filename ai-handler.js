@@ -1419,21 +1419,36 @@ AUTORISÉ À CONTRÔLER ET FAIRE PARLER CE PNJ.`).join('\n\n')
 
     let npcIndividualityBlock = '';
     try {
-      const { NPCMemory } = require('./world-engine');
+      const { NPCMemory, NPCProfile, NPCSocialLink } = require('./world-engine');
+      const npcIds = npcs.map(npc => npc.id);
+      const links = npcIds.length ? await NPCSocialLink.findAll({
+        where: { [Op.or]: [{ npcA: { [Op.in]: npcIds } }, { npcB: { [Op.in]: npcIds } }] },
+        limit: 80
+      }) : [];
       const profiles = await Promise.all(npcs.map(async npc => {
-        const memory = await NPCMemory.findByPk(npc.id);
-        if (!memory) return '';
+        const [memory, profile] = await Promise.all([
+          NPCMemory.findByPk(npc.id), NPCProfile.findByPk(npc.id)
+        ]);
+        if (!memory && !profile) return '';
+        const relations = links.filter(link => link.npcA === npc.id || link.npcB === npc.id)
+          .map(link => `${link.relation} (lien ${link.strength}/100)`).slice(0, 5).join(', ');
         return `PNJ : ${npc.name}
-Biographie : ${memory.biography || npc.description || 'Inconnue'}
-Traits : ${memory.traits || '[]'}
-Valeurs : ${memory.values || '[]'}
-Peurs : ${memory.fears || '[]'}
-Objectifs : ${memory.goals || '[]'}
-Humeur : ${memory.mood}; confiance envers ses relations : ${memory.trust}/100; stress : ${memory.stress}/100
-Souvenirs confirmés : ${memory.memories || '[]'}
-Règle : conserve sa personnalité, ses intérêts et ses souvenirs. Il peut refuser une demande qui contredit ses valeurs ou ses objectifs.`;
+Biographie : ${profile?.biography || memory?.biography || npc.description || 'Inconnue'}
+Apparence : ${profile?.appearance || npc.description || 'Non documentée'}
+Voix : ${profile?.voice || 'À définir en jeu'}
+Métier : ${profile?.professionDetail || npc.role || 'Habitant'}
+Traits : ${memory?.traits || profile?.socialStyle || '[]'}
+Valeurs : ${profile?.values || memory?.values || '[]'}
+Peurs : ${profile?.fears || memory?.fears || '[]'}
+Ambitions : ${profile?.ambitions || memory?.goals || '[]'}
+Habitudes : ${profile?.habits || '[]'}
+Conflit personnel : ${profile?.personalConflict || 'Aucun renseignement'}
+Relations connues : ${relations || 'Aucune relation documentée'}
+Humeur : ${memory?.mood || 'neutre'}; confiance : ${memory?.trust ?? 0}/100; stress : ${memory?.stress ?? 10}/100
+Souvenirs confirmés : ${memory?.memories || '[]'}
+Règle : joue ce PNJ comme un individu autonome. Ne change pas ses valeurs, son histoire ou ses relations sans événement vécu et confirmé. Il peut mentir, refuser, négocier, partir ou agir selon ses propres intérêts.`;
       }));
-      npcIndividualityBlock = profiles.filter(Boolean).join('\\n\\n').slice(0, 5000);
+      npcIndividualityBlock = profiles.filter(Boolean).join('\\n\\n').slice(0, 7500);
     } catch (npcProfileErr) {
       console.error('[WORLD] NPC profile context failed:', npcProfileErr.message);
     }
