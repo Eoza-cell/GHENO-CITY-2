@@ -1125,8 +1125,18 @@ RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
   const pactState = playerPacts.length > 0 ? "Pactes: " + playerPacts.map(e => e.name).join(', ') : "Pas de pacte";
   const playerClubs = await player.getClubs();
   const clubState = playerClubs?.length > 0 ? "Clubs: " + playerClubs.map(c => c.name).join(', ') : "Pas de club";
-  const monsters = await Monster.findAll({ where: { rank: player.rank }, limit: 2 });
-  const monsterState = "Monstres: " + monsters.map(m => `${m.name}(PV:${m.health}, FOR:${m.strength}, DEF:${m.defense}, AGI:${m.agility}, INT:${m.intelligence})`).join(', ');
+  const monsters = await Monster.findAll({
+    where: { [Op.or]: [
+      { location: player.subLocation || player.location },
+      { subLocation: player.subLocation || player.location },
+      { region: player.location }
+    ] },
+    limit: 8,
+    order: [['isBoss', 'ASC'], ['rank', 'ASC']]
+  });
+  const monsterState = "Bestiaire local: " + monsters.map(m =>
+    `${m.name} [Rang ${m.rank}, ${m.rarity || 'commun'}; PV:${m.health}, FOR:${m.strength}, DEF:${m.defense}, AGI:${m.agility}, INT:${m.intelligence}; type:${m.speciesType || 'inconnu'}; capacité:${m.abilities || 'inconnue'}; faiblesse:${m.weaknesses || 'inconnue'}; comportement:${m.behavior || 'non documenté'}]`
+  ).join(' | ');
 
   const conflicts = await Conflict.findAll({ where: { status: 'active' } });
   const worldConflicts = conflicts.map(c => `[${c.title}] Kingdoms:${c.involvedKingdoms.join(', ')} - ${c.description}`).join(' | ');
