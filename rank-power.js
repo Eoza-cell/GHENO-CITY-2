@@ -1,0 +1,20 @@
+'use strict';
+const RANKS=['∆','F','E','D','C','B','A-','A','A+','S-','S','S+','SS','SSS','EX'];
+const RANK_POWER={'∆':8,F:18,E:32,D:52,C:82,B:125,'A-':185,A:225,'A+':275,'S-':350,S:440,'S+':560,SS:760,SSS:1100,EX:1700};
+const STAT_CAPS={'∆':25,F:50,E:100,D:150,C:250,B:400,'A-':500,A:600,'A+':750,'S-':900,S:1100,'S+':1400,SS:1800,SSS:2400,EX:5000};
+function normalizeRank(rank){const r=String(rank||'∆').trim().toUpperCase();if(['Δ','NON ÉVEILLÉ','NON EVEILLE','UNAWAKENED'].includes(r))return '∆';return RANKS.includes(r)?r:'∆';}
+function rankIndex(rank){return RANKS.indexOf(normalizeRank(rank));}
+function statPower(e={}){return Math.max(0,Number(e.strength)||0)*.27+Math.max(0,Number(e.agility)||0)*.25+Math.max(0,Number(e.intelligence)||0)*.23+Math.max(0,Number(e.defense)||0)*.18+Math.max(0,Number(e.luck)||0)*.07;}
+function evaluateCombatant(e={}){const rank=normalizeRank(e.rank),stats=statPower(e),hp=Math.max(0,Number(e.health)||0),max=Math.max(1,Number(e.maxHealth)||hp||1),v=Math.max(0,Math.min(1,hp/max));return{rank,rankIndex:rankIndex(rank),base:RANK_POWER[rank],statPower:Math.round(stats),effectivePower:Math.round((RANK_POWER[rank]+stats*.42)*(.72+v*.28)),vitalityRatio:Math.round(v*100)};}
+function assessTactics(action='',e={}){const t=String(action).toLowerCase(),plan=/(feinte|leurre|diversion|pi[eè]ge|terrain|angle mort|contre.?attaque|anticip|observer|analyser|rep[eé]rer|fatiguer|immobiliser|désarmer|environnement|strat[eé]gie|plan|coordonn|surprise|furtif|camouf|distance|port[eé]e|faiblesse)/i.test(t),method=/(en utilisant|profite de|attend que|lorsqu'il|quand il|pour le forcer|afin de|de sorte [àa]|puis |ensuite |d'abord)/i.test(t),skill=(Number(e.intelligence)||0)*.12+(Number(e.agility)||0)*.08+(Number(e.luck)||0)*.04;return{hasPlan:plan,hasConcreteMethod:method,bonus:plan?Math.min(22,Math.round(8+skill*.12+(method?6:0))):0};}
+function compareCombatants(a={},b={},action=''){const x=evaluateCombatant(a),y=evaluateCombatant(b),t=assessTactics(action,a),ratio=x.effectivePower*(1+t.bonus/100)/Math.max(1,y.effectivePower);let outlook=ratio>=1.2?'avantage net du joueur':ratio>=.92?'combat équilibré ou avantage tactique possible':ratio>=.68?'désavantage réel, victoire possible avec plan crédible':ratio>=.42?'fort désavantage, victoire exceptionnelle exigeant une faille majeure et préparation':'écart écrasant, victoire directe non crédible sans circonstance majeure';return{actor:x,opponent:y,tactics:t,rankGap:y.rankIndex-x.rankIndex,ratio:Number(ratio.toFixed(2)),outlook,canOutplay:ratio>=.42&&(t.hasPlan||x.statPower>=y.statPower*1.35)};}
+function formatRankProfile(e={},action=''){const p=evaluateCombatant(e),t=assessTactics(action,e);return[
+'SYSTÈME DE RANG ATR: ∆ (non éveillé) < F < E < D < C < B < A- < A < A+ < S- < S < S+ < SS < SSS < EX.',
+'Profil joueur: rang '+p.rank+', puissance de référence '+p.effectivePower+', stats pondérées '+p.statPower+', vitalité '+p.vitalityRatio+'%.',
+'Bonus tactique détecté pour cette action: '+t.bonus+'%.',
+'Le rang crée un écart réel, mais ne décide jamais seul du vainqueur. Compare FOR/AGI/INT/DEF/LUK, PV/PM, compétences, équipement, expérience, portée, terrain, surprise, fatigue, blessures et objectifs.',
+'Une ruse concrète, une faiblesse exploitée, une préparation crédible ou des stats exceptionnelles peuvent permettre à un ∆ non-éveillé ou à un rang inférieur de vaincre un A-, A ou A+.',
+'Une tactique vague ou impossible ne donne aucun bonus. Un grand écart exige plusieurs avantages crédibles, un risque élevé et des conséquences. Les rangs supérieurs peuvent s’adapter et contrer.',
+'∆ signifie NON ÉVEILLÉ, pas faible par définition: potentiel, talent, technique, intelligence et statistiques peuvent être exceptionnels. Le rang n’est pas le niveau.'
+].join('\\n');}
+module.exports={RANKS,RANK_POWER,STAT_CAPS,normalizeRank,rankIndex,statPower,evaluateCombatant,assessTactics,compareCombatants,formatRankProfile};
