@@ -44,10 +44,10 @@ commands.set('bestiaire', async (sock, message, args = []) => {
   const filter = args.join(' ').trim();
   const where = filter ? {
     [Op.or]: [
-      { name: { [Op.iLike]: `%${filter}%` } },
-      { location: { [Op.iLike]: `%${filter}%` } },
-      { rank: { [Op.iLike]: `%${filter}%` } },
-      { speciesType: { [Op.iLike]: `%${filter}%` } }
+      { name: { [Op.like]: `%${filter}%` } },
+      { location: { [Op.like]: `%${filter}%` } },
+      { rank: { [Op.like]: `%${filter}%` } },
+      { speciesType: { [Op.like]: `%${filter}%` } }
     ]
   } : {};
   const entries = await Monster.findAll({ where, order: [['rank','ASC'],['name','ASC']], limit: 25 });
