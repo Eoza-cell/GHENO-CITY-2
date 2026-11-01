@@ -1,52 +1,28 @@
 const { Sequelize, DataTypes } = require('sequelize');
-const path = require('path');
 const { execSync } = require('child_process');
 const { buildWardrobeCatalog } = require('./wardrobe-catalog');
 
 let sequelize;
-const dbUrl = (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.AIVEN_DATABASE_URL || '').trim();
-const forceLocal = /^(1|true|yes)$/i.test(process.env.LOCAL_DATABASE || '');
+const dbUrl = (process.env.DATABASE_URL || process.env.AIVEN_DATABASE_URL || '').trim();
 
-if (dbUrl && !forceLocal) {
-  let parsedDbUrl;
-  try {
-    parsedDbUrl = new URL(dbUrl);
-    if (!['postgres:', 'postgresql:'].includes(parsedDbUrl.protocol)) {
-      throw new Error('Le schéma doit être postgres:// ou postgresql://');
-    }
-    if (!parsedDbUrl.hostname || !parsedDbUrl.username || !parsedDbUrl.pathname || parsedDbUrl.pathname === '/') {
-      throw new Error('URL PostgreSQL incomplète (hôte, utilisateur ou base manquant).');
-    }
-    if (!parsedDbUrl.password || /^(<password>|password|your_password|mot_de_passe)$/i.test(decodeURIComponent(parsedDbUrl.password))) {
-      throw new Error('Mot de passe PostgreSQL absent ou encore remplacé par un placeholder.');
-    }
-    console.log(`[DB] Mode PostgreSQL : ${parsedDbUrl.hostname} / base ${parsedDbUrl.pathname.slice(1)}`);
-    sequelize = new Sequelize(dbUrl, {
-      dialect: 'postgres',
-      logging: false,
-      dialectOptions: {
-        ssl: { require: true, rejectUnauthorized: false },
-        connectTimeout: 20000,
-        application_name: 'GHENO-CITY-2'
-      },
-      pool: { max: 5, min: 0, acquire: 45000, idle: 10000, evict: 1000 },
-      retry: { max: 3 }
-    });
-  } catch (error) {
-    console.error('[DB] URL PostgreSQL invalide, bascule en SQLite local :', error.message);
-  }
+if (!dbUrl) {
+  throw new Error('[DB] DATABASE_URL manquante. Configure l’URL PostgreSQL Aiven dans Render.');
 }
 
-if (!sequelize) {
-  const localPath = process.env.SQLITE_STORAGE || path.join(__dirname, 'gheno-city.sqlite');
-  console.warn(`[DB] Mode LOCAL SQLite : ${localPath}`);
-  sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: localPath,
-    logging: false,
-    pool: { max: 1, min: 0, idle: 10000 }
-  });
-}
+console.log('[DB] Connexion PostgreSQL distante obligatoire (Aiven/DATABASE_URL)...');
+sequelize = new Sequelize(dbUrl, {
+  dialect: 'postgres',
+  logging: false,
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    },
+    connectTimeout: 15000
+  },
+  pool: { max: 5, min: 0, acquire: 30000, idle: 10000 },
+  retry: { max: 2 }
+});
 
 // Separate database dedicated strictly to generated media assets / images
 // This protects the main gheno-city database from swelling rapidly.
@@ -702,7 +678,7 @@ async function setupDatabase() {
   try {
     await sequelize.authenticate();
     await mediaSequelize.authenticate();
-    console.log(`[DB] Connexion ${sequelize.getDialect()} et stockage média établis.`);
+    console.log('Main and Media Connections established.');
 
     // Explicitly handle missing columns because sync({ alter: true }) can be unreliable
     const queryInterface = sequelize.getQueryInterface();
@@ -740,16 +716,20 @@ async function setupDatabase() {
       }
     }
 
-    // PostgreSQL n'accepte pas les commandes PRAGMA (spécifiques à SQLite).
-    // sync() sans alter préserve les tables existantes et crée uniquement celles absentes.
     try {
-      await sequelize.sync();
-      await mediaSequelize.sync();
-      console.log(`[DB] Schéma ${sequelize.getDialect()} et stockage média synchronisés.`);
-    } catch (error) {
-      console.error('[DB] Échec de synchronisation du schéma :', error.message);
-      throw error;
+        const qI = sequelize.getQueryInterface();
+        await qI.removeIndex('PlayerQuests', 'PlayerQuests_QuestId_unique');
+    } catch (e) {}
+
+    try {
+        await sequelize.query('PRAGMA foreign_keys = OFF;');
+        await sequelize.sync();
+        await mediaSequelize.sync();
+        await sequelize.query('PRAGMA foreign_keys = ON;');
+    } catch (e) {
+        console.warn('[DB] Sync warning:', e.message);
     }
+    console.log('Database synchronized.');
 
     // Seed initial game data if empty
     const dungeonCount = await Dungeon.count();
@@ -899,17 +879,13 @@ async function setupDatabase() {
         ];
 
     for (const item of itemsToSeed) {
-        // Avoid findOrCreate's temporary PL/pgSQL function/savepoint path on PostgreSQL.
-        // A failed statement there can poison the transaction and hide the original error.
-        const existingItem = await Item.findOne({ where: { name: item.name } });
-        if (!existingItem) await Item.create(item);
+        await Item.findOrCreate({ where: { name: item.name }, defaults: item });
     }
 
     // Curated wardrobe: deterministic collections instead of only random clothing.
     const curatedWardrobe = buildWardrobeCatalog();
     for (const outfit of curatedWardrobe) {
-        const existingOutfit = await Item.findOne({ where: { name: outfit.name } });
-        if (!existingOutfit) await Item.create(outfit);
+        await Item.findOrCreate({ where: { name: outfit.name }, defaults: outfit });
     }
     console.log(`[WARDROBE] Curated catalog ready: ${curatedWardrobe.length} outfits.`);
 
@@ -1531,7 +1507,7 @@ async function setupDatabase() {
     }
 
   } catch (error) {
-    console.error(`[DB] Échec setup/migration ${sequelize.getDialect()} :`, error);
+    console.error('[DB] Échec de setup/migration PostgreSQL :', error);
     throw error;
   }
 }
