@@ -1134,6 +1134,10 @@ RÈGLES D'HISTOIRE STRUCTURÉE ET CANALISATION NARRATIVE OBLIGATOIRE :
     limit: 8,
     order: [['isBoss', 'ASC'], ['rank', 'ASC']]
   });
+  if (!monsters.length) {
+    const rankFallback = await Monster.findAll({ where: { rank: player.rank }, limit: 6 });
+    monsters.push(...rankFallback);
+  }
   const monsterState = "Bestiaire local: " + monsters.map(m =>
     `${m.name} [Rang ${m.rank}, ${m.rarity || 'commun'}; PV:${m.health}, FOR:${m.strength}, DEF:${m.defense}, AGI:${m.agility}, INT:${m.intelligence}; type:${m.speciesType || 'inconnu'}; capacité:${m.abilities || 'inconnue'}; faiblesse:${m.weaknesses || 'inconnue'}; comportement:${m.behavior || 'non documenté'}]`
   ).join(' | ');
