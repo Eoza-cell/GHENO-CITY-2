@@ -283,8 +283,9 @@ async function connectToWhatsApp() {
     const { connection, lastDisconnect } = update;
     if (connection === 'close') {
       isWhatsAppConnected = false;
-      const statusCode = (lastDisconnect.error)?.output?.statusCode;
-      const isConflict = statusCode === 440 || lastDisconnect.error?.message?.includes('conflict');
+      const disconnectError = lastDisconnect?.error;
+      const statusCode = disconnectError?.output?.statusCode;
+      const isConflict = statusCode === 440 || disconnectError?.message?.toLowerCase().includes('conflict');
       const isLoggedOut = statusCode === 401;
 
       console.log(`[CONN] Fermée. Code: ${statusCode}, Conflict: ${isConflict}, LoggedOut: ${isLoggedOut}`);
