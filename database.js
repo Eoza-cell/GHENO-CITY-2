@@ -96,7 +96,7 @@ const Player = sequelize.define('Player', {
   },
   rank: {
     type: DataTypes.STRING,
-    defaultValue: 'F',
+    defaultValue: '∆',
   },
   class: {
     type: DataTypes.STRING,
