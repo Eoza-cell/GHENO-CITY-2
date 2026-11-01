@@ -46,6 +46,8 @@ commands.set('ping', async (sock, message) => {
     console.log(`[DIAG] Ping latency: ${latency}ms`);
 });
 
+commands.set('world', async (sock, message) => { const data = await require('./world-engine').snapshot(); const text = ['🌍 ATLAS VIVANT D’AETHERYS', ...data.regions.map(r => r.name + ' — stabilité ' + r.stability + '/100, danger ' + r.danger + '/100'), ...data.locations.map(l => l.name + ': ' + l.description), ...data.factions.map(x => 'Faction ' + x.name + ' — ' + x.ideology)].join('\n'); await sock.sendMessage(message.key.remoteJid, { text: text.slice(0, 6000) }); });
+
 // Command: /start
 commands.set('start', async (sock, message) => {
   const jid = getJid(message);
