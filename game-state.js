@@ -1,6 +1,8 @@
 // game-state.js
 let isCurrentlyDay = true;
 let currentWeather = "clair";
+let worldSimulationStarted = false;
+let worldTickRunning = false;
 
 const WEATHERS = ["clair", "nuageux", "pluvieux", "brumeux", "orageux"];
 
@@ -20,8 +22,21 @@ function updateDayNightCycle() {
 }
 
 function startDayNightCycle() {
-    // Start the first cycle immediately
-    setTimeout(updateDayNightCycle, DAY_DURATION);
+    // Start the clock and persistent world simulation only once per process.
+    if (!worldSimulationStarted) {
+      worldSimulationStarted = true;
+      setTimeout(updateDayNightCycle, DAY_DURATION);
+      const runWorldTick = async () => {
+        if (worldTickRunning) return;
+        worldTickRunning = true;
+        try { await require('./world-engine').tickWorld(); }
+        catch (error) { console.error('[WORLD] Simulation tick failed:', error.message); }
+        finally { worldTickRunning = false; }
+      };
+      setTimeout(runWorldTick, 15000);
+      setInterval(runWorldTick, 5 * 60 * 1000);
+      console.log('[WORLD] Simulation persistante activée (cycle de 5 minutes).');
+    }
 }
 
 function isDay() {
