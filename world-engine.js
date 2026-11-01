@@ -204,7 +204,7 @@ async function worldContext(place=''){
  for(const c of s.conflicts.slice(0,8))lines.push('Conflit '+c.title+': '+c.description);
  for(const l of s.laws.slice(0,15))lines.push('Loi de '+l.realm+' — '+l.title+': '+l.description);
  for(const p of s.disciplines.slice(0,12))lines.push('Pouvoir '+p.name+' (source '+p.source+'): '+p.philosophy+' Limites: '+p.limits+' Contres: '+p.counters);
- return lines.join('\\n').slice(0,9000);
+ return lines.join('\n').slice(0,9000);
 }
 async function tickWorld(){
  const npcRows=await NPC.findAll({limit:1000});
