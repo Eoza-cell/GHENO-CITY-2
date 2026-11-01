@@ -1526,6 +1526,9 @@ async function setupDatabase() {
         }
     }
 
+    // Reconcile the living world only after the canonical kingdoms and NPCs are seeded.
+    await require('./world-engine').initializeWorld();
+
   } catch (error) {
     console.error('Setup failed:', error);
   }
