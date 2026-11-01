@@ -1509,7 +1509,7 @@ async function setupDatabase() {
     const rankCaps = { '∆': 400, 'F': 50, 'E': 100, 'D': 150, 'C': 250, 'B': 400, 'A-': 500, 'A': 600, 'A+': 750, 'S-': 900, 'S': 1100, 'S+': 1400, 'SS': 1800, 'SSS': 2400, 'EX': 5000 };
     const players = await Player.findAll();
     for (const p of players) {
-        const cap = rankCaps[p.rank] || 50;
+        const cap = rankCaps[String(p.rank || 'F').toUpperCase()] || 50;
         let changed = false;
 
         const stats = ['strength', 'agility', 'intelligence', 'defense', 'luck'];
