@@ -191,15 +191,20 @@ async function snapshot(place=''){
 }
 async function worldContext(place=''){
  const s=await snapshot(place), lines=['ÉTAT PERSISTANT DU MONDE ATR'];
+ const currentKingdom=s.kingdoms.find(k=>String(k.name||'').toLowerCase()===String(place||'').toLowerCase());
+ const currentRegion=currentKingdom?key(currentKingdom.continent||'Aetheria'):key(place||'');
+ const localLocations=s.locations.filter(l=>l.ownerFaction===place||l.regionKey===currentRegion);
+ const selectedLocations=(localLocations.length?localLocations:s.locations).slice(0,18);
  for(const r of s.regions)lines.push('CONTINENT '+r.name+': '+r.climate+', stabilité '+r.stability+'/100, danger '+r.danger+'/100. '+r.lore);
- for(const k of s.kingdoms)lines.push('ROYAUME '+k.name+' | Continent: '+(k.continent||'inconnu')+' | Dirigeant: '+(k.leader||'inconnu')+' | Statut: '+k.status+' | Influence: '+k.influence+'/100 | Puissance militaire: '+k.militaryPower+'/100. '+k.description);
- for(const l of s.locations)lines.push('Lieu '+l.name+': '+l.description+' Services: '+json(l.services).join(', ')+'. Population '+l.population+', prospérité '+l.prosperity+', sécurité '+l.security+'.');
- for(const f of s.factions)lines.push('Faction '+f.name+': chef '+f.leader+', influence '+f.influence+', légitimité '+f.legitimacy+'. '+f.ideology+' Agenda: '+f.agenda);
- for(const e of s.events)lines.push('Événement '+e.title+': '+e.description);
- for(const c of s.conflicts)lines.push('Conflit '+c.title+': '+c.description);
- for(const l of s.laws)lines.push('Loi de '+l.realm+' — '+l.title+': '+l.description);
- for(const p of s.disciplines)lines.push('Pouvoir '+p.name+' (source '+p.source+'): '+p.philosophy+' Limites: '+p.limits+' Contres: '+p.counters);
- return lines.join('\n').slice(0,9000);
+ for(const k of s.kingdoms)lines.push('ROYAUME '+k.name+' | Continent: '+(k.continent||'inconnu')+' | Dirigeant: '+(k.leader||'inconnu')+' | Statut: '+k.status+' | Influence: '+k.influence+'/100 | Puissance militaire: '+k.militaryPower+'/100. '+String(k.description||'').slice(0,260));
+ lines.push('LIEUX PRIORITAIRES POUR '+(place||'LE MONDE')+':');
+ for(const l of selectedLocations)lines.push('Lieu '+l.name+' ('+l.kind+'): '+l.description+' Services: '+json(l.services).join(', ')+'. Population '+l.population+', prospérité '+l.prosperity+', sécurité '+l.security+'.');
+ for(const f of s.factions.slice(0,12))lines.push('Faction '+f.name+': chef '+f.leader+', influence '+f.influence+', légitimité '+f.legitimacy+'. '+f.ideology+' Agenda: '+f.agenda);
+ for(const e of s.events.slice(0,8))lines.push('Événement '+e.title+': '+e.description);
+ for(const c of s.conflicts.slice(0,8))lines.push('Conflit '+c.title+': '+c.description);
+ for(const l of s.laws.slice(0,15))lines.push('Loi de '+l.realm+' — '+l.title+': '+l.description);
+ for(const p of s.disciplines.slice(0,12))lines.push('Pouvoir '+p.name+' (source '+p.source+'): '+p.philosophy+' Limites: '+p.limits+' Contres: '+p.counters);
+ return lines.join('\\n').slice(0,9000);
 }
 async function tickWorld(){
  const npcRows=await NPC.findAll({limit:1000});
