@@ -667,6 +667,16 @@ const Monster = sequelize.define('Monster', {
     subLocation: { type: DataTypes.STRING, defaultValue: 'Forêt des Gobelins' },
     xp_reward: { type: DataTypes.INTEGER },
     col_reward: { type: DataTypes.INTEGER },
+    region: { type: DataTypes.STRING },
+    speciesType: { type: DataTypes.STRING },
+    rarity: { type: DataTypes.STRING, defaultValue: 'commune' },
+    habitat: { type: DataTypes.STRING },
+    behavior: { type: DataTypes.TEXT },
+    abilities: { type: DataTypes.TEXT },
+    weaknesses: { type: DataTypes.TEXT },
+    drops: { type: DataTypes.TEXT },
+    description: { type: DataTypes.TEXT },
+    isBoss: { type: DataTypes.BOOLEAN, defaultValue: false },
     imageUrl: { type: DataTypes.STRING, allowNull: true }
 });
 
@@ -1398,6 +1408,18 @@ async function setupDatabase() {
             { name: 'L\'Ombre du Néant (BOSS FINAL)', rank: 'S', health: 10000, strength: 500, defense: 400, agility: 300, intelligence: 150, location: 'Origine de l\'Existence', xp_reward: 100000, col_reward: 50000 }
         ]);
     }
+
+    // Complète le bestiaire même si une ancienne base contient déjà quelques monstres.
+    const { creatures: bestiaryCreatures } = require('./bestiary');
+    let bestiaryAdded = 0;
+    for (const creature of bestiaryCreatures) {
+      const [, created] = await Monster.findOrCreate({
+        where: { name: creature.name },
+        defaults: creature
+      });
+      if (created) bestiaryAdded++;
+    }
+    console.log(`[BESTIAIRE] Catalogue vérifié : ${await Monster.count()} créatures (+${bestiaryAdded} nouvelles).`);
 
     const clubCount = await Club.count();
     if (clubCount === 0) {
