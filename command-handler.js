@@ -7,7 +7,7 @@ const lastViewedItems = new Map();
 const sleepingPlayers = new Map();
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, PlayerSkill, Entity, Pact, Club, PlayerClub, Kingdom, NPC, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, PlayerSkill, Entity, Pact, Club, PlayerClub, Kingdom, NPC, Monster, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -37,6 +37,32 @@ function getJid(message) {
 
 
 const commands = new Map();
+
+// Catalogue des créatures connues.
+commands.set('bestiaire', async (sock, message, args = []) => {
+  const replyJid = message.key.remoteJid;
+  const filter = args.join(' ').trim();
+  const where = filter ? {
+    [Op.or]: [
+      { name: { [Op.iLike]: `%${filter}%` } },
+      { location: { [Op.iLike]: `%${filter}%` } },
+      { rank: { [Op.iLike]: `%${filter}%` } },
+      { speciesType: { [Op.iLike]: `%${filter}%` } }
+    ]
+  } : {};
+  const entries = await Monster.findAll({ where, order: [['rank','ASC'],['name','ASC']], limit: 25 });
+  if (!entries.length) return sock.sendMessage(replyJid, { text: 'Aucune créature trouvée. Essaie /bestiaire, /bestiaire forêt ou /bestiaire S.' });
+  const lines = entries.map(m =>
+    `• *${m.name}* — Rang ${m.rank || '?'} | ${m.rarity || 'inconnu'}` +
+    `\n  Habitat : ${m.location || 'inconnu'}` +
+    (m.speciesType ? `\n  Type : ${m.speciesType}` : '') +
+    (m.abilities ? `\n  Capacité : ${m.abilities}` : '') +
+    (m.weaknesses ? `\n  Faiblesse : ${m.weaknesses}` : '') +
+    (m.isBoss ? '\n  ⚠️ BOSS' : '')
+  );
+  await sock.sendMessage(replyJid, { text: `📖 *BESTIAIRE D’ATR* — ${entries.length} résultat(s)\n\n${lines.join('\n\n')}\n\nRecherche : /bestiaire [nom, habitat, type ou rang]` });
+});
+commands.set('monstres', commands.get('bestiaire'));
 
 // Command: /ping
 commands.set('ping', async (sock, message) => {
