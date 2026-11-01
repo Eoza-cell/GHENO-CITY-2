@@ -748,6 +748,9 @@ async function setupDatabase() {
     }
     console.log('Database synchronized.');
 
+    // Persistent living-world systems (locations, factions, laws, NPC memories).
+    await require('./world-engine').initializeWorld();
+
     // Seed initial game data if empty
     const dungeonCount = await Dungeon.count();
     if (dungeonCount === 0) {
