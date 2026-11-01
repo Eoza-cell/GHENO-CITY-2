@@ -1,43 +1,52 @@
 const { Sequelize, DataTypes } = require('sequelize');
+const path = require('path');
 const { execSync } = require('child_process');
 const { buildWardrobeCatalog } = require('./wardrobe-catalog');
 
 let sequelize;
-// PostgreSQL managé : Render, Supabase, Neon, Aiven ou tout serveur compatible.
 const dbUrl = (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.AIVEN_DATABASE_URL || '').trim();
+const forceLocal = /^(1|true|yes)$/i.test(process.env.LOCAL_DATABASE || '');
 
-if (!dbUrl) {
-  throw new Error('[DB] URL PostgreSQL manquante. Configure DATABASE_URL dans Render.');
+if (dbUrl && !forceLocal) {
+  let parsedDbUrl;
+  try {
+    parsedDbUrl = new URL(dbUrl);
+    if (!['postgres:', 'postgresql:'].includes(parsedDbUrl.protocol)) {
+      throw new Error('Le schéma doit être postgres:// ou postgresql://');
+    }
+    if (!parsedDbUrl.hostname || !parsedDbUrl.username || !parsedDbUrl.pathname || parsedDbUrl.pathname === '/') {
+      throw new Error('URL PostgreSQL incomplète (hôte, utilisateur ou base manquant).');
+    }
+    if (!parsedDbUrl.password || /^(<password>|password|your_password|mot_de_passe)$/i.test(decodeURIComponent(parsedDbUrl.password))) {
+      throw new Error('Mot de passe PostgreSQL absent ou encore remplacé par un placeholder.');
+    }
+    console.log(`[DB] Mode PostgreSQL : ${parsedDbUrl.hostname} / base ${parsedDbUrl.pathname.slice(1)}`);
+    sequelize = new Sequelize(dbUrl, {
+      dialect: 'postgres',
+      logging: false,
+      dialectOptions: {
+        ssl: { require: true, rejectUnauthorized: false },
+        connectTimeout: 20000,
+        application_name: 'GHENO-CITY-2'
+      },
+      pool: { max: 5, min: 0, acquire: 45000, idle: 10000, evict: 1000 },
+      retry: { max: 3 }
+    });
+  } catch (error) {
+    console.error('[DB] URL PostgreSQL invalide, bascule en SQLite local :', error.message);
+  }
 }
 
-let parsedDbUrl;
-try {
-  parsedDbUrl = new URL(dbUrl);
-  if (!['postgres:', 'postgresql:'].includes(parsedDbUrl.protocol)) {
-    throw new Error('Le schéma doit être postgres:// ou postgresql://');
-  }
-  if (!parsedDbUrl.hostname || !parsedDbUrl.username || !parsedDbUrl.pathname || parsedDbUrl.pathname === '/') {
-    throw new Error('URL PostgreSQL incomplète (hôte, utilisateur ou base manquant).');
-  }
-  if (!parsedDbUrl.password || /^(<password>|password|your_password|mot_de_passe)$/i.test(decodeURIComponent(parsedDbUrl.password))) {
-    throw new Error('Mot de passe PostgreSQL absent ou encore remplacé par un placeholder.');
-  }
-} catch (error) {
-  throw new Error('[DB] DATABASE_URL invalide : ' + error.message);
+if (!sequelize) {
+  const localPath = process.env.SQLITE_STORAGE || path.join(__dirname, 'gheno-city.sqlite');
+  console.warn(`[DB] Mode LOCAL SQLite : ${localPath}`);
+  sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: localPath,
+    logging: false,
+    pool: { max: 1, min: 0, idle: 10000 }
+  });
 }
-
-console.log(`[DB] Connexion PostgreSQL : ${parsedDbUrl.hostname} / base ${parsedDbUrl.pathname.slice(1)}`);
-sequelize = new Sequelize(dbUrl, {
-  dialect: 'postgres',
-  logging: false,
-  dialectOptions: {
-    ssl: { require: true, rejectUnauthorized: false },
-    connectTimeout: 20000,
-    application_name: 'GHENO-CITY-2'
-  },
-  pool: { max: 5, min: 0, acquire: 45000, idle: 10000, evict: 1000 },
-  retry: { max: 3 }
-});
 
 // Separate database dedicated strictly to generated media assets / images
 // This protects the main gheno-city database from swelling rapidly.
@@ -693,7 +702,7 @@ async function setupDatabase() {
   try {
     await sequelize.authenticate();
     await mediaSequelize.authenticate();
-    console.log('Main and Media Connections established.');
+    console.log(`[DB] Connexion ${sequelize.getDialect()} et stockage média établis.`);
 
     // Explicitly handle missing columns because sync({ alter: true }) can be unreliable
     const queryInterface = sequelize.getQueryInterface();
@@ -736,7 +745,7 @@ async function setupDatabase() {
     try {
       await sequelize.sync();
       await mediaSequelize.sync();
-      console.log('[DB] Schéma PostgreSQL et stockage média synchronisés.');
+      console.log(`[DB] Schéma ${sequelize.getDialect()} et stockage média synchronisés.`);
     } catch (error) {
       console.error('[DB] Échec de synchronisation du schéma :', error.message);
       throw error;
@@ -1518,7 +1527,7 @@ async function setupDatabase() {
     }
 
   } catch (error) {
-    console.error('[DB] Échec de setup/migration PostgreSQL :', error);
+    console.error(`[DB] Échec setup/migration ${sequelize.getDialect()} :`, error);
     throw error;
   }
 }
