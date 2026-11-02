@@ -1721,14 +1721,6 @@ ${infiniteRPState}
         console.error('[WORLD] NPC memory write failed:', npcMemoryErr.message);
     }
 
-    // Persist validated narrative continuity in Upstash.'), 'i').test(actionText + ' ' + content)) {
-                await worldEngine.rememberNPC(npc.id, `Interaction avec ${player.name}: ${String(actionText).slice(0, 240)}`);
-            }
-        }
-    } catch (npcMemoryErr) {
-        console.error('[WORLD] NPC memory write failed:', npcMemoryErr.message);
-    }
-
     // Persist validated narrative continuity in Upstash.
     // We intentionally save the action + validated impacts, not uncontrolled AI prose.
     try {
