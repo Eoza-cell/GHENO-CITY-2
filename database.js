@@ -1079,7 +1079,17 @@ async function setupDatabase() {
         ];
 
         for (const s of baseSkills) {
-            await Skill.findOrCreate({ where: { name: s.name }, defaults: s });
+            // PostgreSQL providers with TEMP disabled cannot use Sequelize findOrCreate
+            // (it creates a pg_temp helper function). A sequential find + create avoids that.
+            const existingSkill = await Skill.findOne({ where: { name: s.name } });
+            if (!existingSkill) {
+                try {
+                    await Skill.create(s);
+                } catch (error) {
+                    // Keep setup idempotent if another process inserted the same skill.
+                    if (error.name !== 'SequelizeUniqueConstraintError') throw error;
+                }
+            }
         }
 
         const classes = {
