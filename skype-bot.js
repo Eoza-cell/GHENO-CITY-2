@@ -22,6 +22,7 @@ const { startProactiveAIEngagement } = require('./proactive-engagement');
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
 let currentQrCode = null;
+let pairingLogInterval = null;
 let activeSocket = null;
 let connectionStarting = false;
 let reconnectTimer = null;
@@ -46,6 +47,11 @@ function scheduleWhatsAppReconnect(reason, minimumDelay = 5000) {
 }
 
 const server = http.createServer(async (req, res) => {
+    if (req.url === '/pairing/status') {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify({ connected: isWhatsAppConnected, pairingRequired: !isWhatsAppConnected, code: currentPairingCode, qrAvailable: Boolean(currentQrCode) }));
+    }
+
     if (req.url === '/pairing') {
         let qrMarkup = '';
         if (!isWhatsAppConnected && currentQrCode) {
@@ -221,7 +227,7 @@ async function connectToWhatsApp() {
             console.log('*');
             console.log(`*   ➡️➡️➡️   ${formattedCode}   ⬅️⬅️⬅️`);
             console.log('*');
-            console.log('*   WhatsApp > Appareils connectés > Lier un appareil > Lier avec un numéro de téléphone');
+            console.log('*   Ouvre /pairing sur le site Render, puis saisis ce code dans WhatsApp > Appareils connectés > Lier avec un numéro de téléphone.');
             console.log('*'.repeat(65) + '\\n');
 
             console.log('\\x1b[42m\\x1b[30m' + ' '.repeat(62) + '\\x1b[0m');
@@ -243,7 +249,8 @@ async function connectToWhatsApp() {
         }
     };
 
-    const logInterval = setInterval(() => {
+    if (pairingLogInterval) clearInterval(pairingLogInterval);
+    pairingLogInterval = setInterval(() => {
         if (currentPairingCode) {
             console.log(`\\n[AUTH] CODE DE PAIRAGE : ${currentPairingCode} (WhatsApp > Appareils connectés)\\n`);
         } else if (!isWhatsAppConnected) {
@@ -254,6 +261,7 @@ async function connectToWhatsApp() {
     sock.ev.on('connection.update', async (update) => {
         if (update.connection === 'close') {
             socketClosedDuringPairing = true;
+            if (pairingLogInterval) { clearInterval(pairingLogInterval); pairingLogInterval = null; }
             currentPairingCode = null;
             currentQrCode = null;
             console.warn('[AUTH] Connexion interrompue : ancien code effacé, un nouveau sera demandé après reconnexion.');
@@ -264,7 +272,7 @@ async function connectToWhatsApp() {
         }
 
         if (update.connection === 'open') {
-            clearInterval(logInterval);
+            if (pairingLogInterval) { clearInterval(pairingLogInterval); pairingLogInterval = null; }
             socketClosedDuringPairing = false;
             currentPairingCode = null;
             currentQrCode = null;
@@ -288,6 +296,7 @@ async function connectToWhatsApp() {
       if (activeSocket === sock) activeSocket = null;
       currentPairingCode = null;
       currentQrCode = null;
+      if (pairingLogInterval) { clearInterval(pairingLogInterval); pairingLogInterval = null; }
 
       if (isLoggedOut) {
           console.error('[CONN] Session refusée (401). Arrêt automatique pour éviter de détruire une session valide. Une reconnexion WhatsApp est nécessaire.');
