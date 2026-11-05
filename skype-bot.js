@@ -228,17 +228,10 @@ async function connectToWhatsApp() {
             const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
             currentPairingCode = formattedCode;
 
-            console.log('\\n' + '*'.repeat(65));
-            console.log('*   VOTRE CODE DE PAIRAGE WHATSAPP (GHENO-CITY) :');
-            console.log('*');
-            console.log(`*   ➡️➡️➡️   ${formattedCode}   ⬅️⬅️⬅️`);
-            console.log('*');
-            console.log('*   Ouvre /pairing sur le site Render, puis saisis ce code dans WhatsApp > Appareils connectés > Lier avec un numéro de téléphone.');
-            console.log('*'.repeat(65) + '\\n');
+            // Ligne simple, immédiatement repérable dans les logs Render.
+            console.log(`[PAIRING_CODE] ${formattedCode}`);
+            console.log('[AUTH] Saisir ce code dans WhatsApp > Appareils connectés > Lier avec un numéro de téléphone.');
 
-            console.log('\\x1b[42m\\x1b[30m' + ' '.repeat(62) + '\\x1b[0m');
-            console.log('\\x1b[42m\\x1b[30m   CODE PAIRING : ' + formattedCode + ' '.repeat(Math.max(0, 62 - 18 - formattedCode.length)) + '\\x1b[0m');
-            console.log('\\x1b[42m\\x1b[30m' + ' '.repeat(62) + '\\x1b[0m\\n');
         } catch (err) {
             pairingRequested = false;
             pairingRetryCount++;
@@ -258,7 +251,7 @@ async function connectToWhatsApp() {
     if (pairingLogInterval) clearInterval(pairingLogInterval);
     pairingLogInterval = setInterval(() => {
         if (currentPairingCode) {
-            console.log(`\\n[AUTH] CODE DE PAIRAGE : ${currentPairingCode} (WhatsApp > Appareils connectés)\\n`);
+            console.log(`[PAIRING_CODE] ${currentPairingCode}`);
         } else if (!isWhatsAppConnected) {
             console.warn('[AUTH] En attente de génération du code pairing...');
         }
