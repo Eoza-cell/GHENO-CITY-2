@@ -207,43 +207,36 @@ async function connectToWhatsApp() {
     let socketClosedDuringPairing = false;
 
     const requestAndShowCode = async () => {
-        if (pairingRequested || isWhatsAppConnected || sock.authState.creds.registered) return;
+        if (pairingRequested || isWhatsAppConnected || sock.authState.creds.registered || socketClosedDuringPairing) return;
 
         pairingRequested = true;
         try {
-            // Ne jamais demander le code tant que le WebSocket n'est pas réellement ouvert.
-            // L'événement "connecting" peut arriver avant l'ouverture effective du socket.
-            const socketWaitStartedAt = Date.now();
-            while (sock.ws?.readyState !== 1 && Date.now() - socketWaitStartedAt < 15000) {
-                if (socketClosedDuringPairing || sock.ws?.readyState === 3) break;
-                await delay(250);
-            }
-            if (socketClosedDuringPairing || sock.ws?.readyState !== 1 || isWhatsAppConnected || sock.authState.creds.registered) {
+            // Flux standard Baileys : laisser le handshake initial démarrer,
+            // sans dépendre de sock.ws (non exposé par certaines versions).
+            await delay(3000);
+            if (socketClosedDuringPairing || isWhatsAppConnected || sock.authState.creds.registered) {
                 pairingRequested = false;
-                console.warn(`[AUTH] Code non demandé : WebSocket non prêt (readyState=${sock.ws?.readyState ?? 'indisponible'}).`);
                 return;
             }
-            console.log(`[AUTH] WebSocket ouvert. Demande du code pour : ${phoneNumber} (Tentative ${pairingRetryCount + 1})`);
+
+            console.log(`[AUTH] Demande du code de pairage pour ${phoneNumber} (tentative ${pairingRetryCount + 1}).`);
             const code = await sock.requestPairingCode(phoneNumber);
             const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
             currentPairingCode = formattedCode;
-
-            // Ligne simple, immédiatement repérable dans les logs Render.
             console.log(`[PAIRING_CODE] ${formattedCode}`);
-            console.log('[AUTH] Saisir ce code dans WhatsApp > Appareils connectés > Lier avec un numéro de téléphone.');
-
+            console.log('[AUTH] WhatsApp > Appareils connectés > Lier avec un numéro de téléphone.');
         } catch (err) {
             pairingRequested = false;
             pairingRetryCount++;
-            console.error('[AUTH] Échec demande code pairing:', err.message);
+            console.error('[AUTH] Échec demande code pairing:', err?.message || err);
 
-            if (pairingRetryCount < 4) {
-                console.log('[AUTH] Nouvelle tentative automatique dans 3 secondes...');
+            if (pairingRetryCount < 4 && !socketClosedDuringPairing) {
+                console.log('[AUTH] Nouvelle tentative automatique dans 5 secondes...');
                 setTimeout(() => {
                     if (!socketClosedDuringPairing && !isWhatsAppConnected && !sock.authState.creds.registered) {
                         requestAndShowCode();
                     }
-                }, 3000);
+                }, 5000);
             }
         }
     };
@@ -266,7 +259,7 @@ async function connectToWhatsApp() {
             console.warn('[AUTH] Connexion interrompue : ancien code effacé, un nouveau sera demandé après reconnexion.');
         }
         if (update.qr) currentQrCode = update.qr;
-        if (update.connection === 'connecting' && !sock.authState.creds.registered && pairingRetryCount < 4) {
+        if (update.connection === 'connecting' && !sock.authState.creds.registered) {
             await requestAndShowCode();
         }
 
