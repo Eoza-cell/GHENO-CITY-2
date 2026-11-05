@@ -41,6 +41,27 @@ if (dbUrl) {
   });
 }
 
+// PostgreSQL providers may disable TEMP privileges. Sequelize findOrCreate()
+// creates pg_temp.testfunc, so use SELECT + INSERT instead.
+async function safeFindOrCreate(Model, options) {
+  const where = options.where || {};
+  const defaults = options.defaults || {};
+  let instance = await Model.findOne({ where });
+  if (instance) return [instance, false];
+
+  try {
+    instance = await Model.create({ ...defaults, ...where });
+    return [instance, true];
+  } catch (error) {
+    // Handle a concurrent seed safely without hiding unrelated DB errors.
+    if (error?.name === 'SequelizeUniqueConstraintError' || error?.original?.code === '23505') {
+      instance = await Model.findOne({ where });
+      if (instance) return [instance, false];
+    }
+    throw error;
+  }
+}
+
 // Separate database dedicated strictly to generated media assets / images
 // This protects the main gheno-city database from swelling rapidly.
 const mediaSequelize = new Sequelize({
@@ -908,13 +929,13 @@ async function setupDatabase() {
         ];
 
     for (const item of itemsToSeed) {
-        await Item.findOrCreate({ where: { name: item.name }, defaults: item });
+        await safeFindOrCreate(Item, { where: { name: item.name }, defaults: item });
     }
 
     // Curated wardrobe: deterministic collections instead of only random clothing.
     const curatedWardrobe = buildWardrobeCatalog();
     for (const outfit of curatedWardrobe) {
-        await Item.findOrCreate({ where: { name: outfit.name }, defaults: outfit });
+        await safeFindOrCreate(Item, { where: { name: outfit.name }, defaults: outfit });
     }
     console.log(`[WARDROBE] Curated catalog ready: ${curatedWardrobe.length} outfits.`);
 
@@ -1268,7 +1289,7 @@ async function setupDatabase() {
     ];
 
     for (const k of kingdomsToSeed) {
-        const [kingdom, created] = await Kingdom.findOrCreate({ where: { name: k.name }, defaults: k });
+        const [kingdom, created] = await safeFindOrCreate(Kingdom, { where: { name: k.name }, defaults: k });
         if (!created) {
             await kingdom.update({
                 description: k.description,
@@ -1299,7 +1320,7 @@ async function setupDatabase() {
     ];
 
     for (const sc of schoolsToSeed) {
-      const [schoolInstance, created] = await School.findOrCreate({ where: { name: sc.name }, defaults: sc });
+      const [schoolInstance, created] = await safeFindOrCreate(School, { where: { name: sc.name }, defaults: sc });
       if (!created) {
           await schoolInstance.update({
               specialty: sc.specialty,
@@ -1318,7 +1339,7 @@ async function setupDatabase() {
         { name: 'Empereur Valerius II', role: 'Souverain d\'Elion', description: 'Un monarque sévère et puissant, gardien du Code.', location: 'Empire Impérial d\'Elion', subLocation: "Château d'Eldoria", powerLevel: 100, specialty: 'Autorité Impériale', imageUrl: null },
     ];
     for (const npc of npcsToSeed) {
-        const [npcInstance, created] = await NPC.findOrCreate({
+        const [npcInstance, created] = await safeFindOrCreate(NPC, {
             where: { name: npc.name },
             defaults: npc
         });
@@ -1400,7 +1421,7 @@ async function setupDatabase() {
         }
     ];
     for (const entity of entitiesToSeed) {
-        await Entity.findOrCreate({ where: { name: entity.name }, defaults: entity });
+        await safeFindOrCreate(Entity, { where: { name: entity.name }, defaults: entity });
     }
 
     const monsterCount = await Monster.count();
@@ -1423,7 +1444,7 @@ async function setupDatabase() {
     const { creatures: bestiaryCreatures } = require('./bestiary');
     let bestiaryAdded = 0;
     for (const creature of bestiaryCreatures) {
-      const [, created] = await Monster.findOrCreate({
+      const [, created] = await safeFindOrCreate(Monster, {
         where: { name: creature.name },
         defaults: creature
       });
@@ -1501,7 +1522,7 @@ async function setupDatabase() {
         ];
 
         for (const q of baseQuests) {
-            await Quest.findOrCreate({ where: { title: q.title }, defaults: q });
+            await safeFindOrCreate(Quest, { where: { title: q.title }, defaults: q });
         }
 
         const questTypes = ["Chasse", "Récolte", "Exploration", "Escorte", "Infiltration", "Diplomatie"];
