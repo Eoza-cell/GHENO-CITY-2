@@ -4,7 +4,7 @@ require('dotenv').config();
 // Le bot utilise maintenant exclusivement Transformers.js local pour le moteur IA.
 
 const http = require('http');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
+const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -167,13 +167,17 @@ async function connectToWhatsApp() {
   const { version, isLatest } = await fetchLatestBaileysVersion();
   console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
 
+  const baileysLogger = pino({ level: process.env.BAILEYS_LOG_LEVEL || 'info' });
   const sock = makeWASocket({
-    auth: state,
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, baileysLogger)
+    },
     printQRInTerminal: false,
     browser: Browsers.macOS('Chrome'),
     syncFullHistory: false,
     version,
-    logger: pino({ level: 'debug' }),
+    logger: baileysLogger,
     getMessage: async key => {
         console.log('⚠️ Message non déchiffré, retry demandé:', key);
         return undefined;
