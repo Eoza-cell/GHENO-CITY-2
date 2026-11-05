@@ -211,13 +211,19 @@ async function connectToWhatsApp() {
 
         pairingRequested = true;
         try {
-            // Laisser le WebSocket Baileys terminer son ouverture avant de demander le code.
-            await delay(1800);
-            if (socketClosedDuringPairing || isWhatsAppConnected || sock.authState.creds.registered) {
+            // Ne jamais demander le code tant que le WebSocket n'est pas réellement ouvert.
+            // L'événement "connecting" peut arriver avant l'ouverture effective du socket.
+            const socketWaitStartedAt = Date.now();
+            while (sock.ws?.readyState !== 1 && Date.now() - socketWaitStartedAt < 15000) {
+                if (socketClosedDuringPairing || sock.ws?.readyState === 3) break;
+                await delay(250);
+            }
+            if (socketClosedDuringPairing || sock.ws?.readyState !== 1 || isWhatsAppConnected || sock.authState.creds.registered) {
                 pairingRequested = false;
+                console.warn(`[AUTH] Code non demandé : WebSocket non prêt (readyState=${sock.ws?.readyState ?? 'indisponible'}).`);
                 return;
             }
-            console.log(`[AUTH] Demande du code pour : ${phoneNumber} (Tentative ${pairingRetryCount + 1})`);
+            console.log(`[AUTH] WebSocket ouvert. Demande du code pour : ${phoneNumber} (Tentative ${pairingRetryCount + 1})`);
             const code = await sock.requestPairingCode(phoneNumber);
             const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
             currentPairingCode = formattedCode;
@@ -299,7 +305,11 @@ async function connectToWhatsApp() {
       if (pairingLogInterval) { clearInterval(pairingLogInterval); pairingLogInterval = null; }
 
       if (isLoggedOut) {
-          console.error('[CONN] Session refusée (401). Arrêt automatique pour éviter de détruire une session valide. Une reconnexion WhatsApp est nécessaire.');
+          if (!sock.authState.creds.registered) {
+              console.error('[CONN] 401 pendant un premier pairage : aucune session WhatsApp enregistrée. Les identifiants provisoires restent intacts pour diagnostic ; aucun effacement automatique.');
+          } else {
+              console.error('[CONN] Session enregistrée refusée (401). Arrêt automatique : les identifiants sont conservés pour éviter toute perte de session.');
+          }
           return;
       }
 
