@@ -1434,10 +1434,17 @@ async function setupDatabase() {
     // Complète le bestiaire même si une ancienne base contient déjà quelques monstres.
     const { creatures: bestiaryCreatures } = require('./bestiary');
     let bestiaryAdded = 0;
-    for (const creature of bestiaryCreatures) {
+    for (const [index, creature] of bestiaryCreatures.entries()) {
+      // Ne jamais envoyer un WHERE name=undefined à Sequelize :
+      // une entrée mal formée ne doit pas empêcher le bot de démarrer.
+      const creatureName = typeof creature?.name === 'string' ? creature.name.trim() : '';
+      if (!creatureName) {
+        console.error(`[BESTIAIRE] Entrée ${index + 1} ignorée : nom absent ou invalide.`);
+        continue;
+      }
       const [, created] = await safeFindOrCreate(Monster, {
-        where: { name: creature.name },
-        defaults: creature
+        where: { name: creatureName },
+        defaults: { ...creature, name: creatureName }
       });
       if (created) bestiaryAdded++;
     }
