@@ -219,9 +219,9 @@ async function connectToWhatsApp() {
 
         pairingRequested = true;
         try {
-            // Demander le code rapidement : certains serveurs ferment le premier
-            // handshake avant le délai classique de 3 secondes.
-            await delay(500);
+            // requestPairingCode peut être appelé dès la création du socket.
+            // Ne dépend pas de l'événement "connecting", qui peut être émis
+            // avant l'enregistrement de ce listener.
             if (socketClosedDuringPairing || isWhatsAppConnected || sock.authState.creds.registered) {
                 pairingRequested = false;
                 return;
@@ -257,6 +257,10 @@ async function connectToWhatsApp() {
             console.warn('[AUTH] En attente de génération du code pairing...');
         }
     }, 20000);
+
+    // Déclenche le pairage immédiatement : l'événement "connecting" peut
+    // avoir été émis avant que le listener ci-dessous soit attaché.
+    requestAndShowCode();
 
     sock.ev.on('connection.update', async (update) => {
         if (update.connection === 'close') {
