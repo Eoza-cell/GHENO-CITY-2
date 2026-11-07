@@ -7,7 +7,7 @@ const lastViewedItems = new Map();
 const sleepingPlayers = new Map();
 const axios = require('axios');
 const sharp = require('sharp');
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, PlayerSkill, Entity, Pact, Club, PlayerClub, Kingdom, NPC, Monster, RPMessage, House, TournamentParticipant, sequelize } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, Skill, PlayerSkill, Entity, Pact, Club, PlayerClub, Kingdom, NPC, Monster, RPMessage, House, TournamentParticipant, sequelize, safeFindOrCreate } = require('./database');
 const { Op } = require('sequelize');
 const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
@@ -485,7 +485,7 @@ commands.set('creer_tenue', async (sock, message, args) => {
 
     // Create actual Item record for the custom outfit
     const itemName = `Tenue : ${outfitName}`;
-    await Item.findOrCreate({
+    await safeFindOrCreate(Item,{
         where: { name: itemName },
         defaults: {
             name: itemName,
@@ -1603,7 +1603,7 @@ const bankCommand = async (sock, message) => {
         return;
     }
 
-    const [bank, created] = await Bank.findOrCreate({ where: { PlayerWhatsappId: player.whatsappId } });
+    const [bank, created] = await safeFindOrCreate(Bank,{ where: { PlayerWhatsappId: player.whatsappId } });
     await bank.reload();
 
     const bankText = `--- 🏦 BANQUE D'ELION --- \n\n` +
@@ -1638,7 +1638,7 @@ commands.set('deposer', async (sock, message, args) => {
         return await sock.sendMessage(replyJid, { text: `❌ Tu n'as pas assez de Col sur toi (${player.col} Col dispos).` });
     }
 
-    const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+    const [bank] = await safeFindOrCreate(Bank,{ where: { PlayerWhatsappId: jid } });
 
     await player.decrement('col', { by: amount });
     await bank.increment('balance', { by: amount });
@@ -1659,7 +1659,7 @@ commands.set('retirer', async (sock, message, args) => {
 
     if (!player) return;
 
-    const [bank] = await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+    const [bank] = await safeFindOrCreate(Bank,{ where: { PlayerWhatsappId: jid } });
     await bank.reload();
 
     const amount = parseInt(args[0]);
@@ -3484,7 +3484,7 @@ async function handleCommand(sock, message, downloadMediaMessage) {
           const playerName = input.replace(/\s+/g, ' ');
           if (playerName.length >= 3 && playerName.length <= 20) {
               await player.update({ name: playerName, registrationStep: 'awaiting_gender' });
-              await Bank.findOrCreate({ where: { PlayerWhatsappId: jid } });
+              await safeFindOrCreate(Bank,{ where: { PlayerWhatsappId: jid } });
               const startingQuest = await Quest.findOne({ where: { title: 'La Chasse aux Gobelins' } });
               if (startingQuest) await player.addQuest(startingQuest, { through: { status: 'not_started' } });
               await sendRegistration(1, `👤 *ÉTAPE 2/4 — IDENTITÉ*\nHéritier enregistré : *${playerName}*.\nIndique maintenant le genre/identité de ton personnage.`);
