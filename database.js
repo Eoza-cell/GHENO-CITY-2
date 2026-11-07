@@ -1573,7 +1573,8 @@ async function setupDatabase() {
     await require('./world-engine').initializeWorld();
 
   } catch (error) {
-    console.error('Setup failed:', error);
+    console.error('[DB] Échec critique de setupDatabase :', error);
+    throw error;
   }
 }
 
