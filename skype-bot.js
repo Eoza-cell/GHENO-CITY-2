@@ -4,6 +4,7 @@ require('dotenv').config();
 // Le bot utilise maintenant exclusivement Transformers.js local pour le moteur IA.
 
 const http = require('http');
+const crypto = require('crypto');
 const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const QRCode = require('qrcode');
@@ -46,13 +47,33 @@ function scheduleWhatsAppReconnect(reason, minimumDelay = 5000) {
     }, wait);
 }
 
+function isAuthorizedPairingRequest(req) {
+    const expectedToken = process.env.PAIRING_PAGE_TOKEN;
+    const header = req.headers.authorization || '';
+    if (!expectedToken || !header.startsWith('Basic ')) return false;
+    try {
+        const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
+        const separator = decoded.indexOf(':');
+        if (separator < 0) return false;
+        const supplied = Buffer.from(decoded.slice(separator + 1));
+        const expected = Buffer.from(expectedToken);
+        return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+    } catch {
+        return false;
+    }
+}
+
 const server = http.createServer(async (req, res) => {
     if (req.url === '/pairing/status') {
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-        return res.end(JSON.stringify({ connected: isWhatsAppConnected, pairingRequired: !isWhatsAppConnected, code: currentPairingCode, qrAvailable: Boolean(currentQrCode) }));
+        return res.end(JSON.stringify({ connected: isWhatsAppConnected, pairingRequired: !isWhatsAppConnected, qrAvailable: Boolean(currentQrCode) }));
     }
 
     if (req.url === '/pairing') {
+        if (!isAuthorizedPairingRequest(req)) {
+            res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="ATR Pairing"', 'Cache-Control': 'no-store' });
+            return res.end('Accès protégé. Configure PAIRING_PAGE_TOKEN dans Render puis connecte-toi avec ce mot de passe.');
+        }
         let qrMarkup = '';
         if (!isWhatsAppConnected && currentQrCode) {
             try { const qrImage = await QRCode.toDataURL(currentQrCode, { width: 280, margin: 2 }); qrMarkup = `<h2>Ou scanne ce QR code</h2><img alt="QR WhatsApp" src="${qrImage}" style="width:280px;max-width:90%;background:white;padding:10px;border-radius:8px"/><p>WhatsApp → Appareils connectés → Connecter un appareil</p>`; } catch (e) { console.error('[AUTH] QR render failed:', e.message); }
@@ -95,29 +116,6 @@ const server = http.createServer(async (req, res) => {
                 </body>
             </html>
         `);
-    }
-
-    if (req.url === '/reset-session') {
-        const { Creds } = require('./database');
-        Creds.destroy({ where: {}, truncate: true })
-            .then(() => {
-                res.writeHead(200, { 'Content-Type': 'text/html' });
-                res.end(`
-                    <html>
-                        <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #121b22; color: white; text-align: center;">
-                            <h1>✅ Session Réinitialisée !</h1>
-                            <p>La table d'authentification a été nettoyée. Redémarrage du serveur et génération d'un nouveau code...</p>
-                            <p><a href="/pairing" style="color: #00a884; font-weight: bold; font-size: 18px;">Accéder à la page de pairage</a></p>
-                        </body>
-                    </html>
-                `);
-                setTimeout(() => process.exit(0), 1000);
-            })
-            .catch(err => {
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end(`Erreur lors du reset: ${err.message}`);
-            });
-        return;
     }
 
     if (req.url === '/version') {
