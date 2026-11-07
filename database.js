@@ -3,42 +3,27 @@ const { execSync } = require('child_process');
 const { buildWardrobeCatalog } = require('./wardrobe-catalog');
 
 let sequelize;
-const dbUrl = process.env.DATABASE_URL;
+const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.AIVEN_DATABASE_URL;
 
 if (dbUrl) {
-  console.log('[DB] Vérification de la connexion PostgreSQL...');
-  try {
-    execSync(`node -e "const { Sequelize } = require('sequelize'); const s = new Sequelize(process.env.DB_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } }); s.authenticate().then(() => process.exit(0)).catch((e) => { process.exit(1); })"`, {
-      env: { ...process.env, DB_URL: dbUrl },
-      timeout: 10000,
-      stdio: 'ignore'
-    });
-    console.log('[DB] PostgreSQL est accessible. Connexion en cours...');
-    sequelize = new Sequelize(dbUrl, {
-      dialect: 'postgres',
-      logging: false,
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        }
-      }
-    });
-  } catch (e) {
-    console.error('[DB] PostgreSQL inaccessible. Basculement sur SQLite local.');
-    sequelize = new Sequelize({
-      dialect: 'sqlite',
-      storage: 'gheno-city.sqlite',
-      logging: false,
-    });
-  }
-} else {
-  console.log('[DB] Pas de DATABASE_URL. Utilisation de SQLite local.');
+  console.log('[DB] Configuration PostgreSQL détectée.');
+  sequelize = new Sequelize(dbUrl, {
+    dialect: 'postgres',
+    logging: false,
+    dialectOptions: {
+      ssl: { require: true, rejectUnauthorized: false }
+    },
+    pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }
+  });
+} else if (/^(1|true|yes)$/i.test(process.env.LOCAL_DATABASE || '') || process.env.NODE_ENV !== 'production') {
+  console.warn('[DB] Mode SQLite local explicitement activé.');
   sequelize = new Sequelize({
     dialect: 'sqlite',
     storage: 'gheno-city.sqlite',
-    logging: false,
+    logging: false
   });
+} else {
+  throw new Error('[DB] DATABASE_URL/POSTGRES_URL/AIVEN_DATABASE_URL manquant en production. Arrêt pour éviter une base SQLite éphémère.');
 }
 
 // PostgreSQL providers may disable TEMP privileges. Sequelize findOrCreate()
@@ -769,15 +754,22 @@ async function setupDatabase() {
         await qI.removeIndex('PlayerQuests', 'PlayerQuests_QuestId_unique');
     } catch (e) {}
 
-    try {
-        await sequelize.query('PRAGMA foreign_keys = OFF;');
+    // PRAGMA est propre à SQLite : l'exécuter sur PostgreSQL interrompt
+    // inutilement la synchronisation et peut laisser les tables non créées.
+    if (sequelize.getDialect() === 'sqlite') {
+      await sequelize.query('PRAGMA foreign_keys = OFF;');
+      try {
         await sequelize.sync();
-        await mediaSequelize.sync();
+      } finally {
         await sequelize.query('PRAGMA foreign_keys = ON;');
-    } catch (e) {
-        console.warn('[DB] Sync warning:', e.message);
+      }
+    } else {
+      await sequelize.sync();
     }
-    console.log('Database synchronized.');
+
+    // La base média est indépendante et doit être synchronisée dans les deux cas.
+    await mediaSequelize.sync();
+    console.log(`[DB] Synchronisation terminée (principal: ${sequelize.getDialect()}, médias: sqlite).`);
 
     // The living world is initialized after canonical kingdoms and NPCs are seeded.
 
