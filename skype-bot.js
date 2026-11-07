@@ -256,9 +256,9 @@ async function connectToWhatsApp() {
         }
     }, 20000);
 
-    // Déclenche le pairage immédiatement : l'événement "connecting" peut
-    // avoir été émis avant que le listener ci-dessous soit attaché.
-    requestAndShowCode();
+    // Le code est demandé uniquement depuis connection.update lorsque
+    // le socket annonce "connecting". Le demander juste après makeWASocket()
+    // peut produire un code avant que la connexion WebSocket soit prête.
 
     sock.ev.on('connection.update', async (update) => {
         if (update.connection === 'close') {
