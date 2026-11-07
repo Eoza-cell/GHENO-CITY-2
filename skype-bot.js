@@ -132,8 +132,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.url === '/health' || req.url === '/') {
-        res.writeHead(isWhatsAppConnected ? 200 : 503, { 'Content-Type': 'text/plain' });
-        res.end(isWhatsAppConnected ? 'OPERATIONAL' : 'AWAITING_WHATSAPP_PAIRING');
+        // Render doit pouvoir vérifier le processus même avant le premier pairage WhatsApp.
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({
+            status: 'healthy',
+            whatsapp: isWhatsAppConnected ? 'connected' : 'awaiting_pairing'
+        }));
         return;
     }
 
@@ -215,9 +219,9 @@ async function connectToWhatsApp() {
 
         pairingRequested = true;
         try {
-            // Flux standard Baileys : laisser le handshake initial démarrer,
-            // sans dépendre de sock.ws (non exposé par certaines versions).
-            await delay(3000);
+            // Demander le code rapidement : certains serveurs ferment le premier
+            // handshake avant le délai classique de 3 secondes.
+            await delay(500);
             if (socketClosedDuringPairing || isWhatsAppConnected || sock.authState.creds.registered) {
                 pairingRequested = false;
                 return;
