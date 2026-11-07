@@ -1583,4 +1583,5 @@ module.exports = {
   mediaSequelize,
   Player, Dungeon, Quest, PlayerQuest, Bank, Item, Creds, Skill, Kingdom, Conflict, School, Duel, NPC, NPCRelationship, Monster, PlayerSkill, RPMessage, WorldJournal, Entity, Pact, Club, PlayerClub, House, TournamentParticipant, MediaAsset,
   setupDatabase,
+  safeFindOrCreate,
 };
