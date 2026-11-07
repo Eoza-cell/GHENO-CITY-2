@@ -1,5 +1,4 @@
 const { Sequelize, DataTypes } = require('sequelize');
-const { execSync } = require('child_process');
 const { buildWardrobeCatalog } = require('./wardrobe-catalog');
 
 let sequelize;
@@ -15,7 +14,7 @@ if (dbUrl) {
     },
     pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }
   });
-} else if (/^(1|true|yes)$/i.test(process.env.LOCAL_DATABASE || '') || process.env.NODE_ENV !== 'production') {
+} else if (/^(1|true|yes)$/i.test(process.env.LOCAL_DATABASE || '')) {
   console.warn('[DB] Mode SQLite local explicitement activé.');
   sequelize = new Sequelize({
     dialect: 'sqlite',
