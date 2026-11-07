@@ -1,5 +1,5 @@
 const { DataTypes, Op } = require('sequelize');
-const { sequelize, NPC, Kingdom, Conflict, WorldJournal, Item } = require('./database');
+const { sequelize, NPC, Kingdom, Conflict, WorldJournal, Item, safeFindOrCreate } = require('./database');
 
 const Region = sequelize.define('WorldRegion', {
  key:{type:DataTypes.STRING,primaryKey:true}, name:DataTypes.STRING, climate:DataTypes.STRING,
@@ -75,7 +75,7 @@ async function initializeWorld(){
  }
  for(const [continent,realmList] of byContinent){
    const regionKey=key(continent);
-   const [region]=await Region.findOrCreate({where:{key:regionKey},defaults:{
+   const [region]=await safeFindOrCreate(Region,{where:{key:regionKey},defaults:{
      key:regionKey,name:continent,climate:'variable',culture:'Cultures et peuples des royaumes de '+continent,
      resources:JSON.stringify([]),stability:70,danger:25,
      lore:'Continent composé de '+realmList.length+' royaume(x): '+realmList.map(k=>k.name).join(', ')+'.'
@@ -86,7 +86,7 @@ async function initializeWorld(){
      const cities=cityMatch?cityMatch[1].split(',').map(v=>v.trim()).filter(Boolean):[];
      for(const city of cities){
        const cityKey=key(continent+'_'+kingdom.name+'_'+city);
-       await Location.findOrCreate({where:{key:cityKey},defaults:{
+       await safeFindOrCreate(Location,{where:{key:cityKey},defaults:{
          key:cityKey,regionKey,name:city,kind:'city',
          description:city+' est une ville du royaume '+kingdom.name+', sur le continent '+continent+'.',
          services:JSON.stringify(['commerce','vie locale','services du royaume']),
@@ -107,7 +107,7 @@ async function initializeWorld(){
  ['catacombes','necropolis','Catacombes de Nécropolis','dungeon','Galeries funéraires et mémoires anciennes.',['exploration','reliques']],
  ['abysse','caelum','Abysse Inférieur','dungeon','Faille océanique instable.',['exploration','recherche']]
  ];
- for(const [k,r,n,t,d,s] of places) await Location.findOrCreate({where:{key:k},defaults:{key:k,regionKey:r,name:n,kind:t,description:d,services:JSON.stringify(s)}});
+ for(const [k,r,n,t,d,s] of places) await safeFindOrCreate(Location,{where:{key:k},defaults:{key:k,regionKey:r,name:n,kind:t,description:d,services:JSON.stringify(s)}});
  const factions=[
  ['couronne','Couronne d’Elion','Ordre impérial et centralisation.','Impératrice',85000,85,90,78,'Maintenir la stabilité et contenir les maisons.'],
  ['maisons','Grandes Maisons','Autonomie nobiliaire et patrimoine.','Conseil des Maisons',62000,72,55,48,'Étendre leur influence à la Cour.'],
@@ -115,7 +115,7 @@ async function initializeWorld(){
  ['syndicat','Syndicat de Gheno','Secret et contrôle des échanges.','Courtier Gris',41000,68,45,35,'Étendre ses réseaux.'],
  ['veilleurs','Ordre des Veilleurs','Protection des morts et des archives.','Matriarche des Stèles',28000,54,40,80,'Protéger les sanctuaires.']
  ];
- for(const [k,n,i,l,t,inf,mil,leg,a] of factions) await Faction.findOrCreate({where:{key:k},defaults:{key:k,name:n,ideology:i,leader:l,treasury:t,influence:inf,military:mil,legitimacy:leg,agenda:a}});
+ for(const [k,n,i,l,t,inf,mil,leg,a] of factions) await safeFindOrCreate(Faction,{where:{key:k},defaults:{key:k,name:n,ideology:i,leader:l,treasury:t,influence:inf,military:mil,legitimacy:leg,agenda:a}});
  const powers=[
  ['ether','Éther','Énergie ambiante','Polyvalence et adaptation.','Surcharge et dépendance au milieu.','Silence éthérique.'],
  ['mana','Mana','Réserve intérieure','Contrôle et endurance.','Épuisement et capacité limitée.','Perturbation du flux.'],
@@ -123,7 +123,7 @@ async function initializeWorld(){
  ['ombre','Arts de l’Ombre','Ombre et absence','Infiltration et mobilité.','Lumière révélatrice.','Détection et illumination.'],
  ['relique','Résonance des Reliques','Objets anciens','Effets singuliers et mémoire.','Compatibilité et dette.','Désaccord de résonance.']
  ];
- for(const [k,n,s,p,lim,c] of powers) await Discipline.findOrCreate({where:{key:k},defaults:{key:k,name:n,source:s,philosophy:p,limits:lim,counters:c}});
+ for(const [k,n,s,p,lim,c] of powers) await safeFindOrCreate(Discipline,{where:{key:k},defaults:{key:k,name:n,source:s,philosophy:p,limits:lim,counters:c}});
  const laws=[
  ['elion_magic','Empire Impérial d’Elion','Registre des arts','Les usages des arts à risque public sont encadrés par les autorités locales.','magie',3],
  ['elion_duel','Empire Impérial d’Elion','Duel reconnu','Un duel public doit être déclaré et ne peut impliquer de tiers non consentants.','justice',2],
@@ -131,7 +131,7 @@ async function initializeWorld(){
  ['gheno_debt','Gheno souterrain','Loi des dettes','Les dettes reconnues engagent débiteur et garant selon les usages du quartier.','commerce',3],
  ['necropolis_rites','Nécropolis','Protection des stèles','Le déplacement d’une stèle exige l’accord des Veilleurs.','tradition',4]
  ];
- for(const [lawKey,realm,title,description,category,severity] of laws) await Law.findOrCreate({where:{lawKey},defaults:{lawKey,realm,title,description,category,severity}});
+ for(const [lawKey,realm,title,description,category,severity] of laws) await safeFindOrCreate(Law,{where:{lawKey},defaults:{lawKey,realm,title,description,category,severity}});
  const npcRows=await NPC.findAll({order:[['id','ASC']]});
  const choose=(arr,seed)=>arr[Math.abs(seed)%arr.length];
  const hash=(value)=>{let h=216.6136261;for(const ch of String(value||''))h=Math.imul(h^ch.charCodeAt(0),16777619);return h>>>0;};
@@ -152,14 +152,14 @@ async function initializeWorld(){
    const goals=[choose(valueSets.goals,seed>>>14)];
    const appearance=n.description||'Apparence non documentée.';
    const biography=(n.description||n.name+' mène une vie encore peu connue.')+' Son métier de '+role.toLowerCase()+' et sa spécialité ('+spec+') influencent son quotidien dans '+(n.location||'son royaume')+'.';
-   await NPCProfile.findOrCreate({where:{npcId:n.id},defaults:{
+   await safeFindOrCreate(NPCProfile,{where:{npcId:n.id},defaults:{
      npcId:n.id,biography,appearance,voice:choose(valueSets.voices,seed>>>17),
      values:JSON.stringify(values),fears:JSON.stringify(fears),ambitions:JSON.stringify(goals),
      habits:JSON.stringify([choose(valueSets.habits,seed>>>20),choose(valueSets.habits,seed>>>23)]),
      socialStyle:traits.join(', '),professionDetail:role+' — '+spec,
      personalConflict:choose(valueSets.conflicts,seed>>>26),reputation:JSON.stringify({public:50,local:50})
    }});
-   await NPCMemory.findOrCreate({where:{npcId:n.id},defaults:{
+   await safeFindOrCreate(NPCMemory,{where:{npcId:n.id},defaults:{
      npcId:n.id,biography,traits:JSON.stringify(traits),values:JSON.stringify(values),fears:JSON.stringify(fears),
      goals:JSON.stringify(goals),secrets:'[]',memories:'[]',schedule:JSON.stringify({matin:'routine personnelle',midi:'travail ou études',soir:'vie sociale ou repos'})
    }});
@@ -171,7 +171,7 @@ async function initializeWorld(){
    for(let i=0;i<group.length-1;i++){
      const a=group[i],b=group[i+1];
      const relation=choose(['collègues','connaissances','amis','rivaux','voisins','membres du même cercle'],hash(a.id+':'+b.id));
-     await NPCSocialLink.findOrCreate({where:{npcA:a.id,npcB:b.id},defaults:{
+     await safeFindOrCreate(NPCSocialLink,{where:{npcA:a.id,npcB:b.id},defaults:{
        npcA:a.id,npcB:b.id,relation,strength:20+(hash(b.id+':'+a.id)%61),
        history:'Se connaissent parce qu’ils vivent ou travaillent dans le même lieu.'
      }});
@@ -180,7 +180,7 @@ async function initializeWorld(){
  console.log('[WORLD] Atlas historique synchronisé:',byContinent.size,'continents,',kingdoms.length,'royaumes,',await Location.count(),'lieux,',npcRows.length,'PNJ individualisés.');
 }
 async function rememberNPC(npcId,entry,type='interaction'){
- if(!npcId||!entry)return; const [m]=await NPCMemory.findOrCreate({where:{npcId},defaults:{npcId}});
+ if(!npcId||!entry)return; const [m]=await safeFindOrCreate(NPCMemory,{where:{npcId},defaults:{npcId}});
  const memories=json(m.memories); memories.push({type,entry:String(entry).slice(0,400),at:new Date().toISOString()});
  await m.update({memories:JSON.stringify(memories.slice(-40))});
 }
@@ -210,8 +210,8 @@ async function tickWorld(){
  const npcRows=await NPC.findAll({limit:1000});
  for(const n of npcRows){
    const seed=String(n.id)+':'+String(n.name); const h=seed.split('').reduce((a,ch)=>Math.imul(a^ch.charCodeAt(0),16777619)>>>0,2166136261);
-   const [profile]=await NPCProfile.findOrCreate({where:{npcId:n.id},defaults:{npcId:n.id,biography:(n.description||'Histoire encore inconnue.')+' Métier: '+(n.role||'habitant')+'. Spécialité: '+(n.specialty||'aucune')+'.',appearance:n.description||'Apparence non documentée.',voice:['voix posée','ton nerveux','parole douce','voix grave','ton formel'][h%5],values:JSON.stringify(['famille','survie','honneur'].slice(0,1+(h%3))),fears:JSON.stringify(['être trahi','perdre un proche'].slice(0,1+(h%2))),ambitions:JSON.stringify(['protéger son entourage','gagner en influence']),habits:JSON.stringify(['observer les passants','tenir un carnet']),socialStyle:['réservé','curieux','fier','patient','méfiant'][h%5],professionDetail:(n.role||'habitant')+' — '+(n.specialty||'sans spécialité'),personalConflict:'Une difficulté personnelle influence ses décisions.'}});
-   await NPCMemory.findOrCreate({where:{npcId:n.id},defaults:{npcId:n.id,biography:profile.biography,traits:JSON.stringify([profile.socialStyle,n.role||'habitant']),values:profile.values,fears:profile.fears,goals:profile.ambitions,secrets:'[]',memories:'[]'}});
+   const [profile]=await safeFindOrCreate(NPCProfile,{where:{npcId:n.id},defaults:{npcId:n.id,biography:(n.description||'Histoire encore inconnue.')+' Métier: '+(n.role||'habitant')+'. Spécialité: '+(n.specialty||'aucune')+'.',appearance:n.description||'Apparence non documentée.',voice:['voix posée','ton nerveux','parole douce','voix grave','ton formel'][h%5],values:JSON.stringify(['famille','survie','honneur'].slice(0,1+(h%3))),fears:JSON.stringify(['être trahi','perdre un proche'].slice(0,1+(h%2))),ambitions:JSON.stringify(['protéger son entourage','gagner en influence']),habits:JSON.stringify(['observer les passants','tenir un carnet']),socialStyle:['réservé','curieux','fier','patient','méfiant'][h%5],professionDetail:(n.role||'habitant')+' — '+(n.specialty||'sans spécialité'),personalConflict:'Une difficulté personnelle influence ses décisions.'}});
+   await safeFindOrCreate(NPCMemory,{where:{npcId:n.id},defaults:{npcId:n.id,biography:profile.biography,traits:JSON.stringify([profile.socialStyle,n.role||'habitant']),values:profile.values,fears:profile.fears,goals:profile.ambitions,secrets:'[]',memories:'[]'}});
  }
  const now=new Date(), memories=await NPCMemory.findAll({limit:200});
  for(const m of memories){const stress=Math.max(0,Math.min(100,m.stress+(Math.random()<.12?2:Math.random()<.18?-2:0)));await m.update({stress,mood:stress>75?'tendu':stress<20?'serein':m.mood,lastSimulatedAt:now});}
@@ -239,5 +239,5 @@ async function tickWorld(){
  await Event.update({status:'resolved'},{where:{status:'active',endsAt:{[Op.lt]:now}}});
  if(Math.random()<.1){const places=await Location.findAll({limit:30});if(places.length){const p=places[Math.floor(Math.random()*places.length)];const title='Incident local à '+p.name;const eventKey=key(title)+'_'+Date.now();await Event.create({eventKey,title,category:'local',locationKey:p.key,description:'Un événement perturbe temporairement la vie quotidienne de '+p.name+'.',severity:2,consequences:JSON.stringify([{location:p.name}])});await WorldJournal.create({entry:title,importance:2,category:'world_event'});}}
 }
-async function marketQuote(name){const item=await Item.findOne({where:{name:{[Op.like]:'%'+name+'%'}}});if(!item)return null;const [m]=await Market.findOrCreate({where:{itemName:item.name},defaults:{itemName:item.name,basePrice:item.price||10,currentPrice:item.price||10}});return {name:item.name,price:m.currentPrice,supply:m.supply,demand:m.demand};}
+async function marketQuote(name){const item=await Item.findOne({where:{name:{[Op.like]:'%'+name+'%'}}});if(!item)return null;const [m]=await safeFindOrCreate(Market,{where:{itemName:item.name},defaults:{itemName:item.name,basePrice:item.price||10,currentPrice:item.price||10}});return {name:item.name,price:m.currentPrice,supply:m.supply,demand:m.demand};}
 module.exports={initializeWorld,rememberNPC,snapshot,worldContext,tickWorld,marketQuote,FEATURES,Region,Location,Faction,NPCMemory,NPCProfile,NPCSocialLink,Event,Market,Discipline,Law};
