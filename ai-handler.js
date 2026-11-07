@@ -1,4 +1,4 @@
-const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, NPCRelationship, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant } = require('./database');
+const { Player, Dungeon, Quest, PlayerQuest, Bank, Item, sequelize, Kingdom, Conflict, School, NPC, NPCRelationship, Skill, RPMessage, WorldJournal, Monster, Entity, Club, Pact, House, Duel, TournamentParticipant, safeFindOrCreate } = require('./database');
 const { buildSceneVisual } = require('./world-visuals');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const { generatePaperImage } = require('./paper-generator');
@@ -179,7 +179,7 @@ async function resolveExplicitDestination(player, actionText) {
             // Important destinations can instantiate a persistent institutional NPC
             // instead of forcing the narrator to ask the player how the world reacts.
             if (alias.subLocation === 'Poste de la Milice') {
-                await NPC.findOrCreate({
+                await safeFindOrCreate(NPC,{
                     where: { name: 'Capitaine de la Milice' },
                     defaults: {
                         name: 'Capitaine de la Milice',
@@ -564,7 +564,7 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         const description = match[4].trim();
 
         // Create NPC in DB
-        const [npc, created] = await NPC.findOrCreate({
+        const [npc, created] = await safeFindOrCreate(NPC,{
             where: { name },
             defaults: {
                 role,
@@ -590,7 +590,7 @@ async function parseStatsFromText(text, player, nearbyPlayers, sock, jid) {
         const defense = parseInt(match[5]);
         const agility = parseInt(match[6]);
 
-        const [monster, created] = await Monster.findOrCreate({
+        const [monster, created] = await safeFindOrCreate(Monster,{
             where: { name },
             defaults: {
                 rank,
