@@ -1,6 +1,5 @@
 const { Creds } = require('./database');
-const { proto } = require('@whiskeysockets/baileys');
-const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
+const { proto, BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
 
 /**
  * A database-backed authentication handler for Baileys.
@@ -21,7 +20,8 @@ const useDatabaseAuth = async () => {
         try {
             const data = await Creds.findOne({ where: { key } });
             // The data is stored as a string, so we need to parse it
-            return data ? JSON.parse(data.value, BufferJSON.reviver) : null;
+            if (!data || !data.value) return null;
+            return JSON.parse(data.value, BufferJSON.reviver);
         } catch (error) {
             console.error(`[AUTH-DB] Lecture impossible pour "${key}"`, error);
             throw error;
@@ -62,7 +62,7 @@ const useDatabaseAuth = async () => {
                     await Promise.all(
                         ids.map(async (id) => {
                             let value = await readData(`${type}-${id}`);
-                            if (type === 'app-state-sync-key') {
+                            if (type === 'app-state-sync-key' && value) {
                                 value = proto.Message.AppStateSyncKeyData.fromObject(value);
                             }
                             data[id] = value;
