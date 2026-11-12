@@ -926,7 +926,12 @@ async function setupDatabase() {
     // Curated wardrobe: deterministic collections instead of only random clothing.
     const curatedWardrobe = buildWardrobeCatalog();
     for (const outfit of curatedWardrobe) {
-        await safeFindOrCreate(Item, { where: { name: outfit.name }, defaults: outfit });
+        const [wardrobeItem] = await safeFindOrCreate(Item, { where: { name: outfit.name }, defaults: outfit });
+        // Ajoute les références visuelles aux anciens catalogues sans écraser
+        // une image personnalisée déjà définie par l'administrateur.
+        if (wardrobeItem && !wardrobeItem.imageUrl && outfit.imageUrl) {
+            await wardrobeItem.update({ imageUrl: outfit.imageUrl, visualData: outfit.visualData });
+        }
     }
     console.log(`[WARDROBE] Curated catalog ready: ${curatedWardrobe.length} outfits.`);
 
