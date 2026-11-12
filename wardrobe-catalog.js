@@ -18,12 +18,28 @@ const collections = [
 
 function slug(v){ return String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,''); }
 
+const COLLECTION_REFERENCE_PAGES = {
+  imperial: 75,
+  academy: 75,
+  adventurer: 76,
+  noble: 77,
+  street: 72,
+  winter: 83,
+  desert: 78,
+  combat: 79,
+  festival: 86
+};
+
 function buildWardrobeCatalog(){
   const items=[];
   let n=1;
   for(const col of collections){
     for(const style of col.styles){
       for(const color of col.colors){
+        const referencePage = COLLECTION_REFERENCE_PAGES[col.id];
+        const imageUrl = referencePage
+          ? 'assets/world/pages/page-' + String(referencePage).padStart(3, '0') + '.jpg'
+          : null;
         items.push({
           name: `${style} — ${color}`,
           description: `${col.label}. Une pièce conçue pour l’univers d’Aetherys, adaptée à la vie quotidienne et aux aventures.`,
@@ -32,12 +48,15 @@ function buildWardrobeCatalog(){
           rarity: n%19===0?'legendary':n%11===0?'epic':n%5===0?'rare':'common',
           slot:'outfit',
           durability:100,
+          imageUrl,
           visualData:{
             collection:col.id,
             collectionLabel:col.label,
             style,
             color,
             outfitId:`atr-${slug(col.id)}-${n}`,
+            referencePage,
+            imageUrl,
             layers:['head','outer','top','bottom','feet','accessory']
           }
         });
