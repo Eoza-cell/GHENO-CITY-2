@@ -59,7 +59,7 @@ function readZipEntries(buffer) {
 }
 
 function sourcePageNumber(name, fallbackIndex) {
-  const match = path.basename(name).match(/page[-_ ]*0*(\\d+)/i);
+  const match = path.basename(name).match(/page[-_ ]*0*(\d+)/i);
   return match ? Number(match[1]) : fallbackIndex + 1;
 }
 
@@ -91,8 +91,7 @@ async function prepareAetherysVisualPack() {
     const entries = readZipEntries(archive);
     if (!entries.length) throw new Error('Aucune image exploitable trouvée dans le pack.');
 
-    // Les planches 79 et 80 du PDF décrivent des accessoires de combat et
-    // des moyens de dissimuler des objets dangereux : elles ne sont pas importées.
+    // Certaines planches hors périmètre ne sont pas importées.
     const safeEntries = entries
       .map((entry, index) => ({ entry, pageNumber: sourcePageNumber(entry.name, index) }))
       .filter(item => ![79, 80].includes(item.pageNumber));
