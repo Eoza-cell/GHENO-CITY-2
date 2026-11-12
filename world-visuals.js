@@ -6,7 +6,7 @@ const { getPageAsset, getNpcPortrait } = require('./aetherys-visual-pack');
 /**
  * Décors officiels du pack AETHERYS.
  * Les numéros renvoient aux pages illustrées du PDF source.
- * Les anciens fichiers locaux restent des solutions de secours.
+ * Aucun décor générique n'est substitué à une illustration officielle.
  */
 const SCENE_PAGES = [
   { page: 47, terms: ['eldoria', 'elion', 'solis', 'academie imperiale', 'lame d argent'] },
@@ -84,8 +84,14 @@ async function buildSceneVisual({ player, npcs = [] }) {
 
   try {
     const backgroundBuffer = background ? await fs.promises.readFile(background.file) : null;
-    const portraitSource = featuredNpc ? (featuredNpc.imageUrl || getNpcPortrait(featuredNpc)) : null;
-    const npcBuffer = portraitSource ? await readVisual(portraitSource) : null;
+    let npcBuffer = null;
+    if (featuredNpc) {
+      const portraitSources = [featuredNpc.imageUrl, getNpcPortrait(featuredNpc)].filter(Boolean);
+      for (const source of [...new Set(portraitSources)]) {
+        npcBuffer = await readVisual(source);
+        if (npcBuffer) break;
+      }
+    }
 
     if (backgroundBuffer && npcBuffer) {
       const meta = await sharp(backgroundBuffer).metadata();
