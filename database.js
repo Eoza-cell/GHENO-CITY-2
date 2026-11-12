@@ -1293,6 +1293,7 @@ async function setupDatabase() {
     // Seed advanced Wizardry / Martial / Divine Schools & Milices for ALL 17 Realms
     console.log('[SEED] Registering comprehensive schools, milices, and factions...');
     const schoolsToSeed = [
+      { name: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', description: 'Académie illustrée dans le dossier AETHERYS : discipline, maîtrise du mana et formation des élèves.', kingdomName: 'Empire Impérial d\'Elion', subLocation: 'Académie de la Lame d\'Argent' },
       { name: 'Académie Royale d\'Elion', specialty: 'Escrime de Mana & Droit Impérial', description: 'Le bastion d\'élite où étudient les héritiers et chevaliers d\'Elion.', kingdomName: 'Empire Impérial d\'Elion', subLocation: 'Quartier Militaire' },
       { name: 'Garde Impériale de Fer', specialty: 'Milice & Maintien de l\'Ordre', description: 'La force d\'intervention rapide d\'Eldoria.', kingdomName: 'Empire Impérial d\'Elion', subLocation: 'Quartier Général' },
       { name: 'Lycée Supérieur de l\'Éther', specialty: 'Techno-magie & Ondes de Mana', description: 'Université scientifique de premier plan pour ingénieurs russes et magiciens.', kingdomName: 'Royaume de Valkyrr', subLocation: 'Quartier des Sciences' },
@@ -1323,6 +1324,8 @@ async function setupDatabase() {
     }
 
     const npcsToSeed = [
+        { name: 'Darius Freindry', role: 'Élève de 2e année — Académie de la Lame d’Argent', description: 'Âgé de 19 ans. Surnom : Le Fil d’Argent. Élève décrit comme calme, méthodique et loyal. Originaire de l’Empire Impérial d’Elion. Portrait et fiche issus du dossier visuel AETHERYS.', location: 'Empire Impérial d\'Elion', subLocation: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', imageUrl: 'assets/world/portraits/darius-freindry.jpg' },
+        { name: 'Elysia Von Argentia', role: 'Élève de 3e année — Maison Argentia', description: 'Âgée de 18 ans. Surnom : La Lame Immaculée. Élève prodige, disciplinée et stratégique. Originaire de l’Empire Impérial d’Elion, Maison Argentia. Portrait et fiche issus du dossier visuel AETHERYS.', location: 'Empire Impérial d\'Elion', subLocation: 'Académie de la Lame d\'Argent', specialty: 'Escrime de Mana', imageUrl: 'assets/world/portraits/elysia-von-argentia.jpg' },
         { name: 'Griffith', role: 'Chef des Apôtres', description: 'A sacrifié son humanité via un Béhérit rouge pour devenir une divinité de l\'Interstice. Parle avec une élégance glaciale, presque surnaturelle.', location: 'Interstice', subLocation: 'Tour de la Main', powerLevel: 100, specialty: 'Aspiration Divine', imageUrl: null },
         { name: 'Void', role: 'Héraut de l\'Idée du Mal', description: 'Un être de pure volonté s\'exprimant par énigmes métaphysiques.', location: 'L\'Interstice', subLocation: 'Miroir Déformé', powerLevel: 100, specialty: 'Distorsion de Réalité', imageUrl: null },
         { name: 'Orpheon', role: 'Juge des Âmes', description: 'Gardien de Nécropolis, calme et impartial.', location: 'Nécropolis', subLocation: 'Trône du Jugement', powerLevel: 99, specialty: 'Balance de l\'Existence', imageUrl: null },
