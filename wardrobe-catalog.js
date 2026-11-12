@@ -1,7 +1,7 @@
 /**
  * AETHERYS WARDROBE CATALOG
  * Safe, modular clothing system: hundreds of combinations are generated from
- * curated style families and can later be linked to the project's PDF images.
+ * curated style families linked to the official AETHERYS PDF reference images.
  */
 
 const collections = [
