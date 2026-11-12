@@ -1,46 +1,8 @@
 const sharp = require('sharp');
-const fs = require('fs');
-const path = require('path');
 const { getPageAsset } = require('./aetherys-visual-pack');
 
 const WORLD_NAME = 'AFTER THE REBIRTH (ATR)';
 
-const KINGDOMS = [
-    { name: "Empire Impérial d'Elion", short: "ELION", continent: "Aetheria", color: '#f1c40f', fill: 'rgba(241,196,15,0.3)', labelPos: [430, 440] },
-    { name: 'Royaume de Valkyrr', short: 'VALKYRR', continent: "Aetheria", color: '#3498db', fill: 'rgba(52,152,219,0.3)', labelPos: [450, 245] },
-    { name: 'Gheno souterrain', short: 'GHENO', continent: "Aetheria", color: '#9b59b6', fill: 'rgba(155,89,182,0.3)', labelPos: [290, 340] },
-    { name: 'Forêt de l\'Éveil', short: 'SYLVA', continent: "Aetheria", color: '#2ecc71', fill: 'rgba(46,204,113,0.3)', labelPos: [240, 460] },
-    { name: 'Archipel des Murmures', short: 'MURMURES', continent: "Aetheria", color: '#1abc9c', fill: 'rgba(26,188,156,0.3)', labelPos: [180, 240] },
-
-    { name: 'Terres Bestiales', short: 'BESTIALIA', continent: "Zendora", color: '#e67e22', fill: 'rgba(230,126,34,0.3)', labelPos: [960, 740] },
-    { name: 'Bastion d\'Orkh', short: 'ORKH', continent: "Zendora", color: '#e74c3c', fill: 'rgba(231,76,60,0.3)', labelPos: [1160, 760] },
-    { name: 'Montagnes de Fer', short: 'IRON', continent: "Zendora", color: '#95a5a6', fill: 'rgba(149,165,166,0.3)', labelPos: [1060, 920] },
-    { name: 'Désert d\'Ambre', short: 'AMBRE', continent: "Zendora", color: '#f39c12', fill: 'rgba(243,156,18,0.3)', labelPos: [1140, 590] },
-
-    { name: 'Dominion Noir de Vharos', short: 'VHAROS', continent: "Umbra", color: '#8e44ad', fill: 'rgba(142,68,173,0.3)', labelPos: [240, 760] },
-    { name: 'Nécropolis', short: 'NÉCROPOLIS', continent: "Umbra", color: '#34495e', fill: 'rgba(52,73,94,0.35)', labelPos: [460, 770] },
-    { name: 'L\'Interstice', short: 'INTERSTICE', continent: "Umbra", color: '#2c3e50', fill: 'rgba(44,62,80,0.4)', labelPos: [360, 930] },
-
-    { name: 'Royaume Céleste', short: 'CELESTIA', continent: "Caelum", color: '#00ffff', fill: 'rgba(0,255,255,0.3)', labelPos: [940, 240] },
-    { name: 'Abysse Inférieur', short: 'ABYSSE', continent: "Caelum", color: '#e74c3c', fill: 'rgba(231,76,60,0.3)', labelPos: [1160, 260] }
-];
-
-const CITIES = [
-    { name: 'Eldoria', sub: 'Cité de départ', x: 400, y: 500, capital: false },
-    { name: 'Solis', sub: "Capitale d'Elion", x: 450, y: 450, capital: true },
-    { name: 'Riverbend', sub: 'Port Fluvial', x: 380, y: 460, capital: false },
-    { name: 'Sparkwell', sub: 'Cité Technomage', x: 480, y: 200, capital: true },
-    { name: 'Marché Noir', sub: 'Cœur de Gheno', x: 300, y: 350, capital: true },
-    { name: 'Sylva-Lumia', sub: 'Cité de Lumière', x: 250, y: 450, capital: true },
-    { name: 'Pic du Prédateur', sub: 'Sommet Sauvage', x: 980, y: 780, capital: true },
-    { name: 'Fort-Sang', sub: 'Capitale Orc', x: 1150, y: 750, capital: true },
-    { name: 'Donjon de la Liche', sub: 'Trône Noir', x: 250, y: 750, capital: true },
-    { name: 'Palais d\'Argent', sub: 'Cœur Céleste', x: 950, y: 250, capital: true }
-];
-
-/**
- * Watabou Medieval Town Generator (TownGeneratorOS Style)
- */
 async function generateWatabouTownMap(cityName = 'Eldoria') {
     const W = 1200, H = 900;
     const buildingRoofs = [];
@@ -80,14 +42,10 @@ async function generateWatabouTownMap(cityName = 'Eldoria') {
  * High-Fidelity Azgaar & D&D Real Fantasy World Map Generator
  */
 async function generateWorldMapImage() {
-    // Utilise la carte officielle du dossier AETHERYS (page 81), puis la
-    // carte complémentaire (page 84) si la première n'est pas disponible.
-    // Les noms des royaumes affichés dans le message WhatsApp viennent de la DB,
-    // jamais d'une liste géographique inventée dans ce renderer.
+    // Carte officielle du dossier AETHERYS, puis carte complémentaire.
+    // La liste détaillée des royaumes est construite depuis la base de données.
     const source = getPageAsset(81) || getPageAsset(84);
-    if (!source || !fs.existsSync(source)) {
-        throw new Error('Carte AETHERYS non extraite : le pack visuel doit être préparé au démarrage.');
-    }
+    if (!source) throw new Error('Carte AETHERYS non extraite : préparer le pack au démarrage.');
     return sharp(source)
         .resize({ width: 1600, height: 1100, fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 92 })
