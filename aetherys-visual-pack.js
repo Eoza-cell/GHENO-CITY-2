@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const sharp = require('sharp');
 
 const ARCHIVE = path.join(__dirname, 'AETHERYS_visual_pack_for_GHENO_CITY_2.zip');
 const ROOT = path.join(__dirname, 'assets', 'world');
@@ -114,6 +115,24 @@ async function prepareAetherysVisualPack() {
     };
     await fs.promises.writeFile(MANIFEST, JSON.stringify(manifest, null, 2));
     cachedManifest = manifest;
+    const portraitsDir = path.join(ROOT, 'portraits');
+    await fs.promises.mkdir(portraitsDir, { recursive: true });
+    for (const portrait of [{ page: 9, file: 'darius-freindry.jpg' }, { page: 39, file: 'elysia-von-argentia.jpg' }]) {
+      const source = pages.find(item => item.page === portrait.page);
+      if (!source) continue;
+      const sourcePath = path.join(__dirname, source.file);
+      try {
+        const metadata = await sharp(sourcePath).metadata();
+        const cropWidth = Math.max(1, Math.floor((metadata.width || 1600) * 0.47));
+        await sharp(sourcePath)
+          .extract({ left: 0, top: 0, width: cropWidth, height: metadata.height || 1067 })
+          .resize({ height: 1100, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 88 })
+          .toFile(path.join(portraitsDir, portrait.file));
+      } catch (error) {
+        console.warn('[AETHERYS VISUALS] Portrait non préparé (' + portrait.file + '): ' + error.message);
+      }
+    }
     console.log('[AETHERYS VISUALS] ' + pages.length + ' images du pack chargées dans assets/world/pages/.');
     return { extracted: pages.length, available: pages.length > 0 };
   } catch (error) {
@@ -146,8 +165,14 @@ function normalize(value = '') {
 
 function getNpcPortrait(npc) {
   const name = normalize(npc?.name);
-  if (name.includes('darius') && name.includes('freindry')) return getPageAsset(9);
-  if (name.includes('elysia') && name.includes('argentia')) return getPageAsset(39);
+  if (name.includes('darius') && name.includes('freindry')) {
+    const file = path.join(ROOT, 'portraits', 'darius-freindry.jpg');
+    return fs.existsSync(file) ? file : getPageAsset(9);
+  }
+  if (name.includes('elysia') && name.includes('argentia')) {
+    const file = path.join(ROOT, 'portraits', 'elysia-von-argentia.jpg');
+    return fs.existsSync(file) ? file : getPageAsset(39);
+  }
   return null;
 }
 
