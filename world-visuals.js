@@ -18,13 +18,6 @@ const SCENE_PAGES = [
   { page: 44, terms: ['abysse inferieur', 'pandemonium'] }
 ];
 
-const LEGACY_BACKGROUNDS = [
-  { terms: ['eldoria', 'elion', 'solis'], file: 'assets/locations/eldoria.jpg' },
-  { terms: ['academie'], file: 'assets/locations/academy.jpg' },
-  { terms: ['necropolis', 'vharos'], file: 'assets/locations/necropolis.jpg' },
-  { terms: ['interstice'], file: 'assets/locations/interstice.jpg' }
-];
-
 function normalize(value = '') {
   return String(value)
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -45,13 +38,6 @@ function findBackground(player = {}) {
     if (file) return { key: 'pdf-page:' + official.page, file };
   }
 
-  const legacy = LEGACY_BACKGROUNDS.find(entry =>
-    entry.terms.some(term => context.includes(normalize(term)))
-  );
-  if (legacy) {
-    const file = path.join(__dirname, legacy.file);
-    if (fs.existsSync(file)) return { key: 'legacy:' + legacy.file, file };
-  }
   return null;
 }
 
