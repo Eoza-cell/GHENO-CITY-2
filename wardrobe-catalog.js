@@ -26,7 +26,7 @@ const COLLECTION_REFERENCE_PAGES = {
   street: 72,
   winter: 83,
   desert: 78,
-  combat: 79,
+  combat: null,
   festival: 86
 };
 
