@@ -98,6 +98,9 @@ async function prepareAetherysVisualPack() {
 
     await fs.promises.rm(PAGES, { recursive: true, force: true });
     await fs.promises.mkdir(PAGES, { recursive: true });
+    const portraitsDir = path.join(ROOT, 'portraits');
+    await fs.promises.rm(portraitsDir, { recursive: true, force: true });
+    await fs.promises.mkdir(portraitsDir, { recursive: true });
     const pages = [];
     let totalBytes = 0;
     for (const { entry, pageNumber } of safeEntries) {
@@ -106,9 +109,9 @@ async function prepareAetherysVisualPack() {
         break;
       }
       try {
-        const image = extractEntry(archive, entry);
-        const ext = path.extname(entry.name).toLowerCase() || '.jpg';
-        const filename = 'page-' + String(pageNumber).padStart(3, '0') + ext;
+        const extracted = extractEntry(archive, entry);
+        const image = await sharp(extracted).rotate().jpeg({ quality: 90 }).toBuffer();
+        const filename = 'page-' + String(pageNumber).padStart(3, '0') + '.jpg';
         const destination = path.join(PAGES, filename);
         await fs.promises.writeFile(destination, image);
         pages.push({ page: pageNumber, source: entry.name, file: path.relative(__dirname, destination).replace(/\\/g, '/'), bytes: image.length });
@@ -126,8 +129,6 @@ async function prepareAetherysVisualPack() {
     };
     await fs.promises.writeFile(MANIFEST, JSON.stringify(manifest, null, 2));
     cachedManifest = manifest;
-    const portraitsDir = path.join(ROOT, 'portraits');
-    await fs.promises.mkdir(portraitsDir, { recursive: true });
     for (const portrait of [{ page: 9, file: 'darius-freindry.jpg' }, { page: 39, file: 'elysia-von-argentia.jpg' }]) {
       const source = pages.find(item => item.page === portrait.page);
       if (!source) continue;
