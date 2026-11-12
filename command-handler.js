@@ -2097,7 +2097,9 @@ commands.set('help', async (sock, message) => {
                    "/statut - Voir l'état de ton équipement.\n" +
                    "/inventory - Consulter ton inventaire.\n" +
                    "/quests - Voir tes quêtes actives.\n" +
-                   "/map - Afficher la carte du monde et les donjons.\n" +
+                   "/map - Afficher la carte officielle du monde et les donjons.\n" +
+                    "/academies - Voir les planches visuelles des académies.\n" +
+                    "/uniformes - Voir les uniformes de référence.\n" +
                    "/bank - Accéder à ton compte en banque.\n" +
                    "/deposer <montant> - Déposer de l'argent en banque.\n" +
                    "/retirer <montant> - Retirer de l'argent de la banque.\n" +
@@ -3030,7 +3032,7 @@ commands.set('menu', async (sock, message) => {
   const player = await Player.findOne({ where: { whatsappId: jid } });
   if (player) await player.update({ mode: 'normal' });
 
-  const menuText = `🎮 *AFTER THE REBIRTH — MENU RAPIDE*\n\n⚔️ /action • 👤 /profil • 🛡️ /statut\n🗺️ /map • 📜 /quests • 📍 /lieux\n👗 /tenue • 🛒 /boutique • 📚 /lore\n⚙️ /status • ❓ /help\n\n_Choisis ta prochaine action._`;
+  const menuText = `🎮 *AFTER THE REBIRTH — MENU RAPIDE*\n\n⚔️ /action • 👤 /profil • 🛡️ /statut\n🗺️ /map • 📜 /quests • 📍 /lieux\n🏫 /academies • 👗 /tenue • 🛒 /boutique\n⚙️ /status • ❓ /help\n\n_Choisis ta prochaine action._`;
 
   try {
     const menuImage = await generateMenuPanel(player);
