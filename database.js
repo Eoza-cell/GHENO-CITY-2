@@ -1593,10 +1593,8 @@ async function setupDatabase() {
     }
     console.log(`[DB Normalization] Terminé : ${normalizedPlayers} joueur(s) corrigé(s).`);
 
-    // Reconcile the living world only after the canonical kingdoms and NPCs are seeded.
-    console.log('[WORLD] Initialisation du monde vivant...');
-    await require('./world-engine').initializeWorld();
-    console.log('[WORLD] Monde vivant initialisé.');
+    // L'initialisation du monde vivant est lancée après le démarrage de WhatsApp.
+    // Elle ne doit pas bloquer le pairage ou la connexion Baileys.
 
   } catch (error) {
     console.error('[DB] Échec critique de setupDatabase :', error);
