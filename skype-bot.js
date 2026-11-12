@@ -19,6 +19,7 @@ const { startTutorial } = require('./tutorial-handler');
 const { startDayNightCycle } = require('./game-state');
 const { startModelServer } = require('./model-server');
 const { startProactiveAIEngagement } = require('./proactive-engagement');
+const { prepareAetherysVisualPack } = require('./aetherys-visual-pack');
 
 let isWhatsAppConnected = false;
 let currentPairingCode = null;
@@ -404,6 +405,7 @@ if (require.main === module) {
     .then(async () => {
       console.log('[CORE] Base de données prête. Lancement du bot...');
 
+      await prepareAetherysVisualPack();
       startModelServer();
 
       connectToWhatsApp();
