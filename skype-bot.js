@@ -210,23 +210,35 @@ async function connectToWhatsApp() {
     }
 
     let pairingRequested = false;
+    let pairingCheckScheduled = false;
     let pairingRetryCount = 0;
     let socketClosedDuringPairing = false;
+
+    const schedulePairingRequest = (waitMs = 1000) => {
+        if (pairingCheckScheduled || pairingRequested || socketClosedDuringPairing) return;
+        pairingCheckScheduled = true;
+        setTimeout(() => {
+            pairingCheckScheduled = false;
+            requestAndShowCode();
+        }, waitMs);
+    };
 
     const requestAndShowCode = async () => {
         if (pairingRequested || isWhatsAppConnected || sock.authState.creds.registered || socketClosedDuringPairing) return;
 
+        // Baileys doit avoir terminé l'ouverture du WebSocket avant la demande.
+        // L'événement "connecting" peut être émis avant l'installation du listener :
+        // un contrôle différé sert donc de filet de sécurité.
+        const socketReadyState = sock.ws?.readyState;
+        if (socketReadyState !== 1) {
+            console.log(`[AUTH] WebSocket pas encore prêt (readyState=${socketReadyState ?? 'indisponible'}). Nouvelle vérification dans 1 seconde.`);
+            schedulePairingRequest(1000);
+            return;
+        }
+
         pairingRequested = true;
         try {
-            // requestPairingCode peut être appelé dès la création du socket.
-            // Ne dépend pas de l'événement "connecting", qui peut être émis
-            // avant l'enregistrement de ce listener.
-            if (socketClosedDuringPairing || isWhatsAppConnected || sock.authState.creds.registered) {
-                pairingRequested = false;
-                return;
-            }
-
-            console.log(`[AUTH] Demande du code de pairage pour ${phoneNumber} (tentative ${pairingRetryCount + 1}).`);
+            console.log(`[AUTH] WebSocket prêt. Demande du code de pairage pour ${phoneNumber} (tentative ${pairingRetryCount + 1}).`);
             const code = await sock.requestPairingCode(phoneNumber);
             const formattedCode = code?.match(/.{1,4}/g)?.join('-') || code;
             currentPairingCode = formattedCode;
@@ -239,11 +251,7 @@ async function connectToWhatsApp() {
 
             if (pairingRetryCount < 4 && !socketClosedDuringPairing) {
                 console.log('[AUTH] Nouvelle tentative automatique dans 5 secondes...');
-                setTimeout(() => {
-                    if (!socketClosedDuringPairing && !isWhatsAppConnected && !sock.authState.creds.registered) {
-                        requestAndShowCode();
-                    }
-                }, 5000);
+                schedulePairingRequest(5000);
             }
         }
     };
@@ -257,10 +265,6 @@ async function connectToWhatsApp() {
         }
     }, 20000);
 
-    // Le code est demandé uniquement depuis connection.update lorsque
-    // le socket annonce "connecting". Le demander juste après makeWASocket()
-    // peut produire un code avant que la connexion WebSocket soit prête.
-
     sock.ev.on('connection.update', async (update) => {
         if (update.connection === 'close') {
             socketClosedDuringPairing = true;
@@ -271,9 +275,8 @@ async function connectToWhatsApp() {
         }
         if (update.qr) currentQrCode = update.qr;
         if (update.connection === 'connecting' && !sock.authState.creds.registered) {
-            await requestAndShowCode();
+            schedulePairingRequest(500);
         }
-
         if (update.connection === 'open') {
             if (pairingLogInterval) { clearInterval(pairingLogInterval); pairingLogInterval = null; }
             socketClosedDuringPairing = false;
@@ -281,6 +284,10 @@ async function connectToWhatsApp() {
             currentQrCode = null;
         }
     });
+
+    // Filet de sécurité : ne pas dépendre uniquement de "connecting",
+    // qui peut avoir été émis avant l'abonnement à connection.update.
+    schedulePairingRequest(1500);
   }
 
   sock.ev.on('connection.update', async (update) => {
@@ -415,3 +422,4 @@ if (require.main === module) {
       process.exit(1);
     });
 }
+
