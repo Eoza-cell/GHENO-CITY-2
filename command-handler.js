@@ -13,6 +13,8 @@ const { generateEquipmentStatusImage } = require('./equipment-visualizer');
 const { generateProfileCard } = require('./profile-generator');
 const { generateLorePoster } = require('./lore-generator');
 const { generateWorldMapImage } = require('./world-map');
+const { getPageAsset } = require('./aetherys-visual-pack');
+const { buildSceneVisual } = require('./world-visuals');
 const { generateMissionBoard } = require('./paper-generator');
 const { generateMainMenuImage } = require('./menu-generator');
 const { generateShopImage, generateDetailedItemCard } = require('./shop-generator');
@@ -72,7 +74,46 @@ commands.set('ping', async (sock, message) => {
     console.log(`[DIAG] Ping latency: ${latency}ms`);
 });
 
-commands.set('world', async (sock, message) => { const data = await require('./world-engine').snapshot(); const text = ['🌍 ATLAS VIVANT D’AETHERYS', ...data.regions.map(r => r.name + ' — stabilité ' + r.stability + '/100, danger ' + r.danger + '/100'), ...data.locations.map(l => l.name + ': ' + l.description), ...data.factions.map(x => 'Faction ' + x.name + ' — ' + x.ideology)].join('\n'); await sock.sendMessage(message.key.remoteJid, { text: text.slice(0, 6000) }); });
+commands.set('world', async (sock, message) => {
+  const data = await require('./world-engine').snapshot();
+  const text = ['🌍 ATLAS VIVANT D’AETHERYS',
+    ...data.regions.map(r => r.name + ' — stabilité ' + r.stability + '/100, danger ' + r.danger + '/100'),
+    ...data.locations.map(l => l.name + ': ' + l.description),
+    ...data.factions.map(x => 'Faction ' + x.name + ' — ' + x.ideology)
+  ].join('\n');
+  try {
+    const map = await generateWorldMapImage();
+    await sock.sendMessage(message.key.remoteJid, { image: map, caption: text.slice(0, 900) });
+    if (text.length > 900) await sock.sendMessage(message.key.remoteJid, { text: text.slice(900, 6000) });
+  } catch (error) {
+    console.error('[WORLD] Carte officielle indisponible:', error.message);
+    await sock.sendMessage(message.key.remoteJid, { text: text.slice(0, 6000) });
+  }
+});
+
+commands.set('academies', async (sock, message) => {
+  const replyJid = message.key.remoteJid;
+  const references = [
+    { page: 75, title: 'Académie de la Lame d’Argent & Lycée de l’Éther' },
+    { page: 78, title: 'Académie Solaire des Dunes' },
+    { page: 82, title: 'Citadelle de Forge-Profonde' },
+    { page: 83, title: 'Clan de la Griffe Sauvage' },
+    { page: 85, title: 'Collège Elfique de Sylva-Lumia' },
+    { page: 86, title: 'Sanctuaire de l’Abîme, Ordre de la Justice Céleste & Lycée du Pandémonium' }
+  ];
+  let sent = 0;
+  for (const item of references) {
+    const file = getPageAsset(item.page);
+    if (!file || !fs.existsSync(file)) continue;
+    await sock.sendMessage(replyJid, {
+      image: fs.readFileSync(file),
+      caption: '🏫 *' + item.title + '*\nRéférence visuelle officielle — dossier AETHERYS'
+    });
+    sent++;
+  }
+  if (!sent) await sock.sendMessage(replyJid, { text: 'Les planches des académies ne sont pas encore chargées. Vérifie les logs de préparation du pack AETHERYS.' });
+});
+commands.set('uniformes', commands.get('academies'));
 
 commands.set('factions', async (sock, message) => { const rows = await require('./world-engine').Faction.findAll({ order: [['influence','DESC']] }); const text = ['🏛️ FACTIONS D’AETHERYS', ...rows.map(x => x.name + ' — dirigeant : ' + x.leader + '\nInfluence : ' + x.influence + '/100 | Légitimité : ' + x.legitimacy + '/100\n' + x.ideology + '\nAgenda : ' + x.agenda)].join('\n\n'); await sock.sendMessage(message.key.remoteJid, { text }); });
 commands.set('pouvoirs', async (sock, message) => { const rows = await require('./world-engine').Discipline.findAll({ order: [['name','ASC']] }); const text = ['✨ DISCIPLINES DE POUVOIR', ...rows.map(x => x.name + ' — source : ' + x.source + '\n' + x.philosophy + '\nLimites : ' + x.limits + '\nContres : ' + x.counters)].join('\n\n'); await sock.sendMessage(message.key.remoteJid, { text }); });
@@ -1105,19 +1146,32 @@ commands.set('lieux', async (sock, message) => {
     if (!player) return;
 
     const kingdom = await Kingdom.findOne({ where: { name: player.location } });
+    let text = '--- 📍 POSITION ACTUELLE ---\n\n';
+    text += '🌍 *Royaume:* ' + player.location + '\n';
+    text += '📌 *Lieu précis:* ' + player.subLocation + '\n\n';
 
-    let text = `--- 📍 POSITION ACTUELLE --- \n\n`;
-    text += `🌍 *Royaume:* ${player.location}\n`;
-    text += `📌 *Lieu précis:* ${player.subLocation}\n\n`;
+    if (kingdom) text += '📜 *Description du Royaume:*\n' + kingdom.description + '\n\n';
+    text += '🗺️ *Où aller ?*\n';
+    text += '_Tu peux te déplacer librement via /action en décrivant ton trajet._\n';
+    text += '_Exemple: "Je sors de la taverne pour aller sur la place centrale" ou "Je quitte la ville vers les plaines"._';
 
-    if (kingdom) {
-        text += `📜 *Description du Royaume:*\n${kingdom.description}\n\n`;
+    try {
+        const npcs = await NPC.findAll({
+            where: { location: player.location, subLocation: player.subLocation },
+            order: [['name', 'ASC']],
+            limit: 5
+        });
+        const scene = await buildSceneVisual({ player, npcs });
+        if (scene) {
+            await sock.sendMessage(replyJid, {
+                image: scene.buffer,
+                caption: scene.caption + '\n\n' + text.slice(0, 650)
+            });
+            return;
+        }
+    } catch (visualError) {
+        console.error('[LIEUX] Visuel de position indisponible:', visualError.message);
     }
-
-    text += `🗺️ *Où aller ?*\n`;
-    text += `_Tu peux te déplacer librement via /action en décrivant ton trajet._\n`;
-    text += `_Exemple: "Je sors de la taverne pour aller sur la place centrale" ou "Je quitte la ville vers les plaines"._`;
-
     await sock.sendMessage(replyJid, { text });
 });
 
