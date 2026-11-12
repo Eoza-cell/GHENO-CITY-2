@@ -1566,8 +1566,11 @@ async function setupDatabase() {
 
     console.log('[DB] Normalizing all player stats to safeguard rank caps...');
     const rankCaps = { '∆': 400, 'F': 50, 'E': 100, 'D': 150, 'C': 250, 'B': 400, 'A-': 500, 'A': 600, 'A+': 750, 'S-': 900, 'S': 1100, 'S+': 1400, 'SS': 1800, 'SSS': 2400, 'EX': 5000 };
+    console.log('[DB Normalization] Chargement des joueurs...');
     const players = await Player.findAll();
-    for (const p of players) {
+    console.log(`[DB Normalization] ${players.length} joueur(s) chargé(s).`);
+    let normalizedPlayers = 0;
+    for (const [index, p] of players.entries()) {
         const cap = rankCaps[String(p.rank || 'F').toUpperCase()] || 50;
         let changed = false;
 
@@ -1580,12 +1583,20 @@ async function setupDatabase() {
             }
         }
         if (changed) {
+            console.log(`[DB Normalization] Sauvegarde du joueur ${index + 1}/${players.length}: ${p.name}`);
             await p.save();
+            normalizedPlayers++;
+        }
+        if ((index + 1) % 25 === 0 || index === players.length - 1) {
+            console.log(`[DB Normalization] Progression: ${index + 1}/${players.length} joueurs vérifiés.`);
         }
     }
+    console.log(`[DB Normalization] Terminé : ${normalizedPlayers} joueur(s) corrigé(s).`);
 
     // Reconcile the living world only after the canonical kingdoms and NPCs are seeded.
+    console.log('[WORLD] Initialisation du monde vivant...');
     await require('./world-engine').initializeWorld();
+    console.log('[WORLD] Monde vivant initialisé.');
 
   } catch (error) {
     console.error('[DB] Échec critique de setupDatabase :', error);
