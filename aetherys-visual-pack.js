@@ -58,6 +58,11 @@ function readZipEntries(buffer) {
   ).slice(0, MAX_IMAGE_COUNT);
 }
 
+function sourcePageNumber(name, fallbackIndex) {
+  const match = path.basename(name).match(/page[-_ ]*0*(\\d+)/i);
+  return match ? Number(match[1]) : fallbackIndex + 1;
+}
+
 function extractEntry(buffer, entry) {
   const offset = entry.localOffset;
   if (offset + 30 > buffer.length || buffer.readUInt32LE(offset) !== 0x04034b50) {
@@ -86,21 +91,28 @@ async function prepareAetherysVisualPack() {
     const entries = readZipEntries(archive);
     if (!entries.length) throw new Error('Aucune image exploitable trouvée dans le pack.');
 
+    // Les planches 79 et 80 du PDF décrivent des accessoires de combat et
+    // des moyens de dissimuler des objets dangereux : elles ne sont pas importées.
+    const safeEntries = entries
+      .map((entry, index) => ({ entry, pageNumber: sourcePageNumber(entry.name, index) }))
+      .filter(item => ![79, 80].includes(item.pageNumber));
+
+    await fs.promises.rm(PAGES, { recursive: true, force: true });
+    await fs.promises.mkdir(PAGES, { recursive: true });
     const pages = [];
     let totalBytes = 0;
-    for (const entry of entries) {
+    for (const { entry, pageNumber } of safeEntries) {
       if (totalBytes + entry.uncompressedSize > MAX_TOTAL_BYTES) {
         console.warn('[AETHERYS VISUALS] Limite de taille atteinte, fin de l’extraction.');
         break;
       }
       try {
         const image = extractEntry(archive, entry);
-        const index = pages.length + 1;
         const ext = path.extname(entry.name).toLowerCase() || '.jpg';
-        const filename = 'page-' + String(index).padStart(3, '0') + ext;
+        const filename = 'page-' + String(pageNumber).padStart(3, '0') + ext;
         const destination = path.join(PAGES, filename);
         await fs.promises.writeFile(destination, image);
-        pages.push({ page: index, source: entry.name, file: path.relative(__dirname, destination).replace(/\\/g, '/'), bytes: image.length });
+        pages.push({ page: pageNumber, source: entry.name, file: path.relative(__dirname, destination).replace(/\\/g, '/'), bytes: image.length });
         totalBytes += image.length;
       } catch (error) {
         console.warn('[AETHERYS VISUALS] Image ignorée (' + entry.name + '): ' + error.message);
@@ -152,6 +164,7 @@ function getManifest() {
 }
 
 function getPageAsset(pageNumber) {
+  if ([79, 80].includes(Number(pageNumber))) return null;
   const manifest = getManifest();
   const entry = manifest?.pages?.find(item => item.page === Number(pageNumber));
   if (!entry) return null;
