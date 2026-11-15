@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { default: PQueue } = require('p-queue');
 const { Sequelize } = require('sequelize');
-const { setupDatabase, Player } = require('./database');
+const { setupDatabase, Player, Creds } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
@@ -30,6 +30,8 @@ let connectionStarting = false;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 let reconnectScheduled = false;
+let authClearSession = null;
+let authResetAttempts = 0;
 const MAX_RECONNECT_DELAY = 60000;
 
 function scheduleWhatsAppReconnect(reason, minimumDelay = 5000) {
@@ -165,11 +167,20 @@ async function connectToWhatsApp() {
       fs.mkdirSync(path.join('assets', 'profiles'), { recursive: true });
   }
 
-  if (process.env.RESET_SESSION === 'true') {
-      console.warn('[AUTH] RESET_SESSION est défini, mais la session persistante est conservée pour éviter un nouveau pairage à chaque redémarrage. Retire cette variable après une réinitialisation volontaire.');
-  }
+  const { state, saveCreds, clearSession } = await useDatabaseAuth();
+  authClearSession = clearSession;
 
-  const { state, saveCreds } = await useDatabaseAuth();
+  const resetToken = (process.env.RESET_SESSION || '').trim();
+  if (resetToken && !['false', '0', 'no'].includes(resetToken.toLowerCase())) {
+      const marker = await Creds.findOne({ where: { key: 'reset-marker' } });
+      if (!marker || marker.value !== resetToken) {
+          console.warn('[AUTH] RESET_SESSION demandé : effacement volontaire de la session WhatsApp.');
+          await clearSession();
+          await Creds.upsert({ key: 'reset-marker', value: resetToken });
+          connectionStarting = false;
+          return connectToWhatsApp();
+      }
+  }
   const { version, isLatest } = await fetchLatestBaileysVersion();
   console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
 
@@ -276,9 +287,9 @@ async function connectToWhatsApp() {
             currentQrCode = null;
             console.warn('[AUTH] Connexion interrompue : ancien code effacé, un nouveau sera demandé après reconnexion.');
         }
-        if (update.qr) currentQrCode = update.qr;
-        if (update.connection === 'connecting' && !sock.authState.creds.registered) {
-            schedulePairingRequest(500);
+        if (update.qr) {
+            currentQrCode = update.qr;
+            if (!sock.authState.creds.registered) await requestAndShowCode();
         }
         if (update.connection === 'open') {
             if (pairingLogInterval) { clearInterval(pairingLogInterval); pairingLogInterval = null; }
@@ -312,11 +323,14 @@ async function connectToWhatsApp() {
       if (pairingLogInterval) { clearInterval(pairingLogInterval); pairingLogInterval = null; }
 
       if (isLoggedOut) {
-          if (!sock.authState.creds.registered) {
-              console.error('[CONN] 401 avant le premier pairage. La session provisoire est conservée ; nouvelle tentative avec un socket neuf après temporisation.');
-              scheduleWhatsAppReconnect('401 pendant le premier pairage (session conservée)', 20000);
+          authResetAttempts += 1;
+          if (authResetAttempts <= 5 && authClearSession) {
+              console.error(`[CONN] 401 : session invalide. Effacement et nouveau pairage (essai ${authResetAttempts}/5).`);
+              try { await authClearSession(); }
+              catch (error) { console.error('[AUTH] Effacement impossible:', error.message); }
+              scheduleWhatsAppReconnect('session invalide (401), nouveau pairage', 10000);
           } else {
-              console.error('[CONN] Session WhatsApp enregistrée refusée (401). Arrêt automatique : identifiants conservés, aucune suppression ni réinitialisation.');
+              console.error('[CONN] 401 répété : arrêt après cinq réinitialisations maximum.');
           }
           return;
       }
@@ -332,6 +346,7 @@ async function connectToWhatsApp() {
       console.log('Connecté à WhatsApp');
       isWhatsAppConnected = true;
       reconnectAttempts = 0;
+      authResetAttempts = 0;
       reconnectScheduled = false;
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       try {
