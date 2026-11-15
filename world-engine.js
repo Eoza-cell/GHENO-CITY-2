@@ -243,8 +243,10 @@ async function snapshot(place=''){
 async function worldContext(place=''){
  const s=await snapshot(place), lines=['ÉTAT PERSISTANT DU MONDE ATR'];
  const currentKingdom=s.kingdoms.find(k=>String(k.name||'').toLowerCase()===String(place||'').toLowerCase());
- const currentRegion=currentKingdom?key(currentKingdom.continent||'Aetheria'):key(place||'');
- const localLocations=s.locations.filter(l=>l.ownerFaction===place||l.regionKey===currentRegion);
+ const matchingPlace=s.locations.find(l=>String(l.name||'').toLowerCase()===String(place||'').toLowerCase());
+ const relevantRealm=currentKingdom?.name||matchingPlace?.ownerFaction||place;
+ const currentRegion=currentKingdom?key(currentKingdom.continent||'Aetheria'):(matchingPlace?.regionKey||key(place||''));
+ const localLocations=s.locations.filter(l=>l.ownerFaction===relevantRealm||l.regionKey===currentRegion);
  const selectedLocations=(localLocations.length?localLocations:s.locations).slice(0,18);
  for(const r of s.regions)lines.push('CONTINENT '+r.name+': '+r.climate+', stabilité '+r.stability+'/100, danger '+r.danger+'/100. '+r.lore);
  for(const k of s.kingdoms)lines.push('ROYAUME '+k.name+' | Continent: '+(k.continent||'inconnu')+' | Dirigeant: '+(k.leader||'inconnu')+' | Statut: '+k.status+' | Influence: '+k.influence+'/100 | Puissance militaire: '+k.militaryPower+'/100. '+String(k.description||'').slice(0,260));
@@ -258,9 +260,7 @@ async function worldContext(place=''){
  lines.push('ORDRE SOCIAL DE RÉFÉRENCE (à adapter aux lois locales) :');
  for(const rank of s.socialOrders)lines.push('Rang '+rank.rank+' — '+rank.name+': '+rank.description+' Privilèges: '+rank.privileges+' Devoirs: '+rank.duties+' Mobilité: '+rank.mobility);
  lines.push('ACADÉMIES ET INSTITUTIONS :');
- for(const institution of s.institutions.filter(x=>!place||String(x.realm||'').toLowerCase()===String(place).toLowerCase()).slice(0,16))lines.push(institution.name+' ['+institution.realm+'] — '+institution.specialty+'. '+institution.description+' Admission: '+institution.admission);
- const matchingLocation=s.locations.find(l=>String(l.name||'').toLowerCase()===String(place||'').toLowerCase());
- const relevantRealm=currentKingdom?.name||matchingLocation?.ownerFaction||place;
+ for(const institution of s.institutions.filter(x=>!place||String(x.realm||'').toLowerCase()===String(relevantRealm||'').toLowerCase()).slice(0,16))lines.push(institution.name+' ['+institution.realm+'] — '+institution.specialty+'. '+institution.description+' Admission: '+institution.admission);
  const localNpcs=await NPC.findAll({where:{[Op.or]:[{location:relevantRealm},{location:place},{subLocation:place},{zone:place}]},limit:8,order:[['name','ASC']]});
  if(localNpcs.length){lines.push('PNJ IDENTIFIÉS DANS CETTE ZONE (ne pas inventer leur identité) :');for(const npc of localNpcs){const [profile,memory]=await Promise.all([NPCProfile.findByPk(npc.id),NPCMemory.findByPk(npc.id)]);lines.push(npc.name+' — '+(npc.role||'habitant')+', '+(npc.faction||'sans faction')+', spécialité '+(npc.specialty||'non documentée')+'. '+(profile?.biography||npc.description||'Biographie inconnue.')+' Humeur: '+(memory?.mood||'non connue')+'. Confiance: '+(memory?.trust??0)+'.');}}
  const skillGroups=await Skill.findAll({attributes:['type'],group:['type'],raw:true});
