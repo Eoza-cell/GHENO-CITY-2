@@ -151,11 +151,11 @@ async function callGPTOSS(system, prompt, options = {}) {
 }
 
 async function callAI(systemPrompt, userPrompt, options = {}) {
-    const maxLength = 16000;
+    const maxLength = 12000;
     const system = String(systemPrompt || '').slice(0, maxLength);
     const rawPrompt = String(userPrompt || '');
     const prompt = rawPrompt.length > maxLength
-        ? rawPrompt.substring(0, 7000) + '\n...[TRUNCATED]...\n' + rawPrompt.slice(-9000)
+        ? rawPrompt.substring(0, 5000) + '\n...[TRUNCATED]...\n' + rawPrompt.slice(-7000)
         : rawPrompt;
 
     // Puter/Gemini is the primary engine. GPT-OSS remains a resilience fallback.
