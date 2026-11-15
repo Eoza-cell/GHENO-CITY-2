@@ -86,7 +86,7 @@ async function callPuter(system, prompt, options = {}) {
     const puter = getPuterClient();
     if (!puter) return null;
 
-    const model = options.model || process.env.PUTER_MODEL || 'gemini-3.1-flash-lite';
+    const model = options.model || process.env.PUTER_MODEL || 'google/gemini-3.8-flash';
     const timeoutMs = Number.parseInt(process.env.PUTER_TIMEOUT_MS || '90000', 10);
     const messages = [
         { role: 'system', content: system },
