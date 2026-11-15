@@ -9,6 +9,7 @@
 let redis = null;
 let enabled = false;
 let rag = null;
+const ragEnabled = process.env.RAG_ENABLED === 'true';
 
 try {
   const { Redis } = require('@upstash/redis');
@@ -23,10 +24,15 @@ try {
   console.warn('[UPSTASH MEMORY] SDK unavailable:', err.message);
 }
 
-try {
-  rag = require('./rag-memory');
-} catch (err) {
-  console.warn('[RAG] Semantic memory module unavailable:', err.message);
+if (ragEnabled) {
+  try {
+    rag = require('./rag-memory');
+    console.log('[RAG] Semantic indexing enabled by RAG_ENABLED=true.');
+  } catch (err) {
+    console.warn('[RAG] Semantic memory module unavailable:', err.message);
+  }
+} else {
+  console.log('[RAG] Semantic indexing paused; Redis narrative memory remains active.');
 }
 
 const PREFIX = 'atr:memory:v1';
@@ -55,7 +61,7 @@ async function rememberValidatedAction({ player, action, summary, location, subL
     subLocation,
     action: clean(action),
     summary: clean(summary),
-    impacts: impacts.map(clean).slice(0, 12)
+    impacts: impacts.map(clean).slice(0, 4)
   };
 
   await pushEvent(playerKey(player.whatsappId), event);
@@ -134,14 +140,14 @@ async function parseRows(rows) {
   }).filter(Boolean);
 }
 
-async function getNarrativeContext({ player, location, subLocation, limit = 24 }) {
+async function getNarrativeContext({ player, location, subLocation, limit = 6 }) {
   if (!enabled) {
     return { enabled: false, playerMemory: [], localMemory: [], worldMemory: [], summary: null };
   }
 
   const [playerRows, worldRows, summary] = await Promise.all([
     redis.lrange(playerKey(player.whatsappId), 0, limit - 1),
-    redis.lrange(worldKey(), 0, Math.max(limit * 2, 40) - 1),
+    redis.lrange(worldKey(), 0, Math.max(limit * 2, 12) - 1),
     redis.get(summaryKey(player.whatsappId))
   ]);
 
@@ -155,7 +161,7 @@ async function getNarrativeContext({ player, location, subLocation, limit = 24 }
 
   const worldMemory = world
     .filter(e => e.location === location && e.subLocation !== subLocation)
-    .slice(0, 8)
+    .slice(0, 3)
     .reverse();
 
   return { enabled: true, playerMemory, localMemory, worldMemory, summary };
@@ -183,7 +189,7 @@ function formatMemoryContext(memory) {
     '',
     'CONTEXTE DU ROYAUME:',
     ...(memory.worldMemory.length ? memory.worldMemory.map(fmt) : ['- Aucun événement régional récent.'])
-  ].join('\n').slice(0, 18000);
+  ].join('\n').slice(0, 5000);
 }
 
 module.exports = {
