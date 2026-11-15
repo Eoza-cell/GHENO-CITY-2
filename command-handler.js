@@ -3593,6 +3593,15 @@ async function handleCommand(sock, message, downloadMediaMessage) {
 
   // Character tutorial is deterministic: never send its answers to the free-RP MJ.
   const tutorialStep = Number(player?.tutorialStep);
+
+  // Recover players left inside the retired duplicate identity wizard by an older deployment.
+  if (player && Number.isFinite(tutorialStep) && tutorialStep >= 0.1 && tutorialStep < 1 &&
+      !player.registrationStep && !player.awaitingProfilePic && player.name && player.characterDescription) {
+      console.warn(`[TUTORIAL] Reprise de ${player.name} après l'ancien double parcours : retour au choix de classe.`);
+      await startTutorial(sock, replyJid, player);
+      return;
+  }
+
   if (player && Number.isFinite(tutorialStep) && tutorialStep >= 0.1 && tutorialStep <= 2) {
       try {
           await handleTutorialAction(sock, message, player, messageText);
