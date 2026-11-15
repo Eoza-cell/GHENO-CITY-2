@@ -1490,7 +1490,7 @@ Règle : joue ce PNJ comme un individu autonome. Ne change pas ses valeurs, son 
         player,
         location: player.location,
         subLocation: player.subLocation,
-        limit: 24
+        limit: 6
       });
       persistentMemoryText = formatMemoryContext(persistentMemory);
     } catch (memoryErr) {
