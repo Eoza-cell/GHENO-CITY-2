@@ -241,36 +241,45 @@ async function snapshot(place=''){
  return {regions,locations,factions,events,conflicts,laws,disciplines,kingdoms,socialOrders,institutions,featureCount:FEATURES.length};
 }
 async function worldContext(place=''){
- const s=await snapshot(place), lines=['ÉTAT PERSISTANT DU MONDE ATR'];
- const currentKingdom=s.kingdoms.find(k=>String(k.name||'').toLowerCase()===String(place||'').toLowerCase());
- const matchingPlace=s.locations.find(l=>String(l.name||'').toLowerCase()===String(place||'').toLowerCase());
+ const currentKingdom=await Kingdom.findOne({where:{name:place}});
+ const matchingPlace=currentKingdom?null:await Location.findOne({where:{name:place}});
  const relevantRealm=currentKingdom?.name||matchingPlace?.ownerFaction||place;
- const currentRegion=currentKingdom?key(currentKingdom.continent||'Aetheria'):(matchingPlace?.regionKey||key(place||''));
- const localLocations=s.locations.filter(l=>l.ownerFaction===relevantRealm||l.regionKey===currentRegion);
- const selectedLocations=(localLocations.length?localLocations:s.locations).slice(0,18);
- for(const r of s.regions)lines.push('CONTINENT '+r.name+': '+r.climate+', stabilité '+r.stability+'/100, danger '+r.danger+'/100. '+r.lore);
- for(const k of s.kingdoms)lines.push('ROYAUME '+k.name+' | Continent: '+(k.continent||'inconnu')+' | Dirigeant: '+(k.leader||'inconnu')+' | Statut: '+k.status+' | Influence: '+k.influence+'/100 | Puissance militaire: '+k.militaryPower+'/100. '+String(k.description||'').slice(0,260));
- lines.push('LIEUX PRIORITAIRES POUR '+(place||'LE MONDE')+':');
- for(const l of selectedLocations)lines.push('Lieu '+l.name+' ('+l.kind+'): '+l.description+' Services: '+json(l.services).join(', ')+'. Population '+l.population+', prospérité '+l.prosperity+', sécurité '+l.security+'.');
- for(const f of s.factions.slice(0,12))lines.push('Faction '+f.name+': chef '+f.leader+', influence '+f.influence+', légitimité '+f.legitimacy+'. '+f.ideology+' Agenda: '+f.agenda);
- for(const e of s.events.slice(0,8))lines.push('Événement '+e.title+': '+e.description);
- for(const c of s.conflicts.slice(0,8))lines.push('Conflit '+c.title+': '+c.description);
- for(const l of s.laws.slice(0,15))lines.push('Loi de '+l.realm+' — '+l.title+': '+l.description);
- for(const p of s.disciplines.slice(0,24))lines.push('DISCIPLINE / TECHNIQUES '+p.name+' (source '+p.source+'): '+p.philosophy+' Limites: '+p.limits+' Contres: '+p.counters);
- lines.push('ORDRE SOCIAL DE RÉFÉRENCE (à adapter aux lois locales) :');
- for(const rank of s.socialOrders)lines.push('Rang '+rank.rank+' — '+rank.name+': '+rank.description+' Privilèges: '+rank.privileges+' Devoirs: '+rank.duties+' Mobilité: '+rank.mobility);
- lines.push('ACADÉMIES ET INSTITUTIONS :');
- for(const institution of s.institutions.filter(x=>!place||String(x.realm||'').toLowerCase()===String(relevantRealm||'').toLowerCase()).slice(0,16))lines.push(institution.name+' ['+institution.realm+'] — '+institution.specialty+'. '+institution.description+' Admission: '+institution.admission);
- const localNpcs=await NPC.findAll({where:{[Op.or]:[{location:relevantRealm},{location:place},{subLocation:place},{zone:place}]},limit:8,order:[['name','ASC']]});
- if(localNpcs.length){lines.push('PNJ IDENTIFIÉS DANS CETTE ZONE (ne pas inventer leur identité) :');for(const npc of localNpcs){const [profile,memory]=await Promise.all([NPCProfile.findByPk(npc.id),NPCMemory.findByPk(npc.id)]);lines.push(npc.name+' — '+(npc.role||'habitant')+', '+(npc.faction||'sans faction')+', spécialité '+(npc.specialty||'non documentée')+'. '+(profile?.biography||npc.description||'Biographie inconnue.')+' Humeur: '+(memory?.mood||'non connue')+'. Confiance: '+(memory?.trust??0)+'.');}}
- const [skillGroups,techniques]=await Promise.all([
+ const regionKey=currentKingdom?key(currentKingdom.continent||'Aetheria'):(matchingPlace?.regionKey||key(place||''));
+ const [region,locations,factions,events,conflicts,laws,disciplines,kingdoms,socialOrders,institutions,localNpcs,skillGroups,techniques]=await Promise.all([
+  Region.findOne({where:{key:regionKey}}),
+  Location.findAll({where:{[Op.or]:[{ownerFaction:relevantRealm},{regionKey}]},order:[['name','ASC']],limit:10}),
+  Faction.findAll({order:[['influence','DESC']],limit:6}),
+  Event.findAll({where:{status:'active'},limit:4,order:[['severity','DESC']]}),
+  Conflict.findAll({where:{status:'active'},limit:4}),
+  Law.findAll({where:{active:true,[Op.or]:[{realm:relevantRealm},{realm:'general'}]},limit:8}),
+  Discipline.findAll({order:[['name','ASC']],limit:12}),
+  Kingdom.findAll({where:currentKingdom?{name:currentKingdom.name}:{continent:region?.name},order:[['name','ASC']],limit:8}),
+  SocialOrder.findAll({where:{realm:'general'},order:[['rank','ASC']],limit:7}),
+  Institution.findAll({where:{realm:relevantRealm},order:[['name','ASC']],limit:8}),
+  NPC.findAll({where:{[Op.or]:[{location:relevantRealm},{location:place},{subLocation:place},{zone:place}]},limit:4,order:[['name','ASC']]}),
   Skill.findAll({attributes:['type'],group:['type'],raw:true}),
-  Skill.findAll({attributes:['name','description','type','manaCost'],order:[['type','ASC'],['name','ASC']],limit:36})
+  Skill.findAll({attributes:['name','description','type','manaCost'],order:[['type','ASC'],['name','ASC']],limit:12})
  ]);
- lines.push('CATÉGORIES DE TECHNIQUES DISPONIBLES : '+skillGroups.map(x=>x.type).filter(Boolean).join(', '));
- lines.push('EXEMPLES DE TECHNIQUES EXISTANTES (ne pas modifier leur coût ni leur effet sans règle explicite) :');
- for(const technique of techniques)lines.push('['+(technique.type||'discipline non classée')+'] '+technique.name+' — coût '+(technique.manaCost??0)+' mana. '+String(technique.description||'Description non renseignée.').slice(0,180));
- return lines.join('\n').slice(0,16000);
+ const lines=['CONTEXTE LOCAL DU MONDE ATR — priorité au lieu actuel'];
+ if(region)lines.push('CONTINENT '+region.name+': '+region.climate+', stabilité '+region.stability+'/100, danger '+region.danger+'/100. '+region.lore);
+ if(currentKingdom)lines.push('ROYAUME '+currentKingdom.name+' | Dirigeant: '+(currentKingdom.leader||'inconnu')+' | Statut: '+currentKingdom.status+'. '+String(currentKingdom.description||'').slice(0,350));
+ else if(matchingPlace)lines.push('LIEU '+matchingPlace.name+': '+matchingPlace.description);
+ for(const k of kingdoms)if(k.id!==currentKingdom?.id)lines.push('ROYAUME VOISIN '+k.name+' ('+(k.continent||'inconnu')+'): '+String(k.description||'').slice(0,160));
+ for(const l of locations)lines.push('LIEU '+l.name+' ('+l.kind+'): '+String(l.description||'').slice(0,180)+' Services: '+json(l.services).slice(0,5).join(', ')+'.');
+ for(const f of factions)lines.push('FACTION '+f.name+': chef '+f.leader+', influence '+f.influence+', légitimité '+f.legitimacy+'. '+String(f.ideology||'').slice(0,140));
+ for(const e of events)lines.push('ÉVÉNEMENT '+e.title+': '+String(e.description||'').slice(0,220));
+ for(const c of conflicts)lines.push('CONFLIT '+c.title+': '+String(c.description||'').slice(0,220));
+ for(const l of laws)lines.push('LOI '+l.realm+' — '+l.title+': '+String(l.description||'').slice(0,180));
+ for(const d of disciplines)lines.push('DISCIPLINE '+d.name+' ('+d.source+'): '+String(d.philosophy||'').slice(0,140)+' Limites: '+String(d.limits||'').slice(0,100)+' Contres: '+String(d.counters||'').slice(0,100));
+ for(const rank of socialOrders)lines.push('ORDRE SOCIAL '+rank.name+': '+String(rank.description||'').slice(0,130)+' Privilèges: '+String(rank.privileges||'').slice(0,100)+' Devoirs: '+String(rank.duties||'').slice(0,100));
+ for(const institution of institutions)lines.push('INSTITUTION '+institution.name+' — '+institution.specialty+'. '+String(institution.description||'').slice(0,180));
+ for(const npc of localNpcs){
+  const [profile,memory]=await Promise.all([NPCProfile.findByPk(npc.id),NPCMemory.findByPk(npc.id)]);
+  lines.push('PNJ '+npc.name+' — '+(npc.role||'habitant')+', '+(npc.specialty||'spécialité inconnue')+'. '+String(profile?.biography||npc.description||'').slice(0,260)+' Humeur: '+(memory?.mood||'non connue')+'.');
+ }
+ lines.push('CATÉGORIES DE TECHNIQUES: '+skillGroups.map(x=>x.type).filter(Boolean).join(', '));
+ for(const t of techniques)lines.push('TECHNIQUE ['+(t.type||'non classée')+'] '+t.name+' — '+(t.manaCost??0)+' mana. '+String(t.description||'').slice(0,120));
+ return lines.join('\n').slice(0,6500);
 }
 async function tickWorld(){
  const npcRows=await NPC.findAll({limit:1000});
