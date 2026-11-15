@@ -191,7 +191,6 @@ async function connectToWhatsApp() {
       keys: makeCacheableSignalKeyStore(state.keys, baileysLogger)
     },
     printQRInTerminal: false,
-    browser: Browsers.macOS('Chrome'),
     syncFullHistory: false,
     version,
     logger: baileysLogger,
