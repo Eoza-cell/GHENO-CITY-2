@@ -3618,8 +3618,18 @@ async function handleCommand(sock, message, downloadMediaMessage) {
     try {
         await handleFreeAction(sock, message, player, messageText);
     } catch (error) {
-      console.error('Erreur action libre:', error);
-      await sock.sendMessage(replyJid, { text: "Le MJ n'a pas pu interpréter ton action. Réessaie." });
+      // Keep the full stack in Render logs: the user-facing fallback must not hide
+      // which database/model/context operation failed before narration started.
+      console.error('[FREE ACTION FATAL]', {
+        player: player?.name,
+        playerId: player?.whatsappId,
+        location: player?.location,
+        subLocation: player?.subLocation,
+        action: String(messageText).slice(0, 300),
+        message: error?.message || String(error),
+        stack: error?.stack || 'No stack available'
+      });
+      await sock.sendMessage(replyJid, { text: "⚠️ Le moteur d'action a rencontré une erreur avant de terminer la scène. Ton personnage et sa position sont conservés. Consulte les logs Render avec le tag [FREE ACTION FATAL]." });
     } finally {
         await player.update({ lastActivity: new Date() });
     }
