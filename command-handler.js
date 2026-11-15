@@ -21,7 +21,7 @@ const { generateShopImage, generateDetailedItemCard } = require('./shop-generato
 const { generateSkillListImage } = require('./action-visual-generator');
 const { handleFreeAction } = require('./ai-handler');
 const { resolveMentions } = require('./message-handler');
-const { startTutorial } = require('./tutorial-handler');
+const { startTutorial, handleTutorialAction } = require('./tutorial-handler');
 const { sendWithImage, shouldNotifyPlayer } = require('./message-handler');
 const referee = require('./referee-logic');
 const { generateRegistrationPanel, generateTacticalStatus, generateMenuPanel, generateArchivePanel } = require('./atr-interface');
@@ -3525,8 +3525,15 @@ async function handleCommand(sock, message, downloadMediaMessage) {
           try {
               const panel = await generateRegistrationPanel(step, { name: player.name });
               await sock.sendMessage(replyJid, { image: panel, caption });
-          } catch {
-              await sock.sendMessage(replyJid, { text: caption });
+          } catch (error) {
+              console.error(`[REGISTRATION] Image du panneau indisponible (étape ${step}):`, error.message);
+              try {
+                  const fallbackImage = await require('./start-image-generator').generateLinkStartImage();
+                  await sock.sendMessage(replyJid, { image: fallbackImage, caption });
+              } catch (fallbackError) {
+                  console.error('[REGISTRATION] Image de secours indisponible:', fallbackError.message);
+                  await sock.sendMessage(replyJid, { text: caption });
+              }
           }
       };
 
@@ -3582,6 +3589,19 @@ async function handleCommand(sock, message, downloadMediaMessage) {
   if (!player && !messageText.startsWith('/start')) {
     await sock.sendMessage(replyJid, { text: "Utilise /start pour commencer." });
     return;
+  }
+
+  // Character tutorial is deterministic: never send its answers to the free-RP MJ.
+  const tutorialStep = Number(player?.tutorialStep);
+  if (player && Number.isFinite(tutorialStep) && tutorialStep >= 0.1 && tutorialStep <= 2) {
+      try {
+          await handleTutorialAction(sock, message, player, messageText);
+          await player.update({ lastActivity: new Date() });
+      } catch (tutorialError) {
+          console.error('[TUTORIAL] Action handler failed:', tutorialError);
+          await sock.sendMessage(replyJid, { text: "⚠️ Le système de création a rencontré une erreur. Réessaie ta réponse." });
+      }
+      return;
   }
 
   // Handle free RP action for all non-command messages when player is registered and not sleeping
