@@ -1,57 +1,23 @@
 const { Creds } = require('./database');
+const { Op } = require('sequelize');
 const { proto, BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
 
-/**
- * A database-backed authentication handler for Baileys.
- * This function replaces `useMultiFileAuthState` to ensure session
- * persistence on platforms with ephemeral file systems.
- *
- * @returns {Promise<{state: {creds: any, keys: {}}, saveCreds: () => Promise<void>}>}
- */
 const useDatabaseAuth = async () => {
-    let creds;
-    let keys = {};
-    // Baileys peut émettre plusieurs creds.update presque simultanément.
-    // Sérialiser les écritures évite qu'un ancien snapshot écrase le plus récent.
-    let persistenceQueue = Promise.resolve();
-
-    // Helper function to read a file from the database
-    const readData = async (key) => {
-        try {
-            const data = await Creds.findOne({ where: { key } });
-            // The data is stored as a string, so we need to parse it
-            if (!data || !data.value) return null;
-            return JSON.parse(data.value, BufferJSON.reviver);
-        } catch (error) {
-            console.error(`[AUTH-DB] Lecture impossible pour "${key}"`, error);
-            throw error;
-        }
+    let queue = Promise.resolve();
+    const enqueue = (fn) => {
+        const run = queue.catch(() => {}).then(fn);
+        queue = run;
+        return run;
+    };
+    const parse = (raw) => (raw ? JSON.parse(raw, BufferJSON.reviver) : null);
+    const stringify = (data) => JSON.stringify(data, BufferJSON.replacer);
+    const readOne = async (key) => {
+        const row = await Creds.findOne({ where: { key } });
+        return row && row.value ? parse(row.value) : null;
     };
 
-    // Helper function to write data to the database
-    const writeData = async (key, data) => {
-        try {
-            const value = JSON.stringify(data, BufferJSON.replacer);
-            persistenceQueue = persistenceQueue.catch(() => {}).then(() => Creds.upsert({ key, value }));
-            return persistenceQueue;
-        } catch (error) {
-            console.error(`[AUTH-DB] Écriture impossible pour "${key}"`, error);
-            throw error;
-        }
-    };
-
-    // Helper function to remove data from the database
-    const removeData = async (key) => {
-        try {
-            persistenceQueue = persistenceQueue.catch(() => {}).then(() => Creds.destroy({ where: { key } }));
-            return persistenceQueue;
-        } catch (error) {
-            console.error(`[AUTH-DB] Suppression impossible pour "${key}"`, error);
-            throw error;
-        }
-    };
-
-    creds = await readData('creds') || initAuthCreds();
+    let creds = await readOne('creds');
+    if (!creds) creds = initAuthCreds();
 
     return {
         state: {
@@ -59,33 +25,45 @@ const useDatabaseAuth = async () => {
             keys: {
                 get: async (type, ids) => {
                     const data = {};
-                    await Promise.all(
-                        ids.map(async (id) => {
-                            let value = await readData(`${type}-${id}`);
-                            if (type === 'app-state-sync-key' && value) {
-                                value = proto.Message.AppStateSyncKeyData.fromObject(value);
-                            }
-                            data[id] = value;
-                        })
-                    );
+                    if (!ids.length) return data;
+                    const keyNames = ids.map((id) => `${type}-${id}`);
+                    const rows = await Creds.findAll({ where: { key: { [Op.in]: keyNames } } });
+                    const byKey = new Map(rows.map((row) => [row.key, row.value]));
+                    for (const id of ids) {
+                        let value = null;
+                        try { value = parse(byKey.get(`${type}-${id}`)); }
+                        catch (error) { console.error(`[AUTH-DB] Clé corrompue ${type}-${id}, ignorée:`, error.message); }
+                        if (type === 'app-state-sync-key' && value) {
+                            value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                        }
+                        data[id] = value;
+                    }
                     return data;
                 },
                 set: async (data) => {
-                    const tasks = [];
+                    const toUpsert = [];
+                    const toDelete = [];
                     for (const category in data) {
                         for (const id in data[category]) {
                             const value = data[category][id];
                             const key = `${category}-${id}`;
-                            tasks.push(value ? writeData(key, value) : removeData(key));
+                            if (value) toUpsert.push({ key, value: stringify(value) });
+                            else toDelete.push(key);
                         }
                     }
-                    await Promise.all(tasks);
+                    await enqueue(async () => {
+                        for (let i = 0; i < toUpsert.length; i += 200) {
+                            await Creds.bulkCreate(toUpsert.slice(i, i + 200), { updateOnDuplicate: ['value'] });
+                        }
+                        for (let i = 0; i < toDelete.length; i += 200) {
+                            await Creds.destroy({ where: { key: { [Op.in]: toDelete.slice(i, i + 200) } } });
+                        }
+                    });
                 },
             },
         },
-        saveCreds: () => {
-            return writeData('creds', creds);
-        },
+        saveCreds: () => enqueue(() => Creds.upsert({ key: 'creds', value: stringify(creds) })),
+        clearSession: () => enqueue(() => Creds.destroy({ where: {} })),
     };
 };
 
