@@ -259,7 +259,9 @@ async function worldContext(place=''){
  for(const rank of s.socialOrders)lines.push('Rang '+rank.rank+' — '+rank.name+': '+rank.description+' Privilèges: '+rank.privileges+' Devoirs: '+rank.duties+' Mobilité: '+rank.mobility);
  lines.push('ACADÉMIES ET INSTITUTIONS :');
  for(const institution of s.institutions.filter(x=>!place||String(x.realm||'').toLowerCase()===String(place).toLowerCase()).slice(0,16))lines.push(institution.name+' ['+institution.realm+'] — '+institution.specialty+'. '+institution.description+' Admission: '+institution.admission);
- const localNpcs=await NPC.findAll({where:{[Op.or]:[{location:place},{subLocation:place},{zone:place}]},limit:8,order:[['name','ASC']]});
+ const matchingLocation=s.locations.find(l=>String(l.name||'').toLowerCase()===String(place||'').toLowerCase());
+ const relevantRealm=currentKingdom?.name||matchingLocation?.ownerFaction||place;
+ const localNpcs=await NPC.findAll({where:{[Op.or]:[{location:relevantRealm},{location:place},{subLocation:place},{zone:place}]},limit:8,order:[['name','ASC']]});
  if(localNpcs.length){lines.push('PNJ IDENTIFIÉS DANS CETTE ZONE (ne pas inventer leur identité) :');for(const npc of localNpcs){const [profile,memory]=await Promise.all([NPCProfile.findByPk(npc.id),NPCMemory.findByPk(npc.id)]);lines.push(npc.name+' — '+(npc.role||'habitant')+', '+(npc.faction||'sans faction')+', spécialité '+(npc.specialty||'non documentée')+'. '+(profile?.biography||npc.description||'Biographie inconnue.')+' Humeur: '+(memory?.mood||'non connue')+'. Confiance: '+(memory?.trust??0)+'.');}}
  const skillGroups=await Skill.findAll({attributes:['type'],group:['type'],raw:true});
  lines.push('CATÉGORIES DE TECHNIQUES DISPONIBLES : '+skillGroups.map(x=>x.type).filter(Boolean).join(', '));
