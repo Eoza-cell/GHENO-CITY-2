@@ -61,7 +61,7 @@ async function rememberValidatedAction({ player, action, summary, location, subL
     subLocation,
     action: clean(action),
     summary: clean(summary),
-    impacts: impacts.map(clean).slice(0, 4)
+    impacts: impacts.map(clean).slice(0, 12)
   };
 
   await pushEvent(playerKey(player.whatsappId), event);
