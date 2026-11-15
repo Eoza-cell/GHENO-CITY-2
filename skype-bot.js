@@ -5,14 +5,14 @@ require('dotenv').config();
 
 const http = require('http');
 const crypto = require('crypto');
-const { getContentType, jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
+const { jidNormalizedUser, delay, downloadMediaMessage, makeWASocket, fetchLatestBaileysVersion, Browsers, makeCacheableSignalKeyStore } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const { default: PQueue } = require('p-queue');
 const { Sequelize } = require('sequelize');
-const { setupDatabase, Player, Creds } = require('./database');
+const { setupDatabase, Creds } = require('./database');
 const { useDatabaseAuth } = require('./database-auth');
 const { handleCommand, getJid } = require('./command-handler');
 const { startTutorial } = require('./tutorial-handler');
@@ -372,8 +372,6 @@ async function connectToWhatsApp() {
 
                 const jid = getJid(message);
                 if (!jid) return;
-
-                const player = await Player.findOne({ where: { whatsappId: jid } });
 
                 // Profile-image upload / 'passer' is handled once in command-handler.js.
                 // Keeping a second handler here caused duplicate onboarding and premature auto-skip.
