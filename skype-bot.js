@@ -240,16 +240,10 @@ async function connectToWhatsApp() {
     const requestAndShowCode = async () => {
         if (pairingRequested || isWhatsAppConnected || sock.authState.creds.registered || socketClosedDuringPairing) return;
 
-        // Baileys doit avoir terminé l'ouverture du WebSocket avant la demande.
-        // L'événement "connecting" peut être émis avant l'installation du listener :
-        // un contrôle différé sert donc de filet de sécurité.
-        const socketReadyState = sock.ws?.readyState;
-        if (socketReadyState !== 1) {
-            console.log(`[AUTH] WebSocket pas encore prêt (readyState=${socketReadyState ?? 'indisponible'}). Nouvelle vérification dans 1 seconde.`);
-            schedulePairingRequest(1000);
-            return;
-        }
-
+        // Baileys 6.7.24 ne publie pas toujours sock.ws :
+        // readyState peut rester indisponible même après le handshake.
+        // La demande est déclenchée depuis connection.update, sans dépendre
+        // d'une propriété interne du socket.
         pairingRequested = true;
         try {
             console.log(`[AUTH] WebSocket prêt. Demande du code de pairage pour ${phoneNumber} (tentative ${pairingRetryCount + 1}).`);
@@ -291,6 +285,10 @@ async function connectToWhatsApp() {
             currentQrCode = update.qr;
             if (!sock.authState.creds.registered) await requestAndShowCode();
         }
+        if (update.connection === 'connecting' && !sock.authState.creds.registered) {
+            console.log('[AUTH] Événement connecting reçu : préparation du code de pairage.');
+            schedulePairingRequest(1200);
+        }
         if (update.connection === 'open') {
             if (pairingLogInterval) { clearInterval(pairingLogInterval); pairingLogInterval = null; }
             socketClosedDuringPairing = false;
@@ -301,7 +299,7 @@ async function connectToWhatsApp() {
 
     // Filet de sécurité : ne pas dépendre uniquement de "connecting",
     // qui peut avoir été émis avant l'abonnement à connection.update.
-    schedulePairingRequest(1500);
+    schedulePairingRequest(4000);
   }
 
   sock.ev.on('connection.update', async (update) => {
