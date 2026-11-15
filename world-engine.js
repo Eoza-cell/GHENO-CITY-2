@@ -263,9 +263,14 @@ async function worldContext(place=''){
  for(const institution of s.institutions.filter(x=>!place||String(x.realm||'').toLowerCase()===String(relevantRealm||'').toLowerCase()).slice(0,16))lines.push(institution.name+' ['+institution.realm+'] — '+institution.specialty+'. '+institution.description+' Admission: '+institution.admission);
  const localNpcs=await NPC.findAll({where:{[Op.or]:[{location:relevantRealm},{location:place},{subLocation:place},{zone:place}]},limit:8,order:[['name','ASC']]});
  if(localNpcs.length){lines.push('PNJ IDENTIFIÉS DANS CETTE ZONE (ne pas inventer leur identité) :');for(const npc of localNpcs){const [profile,memory]=await Promise.all([NPCProfile.findByPk(npc.id),NPCMemory.findByPk(npc.id)]);lines.push(npc.name+' — '+(npc.role||'habitant')+', '+(npc.faction||'sans faction')+', spécialité '+(npc.specialty||'non documentée')+'. '+(profile?.biography||npc.description||'Biographie inconnue.')+' Humeur: '+(memory?.mood||'non connue')+'. Confiance: '+(memory?.trust??0)+'.');}}
- const skillGroups=await Skill.findAll({attributes:['type'],group:['type'],raw:true});
+ const [skillGroups,techniques]=await Promise.all([
+  Skill.findAll({attributes:['type'],group:['type'],raw:true}),
+  Skill.findAll({attributes:['name','description','type','manaCost'],order:[['type','ASC'],['name','ASC']],limit:36})
+ ]);
  lines.push('CATÉGORIES DE TECHNIQUES DISPONIBLES : '+skillGroups.map(x=>x.type).filter(Boolean).join(', '));
- return lines.join('\n').slice(0,14500);
+ lines.push('EXEMPLES DE TECHNIQUES EXISTANTES (ne pas modifier leur coût ni leur effet sans règle explicite) :');
+ for(const technique of techniques)lines.push('['+(technique.type||'discipline non classée')+'] '+technique.name+' — coût '+(technique.manaCost??0)+' mana. '+String(technique.description||'Description non renseignée.').slice(0,180));
+ return lines.join('\n').slice(0,16000);
 }
 async function tickWorld(){
  const npcRows=await NPC.findAll({limit:1000});
