@@ -156,7 +156,7 @@ async function getNarrativeContext({ player, location, subLocation, limit = 6 })
   const world = await parseRows(worldRows);
   const localMemory = world
     .filter(e => e.location === location && e.subLocation === subLocation)
-    .slice(0, 12)
+    .slice(0, 4)
     .reverse();
 
   const worldMemory = world
