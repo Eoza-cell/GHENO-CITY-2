@@ -8,34 +8,35 @@ const { callAI } = require('./ai-utils');
 const { Skill, Op } = require('./database');
 
 async function startTutorial(sock, jid, player) {
-    await player.update({ tutorialStep: 0.1, mode: 'creation' });
+    // The first registration form already collected name, identity, age and appearance.
+    // Continue directly to class selection; do not restart a second identity wizard.
+    await player.update({ tutorialStep: 1, mode: 'creation' });
 
     const welcomeText = "╔════════════════════════════╗\n" +
                         "     ⚡ AFTER THE REBIRTH ⚡\n" +
                         "        CRÉATION DU PERSONNAGE\n" +
                         "╚════════════════════════════╝\n\n" +
-                        "La lumière s'allume brutalement. Devant toi, une interface impériale flotte dans l'obscurité.\n\n" +
-                        "📁 *DOSSIER D'IDENTITÉ — PHASE 1/5*\n\n" +
-                        "Le monde ne te connaît pas encore. Avant ton histoire, il lui faut un nom.\n\n" +
-                        "✦ *Quel sera le nom de ton personnage ?*\n" +
-                        "_Exemple : Nevo, Kazuta Star, Ivy Iron_";
+                        "La Matrice a validé ton identité. Ton dossier est prêt.\n\n" +
+                        "📁 *PHASE 5/5 — VOIE DE COMBAT*\n\n" +
+                        "Choisis la classe qui définira ton style de combat :\n" +
+                        "⚔️ Guerrier   🔮 Mage   🗡️ Assassin\n" +
+                        "🏹 Archer     ✝️ Prêtre  🧘 Moine\n" +
+                        "🛡️ Paladin    🌀 Invocateur\n" +
+                        "💀 Nécromancien  ⚔️ Samouraï\n" +
+                        "🐉 Chevalier-Dragon  ⚗️ Alchimiste  🎵 Barde\n\n" +
+                        "_Réponds par le nom de la classe choisie._";
 
     try {
-        // Send Link Start Intro first
         const introImg = await generateLinkStartImage();
         await sock.sendMessage(jid, { image: introImg, caption: "⚡ INITIALISATION DU SYSTÈME..." });
 
         const imageBuffer = await generateClassSelectionImage();
-        await sock.sendMessage(jid, {
-            image: imageBuffer,
-            caption: welcomeText
-        });
+        await sock.sendMessage(jid, { image: imageBuffer, caption: welcomeText });
     } catch (error) {
-        console.error("Erreur démarrage tutoriel:", error);
-        await sock.sendMessage(jid, { text: welcomeText + "\n\n⚠️ L'illustration n'a pas pu être chargée, mais la création continue normalement." });
+        console.error("[TUTORIAL] Erreur d'envoi du menu de classe:", error.message);
+        await sock.sendMessage(jid, { text: welcomeText + "\n\n⚠️ Le visuel n'a pas pu être chargé, mais tu peux choisir ta classe normalement." });
     }
 }
-
 
 async function handleTutorialAction(sock, message, player, actionText) {
     const jid = message.key.remoteJid;
