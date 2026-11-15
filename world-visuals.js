@@ -9,13 +9,47 @@ const { getPageAsset, getNpcPortrait } = require('./aetherys-visual-pack');
  * Aucun décor générique n'est substitué à une illustration officielle.
  */
 const SCENE_PAGES = [
-  { page: 47, terms: ['eldoria', 'elion', 'solis', 'academie imperiale', 'lame d argent'] },
-  { page: 48, terms: ['valkyrr', 'sparkwell', 'lycee de l ether'] },
-  { page: 50, terms: ['gheno', 'marche noir', 'ombre silencieuse'] },
-  { page: 49, terms: ['sylva', 'foret de l eveil', 'sylva lumia', 'college elfique'] },
-  { page: 46, terms: ['necropolis', 'vharos', 'dominion noir'] },
-  { page: 51, terms: ['interstice', 'miroir deform'] },
-  { page: 44, terms: ['abysse inferieur', 'pandemonium'] }
+  // Empire Impérial d'Elion — page officielle AETHERYS 47
+  { page: 47, terms: [
+    'eldoria', 'empire imperial d elion', 'elion', 'solis', 'riverbend',
+    'green fields', 'portes d elion', 'academie imperiale', 'academie de la lame d argent',
+    'lame d argent', 'quartier imperial', 'palais imperial'
+  ] },
+  // Royaume de Valkyrr — page officielle AETHERYS 48
+  { page: 48, terms: [
+    'valkyrr', 'gearhead', 'sparkwell', 'grand laboratoire', 'marche de l ether',
+    'lycee de l ether', 'lycee superieur de l ether', 'quartier des sciences',
+    'poste de controle', 'port de valkyrr'
+  ] },
+  // Gheno souterrain — page officielle AETHERYS 50
+  { page: 50, terms: [
+    'gheno', 'gheno souterrain', 'marche noir', 'caveau des ombres',
+    'taverne de l exile', 'ecole des ombres', 'ecole de l ombre silencieuse',
+    'bas fonds', 'ombre silencieuse'
+  ] },
+  // Forêt de l'Éveil — page officielle AETHERYS 49
+  { page: 49, terms: [
+    'sylva', 'foret de l eveil', 'sylva lumia', 'arbre mere',
+    'sources d argent', 'clairiere du destin', 'racines eternelles',
+    'college elfique', 'college elfique de sylva lumia'
+  ] },
+  // Dominion Noir / Nécropolis — page officielle AETHERYS 46
+  { page: 46, terms: [
+    'necropolis', 'necropole', 'vharos', 'dominion noir', 'dominion noir de vharos',
+    'marais putrides', 'donjon de la liche', 'champs eternels', 'fort desolation',
+    'sepulture de sang', 'trone du jugement', 'allee des tombeaux', 'val des pleurs',
+    'necropole d ebene', 'le seuil'
+  ] },
+  // Interstice — page officielle AETHERYS 51
+  { page: 51, terms: [
+    'interstice', 'ravin des ames', 'foret des beh erits', 'foret des beherits',
+    'tour de la main', 'miroir deform', 'fissure du neant'
+  ] },
+  // Abysse inférieur — page officielle AETHERYS 44
+  { page: 44, terms: [
+    'abysse inferieur', 'pandemonium', 'cite de pandemonium', 'lac de soufre',
+    'trone de flammes', 'bastion du peche', 'fosse de sang'
+  ] }
 ];
 
 function normalize(value = '') {
