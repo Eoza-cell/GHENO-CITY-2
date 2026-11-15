@@ -152,10 +152,13 @@ server.listen(PORT, () => {
 const messageQueue = new PQueue({ concurrency: 5 });
 
 async function connectToWhatsApp() {
-  if (isWhatsAppConnected || connectionStarting || (activeSocket && activeSocket.ws && activeSocket.ws.readyState === 1)) {
-      console.log('[CONN] Démarrage ignoré : une connexion WhatsApp est déjà active ou en cours.');
+  const socketState = activeSocket?.ws?.readyState;
+  // WebSocket CONNECTING (0) et OPEN (1) : ne jamais créer un second socket.
+  if (isWhatsAppConnected || connectionStarting || socketState === 0 || socketState === 1) {
+      console.log(`[CONN] Démarrage ignoré : connexion déjà active/en cours (readyState=${socketState ?? 'n/a'}).`);
       return;
   }
+  if (activeSocket && socketState !== 0 && socketState !== 1) activeSocket = null;
   connectionStarting = true;
   try {
   if (!fs.existsSync(path.join('assets', 'profiles'))) {
@@ -310,9 +313,10 @@ async function connectToWhatsApp() {
 
       if (isLoggedOut) {
           if (!sock.authState.creds.registered) {
-              console.error('[CONN] 401 pendant un premier pairage : aucune session WhatsApp enregistrée. Les identifiants provisoires restent intacts pour diagnostic ; aucun effacement automatique.');
+              console.error('[CONN] 401 avant le premier pairage. La session provisoire est conservée ; nouvelle tentative avec un socket neuf après temporisation.');
+              scheduleWhatsAppReconnect('401 pendant le premier pairage (session conservée)', 20000);
           } else {
-              console.error('[CONN] Session enregistrée refusée (401). Arrêt automatique : les identifiants sont conservés pour éviter toute perte de session.');
+              console.error('[CONN] Session WhatsApp enregistrée refusée (401). Arrêt automatique : identifiants conservés, aucune suppression ni réinitialisation.');
           }
           return;
       }
@@ -402,6 +406,11 @@ async function connectToWhatsApp() {
         });
     }
   });
+  } catch (error) {
+    console.error('[CONN] Échec pendant la préparation de la connexion WhatsApp:', error?.stack || error?.message || error);
+    if (!isWhatsAppConnected) {
+      scheduleWhatsAppReconnect('erreur de préparation Baileys', 8000);
+    }
   } finally {
     connectionStarting = false;
   }
@@ -413,7 +422,11 @@ if (require.main === module) {
       console.log('[CORE] Base de données prête. Lancement prioritaire de WhatsApp...');
 
       // Démarrer Baileys immédiatement après la base, sans attendre les tâches secondaires.
-      startModelServer();
+      try {
+        startModelServer();
+      } catch (error) {
+        console.error('[AI] Démarrage du serveur de modèle impossible (WhatsApp continue):', error?.message || error);
+      }
       connectToWhatsApp();
 
       // Préparation visuelle et monde vivant en arrière-plan.
