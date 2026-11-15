@@ -2,17 +2,32 @@ const { Sequelize, DataTypes } = require('sequelize');
 const { buildWardrobeCatalog } = require('./wardrobe-catalog');
 
 let sequelize;
-const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.AIVEN_DATABASE_URL;
+let dbConfigError = null;
+const rawDbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.AIVEN_DATABASE_URL;
 
-if (dbUrl) {
+function cleanDbUrl(url) {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.delete('sslmode');
+    return parsed.toString();
+  } catch {
+    return url.replace(/[?&]sslmode=[^&]*/i, '');
+  }
+}
+
+if (rawDbUrl) {
   console.log('[DB] Configuration PostgreSQL détectée.');
-  sequelize = new Sequelize(dbUrl, {
+  sequelize = new Sequelize(cleanDbUrl(rawDbUrl), {
     dialect: 'postgres',
     logging: false,
     dialectOptions: {
-      ssl: { require: true, rejectUnauthorized: false }
+      ssl: { require: true, rejectUnauthorized: false },
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      connectionTimeoutMillis: 20000
     },
-    pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }
+    pool: { max: 8, min: 0, acquire: 60000, idle: 10000, evict: 5000 },
+    retry: { max: 3 }
   });
 } else if (/^(1|true|yes)$/i.test(process.env.LOCAL_DATABASE || '')) {
   console.warn('[DB] Mode SQLite local explicitement activé.');
@@ -22,7 +37,8 @@ if (dbUrl) {
     logging: false
   });
 } else {
-  throw new Error('[DB] DATABASE_URL/POSTGRES_URL/AIVEN_DATABASE_URL manquant en production. Arrêt pour éviter une base SQLite éphémère.');
+  dbConfigError = new Error('[DB] DATABASE_URL/POSTGRES_URL/AIVEN_DATABASE_URL manquant. Ajoute-le dans Render > Environment (ou LOCAL_DATABASE=true en local).');
+  sequelize = new Sequelize('postgres://missing:missing@127.0.0.1:5432/missing', { dialect: 'postgres', logging: false });
 }
 
 // PostgreSQL providers may disable TEMP privileges. Sequelize findOrCreate()
@@ -707,6 +723,7 @@ NPC.hasMany(NPCRelationship, { foreignKey: 'NPCId' });
 NPCRelationship.belongsTo(NPC, { foreignKey: 'NPCId' });
 
 async function setupDatabase() {
+  if (dbConfigError) throw dbConfigError;
   try {
     await sequelize.authenticate();
     await mediaSequelize.authenticate();
