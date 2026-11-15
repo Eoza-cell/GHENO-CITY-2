@@ -1,5 +1,5 @@
 const { DataTypes, Op } = require('sequelize');
-const { sequelize, NPC, Kingdom, Conflict, WorldJournal, Item, safeFindOrCreate } = require('./database');
+const { sequelize, NPC, Kingdom, Conflict, WorldJournal, Item, Skill, School, safeFindOrCreate } = require('./database');
 
 const Region = sequelize.define('WorldRegion', {
  key:{type:DataTypes.STRING,primaryKey:true}, name:DataTypes.STRING, climate:DataTypes.STRING,
@@ -57,6 +57,16 @@ const Law = sequelize.define('PoliticalLaw', {
  description:DataTypes.TEXT, category:DataTypes.STRING, severity:DataTypes.INTEGER,
  active:{type:DataTypes.BOOLEAN,defaultValue:true}
 });
+const SocialOrder = sequelize.define('WorldSocialOrder', {
+ key:{type:DataTypes.STRING,primaryKey:true}, realm:{type:DataTypes.STRING,defaultValue:'general'}, rank:DataTypes.INTEGER,
+ name:DataTypes.STRING, description:DataTypes.TEXT, privileges:DataTypes.TEXT, duties:DataTypes.TEXT,
+ mobility:DataTypes.TEXT
+});
+const Institution = sequelize.define('WorldInstitution', {
+ key:{type:DataTypes.STRING,primaryKey:true}, realm:DataTypes.STRING, name:DataTypes.STRING,
+ kind:DataTypes.STRING, specialty:DataTypes.TEXT, description:DataTypes.TEXT, admission:DataTypes.TEXT,
+ authority:DataTypes.STRING
+});
 const json = v => { try{return JSON.parse(v||'[]')}catch{return []} };
 const key = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_');
 const FEATURES = [
@@ -64,7 +74,7 @@ const FEATURES = [
 ];
 
 async function initializeWorld(){
- for(const m of [Region,Location,Faction,NPCMemory,NPCProfile,NPCSocialLink,Event,Market,Discipline,Law]) await m.sync();
+ for(const m of [Region,Location,Faction,NPCMemory,NPCProfile,NPCSocialLink,Event,Market,Discipline,Law,SocialOrder,Institution]) await m.sync();
  // Les continents et royaumes proviennent du catalogue historique du bot.
  const kingdoms = await Kingdom.findAll({order:[['continent','ASC'],['name','ASC']]});
  const byContinent = new Map();
@@ -132,6 +142,47 @@ async function initializeWorld(){
  ['necropolis_rites','Nécropolis','Protection des stèles','Le déplacement d’une stèle exige l’accord des Veilleurs.','tradition',4]
  ];
  for(const [lawKey,realm,title,description,category,severity] of laws) await safeFindOrCreate(Law,{where:{lawKey},defaults:{lawKey,realm,title,description,category,severity}});
+
+ // Structure sociale de référence : les royaumes peuvent la modifier sans effacer le socle.
+ const socialRanks=[
+  [1,'Autorités souveraines','Couronnes, souverains et maisons régnantes.','Décision politique, terres et patronage.','Gouverner, protéger le territoire et rendre des comptes selon la constitution locale.','Succession, élection, conquête ou nomination selon le royaume.'],
+  [2,'Haute noblesse et grandes lignées','Maisons anciennes, familles titrées et lignées reconnues.','Terres, titres, accès aux conseils et réseaux d’influence.','Service politique ou militaire, impôts et obligations de vassalité.','Héritage, mariage, mérite ou anoblissement.'],
+  [3,'Ordres et autorités savantes','Clergés, archivistes, académies, maîtres et autorités du savoir.','Autorité rituelle, expertise, enseignement et conservation des archives.','Transmission, recherche, rites et responsabilité de leurs institutions.','Études, initiation, nomination ou reconnaissance.'],
+  [4,'Corps militaires et protecteurs','Armées, gardes, milices, veilleurs et protecteurs assermentés.','Rang, solde, accès aux équipements et autorité dans leur juridiction.','Défense, maintien de l’ordre et respect de la chaîne de commandement.','Recrutement, formation, service ou mérite.'],
+  [5,'Guildes, marchands et professions reconnues','Artisans, commerçants, navigateurs, bâtisseurs et guildes.','Droits commerciaux, ateliers, contrats et représentation professionnelle.','Taxes, normes de métier, contrats et contribution à la cité.','Apprentissage, capital, réputation ou admission en guilde.'],
+  [6,'Citoyens et travailleurs','Habitants, cultivateurs, employés, familles et travailleurs indépendants.','Droits civils définis par le royaume et accès aux services communs.','Travail, impôts, règles locales et devoirs civiques.','Mobilité par le métier, les études, le service ou la fortune.'],
+  [7,'Groupes marginalisés ou sans statut','Exilés, étrangers sans protection, débiteurs, bannis et populations discriminées.','Droits variables et souvent limités par les lois locales.','Respect des règles locales et obligations particulières éventuelles.','Régularisation, protection, réputation, rachat de dette ou changement de juridiction.']
+ ];
+ for(const [rank,name,description,privileges,duties,mobility] of socialRanks){
+  const socialKey='general_'+rank;
+  await safeFindOrCreate(SocialOrder,{where:{key:socialKey},defaults:{key:socialKey,realm:'general',rank,name,description,privileges,duties,mobility}});
+ }
+ // Les institutions sont reprises de la base officielle des académies et organisations.
+ const schools=await School.findAll({order:[['kingdomName','ASC'],['name','ASC']]});
+ for(const school of schools){
+  const institutionKey=key((school.kingdomName||'monde')+'_'+school.name);
+  await safeFindOrCreate(Institution,{where:{key:institutionKey},defaults:{
+   key:institutionKey,realm:school.kingdomName||'inconnu',name:school.name,kind:'académie ou institution',
+   specialty:school.specialty||'spécialité non documentée',description:school.description||'Institution reconnue dans son royaume.',
+   admission:'Conditions définies par l’institution ; examens, recommandation ou recrutement selon sa nature.',
+   authority:school.kingdomName||'autorité locale'
+  }});
+ }
+ // Chaque type de compétence existant devient une discipline consultable ; les techniques restent dans Skill.
+ const skillTypes=await Skill.findAll({attributes:['type'],group:['type'],raw:true});
+ for(const entry of skillTypes){
+  const type=String(entry.type||'').trim();
+  if(!type) continue;
+  const disciplineKey='skill_'+key(type);
+  await safeFindOrCreate(Discipline,{where:{key:disciplineKey},defaults:{
+   key:disciplineKey,name:type,source:'Catalogue des techniques et compétences existantes',
+   philosophy:'Discipline répertoriée dans le système de compétences ATR. Les techniques apprises et leurs coûts sont conservés dans le catalogue Skill.',
+   strengths:'À déterminer à partir des techniques documentées de cette discipline.',
+   limits:'Respecter les coûts, conditions et limites définis par chaque technique.',
+   counters:'Aucun contre universel : dépend de la technique, de la situation et des règles déjà établies.'
+  }});
+ }
+
  const npcRows=await NPC.findAll({order:[['id','ASC']]});
  const choose=(arr,seed)=>arr[Math.abs(seed)%arr.length];
  const hash=(value)=>{let h=216.6136261;for(const ch of String(value||''))h=Math.imul(h^ch.charCodeAt(0),16777619);return h>>>0;};
@@ -186,8 +237,8 @@ async function rememberNPC(npcId,entry,type='interaction'){
 }
 async function snapshot(place=''){
  const where={}; // Include the full atlas; the AI can select the current region from it.
- const [regions,locations,factions,events,conflicts,laws,disciplines,kingdoms]=await Promise.all([Region.findAll(),Location.findAll({where,limit:100}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8}),Law.findAll({where:{active:true},limit:20}),Discipline.findAll({order:[['name','ASC']]}),Kingdom.findAll({order:[['continent','ASC'],['name','ASC']]})]);
- return {regions,locations,factions,events,conflicts,laws,disciplines,kingdoms,featureCount:FEATURES.length};
+ const [regions,locations,factions,events,conflicts,laws,disciplines,kingdoms,socialOrders,institutions]=await Promise.all([Region.findAll(),Location.findAll({where,order:[['name','ASC']]}),Faction.findAll({order:[['influence','DESC']]}),Event.findAll({where:{status:'active'},limit:8}),Conflict.findAll({where:{status:'active'},limit:8}),Law.findAll({where:{active:true},limit:30}),Discipline.findAll({order:[['name','ASC']]}),Kingdom.findAll({order:[['continent','ASC'],['name','ASC']]}),SocialOrder.findAll({where:{realm:'general'},order:[['rank','ASC']]}),Institution.findAll({order:[['realm','ASC'],['name','ASC']]})]);
+ return {regions,locations,factions,events,conflicts,laws,disciplines,kingdoms,socialOrders,institutions,featureCount:FEATURES.length};
 }
 async function worldContext(place=''){
  const s=await snapshot(place), lines=['ÉTAT PERSISTANT DU MONDE ATR'];
@@ -203,8 +254,16 @@ async function worldContext(place=''){
  for(const e of s.events.slice(0,8))lines.push('Événement '+e.title+': '+e.description);
  for(const c of s.conflicts.slice(0,8))lines.push('Conflit '+c.title+': '+c.description);
  for(const l of s.laws.slice(0,15))lines.push('Loi de '+l.realm+' — '+l.title+': '+l.description);
- for(const p of s.disciplines.slice(0,12))lines.push('Pouvoir '+p.name+' (source '+p.source+'): '+p.philosophy+' Limites: '+p.limits+' Contres: '+p.counters);
- return lines.join('\n').slice(0,9000);
+ for(const p of s.disciplines.slice(0,24))lines.push('DISCIPLINE / TECHNIQUES '+p.name+' (source '+p.source+'): '+p.philosophy+' Limites: '+p.limits+' Contres: '+p.counters);
+ lines.push('ORDRE SOCIAL DE RÉFÉRENCE (à adapter aux lois locales) :');
+ for(const rank of s.socialOrders)lines.push('Rang '+rank.rank+' — '+rank.name+': '+rank.description+' Privilèges: '+rank.privileges+' Devoirs: '+rank.duties+' Mobilité: '+rank.mobility);
+ lines.push('ACADÉMIES ET INSTITUTIONS :');
+ for(const institution of s.institutions.filter(x=>!place||String(x.realm||'').toLowerCase()===String(place).toLowerCase()).slice(0,16))lines.push(institution.name+' ['+institution.realm+'] — '+institution.specialty+'. '+institution.description+' Admission: '+institution.admission);
+ const localNpcs=await NPC.findAll({where:{[Op.or]:[{location:place},{subLocation:place},{zone:place}]},limit:8,order:[['name','ASC']]});
+ if(localNpcs.length){lines.push('PNJ IDENTIFIÉS DANS CETTE ZONE (ne pas inventer leur identité) :');for(const npc of localNpcs){const [profile,memory]=await Promise.all([NPCProfile.findByPk(npc.id),NPCMemory.findByPk(npc.id)]);lines.push(npc.name+' — '+(npc.role||'habitant')+', '+(npc.faction||'sans faction')+', spécialité '+(npc.specialty||'non documentée')+'. '+(profile?.biography||npc.description||'Biographie inconnue.')+' Humeur: '+(memory?.mood||'non connue')+'. Confiance: '+(memory?.trust??0)+'.');}}
+ const skillGroups=await Skill.findAll({attributes:['type'],group:['type'],raw:true});
+ lines.push('CATÉGORIES DE TECHNIQUES DISPONIBLES : '+skillGroups.map(x=>x.type).filter(Boolean).join(', '));
+ return lines.join('\n').slice(0,14500);
 }
 async function tickWorld(){
  const npcRows=await NPC.findAll({limit:1000});
@@ -240,4 +299,4 @@ async function tickWorld(){
  if(Math.random()<.1){const places=await Location.findAll({limit:30});if(places.length){const p=places[Math.floor(Math.random()*places.length)];const title='Incident local à '+p.name;const eventKey=key(title)+'_'+Date.now();await Event.create({eventKey,title,category:'local',locationKey:p.key,description:'Un événement perturbe temporairement la vie quotidienne de '+p.name+'.',severity:2,consequences:JSON.stringify([{location:p.name}])});await WorldJournal.create({entry:title,importance:2,category:'world_event'});}}
 }
 async function marketQuote(name){const item=await Item.findOne({where:{name:{[Op.like]:'%'+name+'%'}}});if(!item)return null;const [m]=await safeFindOrCreate(Market,{where:{itemName:item.name},defaults:{itemName:item.name,basePrice:item.price||10,currentPrice:item.price||10}});return {name:item.name,price:m.currentPrice,supply:m.supply,demand:m.demand};}
-module.exports={initializeWorld,rememberNPC,snapshot,worldContext,tickWorld,marketQuote,FEATURES,Region,Location,Faction,NPCMemory,NPCProfile,NPCSocialLink,Event,Market,Discipline,Law};
+module.exports={initializeWorld,rememberNPC,snapshot,worldContext,tickWorld,marketQuote,FEATURES,Region,Location,Faction,NPCMemory,NPCProfile,NPCSocialLink,Event,Market,Discipline,Law,SocialOrder,Institution};
