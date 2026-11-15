@@ -375,41 +375,8 @@ async function connectToWhatsApp() {
 
                 const player = await Player.findOne({ where: { whatsappId: jid } });
 
-                if (player && player.awaitingProfilePic) {
-                    const type = getContentType(message.message);
-                    if (type === 'imageMessage') {
-                        try {
-                            console.log(`[PIC] Téléchargement de la photo de profil pour ${player.name}...`);
-                            const buffer = await downloadMediaMessage(message, 'buffer', {}, { logger: pino({ level: 'silent' }) });
-
-                            const idPart = jid.includes('@') ? jid.split('@')[0] : jid;
-                            const filename = `${idPart}.jpg`;
-                            const filepath = path.join('assets', 'profiles', filename);
-
-                            fs.writeFileSync(filepath, buffer);
-
-                            await player.update({
-                                profilePicUrl: filepath,
-                                awaitingProfilePic: false
-                            });
-
-                            console.log(`[PIC] Photo de profil enregistrée : ${filepath}`);
-                            await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil enregistrée ! Bienvenue officiellement dans After the Rebirth (ATR).` });
-
-                            await startTutorial(sock, message.key.remoteJid, player);
-                            return;
-                        } catch (error) {
-                            console.error("Erreur lors de l'enregistrement de la photo de profil:", error);
-                            await sock.sendMessage(message.key.remoteJid, { text: "Une erreur est survenue lors de l'enregistrement de votre image. Veuillez réessayer." });
-                            return;
-                        }
-                    } else {
-                         await player.update({ awaitingProfilePic: false });
-                         await sock.sendMessage(message.key.remoteJid, { text: `Photo de profil ignorée (avatar par défaut attribué). Bienvenue dans After the Rebirth (ATR) !` });
-                         await startTutorial(sock, message.key.remoteJid, player);
-                         return;
-                    }
-                }
+                // Profile-image upload / 'passer' is handled once in command-handler.js.
+                // Keeping a second handler here caused duplicate onboarding and premature auto-skip.
 
                 await handleCommand(sock, message, downloadMediaMessage);
             } catch (globalError) {
