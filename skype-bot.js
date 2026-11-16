@@ -30,7 +30,6 @@ let connectionStarting = false;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 let reconnectScheduled = false;
-let authClearSession = null;
 let authResetAttempts = 0;
 const MAX_RECONNECT_DELAY = 60000;
 
@@ -168,7 +167,6 @@ async function connectToWhatsApp() {
   }
 
   const { state, saveCreds, clearSession } = await useDatabaseAuth();
-  authClearSession = clearSession;
 
   const resetToken = (process.env.RESET_SESSION || '').trim();
   if (resetToken && !['false', '0', 'no'].includes(resetToken.toLowerCase())) {
@@ -321,14 +319,10 @@ async function connectToWhatsApp() {
 
       if (isLoggedOut) {
           authResetAttempts += 1;
-          if (authResetAttempts <= 5 && authClearSession) {
-              console.error(`[CONN] 401 : session invalide. Effacement et nouveau pairage (essai ${authResetAttempts}/5).`);
-              try { await authClearSession(); }
-              catch (error) { console.error('[AUTH] Effacement impossible:', error.message); }
-              scheduleWhatsAppReconnect('session invalide (401), nouveau pairage', 10000);
-          } else {
-              console.error('[CONN] 401 répété : arrêt après cinq réinitialisations maximum.');
-          }
+          console.error(`[CONN] WhatsApp a signalé une déconnexion 401 (tentative ${authResetAttempts}). Session conservée : aucune clé ne sera effacée automatiquement. Vérifie l'état des appareils liés avant toute action manuelle.`);
+          // Une réponse 401 ne suffit pas à justifier la destruction des clés Signal.
+          // On laisse les credentials intacts pour éviter une perte de session irréversible.
+          scheduleWhatsAppReconnect('déconnexion 401 — session préservée', 15000);
           return;
       }
 
@@ -365,13 +359,23 @@ async function connectToWhatsApp() {
   });
 
   sock.ev.on('messages.upsert', async (m) => {
-    for (const message of m.messages) {
+    const batch = Array.isArray(m?.messages) ? m.messages : [];
+    console.log(`[WA-IN] upsert type=${m?.type || 'unknown'} count=${batch.length}`);
+    for (const message of batch) {
+        const key = message?.key || {};
+        console.log(`[WA-IN] id=${key.id || 'n/a'} fromMe=${Boolean(key.fromMe)} remote=${key.remoteJid || 'n/a'} participant=${key.participant || 'n/a'} content=${Boolean(message?.message)}`);
         messageQueue.add(async () => {
             try {
-                if (!message.message) return;
+                if (!message.message) {
+                    console.warn(`[WA-IN] Message ignoré : contenu absent après upsert (id=${key.id || 'n/a'}).`);
+                    return;
+                }
 
                 const jid = getJid(message);
-                if (!jid) return;
+                if (!jid) {
+                    console.warn(`[WA-IN] Message ignoré : expéditeur/JID introuvable (id=${key.id || 'n/a'}).`);
+                    return;
+                }
 
                 // Profile-image upload / 'passer' is handled once in command-handler.js.
                 // Keeping a second handler here caused duplicate onboarding and premature auto-skip.
