@@ -146,6 +146,47 @@ const server = http.createServer(async (req, res) => {
 });
 const PORT = process.env.PORT || 3005;
 
+// Une seule instance Baileys doit manipuler les clés Signal d'un compte.
+// Le verrou PostgreSQL est détenu par une connexion dédiée pendant toute la vie
+// du processus (un verrou advisory lié à la session PG, pas au pool Sequelize).
+let whatsappLeaderLockClient = null;
+let whatsappLeaderLockAcquired = false;
+
+async function acquireWhatsAppLeaderLock() {
+    const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.AIVEN_DATABASE_URL;
+    if (!databaseUrl) {
+        throw new Error('[WA-LOCK] PostgreSQL requis pour protéger la session WhatsApp contre les instances concurrentes.');
+    }
+
+    const { Client } = require('pg');
+    const client = new Client({
+        connectionString: databaseUrl,
+        ssl: { rejectUnauthorized: false },
+        keepAlive: true,
+        connectionTimeoutMillis: 20000
+    });
+    client.on('error', (error) => {
+        console.error('[WA-LOCK] Connexion du verrou perdue : arrêt immédiat pour éviter deux sockets WhatsApp actifs.', error.message);
+        process.exit(1);
+    });
+    await client.connect();
+    whatsappLeaderLockClient = client;
+
+    while (!whatsappLeaderLockAcquired) {
+        const result = await client.query(
+            'SELECT pg_try_advisory_lock($1, $2) AS locked',
+            [20261117, 1]
+        );
+        whatsappLeaderLockAcquired = result.rows?.[0]?.locked === true;
+        if (whatsappLeaderLockAcquired) {
+            console.log('[WA-LOCK] Verrou exclusif obtenu : cette instance est la seule autorisée à ouvrir WhatsApp.');
+            break;
+        }
+        console.warn('[WA-LOCK] Une autre instance utilise déjà la session WhatsApp. Cette instance reste en attente sans ouvrir de socket; nouvel essai dans 15 secondes.');
+        await delay(15000);
+    }
+}
+
 server.listen(PORT, () => {
     console.log(`[SYSTEM] Serveur de santé actif sur le port ${PORT}`);
 });
@@ -398,9 +439,10 @@ async function connectToWhatsApp() {
 }
 
 if (require.main === module) {
-  setupDatabase()
+  acquireWhatsAppLeaderLock()
+    .then(() => setupDatabase())
     .then(() => {
-      console.log('[CORE] Base de données prête. Lancement prioritaire de WhatsApp...');
+      console.log('[CORE] Base de données prête. Verrou WhatsApp exclusif actif; lancement prioritaire de WhatsApp...');
 
       // Démarrer Baileys immédiatement après la base, sans attendre les tâches secondaires.
       try {
