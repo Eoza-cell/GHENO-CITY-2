@@ -160,8 +160,14 @@ async function acquireWhatsAppLeaderLock() {
     }
 
     const { Client } = require('pg');
+    let lockConnectionString = databaseUrl;
+    try {
+        const parsedUrl = new URL(databaseUrl);
+        parsedUrl.searchParams.delete('sslmode');
+        lockConnectionString = parsedUrl.toString();
+    } catch {}
     const client = new Client({
-        connectionString: databaseUrl,
+        connectionString: lockConnectionString,
         ssl: { rejectUnauthorized: false },
         keepAlive: true,
         connectionTimeoutMillis: 20000
