@@ -12,6 +12,8 @@ const useDatabaseAuth = async () => {
     const parse = (raw) => (raw ? JSON.parse(raw, BufferJSON.reviver) : null);
     const stringify = (data) => JSON.stringify(data, BufferJSON.replacer);
     const readOne = async (key) => {
+        // Wait for pending Signal-key writes before reading the auth snapshot.
+        await queue;
         const row = await Creds.findOne({ where: { key } });
         return row && row.value ? parse(row.value) : null;
     };
@@ -26,6 +28,8 @@ const useDatabaseAuth = async () => {
                 get: async (type, ids) => {
                     const data = {};
                     if (!ids.length) return data;
+                    // Never let a read overtake a queued write from a previous key update.
+                    await queue;
                     const keyNames = ids.map((id) => `${type}-${id}`);
                     const rows = await Creds.findAll({ where: { key: { [Op.in]: keyNames } } });
                     const byKey = new Map(rows.map((row) => [row.key, row.value]));
@@ -51,12 +55,26 @@ const useDatabaseAuth = async () => {
                             else toDelete.push(key);
                         }
                     }
+                    if (!toUpsert.length && !toDelete.length) return;
                     await enqueue(async () => {
-                        for (let i = 0; i < toUpsert.length; i += 200) {
-                            await Creds.bulkCreate(toUpsert.slice(i, i + 200), { updateOnDuplicate: ['value'] });
-                        }
-                        for (let i = 0; i < toDelete.length; i += 200) {
-                            await Creds.destroy({ where: { key: { [Op.in]: toDelete.slice(i, i + 200) } } });
+                        // Persist a Signal-key batch atomically. A partial write could leave
+                        // the stored ratchet state inconsistent with the state Baileys uses.
+                        await Creds.sequelize.transaction(async (transaction) => {
+                            for (let i = 0; i < toUpsert.length; i += 200) {
+                                await Creds.bulkCreate(toUpsert.slice(i, i + 200), {
+                                    updateOnDuplicate: ['value'],
+                                    transaction
+                                });
+                            }
+                            for (let i = 0; i < toDelete.length; i += 200) {
+                                await Creds.destroy({
+                                    where: { key: { [Op.in]: toDelete.slice(i, i + 200) } },
+                                    transaction
+                                });
+                            }
+                        });
+                        if (process.env.AUTH_STORE_DEBUG === 'true') {
+                            console.log(`[AUTH-DB] Signal-key batch persisted atomically: upsert=${toUpsert.length}, delete=${toDelete.length}.`);
                         }
                     });
                 },
