@@ -30,6 +30,7 @@ let connectionStarting = false;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 let reconnectScheduled = false;
+let undecryptableCount = 0;
 let authResetAttempts = 0;
 const MAX_RECONNECT_DELAY = 60000;
 
@@ -227,6 +228,29 @@ async function connectToWhatsApp() {
           return connectToWhatsApp();
       }
   }
+  // RESET_SIGNAL_SESSIONS=<valeur> : réinitialise uniquement les clés de chiffrement Signal.
+// Le pairage/creds WhatsApp et les tables des personnages restent intacts.
+// Une seule exécution par valeur ; modifier la valeur pour lancer une nouvelle réinitialisation.
+  const signalResetToken = (process.env.RESET_SIGNAL_SESSIONS || '').trim();
+  if (signalResetToken && !['false', '0', 'no'].includes(signalResetToken.toLowerCase())) {
+      const { Op } = require('sequelize');
+      const sigMarker = await Creds.findOne({ where: { key: 'signal-reset-marker' } });
+      if (!sigMarker || sigMarker.value !== signalResetToken) {
+          const removed = await Creds.destroy({
+              where: {
+                  [Op.or]: [
+                      { key: { [Op.like]: 'session-%' } },
+                      { key: { [Op.like]: 'sender-key-%' } },
+                      { key: { [Op.like]: 'sender-key-memory-%' } }
+                  ]
+              }
+          });
+          await Creds.upsert({ key: 'signal-reset-marker', value: signalResetToken });
+          console.warn(`[AUTH] RESET_SIGNAL_SESSIONS="${signalResetToken}" : ${removed} clé(s) Signal supprimée(s). Pairage WhatsApp conservé.`);
+          connectionStarting = false;
+          return connectToWhatsApp();
+      }
+  }
   const { version, isLatest } = await fetchLatestBaileysVersion();
   console.log(`Utilisation de la version Baileys v${version.join('.')} (dernière version : ${isLatest})`);
 
@@ -415,7 +439,11 @@ async function connectToWhatsApp() {
         messageQueue.add(async () => {
             try {
                 if (!message.message) {
-                    console.warn(`[WA-IN] Message ignoré : contenu absent après upsert (id=${key.id || 'n/a'}).`);
+                    // Message non déchiffré : limiter le bruit des retries hors-ligne.
+                    undecryptableCount += 1;
+                    if (!key.fromMe || undecryptableCount === 1 || undecryptableCount % 25 === 0) {
+                        console.warn(`[WA-IN] Message non déchiffré ignoré (id=${key.id || 'n/a'}, total=${undecryptableCount}).`);
+                    }
                     return;
                 }
 
