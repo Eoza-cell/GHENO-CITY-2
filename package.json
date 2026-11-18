@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node --require ./rag-preload.js skype-bot.js",
-    "test": "echo \"No tests specified\" && exit 0"
+    "test": "echo \"No tests specified\" && exit 0",
+    "postinstall": "node scripts/patch-baileys.js"
   },
   "repository": {
     "type": "git",
