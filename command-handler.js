@@ -31,10 +31,18 @@ const { generateRegistrationPanel, generateTacticalStatus, generateMenuPanel, ge
  */
 function getJid(message) {
   if (!message || !message.key) return null;
-  if (message.key.remoteJid && message.key.remoteJid.endsWith('@g.us')) {
-      return message.key.participant || null;
+  const key = message.key;
+
+  // WhatsApp peut identifier un membre de groupe par son LID (@lid)
+  // tout en fournissant son numéro dans participantPn.
+  // Préférer le PN conserve l'identifiant whatsappId historique du joueur.
+  if (key.remoteJid && key.remoteJid.endsWith('@g.us')) {
+      return key.participantPn || key.participant || null;
   }
-  return message.key.remoteJid || null;
+
+  // Même normalisation pour les conversations privées quand WhatsApp
+  // fournit l'identité téléphone associée au LID.
+  return key.senderPn || key.remoteJid || null;
 }
 
 
