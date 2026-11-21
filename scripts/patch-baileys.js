@@ -45,7 +45,7 @@ const decodeMarker = 'stanza-provided PN/LID pairing';
 if (decodeSource.includes(decodeMarker)) {
   console.log('[BAILEYS-PATCH] Repli LID/PN déjà présent.');
 } else {
-  const decodePattern = /(const user = isJidUser\(sender\) \? sender : author;)[\s\S]*?msgBuffer = await repository\.decryptMessage\(\{\s*jid: user,\s*type: e2eType,\s*ciphertext: content\s*\}\);;
+  const decodePattern = /(const user = isJidUser\(sender\) \? sender : author;)[\s\S]*?msgBuffer = await repository\.decryptMessage\(\{\s*jid: user,\s*type: e2eType,\s*ciphertext: content\s*\}\);/;
   const decodeReplacement = `$1
                                 try {
                                     msgBuffer = await repository.decryptMessage({
