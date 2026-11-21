@@ -75,7 +75,7 @@ if (decodeSource.includes(decodeMarker)) {
                                         throw originalError;
                                     }
                                 }`;
-  const matchCount = (decodeSource.match(decodePattern) || []).length;
+  const matchCount = decodePattern.test(decodeSource) ? 1 : 0;
   if (matchCount !== 1) {
     throw new Error('[BAILEYS-PATCH] Bloc de déchiffrement LID/PN introuvable ou ambigu (matches=' + matchCount + '). Aucun changement appliqué à ce module.');
   }
